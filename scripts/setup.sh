@@ -21,9 +21,9 @@ pip3 install -r requirements.txt
 
 # Download model
 echo "🤖 Downloading AI model..."
-ollama pull gemma2:2b
+ollama pull phi3:mini
 
 echo "✅ Setup complete!"
 echo ""
-echo "🎤 Run: python3 voice_gui.py"
+echo "🎤 Run: python3 clients/gui/voice_gui.py"
 

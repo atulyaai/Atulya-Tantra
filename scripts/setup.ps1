@@ -24,9 +24,9 @@ pip install -r requirements.txt
 
 # Download model
 Write-Host "🤖 Downloading AI model..." -ForegroundColor Cyan
-ollama pull gemma2:2b
+ollama pull phi3:mini
 
 Write-Host "✅ Setup complete!" -ForegroundColor Green
 Write-Host ""
-Write-Host "🎤 Run: python voice_gui.py" -ForegroundColor Yellow
+Write-Host "🎤 Run: python clients\gui\voice_gui.py" -ForegroundColor Yellow
 

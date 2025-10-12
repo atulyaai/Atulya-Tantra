@@ -51,8 +51,8 @@ async def get_ai_response(
     try:
         import sys
         import os
-        sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-        from models.model_router import ModelRouter
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        from server.models.model_router import ModelRouter
         router = ModelRouter()
         
         # Route to appropriate model

@@ -67,13 +67,13 @@ class AtulyaTrayApp:
     def start_wake_word_detection(self):
         """Start wake word detection in background"""
         try:
-            from wake_word.detector import WakeWordDetector
+            from models.audio.wake_word.detector import WakeWordDetector
             
             def on_wake_word(text):
                 print(f"\n✨ Atulya activated! You said: '{text}'")
                 # Launch voice GUI
                 import subprocess
-                subprocess.Popen([sys.executable, "voice_gui.py"])
+                subprocess.Popen([sys.executable, "clients/gui/voice_gui.py"])
             
             self.wake_detector = WakeWordDetector(callback=on_wake_word)
             self.wake_detector.start()
@@ -114,7 +114,7 @@ class AtulyaTrayApp:
     def open_voice_gui(self, icon, item):
         """Open voice GUI"""
         import subprocess
-        subprocess.Popen([sys.executable, "voice_gui.py"])
+        subprocess.Popen([sys.executable, "clients/gui/voice_gui.py"])
     
     def open_web_client(self, icon, item):
         """Open web client in browser"""

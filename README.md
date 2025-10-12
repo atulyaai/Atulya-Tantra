@@ -42,14 +42,14 @@
 **Windows:**
 ```powershell
 .\scripts\setup.ps1
-python voice_gui.py
+python clients\gui\voice_gui.py
 ```
 
 **Linux/Mac:**
 ```bash
 chmod +x scripts/setup.sh
 ./scripts/setup.sh
-python3 voice_gui.py
+python3 clients/gui/voice_gui.py
 ```
 
 ### Manual Setup
@@ -57,17 +57,16 @@ python3 voice_gui.py
 1. Install [Ollama](https://ollama.ai/)
 2. Clone repo: `git clone https://github.com/YOUR_USERNAME/atulya-tantra.git`
 3. Install: `pip install -r requirements.txt`
-4. Download model: `ollama pull gemma2:2b`
-5. Run: `python voice_gui.py`
+4. Download model: `ollama pull phi3:mini`
+5. Run: `python clients/gui/voice_gui.py`
 
-**See [Getting Started Guide](docs/getting-started.md) for details.**
+**See [Getting Started Guide](docs/getting-started.md) for detailed instructions.**
 
 ---
 
 ## 📖 Documentation
 
-- **[Installation Guide](INSTALL_GUIDE.md)** - Detailed setup instructions
-- **[User Guide](docs/getting-started.md)** - Quick start guide
+- **[Getting Started](docs/getting-started.md)** - Quick start guide
 - **[API Reference](docs/README.md)** - Documentation hub
 - **[Contributing](CONTRIBUTING.md)** - How to contribute
 - **[Changelog](CHANGELOG.md)** - Version history
@@ -111,24 +110,33 @@ Atulya: [Stops immediately, responds to combined question]
 ## 🏗️ Architecture
 
 ```
-CLIENTS (Choose your interface):
-├── voice_gui.py          # Desktop voice chat (ChatGPT-style)
-├── clients/web/          # Browser interface
-├── clients/cli/          # Terminal access
-└── system_tray_app.py    # Background mode with wake word
-
-SERVER (Optional - for multi-device):
-server/
-├── main.py               # FastAPI server (REST + WebSocket)
-├── services/
-│   ├── agent_orchestrator.py  # Multi-agent system
-│   ├── sentiment_analyzer.py  # Emotion detection
-│   ├── ai_service.py          # Multi-model routing
-│   ├── memory_service.py      # Conversation storage
-│   ├── voice_service.py       # TTS/STT
-│   └── task_service.py        # System automation
-└── models/
-    └── model_router.py   # Intelligent model selection
+atulya-tantra/
+├── clients/              # User interfaces
+│   ├── gui/             # Desktop applications
+│   │   ├── voice_gui.py        # ChatGPT-style voice chat
+│   │   └── system_tray_app.py  # Background mode with wake word
+│   ├── cli/             # Command-line interface
+│   └── web/             # Browser interface
+├── server/              # FastAPI server (optional, for multi-device)
+│   ├── main.py          # REST + WebSocket endpoints
+│   ├── services/        # Core services
+│   │   ├── ai_service.py       # Multi-model routing
+│   │   ├── sentiment_analyzer.py
+│   │   ├── memory_service.py
+│   │   ├── voice_service.py
+│   │   └── task_service.py
+│   └── models/
+│       └── model_router.py
+├── agents/              # Multi-agent orchestration
+│   └── agent_orchestrator.py
+├── models/              # Model configurations
+│   ├── audio/           # TTS, STT, wake word
+│   ├── text/            # LLM prompts & configs
+│   └── video/           # Vision models (future)
+├── mcp/                 # Model Context Protocol (v1.1.0)
+├── configuration/       # Settings and config
+├── scripts/             # Setup and utility scripts
+└── docs/                # Documentation
 ```
 
 ---
@@ -153,19 +161,19 @@ ollama pull <model-name>
 ## ⚙️ Configuration
 
 ### Change Default Model
-Edit `config/settings.py`:
+Edit `configuration/settings.py`:
 ```python
-default_model = "gemma2:2b"  # Your preferred model
+default_model = "phi3:mini"  # Your preferred model
 ```
 
 ### Adjust Response Speed
-Edit `voice_gui.py` (line ~420):
+Edit `clients/gui/voice_gui.py`:
 ```python
 'num_predict': 10 if is_simple else 30  # Lower = faster
 ```
 
 ### Change Voice
-Edit `voice_gui.py` (line ~530):
+Edit `clients/gui/voice_gui.py`:
 ```python
 communicate = edge_tts.Communicate(text, 'en-US-AriaNeural')
 # Try: en-US-GuyNeural, en-GB-SoniaNeural, etc.
@@ -183,15 +191,10 @@ cd server
 python main.py
 
 # Access from:
-# - Desktop: python voice_gui.py
+# - Desktop: python clients/gui/voice_gui.py
 # - Web: Open clients/web/index.html
 # - CLI: python clients/cli/atulya_cli.py
 # - API: http://localhost:8000/docs
-```
-
-### Docker Deployment
-```bash
-docker-compose up -d
 ```
 
 ---
@@ -300,7 +303,7 @@ If you find Atulya Tantra useful, please give it a star! ⭐
 
 ---
 
-**🎉 Ready to build your own JARVIS?** [Get Started →](INSTALL_GUIDE.md)
+**🎉 Ready to build your own JARVIS?** [Get Started →](docs/getting-started.md)
 
 ---
 
@@ -308,6 +311,6 @@ If you find Atulya Tantra useful, please give it a star! ⭐
 
 **Made with ❤️ by the Open Source Community**
 
-[Report Bug](https://github.com/YOUR_USERNAME/atulya-tantra/issues) • [Request Feature](https://github.com/YOUR_USERNAME/atulya-tantra/issues) • [Documentation](INSTALL_GUIDE.md)
+[Report Bug](https://github.com/YOUR_USERNAME/atulya-tantra/issues) • [Request Feature](https://github.com/YOUR_USERNAME/atulya-tantra/issues) • [Documentation](docs/README.md)
 
 </div>

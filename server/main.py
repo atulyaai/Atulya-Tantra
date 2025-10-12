@@ -107,8 +107,9 @@ async def chat(request: ChatRequest):
         # Import services
         import sys
         import os
-        sys.path.insert(0, os.path.dirname(__file__))
-        from services.agent_orchestrator import orchestrator
+        sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+        from agents.agent_orchestrator import AgentOrchestrator
+        orchestrator = AgentOrchestrator()
         
         # Use agent orchestrator for intelligent routing
         result = await orchestrator.process(request.message)
@@ -252,8 +253,9 @@ async def list_agents():
     try:
         import sys
         import os
-        sys.path.insert(0, os.path.dirname(__file__))
-        from services.agent_orchestrator import orchestrator
+        sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+        from agents.agent_orchestrator import AgentOrchestrator
+        orchestrator = AgentOrchestrator()
         
         agents = [
             {'name': name, 'model': agent.model}
@@ -268,13 +270,9 @@ async def list_agents():
 async def list_mcp_tools():
     """List available MCP tools"""
     try:
-        import sys
-        import os
-        sys.path.insert(0, os.path.dirname(__file__))
-        from services.agent_orchestrator import mcp_server
-        
-        tools = mcp_server.list_tools()
-        return {'tools': tools}
+        # MCP server not yet implemented
+        logger.info("MCP tools endpoint called - feature coming soon")
+        return {'tools': [], 'message': 'MCP integration coming in v1.1.0'}
     except Exception as e:
         logger.error(f"List tools error: {e}")
         return {'tools': []}
@@ -283,16 +281,11 @@ async def list_mcp_tools():
 async def execute_mcp_tool(data: dict):
     """Execute an MCP tool"""
     try:
-        import sys
-        import os
-        sys.path.insert(0, os.path.dirname(__file__))
-        from services.agent_orchestrator import mcp_server
-        
-        tool_name = data.get('tool_name')
-        params = data.get('params', {})
-        
-        result = await mcp_server.execute_tool(tool_name, params)
-        return result
+        # MCP server not yet implemented
+        logger.info("MCP execute endpoint called - feature coming soon")
+        raise HTTPException(status_code=501, detail="MCP integration coming in v1.1.0")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"MCP execute error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
