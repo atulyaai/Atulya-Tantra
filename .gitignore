@@ -1,0 +1,80 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Memory/Data
+data/
+memory/
+*.pkl
+*.pickle
+
+# Audio temp files
+*.mp3
+*.wav
+*.tmp
+
+# API Keys (if used)
+.env
+*.key
+secrets/
+
+# Test coverage
+.coverage
+htmlcov/
+
+# Docker
+.dockerignore
+
+# Models (don't upload Ollama models)
+models/*.gguf
+*.bin
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+

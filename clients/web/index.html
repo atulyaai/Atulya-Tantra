@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atulya Tantra - Web Client</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+            color: #ffffff;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 20px;
+            text-align: center;
+            border-bottom: 2px solid #00ffff;
+        }
+
+        .header h1 {
+            color: #00ffff;
+            font-size: 2em;
+            margin-bottom: 5px;
+        }
+
+        .header .subtitle {
+            color: #888;
+            font-size: 0.9em;
+        }
+
+        .container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            max-width: 1200px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .chat-box {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            overflow-y: auto;
+            backdrop-filter: blur(10px);
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            max-width: 80%;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            background: rgba(0, 123, 255, 0.3);
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .message.assistant {
+            background: rgba(0, 255, 255, 0.2);
+            margin-right: auto;
+        }
+
+        .message.system {
+            background: rgba(255, 165, 0, 0.2);
+            text-align: center;
+            margin: 0 auto;
+            font-size: 0.9em;
+        }
+
+        .message .sender {
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+
+        .message.user .sender {
+            color: #00aaff;
+        }
+
+        .message.assistant .sender {
+            color: #00ffaa;
+        }
+
+        .input-area {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        .input-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        #messageInput {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid rgba(0, 255, 255, 0.3);
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            color: #ffffff;
+            font-size: 1em;
+        }
+
+        #messageInput:focus {
+            outline: none;
+            border-color: #00ffff;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+
+        #sendBtn {
+            background: linear-gradient(135deg, #00aaff, #0088ff);
+            color: white;
+        }
+
+        #sendBtn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(0, 170, 255, 0.5);
+        }
+
+        #voiceBtn {
+            background: linear-gradient(135deg, #00ffaa, #00dd88);
+            color: white;
+        }
+
+        #voiceBtn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(0, 255, 170, 0.5);
+        }
+
+        #voiceBtn.listening {
+            background: linear-gradient(135deg, #ff4444, #cc0000);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .status {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85em;
+            color: #888;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #00ff00;
+            animation: blink 2s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .status-dot.offline {
+            background: #ff0000;
+        }
+
+        .model-selector {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        select {
+            padding: 8px 12px;
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.3);
+            color: #ffffff;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.5em;
+            }
+
+            .input-container {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+
+            .message {
+                max-width: 95%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🤖 Atulya Tantra</h1>
+        <div class="subtitle">Your AI Companion - Web Client</div>
+    </div>
+
+    <div class="container">
+        <div class="chat-box" id="chatBox">
+            <div class="message system">
+                <div class="content">🤖 Atulya ready! Type a message or click the voice button to speak.</div>
+            </div>
+        </div>
+
+        <div class="input-area">
+            <div class="input-container">
+                <input type="text" id="messageInput" placeholder="Type your message..." />
+                <button id="sendBtn">📤 Send</button>
+                <button id="voiceBtn">🎤 Voice</button>
+            </div>
+            
+            <div class="status">
+                <div class="status-indicator">
+                    <div class="status-dot" id="statusDot"></div>
+                    <span id="statusText">Connecting...</span>
+                </div>
+                <div class="model-selector">
+                    <span>Model:</span>
+                    <select id="modelSelect">
+                        <option value="phi3:mini">phi3:mini (Fast)</option>
+                        <option value="codellama">codellama (Code)</option>
+                        <option value="mistral">mistral (Reasoning)</option>
+                        <option value="llama3.2-vision">llama3.2-vision (Vision)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SERVER_URL = 'http://localhost:8000';
+        let isListening = false;
+        let recognition = null;
+
+        // Initialize speech recognition if available
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                document.getElementById('messageInput').value = transcript;
+                sendMessage();
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                isListening = false;
+                updateVoiceButton();
+            };
+
+            recognition.onend = () => {
+                isListening = false;
+                updateVoiceButton();
+            };
+        }
+
+        // Check server status
+        async function checkServerStatus() {
+            try {
+                const response = await fetch(`${SERVER_URL}/`);
+                const data = await response.json();
+                
+                document.getElementById('statusDot').classList.remove('offline');
+                document.getElementById('statusText').textContent = 'Connected';
+                
+                return true;
+            } catch (error) {
+                document.getElementById('statusDot').classList.add('offline');
+                document.getElementById('statusText').textContent = 'Server offline';
+                return false;
+            }
+        }
+
+        // Add message to chat
+        function addMessage(sender, content, type = 'user') {
+            const chatBox = document.getElementById('chatBox');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            
+            messageDiv.innerHTML = `
+                <div class="sender">${sender}</div>
+                <div class="content">${content}</div>
+            `;
+            
+            chatBox.appendChild(messageDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        // Send message to server
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            // Add user message
+            addMessage('You', message, 'user');
+            input.value = '';
+            
+            // Get selected model
+            const model = document.getElementById('modelSelect').value;
+            
+            // Show thinking indicator
+            const thinkingDiv = document.createElement('div');
+            thinkingDiv.className = 'message assistant';
+            thinkingDiv.id = 'thinking';
+            thinkingDiv.innerHTML = '<div class="sender">Atulya</div><div class="content">Thinking...</div>';
+            document.getElementById('chatBox').appendChild(thinkingDiv);
+            
+            try {
+                const response = await fetch(`${SERVER_URL}/api/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        model: model
+                    })
+                });
+                
+                const data = await response.json();
+                
+                // Remove thinking indicator
+                document.getElementById('thinking').remove();
+                
+                // Add AI response
+                addMessage('Atulya', data.response, 'assistant');
+                
+                // Speak response if available
+                if ('speechSynthesis' in window) {
+                    const utterance = new SpeechSynthesisUtterance(data.response);
+                    utterance.rate = 0.9;
+                    utterance.pitch = 1.0;
+                    window.speechSynthesis.speak(utterance);
+                }
+                
+            } catch (error) {
+                document.getElementById('thinking').remove();
+                addMessage('System', '⚠️ Error connecting to server. Is it running?', 'system');
+            }
+        }
+
+        // Voice input
+        function toggleVoice() {
+            if (!recognition) {
+                addMessage('System', '⚠️ Speech recognition not supported in this browser', 'system');
+                return;
+            }
+
+            if (isListening) {
+                recognition.stop();
+                isListening = false;
+            } else {
+                recognition.start();
+                isListening = true;
+            }
+            
+            updateVoiceButton();
+        }
+
+        function updateVoiceButton() {
+            const btn = document.getElementById('voiceBtn');
+            if (isListening) {
+                btn.classList.add('listening');
+                btn.textContent = '🔴 Listening...';
+            } else {
+                btn.classList.remove('listening');
+                btn.textContent = '🎤 Voice';
+            }
+        }
+
+        // Event listeners
+        document.getElementById('sendBtn').addEventListener('click', sendMessage);
+        document.getElementById('voiceBtn').addEventListener('click', toggleVoice);
+        document.getElementById('messageInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        // Check server status on load
+        checkServerStatus();
+        setInterval(checkServerStatus, 5000);
+    </script>
+</body>
+</html>
+
