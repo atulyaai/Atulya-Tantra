@@ -107,7 +107,15 @@ class ConversationAgent(BaseAgent):
     
     def __init__(self, name: str = "ConversationAgent", config: Optional[Dict] = None):
         super().__init__(AgentType.CONVERSATION, name, config)
-        self.model = config.get('model', 'phi3:mini') if config else 'phi3:mini'
+        
+        # Use configuration from configuration module
+        if config is None:
+            from configuration import get_agent_config
+            config = get_agent_config('conversation') or {}
+        
+        self.model = config.get('model', 'phi3:mini')
+        self.temperature = config.get('temperature', 0.7)
+        self.max_tokens = config.get('max_tokens', 150)
     
     async def execute(self, task: str, context: Optional[Dict] = None) -> Dict[str, Any]:
         """Execute conversation task"""
@@ -136,7 +144,10 @@ class ConversationAgent(BaseAgent):
                 ollama.chat,
                 model=self.model,
                 messages=messages,
-                options={'num_predict': 150}
+                options={
+                    'num_predict': self.max_tokens,
+                    'temperature': self.temperature
+                }
             )
             
             result = {
@@ -166,7 +177,15 @@ class CodeAgent(BaseAgent):
     
     def __init__(self, name: str = "CodeAgent", config: Optional[Dict] = None):
         super().__init__(AgentType.CODE, name, config)
-        self.model = config.get('model', 'phi3:mini') if config else 'phi3:mini'
+        
+        # Use configuration from configuration module
+        if config is None:
+            from configuration import get_agent_config
+            config = get_agent_config('code') or {}
+        
+        self.model = config.get('model', 'phi3:mini')
+        self.temperature = config.get('temperature', 0.5)
+        self.max_tokens = config.get('max_tokens', 200)
     
     async def execute(self, task: str, context: Optional[Dict] = None) -> Dict[str, Any]:
         """Execute code-related task"""
@@ -195,7 +214,10 @@ class CodeAgent(BaseAgent):
                 ollama.chat,
                 model=self.model,
                 messages=messages,
-                options={'num_predict': 200}  # More tokens for code
+                options={
+                    'num_predict': self.max_tokens,
+                    'temperature': self.temperature
+                }
             )
             
             result = {

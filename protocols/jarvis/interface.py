@@ -33,8 +33,13 @@ class JarvisInterface:
         self.config = config or {}
         self.is_active = False
         
+        # Get JARVIS protocol configuration
+        from configuration import JARVIS_CONFIG
+        protocol_settings = JARVIS_CONFIG.settings
+        
         # Initialize sub-components
-        self.conversation = ConversationManager(max_history=50)
+        max_history = protocol_settings.get('max_conversation_history', 50)
+        self.conversation = ConversationManager(max_history=max_history)
         self.personality = PersonalityEngine()
         
         # AI Model configuration
