@@ -16,9 +16,10 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core import get_config, get_logger
-from protocols.jarvis import JarvisInterface, ConversationManager, PersonalityEngine, EmotionalState
-from protocols.skynet import SkynetOrchestrator
-from configuration.prompts import get_prompt, list_available_prompts
+from configuration import (
+    JarvisInterface, ConversationManager, PersonalityEngine, EmotionalState,
+    SkynetOrchestrator, get_prompt, list_available_prompts
+)
 
 logger = get_logger('testing')
 
@@ -35,9 +36,13 @@ class TestSystemIntegrity(unittest.TestCase):
     
     def test_directories_exist(self):
         """Test required directories exist"""
-        required = ['core', 'configuration', 'protocols', 'models', 'automation', 'testing']
+        required = ['core', 'configuration', 'models', 'automation', 'testing', 'webui']
         for dir_name in required:
             self.assertTrue((self.root / dir_name).exists(), f"Missing: {dir_name}")
+        
+        # Verify protocols are in configuration
+        self.assertTrue((self.root / 'configuration' / 'protocols').exists(), 
+                       "Missing: configuration/protocols")
     
     def test_core_files_exist(self):
         """Test core files exist"""
@@ -51,7 +56,7 @@ class TestSystemIntegrity(unittest.TestCase):
     def test_imports_work(self):
         """Test critical imports"""
         modules = [
-            'core', 'configuration', 'protocols.jarvis', 'protocols.skynet'
+            'core', 'configuration', 'configuration.protocols.jarvis', 'configuration.protocols.skynet'
         ]
         for module in modules:
             try:

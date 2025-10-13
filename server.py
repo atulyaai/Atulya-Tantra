@@ -13,8 +13,7 @@ from typing import Optional, Dict, Any
 import uvicorn
 
 from core import get_config, get_logger
-from protocols.jarvis import JarvisInterface
-from protocols.skynet import SkynetOrchestrator
+from configuration import JarvisInterface, SkynetOrchestrator
 
 # Initialize
 config = get_config()

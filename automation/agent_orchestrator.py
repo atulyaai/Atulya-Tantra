@@ -9,8 +9,8 @@ from core.logger import get_logger
 
 logger = get_logger('automation.orchestrator')
 
-# Import from protocols instead of duplicating
-from protocols.skynet import SkynetOrchestrator, BaseAgent
+# Import from configuration (protocols now inside configuration)
+from configuration import SkynetOrchestrator, BaseAgent
 
 # MCP Server implementation
 class MCPServer:

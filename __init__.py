@@ -23,12 +23,12 @@ __codename__ = "JARVIS"
 # Quick access to core components
 def get_jarvis():
     """Get JARVIS Protocol interface"""
-    from protocols.jarvis import JarvisInterface
+    from configuration import JarvisInterface
     return JarvisInterface()
 
 def get_skynet():
     """Get SKYNET Protocol orchestrator"""
-    from protocols.skynet import SkynetOrchestrator
+    from configuration import SkynetOrchestrator
     return SkynetOrchestrator()
 
 def get_settings():

@@ -19,7 +19,7 @@ from .prompts import (
 )
 
 # Protocol configurations
-from .protocols import (
+from .protocol_configs import (
     ProtocolConfig,
     JARVIS_CONFIG,
     SKYNET_CONFIG,
@@ -28,6 +28,17 @@ from .protocols import (
     get_agent_config,
     list_protocols,
     list_agents,
+)
+
+# Protocol implementations
+from .protocols import (
+    JarvisInterface,
+    ConversationManager,
+    PersonalityEngine,
+    EmotionalState,
+    SkynetOrchestrator,
+    BaseAgent,
+    AgentType,
 )
 
 __all__ = [
@@ -54,4 +65,13 @@ __all__ = [
     'get_agent_config',
     'list_protocols',
     'list_agents',
+    
+    # Protocol implementations
+    'JarvisInterface',
+    'ConversationManager',
+    'PersonalityEngine',
+    'EmotionalState',
+    'SkynetOrchestrator',
+    'BaseAgent',
+    'AgentType',
 ]
