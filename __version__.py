@@ -8,7 +8,7 @@ __version_info__ = tuple(int(i) for i in __version__.split("."))
 
 # Version history
 VERSION_HISTORY = {
-    "1.0.3": "FastAPI server with JARVIS & SKYNET integration, consolidated testing, production ready",
+    "1.0.3": "MAJOR MERGE: Protocols moved into configuration/, FastAPI server, all duplicates removed",
     "1.0.2": "Global configuration manager, base classes, consolidated architecture",
     "1.0.1": "Professional restructure with protocol frameworks",
     "1.0.0": "Initial release - Voice assistant with multi-model support"
