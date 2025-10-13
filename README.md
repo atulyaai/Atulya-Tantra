@@ -55,7 +55,7 @@ python3 clients/gui/voice_gui.py
 ### Manual Setup
 
 1. Install [Ollama](https://ollama.ai/)
-2. Clone repo: `git clone https://github.com/YOUR_USERNAME/atulya-tantra.git`
+2. Clone repo: `git clone https://github.com/atulyaai/Atulya-Tantra.git`
 3. Install: `pip install -r requirements.txt`
 4. Download model: `ollama pull phi3:mini`
 5. Run: `python clients/gui/voice_gui.py`
@@ -291,9 +291,9 @@ Inspired by:
 
 ## 📞 Support
 
-- **Issues:** [GitHub Issues](https://github.com/YOUR_USERNAME/atulya-tantra/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/YOUR_USERNAME/atulya-tantra/discussions)
-- **Email:** your-email@example.com
+- **Issues:** [GitHub Issues](https://github.com/atulyaai/Atulya-Tantra/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/atulyaai/Atulya-Tantra/discussions)
+- **Email:** atulya@tantra.ai
 
 ---
 
@@ -311,6 +311,6 @@ If you find Atulya Tantra useful, please give it a star! ⭐
 
 **Made with ❤️ by the Open Source Community**
 
-[Report Bug](https://github.com/YOUR_USERNAME/atulya-tantra/issues) • [Request Feature](https://github.com/YOUR_USERNAME/atulya-tantra/issues) • [Documentation](docs/README.md)
+[Report Bug](https://github.com/atulyaai/Atulya-Tantra/issues) • [Request Feature](https://github.com/atulyaai/Atulya-Tantra/issues) • [Documentation](docs/README.md)
 
 </div>
