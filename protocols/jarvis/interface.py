@@ -4,9 +4,13 @@ Primary interaction layer for our JARVIS-inspired AI
 """
 
 import asyncio
-from typing import Optional, Dict, Any
+import time
+from typing import Optional, Dict, Any, List
 from core.logger import get_logger
 from configuration.prompts import get_prompt
+from configuration import settings
+from .conversation import ConversationManager
+from .personality import PersonalityEngine
 
 logger = get_logger('protocols.jarvis')
 
@@ -28,9 +32,16 @@ class JarvisInterface:
         """
         self.config = config or {}
         self.is_active = False
-        self.conversation_history = []
         
-        logger.info("JARVIS Protocol interface initialized")
+        # Initialize sub-components
+        self.conversation = ConversationManager(max_history=50)
+        self.personality = PersonalityEngine()
+        
+        # AI Model configuration
+        self.model = self.config.get('model', settings.default_model)
+        self.temperature = self.config.get('temperature', settings.temperature)
+        
+        logger.info(f"JARVIS Protocol interface initialized with model: {self.model}")
     
     async def activate(self):
         """Activate JARVIS Protocol"""
@@ -39,7 +50,8 @@ class JarvisInterface:
         return {
             'status': 'active',
             'message': 'JARVIS Protocol online. Ready to assist.',
-            'version': '1.0.1'
+            'version': '1.0.1',
+            'model': self.model
         }
     
     async def deactivate(self):
@@ -65,17 +77,126 @@ class JarvisInterface:
         if not self.is_active:
             await self.activate()
         
+        start_time = time.time()
         logger.info(f"Processing message: {message[:50]}...")
         
-        # TODO: Implement full JARVIS processing pipeline
-        # This is a placeholder for Phase 2 implementation
+        try:
+            # Step 1: Detect emotion from user message
+            user_emotion = self.personality.detect_emotion(message)
+            logger.debug(f"Detected emotion: {user_emotion}")
+            
+            # Step 2: Adapt personality based on emotion
+            emotional_state = self.personality.adapt_response_tone(user_emotion)
+            modifiers = self.personality.get_response_modifiers()
+            logger.debug(f"Personality state: {emotional_state.value}")
+            
+            # Step 3: Get conversation context
+            recent_context = self.conversation.get_context(last_n=5)
+            
+            # Step 4: Build messages for AI
+            messages = self._build_messages(message, recent_context, modifiers)
+            
+            # Step 5: Generate response using Ollama
+            response_text = await self._generate_response(messages)
+            
+            # Step 6: Save to conversation history
+            self.conversation.add_message('user', message, {'emotion': user_emotion})
+            self.conversation.add_message('assistant', response_text, {
+                'personality_state': emotional_state.value,
+                'model': self.model
+            })
+            
+            execution_time = time.time() - start_time
+            logger.info(f"Response generated in {execution_time:.2f}s")
+            
+            return {
+                'response': response_text,
+                'status': 'success',
+                'protocol': 'JARVIS',
+                'emotion_detected': user_emotion,
+                'personality_state': emotional_state.value,
+                'model_used': self.model,
+                'execution_time': execution_time,
+                'context_preserved': True
+            }
+            
+        except Exception as e:
+            logger.error(f"Error processing message: {e}", exc_info=True)
+            return {
+                'response': "I apologize, but I encountered an error processing your message. Please try again.",
+                'status': 'error',
+                'protocol': 'JARVIS',
+                'error': str(e)
+            }
+    
+    def _build_messages(self, message: str, context: List[Dict], modifiers: Dict) -> List[Dict]:
+        """
+        Build messages array for AI model
         
-        return {
-            'response': 'JARVIS Protocol processing...',
-            'status': 'success',
-            'protocol': 'JARVIS',
-            'context_preserved': True
-        }
+        Args:
+            message: Current user message
+            context: Recent conversation context
+            modifiers: Personality modifiers
+            
+        Returns:
+            List of message dictionaries
+        """
+        # Get JARVIS system prompt
+        base_prompt = get_prompt('jarvis')
+        
+        # Add personality modifiers to system prompt
+        enhanced_prompt = f"{base_prompt}\n\nCurrent tone: {modifiers['tone']}\nBrevity: {modifiers['brevity']}"
+        
+        messages = [
+            {'role': 'system', 'content': enhanced_prompt}
+        ]
+        
+        # Add recent conversation context
+        for ctx in context[-3:]:  # Last 3 messages for context
+            messages.append({
+                'role': ctx['role'],
+                'content': ctx['content']
+            })
+        
+        # Add current message
+        messages.append({
+            'role': 'user',
+            'content': message
+        })
+        
+        return messages
+    
+    async def _generate_response(self, messages: List[Dict]) -> str:
+        """
+        Generate response using Ollama
+        
+        Args:
+            messages: Message history for context
+            
+        Returns:
+            Generated response text
+        """
+        try:
+            import ollama
+            
+            response = await asyncio.to_thread(
+                ollama.chat,
+                model=self.model,
+                messages=messages,
+                options={
+                    'temperature': self.temperature,
+                    'num_predict': 150  # Reasonable response length
+                }
+            )
+            
+            return response['message']['content']
+            
+        except ImportError:
+            logger.error("Ollama package not installed")
+            return "AI model interface not available. Please install ollama package."
+        except Exception as e:
+            logger.error(f"Error generating response: {e}")
+            raise
     
     def get_status(self) -> Dict[str, Any]:
         """Get current JARVIS Protocol status"""
@@ -83,12 +204,16 @@ class JarvisInterface:
             'protocol': 'JARVIS',
             'version': '1.0.1',
             'active': self.is_active,
-            'conversation_length': len(self.conversation_history),
+            'conversation_length': len(self.conversation.history),
+            'model': self.model,
+            'temperature': self.temperature,
             'capabilities': [
                 'Natural Conversation',
                 'Emotional Intelligence',
                 'Voice Interaction',
-                'Context Awareness'
+                'Context Awareness',
+                'Emotion Detection',
+                'Personality Adaptation'
             ]
         }
 
