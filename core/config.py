@@ -21,7 +21,7 @@ class GlobalConfig:
     codename: str = "JARVIS"
     
     # AI Model Settings
-    default_model: str = field(default_factory=lambda: os.getenv("DEFAULT_MODEL", "phi3:mini"))
+    default_model: str = field(default_factory=lambda: os.getenv("DEFAULT_MODEL", "gemma2:2b"))
     temperature: float = field(default_factory=lambda: float(os.getenv("TEMPERATURE", "0.7")))
     max_tokens: int = field(default_factory=lambda: int(os.getenv("MAX_TOKENS", "4096")))
     

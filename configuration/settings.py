@@ -23,8 +23,8 @@ class Settings(BaseSettings):
     
     # AI Configuration
     ollama_host: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-    default_model: str = os.getenv("DEFAULT_MODEL", "phi3:mini")  # Fast for voice
-    fallback_model: str = os.getenv("FALLBACK_MODEL", "phi3:mini")  # Using same model
+    default_model: str = os.getenv("DEFAULT_MODEL", "gemma2:2b")  # Fast, small, good
+    fallback_model: str = os.getenv("FALLBACK_MODEL", "gemma2:2b")
     max_tokens: int = int(os.getenv("MAX_TOKENS", "4096"))
     temperature: float = float(os.getenv("TEMPERATURE", "0.7"))
     

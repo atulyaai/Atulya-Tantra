@@ -193,7 +193,7 @@ class JarvisInterface:
     
     async def _generate_response(self, messages: List[Dict]) -> str:
         """
-        Generate response using Ollama
+        Generate response using Ollama with smart model routing
         
         Args:
             messages: Message history for context
@@ -203,18 +203,38 @@ class JarvisInterface:
         """
         try:
             import ollama
+            from models.model_router import get_model_router
+            
+            # Get user message
+            user_message = messages[-1]['content'] if messages else ""
+            
+            # Select best model for task
+            router = get_model_router()
+            selected_model = router.select_model(user_message)
+            model_config = router.get_model_config(selected_model)
+            
+            logger.info(f"Using {selected_model} for: {user_message[:30]}...")
             
             response = await asyncio.to_thread(
                 ollama.chat,
-                model=self.model,
+                model=selected_model,
                 messages=messages,
-                options={
-                    'temperature': self.temperature,
-                    'num_predict': 150  # Reasonable response length
-                }
+                options=model_config
             )
             
-            return response['message']['content']
+            # Get response text
+            text = response['message']['content'].strip()
+            
+            # For simple greetings with simple model, keep it very short
+            if selected_model == router.simple_model and len(user_message) < 20:
+                # Take first sentence only
+                if '. ' in text:
+                    text = text.split('. ')[0] + '.'
+                # Max 60 chars for greetings
+                if len(text) > 60:
+                    text = text[:60].rsplit(' ', 1)[0] + '.'
+            
+            return text
             
         except ImportError:
             logger.error("Ollama package not installed")

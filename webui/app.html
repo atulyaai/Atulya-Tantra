@@ -12,9 +12,8 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, sans-serif;
-            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
-            color: #00ff88;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -22,51 +21,68 @@
             padding: 20px;
         }
 
-        .container {
-            max-width: 900px;
+        .app-container {
+            max-width: 1000px;
             width: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            border: 2px solid #00ff88;
+            height: 90vh;
+            background: white;
             border-radius: 20px;
-            box-shadow: 0 0 40px rgba(0, 255, 136, 0.3);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
             overflow: hidden;
         }
 
         .header {
-            background: rgba(0, 255, 136, 0.1);
-            padding: 20px;
-            text-align: center;
-            border-bottom: 2px solid #00ff88;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px 30px;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .header h1 {
-            font-size: 2.5em;
-            text-shadow: 0 0 20px #00ff88;
-            margin-bottom: 5px;
+            font-size: 1.8em;
+            font-weight: 600;
         }
 
-        .status {
+        .status-badge {
+            padding: 6px 16px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
             font-size: 0.9em;
-            color: #888;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
-        .status.online {
-            color: #00ff88;
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4ade80;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
 
         .chat-area {
-            height: 500px;
+            flex: 1;
             overflow-y: auto;
-            padding: 20px;
-            background: rgba(0, 0, 0, 0.5);
+            padding: 20px 30px;
+            background: #f8fafc;
         }
 
         .message {
-            margin-bottom: 15px;
-            padding: 12px 18px;
-            border-radius: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
             animation: slideIn 0.3s ease-out;
-            max-width: 80%;
         }
 
         @keyframes slideIn {
@@ -80,125 +96,72 @@
             }
         }
 
-        .user {
-            background: rgba(0, 100, 255, 0.3);
-            border-left: 3px solid #0064ff;
-            margin-left: auto;
-            text-align: right;
+        .message.user {
+            flex-direction: row-reverse;
         }
 
-        .assistant {
-            background: rgba(0, 255, 136, 0.2);
-            border-left: 3px solid #00ff88;
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2em;
+            flex-shrink: 0;
+        }
+
+        .user .avatar {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+        }
+
+        .assistant .avatar {
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 14px 18px;
+            border-radius: 18px;
+            line-height: 1.5;
+        }
+
+        .user .message-content {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .assistant .message-content {
+            background: white;
+            color: #1e293b;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
 
         .emotion-tag {
-            font-size: 0.8em;
-            color: #888;
-            margin-top: 5px;
-        }
-
-        .controls {
-            padding: 20px;
-            background: rgba(0, 0, 0, 0.7);
-            border-top: 1px solid #00ff88;
-        }
-
-        .input-group {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-
-        input[type="text"] {
-            flex: 1;
-            padding: 15px;
-            background: rgba(0, 0, 0, 0.6);
-            border: 1px solid #00ff88;
-            border-radius: 10px;
-            color: #00ff88;
-            font-size: 1em;
-        }
-
-        input[type="text"]:focus {
-            outline: none;
-            box-shadow: 0 0 15px rgba(0, 255, 136, 0.5);
-        }
-
-        button {
-            padding: 15px 30px;
-            background: linear-gradient(135deg, #00ff88, #00cc70);
-            border: none;
-            border-radius: 10px;
-            color: #0a0a0a;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(0, 255, 136, 0.4);
-        }
-
-        button:active {
-            transform: translateY(0);
-        }
-
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .voice-controls {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-
-        .voice-btn {
-            padding: 10px 20px;
-            background: rgba(0, 255, 136, 0.2);
-            border: 1px solid #00ff88;
-            color: #00ff88;
-        }
-
-        .voice-btn.active {
-            background: rgba(0, 255, 136, 0.4);
-            animation: pulse 1.5s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.6; }
-        }
-
-        .loading {
-            text-align: center;
-            padding: 10px;
-            color: #888;
+            font-size: 0.75em;
+            color: #94a3b8;
+            margin-top: 6px;
         }
 
         .typing-indicator {
             display: none;
-            padding: 12px 18px;
-            background: rgba(0, 255, 136, 0.2);
-            border-left: 3px solid #00ff88;
-            border-radius: 12px;
-            max-width: 80px;
+            padding: 14px 18px;
+            background: white;
+            border-radius: 18px;
+            width: 60px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
 
         .typing-indicator.active {
-            display: block;
+            display: flex;
+            gap: 4px;
         }
 
         .typing-indicator span {
-            display: inline-block;
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            background: #00ff88;
-            margin: 0 2px;
+            background: #94a3b8;
             animation: bounce 1.4s infinite;
         }
 
@@ -215,77 +178,251 @@
                 transform: translateY(0);
             }
             30% {
-                transform: translateY(-10px);
+                transform: translateY(-6px);
+            }
+        }
+
+        .input-area {
+            padding: 20px 30px;
+            background: white;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .input-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .voice-toggle {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 12px;
+            background: #f1f5f9;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+
+        .voice-toggle.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .input-box {
+            flex: 1;
+            position: relative;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 14px 50px 14px 18px;
+            border: 2px solid #e2e8f0;
+            border-radius: 24px;
+            font-size: 1em;
+            font-family: inherit;
+            resize: none;
+            height: 50px;
+            transition: all 0.3s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .mic-btn {
+            position: absolute;
+            right: 10px;
+            bottom: 10px;
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+
+        .mic-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .mic-btn.listening {
+            animation: pulse-mic 1s infinite;
+            background: #ef4444;
+        }
+
+        @keyframes pulse-mic {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+        }
+
+        .send-btn {
+            width: 50px;
+            height: 50px;
+            border: none;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            font-size: 1.2em;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .send-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .app-container {
+                height: 100vh;
+                border-radius: 0;
+            }
+
+            .message-content {
+                max-width: 85%;
             }
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="app-container">
         <div class="header">
-            <h1>🤖 JARVIS</h1>
-            <div class="status" id="status">● Connecting...</div>
+            <h1>🤖 JARVIS Protocol</h1>
+            <div class="status-badge">
+                <div class="status-dot"></div>
+                <span id="statusText">Online</span>
+            </div>
         </div>
 
         <div class="chat-area" id="chatArea">
             <div class="message assistant">
-                <div>Hello! JARVIS Protocol is online. How may I assist you today?</div>
+                <div class="avatar">🤖</div>
+                <div class="message-content">
+                    Hello! I'm JARVIS. How can I assist you today?
+                </div>
+            </div>
+        </div>
+
+        <div class="input-area">
+            <div class="input-controls">
+                <button class="voice-toggle" id="voiceToggle" onclick="toggleVoice()">
+                    🔇 Voice OFF
+                </button>
+            </div>
+
+            <div class="input-wrapper">
+                <div class="input-box">
+                    <textarea id="messageInput" 
+                              placeholder="Type a message or click mic to speak..."
+                              onkeydown="handleKeyPress(event)"></textarea>
+                    <button class="mic-btn" id="micBtn" onclick="startDictation()">
+                        🎤
+                    </button>
+                </div>
+                <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+                    ➤
+                </button>
             </div>
         </div>
 
         <div class="typing-indicator" id="typingIndicator">
             <span></span><span></span><span></span>
         </div>
-
-        <div class="controls">
-            <div class="input-group">
-                <input type="text" id="messageInput" placeholder="Type your message..." 
-                       onkeypress="if(event.key==='Enter') sendMessage()">
-                <button onclick="sendMessage()" id="sendBtn">Send</button>
-            </div>
-            <div class="voice-controls">
-                <button class="voice-btn" id="voiceBtn" onclick="toggleVoice()">
-                    🎤 Voice: OFF
-                </button>
-                <span style="font-size: 0.9em; color: #888;" id="voiceStatus">
-                    Voice responses disabled
-                </span>
-            </div>
-        </div>
     </div>
 
     <script>
         const API_URL = 'http://localhost:8000';
         let voiceEnabled = false;
-
-        // Check server status
-        async function checkStatus() {
-            try {
-                const response = await fetch(`${API_URL}/health`);
-                const data = await response.json();
-                document.getElementById('status').textContent = '● Online';
-                document.getElementById('status').classList.add('online');
-            } catch (error) {
-                document.getElementById('status').textContent = '● Offline';
-            }
-        }
+        let isListening = false;
 
         // Toggle voice
         function toggleVoice() {
             voiceEnabled = !voiceEnabled;
-            const btn = document.getElementById('voiceBtn');
-            const status = document.getElementById('voiceStatus');
-            
-            if (voiceEnabled) {
-                btn.textContent = '🎤 Voice: ON';
-                btn.classList.add('active');
-                status.textContent = 'Voice responses enabled';
-                status.style.color = '#00ff88';
-            } else {
-                btn.textContent = '🎤 Voice: OFF';
-                btn.classList.remove('active');
-                status.textContent = 'Voice responses disabled';
-                status.style.color = '#888';
+            const btn = document.getElementById('voiceToggle');
+            btn.textContent = voiceEnabled ? '🔊 Voice ON' : '🔇 Voice OFF';
+            btn.classList.toggle('active', voiceEnabled);
+        }
+
+        // Start dictation
+        function startDictation() {
+            if (!('webkitSpeechRecognition' in window)) {
+                alert('Speech recognition not supported. Use Chrome browser.');
+                return;
+            }
+
+            const micBtn = document.getElementById('micBtn');
+            const input = document.getElementById('messageInput');
+
+            if (isListening) {
+                recognition.stop();
+                return;
+            }
+
+            const recognition = new webkitSpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            recognition.onstart = () => {
+                isListening = true;
+                micBtn.classList.add('listening');
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                input.value = transcript;
+                isListening = false;
+                micBtn.classList.remove('listening');
+                
+                // Auto-send if voice is enabled
+                if (voiceEnabled) {
+                    sendMessage();
+                }
+            };
+
+            recognition.onerror = () => {
+                isListening = false;
+                micBtn.classList.remove('listening');
+            };
+
+            recognition.onend = () => {
+                isListening = false;
+                micBtn.classList.remove('listening');
+            };
+
+            recognition.start();
+        }
+
+        // Handle Enter key
+        function handleKeyPress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
             }
         }
 
@@ -295,26 +432,40 @@
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${isUser ? 'user' : 'assistant'}`;
             
-            let content = `<div>${text}</div>`;
+            const avatar = document.createElement('div');
+            avatar.className = 'avatar';
+            avatar.textContent = isUser ? '👤' : '🤖';
+            
+            const content = document.createElement('div');
+            content.className = 'message-content';
+            content.innerHTML = text;
             
             if (!isUser && metadata.emotion_detected) {
-                content += `<div class="emotion-tag">Emotion: ${metadata.emotion_detected} | ${metadata.personality_state}</div>`;
+                const emotion = document.createElement('div');
+                emotion.className = 'emotion-tag';
+                emotion.textContent = `${metadata.emotion_detected} • ${metadata.personality_state}`;
+                content.appendChild(emotion);
             }
             
-            messageDiv.innerHTML = content;
+            messageDiv.appendChild(avatar);
+            messageDiv.appendChild(content);
             chatArea.appendChild(messageDiv);
             chatArea.scrollTop = chatArea.scrollHeight;
 
             // Play audio if available
-            if (!isUser && metadata.audio_file) {
+            if (!isUser && voiceEnabled && metadata.audio_file) {
                 playAudio(metadata.audio_file);
             }
         }
 
         // Play audio
         function playAudio(audioFile) {
-            const audio = new Audio(`${API_URL}/${audioFile}`);
-            audio.play().catch(err => console.log('Audio play failed:', err));
+            try {
+                const audio = new Audio(`${API_URL}/${audioFile}`);
+                audio.play().catch(err => console.log('Audio play error:', err));
+            } catch (err) {
+                console.log('Audio error:', err);
+            }
         }
 
         // Send message
@@ -328,20 +479,29 @@
             addMessage(message, true);
             input.value = '';
 
-            // Disable input
+            // Disable controls
             const sendBtn = document.getElementById('sendBtn');
+            const micBtn = document.getElementById('micBtn');
             sendBtn.disabled = true;
+            micBtn.disabled = true;
             input.disabled = true;
 
-            // Show typing indicator
-            document.getElementById('typingIndicator').classList.add('active');
+            // Show typing
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'message assistant';
+            typingDiv.innerHTML = `
+                <div class="avatar">🤖</div>
+                <div class="typing-indicator active">
+                    <span></span><span></span><span></span>
+                </div>
+            `;
+            const chatArea = document.getElementById('chatArea');
+            chatArea.appendChild(typingDiv);
 
             try {
                 const response = await fetch(`${API_URL}/api/chat`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         message: message,
                         enable_voice: voiceEnabled
@@ -350,32 +510,40 @@
 
                 const data = await response.json();
                 
-                // Hide typing indicator
-                document.getElementById('typingIndicator').classList.remove('active');
+                // Remove typing indicator
+                typingDiv.remove();
                 
-                // Add AI response
+                // Add response
                 addMessage(data.response, false, data);
 
             } catch (error) {
-                document.getElementById('typingIndicator').classList.remove('active');
-                addMessage('Error: Could not reach server. Is it running?', false);
+                typingDiv.remove();
+                addMessage('Error: Server not responding. Please check if server is running.', false);
             }
 
-            // Re-enable input
+            // Re-enable controls
             sendBtn.disabled = false;
+            micBtn.disabled = false;
             input.disabled = false;
             input.focus();
         }
 
+        // Check status
+        async function checkStatus() {
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                const data = await response.json();
+                document.getElementById('statusText').textContent = 
+                    data.status === 'healthy' ? 'Online' : 'Offline';
+            } catch (error) {
+                document.getElementById('statusText').textContent = 'Offline';
+            }
+        }
+
         // Initialize
         checkStatus();
-        setInterval(checkStatus, 30000); // Check every 30s
-
-        // Focus input on load
-        window.onload = () => {
-            document.getElementById('messageInput').focus();
-        };
+        setInterval(checkStatus, 30000);
+        document.getElementById('messageInput').focus();
     </script>
 </body>
 </html>
-

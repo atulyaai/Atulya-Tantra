@@ -59,25 +59,25 @@ SKYNET_CONFIG = ProtocolConfig(
 
 AGENT_CONFIGS = {
     "conversation": {
-        "model": "phi3:mini",
-        "max_tokens": 150,
+        "model": "gemma2:2b",
+        "max_tokens": 20,
         "temperature": 0.7,
         "system_prompt_key": "conversation"
     },
     "code": {
-        "model": "phi3:mini",
+        "model": "gemma2:2b",
         "max_tokens": 200,
         "temperature": 0.5,
         "system_prompt_key": "code"
     },
     "research": {
-        "model": "phi3:mini",
+        "model": "gemma2:2b",
         "max_tokens": 200,
         "temperature": 0.6,
         "system_prompt_key": "research"
     },
     "task_planner": {
-        "model": "phi3:mini",
+        "model": "gemma2:2b",
         "max_tokens": 150,
         "temperature": 0.6,
         "system_prompt_key": "task_planner"
