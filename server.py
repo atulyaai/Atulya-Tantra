@@ -7,10 +7,12 @@ FastAPI server integrating JARVIS & SKYNET protocols
 import asyncio
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import uvicorn
+from pathlib import Path
 
 from core import get_config, get_logger
 from configuration import JarvisInterface, SkynetOrchestrator
@@ -35,6 +37,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static files for webui and audio
+app.mount("/webui", StaticFiles(directory="webui"), name="webui")
+app.mount("/data", StaticFiles(directory="data"), name="data")
+
 # Initialize protocols
 jarvis: Optional[JarvisInterface] = None
 skynet: Optional[SkynetOrchestrator] = None
@@ -47,6 +53,7 @@ skynet: Optional[SkynetOrchestrator] = None
 class ChatRequest(BaseModel):
     message: str
     context: Optional[Dict[str, Any]] = None
+    enable_voice: bool = False
 
 
 class TaskRequest(BaseModel):
@@ -154,9 +161,13 @@ async def chat(request: ChatRequest):
         raise HTTPException(status_code=503, detail="JARVIS not initialized")
     
     try:
+        # Add voice enablement to context
+        ctx = request.context or {}
+        ctx['enable_voice'] = request.enable_voice
+        
         result = await jarvis.process_message(
             message=request.message,
-            context=request.context
+            context=ctx
         )
         return result
     except Exception as e:

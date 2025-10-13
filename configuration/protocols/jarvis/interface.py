@@ -14,6 +14,14 @@ from .personality import PersonalityEngine
 
 logger = get_logger('protocols.jarvis')
 
+# Import TTS for voice output
+try:
+    from models.audio import get_tts
+    TTS_AVAILABLE = True
+except ImportError:
+    TTS_AVAILABLE = False
+    logger.warning("TTS not available")
+
 
 class JarvisInterface:
     """
@@ -114,6 +122,16 @@ class JarvisInterface:
             execution_time = time.time() - start_time
             logger.info(f"Response generated in {execution_time:.2f}s")
             
+            # Generate audio if requested
+            audio_file = None
+            if context and context.get('enable_voice', False) and TTS_AVAILABLE:
+                try:
+                    tts = get_tts()
+                    audio_file = await tts.speak(response_text)
+                    logger.info(f"Audio generated: {audio_file}")
+                except Exception as e:
+                    logger.warning(f"TTS failed: {e}")
+            
             return {
                 'response': response_text,
                 'status': 'success',
@@ -122,7 +140,9 @@ class JarvisInterface:
                 'personality_state': emotional_state.value,
                 'model_used': self.model,
                 'execution_time': execution_time,
-                'context_preserved': True
+                'context_preserved': True,
+                'audio_file': audio_file,
+                'voice_enabled': audio_file is not None
             }
             
         except Exception as e:
