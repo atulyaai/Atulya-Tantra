@@ -1,267 +1,371 @@
-# 🤖 Atulya Tantra - Your Personal JARVIS
+# 🤖 Atulya Tantra
 
 [![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](VERSION)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/)
-[![Ollama](https://img.shields.io/badge/ollama-required-orange.svg)](https://ollama.ai/)
+[![Status](https://img.shields.io/badge/status-active-success.svg)]()
 
-**Voice-powered AI assistant with emotional intelligence, running 100% locally.**
+**Our Advanced Personal AI Assistant with JARVIS & SKYNET Protocols**
 
-> Like ChatGPT's voice mode, but private, offline, and extensible!
-
-**🎉 NEW in v1.0.1:** Sentiment analysis • Interrupt & accumulate • Profile memory • 2-3s response times!
+> A professional-grade AI system combining emotional intelligence, multi-agent orchestration, and complete privacy. Built with passion, engineered for excellence.
 
 ---
 
-## ✨ Features
+## 🌟 What We've Built
 
-### Core Capabilities
-- 🎤 **Voice Conversation** - Natural ChatGPT-style voice chat
-- 🧠 **Emotional Intelligence** - Detects your mood and adapts responses
-- 👤 **Profile Memory** - Remembers your name and preferences
-- ⚡ **Interrupt & Accumulate** - Stop AI mid-sentence, combine questions
-- 💬 **Speech Normalization** - Understands casual speech ("h r u" = "how are you")
-- ⚙️ **Multi-Model Support** - Switches between models based on task
-- 📝 **Dictation Mode** - Voice-to-text for writing
-- 🌐 **Cross-Platform** - Windows, Linux, macOS
+Atulya Tantra is our comprehensive AI assistant platform featuring:
 
-### Advanced Features
-- 🤝 **Agent Orchestration** - 4 specialized AI agents (chat, code, research, planning)
-- 🔧 **MCP Server** - Model Context Protocol for tool integration
-- 🌍 **Server-Client Architecture** - Use from multiple devices
-- 📊 **System Automation** - Control your computer with voice
-- 💾 **Conversation Memory** - Persistent chat history
-- 🎨 **Multiple Interfaces** - Desktop GUI, Web, CLI, System Tray
+- **JARVIS Protocol** - Natural conversation with emotional intelligence
+- **SKYNET Protocol** - Multi-agent orchestration for complex tasks
+- **Voice Interface** - Wake word detection and natural voice interaction
+- **100% Local** - Complete privacy, no cloud dependencies
+- **Extensible Architecture** - Professional modular design
+
+---
+
+## 🏗️ Our Architecture
+
+```
+atulya-tantra/
+├── core/                    # Core utilities and base components
+│   ├── exceptions.py        # Centralized exception handling
+│   ├── logger.py           # Professional logging system
+│   └── utils.py            # Shared utility functions
+│
+├── configuration/           # Global configuration management
+│   ├── settings.py         # System settings
+│   └── prompts.py          # Centralized AI prompts
+│
+├── protocols/              # AI Protocol implementations
+│   ├── jarvis/            # JARVIS Protocol (Conversational AI)
+│   │   ├── interface.py
+│   │   ├── conversation.py
+│   │   └── personality.py
+│   └── skynet/            # SKYNET Protocol (Multi-Agent)
+│       ├── orchestrator.py
+│       ├── agent_base.py
+│       └── coordination.py
+│
+├── models/                 # AI Model implementations
+│   ├── audio/             # Voice processing & wake word
+│   ├── text/              # Language models
+│   └── video/             # Computer vision (planned)
+│
+├── automation/            # Agent orchestration
+├── testing/              # Comprehensive test suites
+├── webui/               # Web interface
+└── others/              # Additional components
+    ├── server/          # FastAPI server
+    ├── clients/         # CLI & Desktop clients
+    ├── docs/           # Documentation
+    └── scripts/        # Setup scripts
+```
+
+**Clean. Professional. Maintainable.**
 
 ---
 
 ## 🚀 Quick Start
 
-### Automatic Setup (Recommended)
+### Prerequisites
+
+- **Python 3.8+**
+- **Ollama** (for local AI models)
+- **2GB RAM** minimum
+- **5GB Disk** for models
+
+### Installation
 
 **Windows:**
 ```powershell
-.\scripts\setup.ps1
-python clients\gui\voice_gui.py
+# Clone our repository
+git clone https://github.com/atulyaai/Atulya-Tantra.git
+cd Atulya-Tantra
+
+# Run setup
+.\others\scripts\setup.ps1
 ```
 
 **Linux/Mac:**
 ```bash
-chmod +x scripts/setup.sh
-./scripts/setup.sh
-python3 clients/gui/voice_gui.py
+# Clone our repository
+git clone https://github.com/atulyaai/Atulya-Tantra.git
+cd Atulya-Tantra
+
+# Run setup
+chmod +x others/scripts/setup.sh
+./others/scripts/setup.sh
 ```
 
-### Manual Setup
+### Start the Server
 
-1. Install [Ollama](https://ollama.ai/)
-2. Clone repo: `git clone https://github.com/atulyaai/Atulya-Tantra.git`
-3. Install: `pip install -r requirements.txt`
-4. Download model: `ollama pull phi3:mini`
-5. Run: `python clients/gui/voice_gui.py`
+```bash
+cd others/server
+python main.py
+```
 
-**See [Getting Started Guide](docs/getting-started.md) for detailed instructions.**
+### Access the Interface
+
+- **Web UI:** Open `webui/app.html` or visit `http://localhost:8000`
+- **CLI:** `python others/clients/cli/atulya_cli.py`
+- **Desktop:** `python others/clients/desktop/voice_gui.py`
 
 ---
 
-## 📖 Documentation
+## 🎯 Core Features
 
-- **[Getting Started](docs/getting-started.md)** - Quick start guide
-- **[API Reference](docs/README.md)** - Documentation hub
-- **[Contributing](CONTRIBUTING.md)** - How to contribute
-- **[Changelog](CHANGELOG.md)** - Version history
-- **[Roadmap](ROADMAP.md)** - Future plans
+### JARVIS Protocol
+Our conversational AI with emotional intelligence:
+- Natural language understanding
+- Emotion detection and adaptation
+- Context-aware responses
+- Personality engine
+- Voice interaction
 
----
+### SKYNET Protocol
+Our multi-agent orchestration system:
+- Specialized agent routing
+- Task decomposition
+- Multi-agent coordination
+- Autonomous execution
+- Performance optimization
 
-## 🎯 Usage Examples
+### Voice System
+Professional voice interface:
+- Wake word detection ("Hey Atulya")
+- Speech-to-text (Google Speech Recognition)
+- Text-to-speech (Edge-TTS)
+- Voice activity detection
+- Interruption handling
 
-### Voice Conversation
-```
-You: "Hello"
-Atulya: "Hey! How can I help?" (2-3s)
-
-You: "My name is Alex"
-Atulya: "Nice to meet you, Alex!"
-
-[Later...]
-You: "What's my name?"
-Atulya: "Your name is Alex!"
-```
-
-### Sentiment Awareness
-```
-You: "I'm feeling frustrated"
-Atulya: [Calm, patient tone] "I understand. What's troubling you?"
-
-You: "I'm excited about this project!"
-Atulya: [Enthusiastic tone] "That's awesome! Tell me more!"
-```
-
-### Interruption
-```
-Atulya: [Talking about Python...]
-You: [Start speaking] "Wait, what about JavaScript?"
-Atulya: [Stops immediately, responds to combined question]
-```
+### Memory System
+Intelligent context management:
+- Conversation history
+- User profiles
+- Long-term memory
+- Context preservation
+- Pattern learning
 
 ---
 
-## 🏗️ Architecture
+## 🧪 Testing
 
-```
-atulya-tantra/
-├── clients/              # User interfaces
-│   ├── gui/             # Desktop applications
-│   │   ├── voice_gui.py        # ChatGPT-style voice chat
-│   │   └── system_tray_app.py  # Background mode with wake word
-│   ├── cli/             # Command-line interface
-│   └── web/             # Browser interface
-├── server/              # FastAPI server (optional, for multi-device)
-│   ├── main.py          # REST + WebSocket endpoints
-│   ├── services/        # Core services
-│   │   ├── ai_service.py       # Multi-model routing
-│   │   ├── sentiment_analyzer.py
-│   │   ├── memory_service.py
-│   │   ├── voice_service.py
-│   │   └── task_service.py
-│   └── models/
-│       └── model_router.py
-├── agents/              # Multi-agent orchestration
-│   └── agent_orchestrator.py
-├── models/              # Model configurations
-│   ├── audio/           # TTS, STT, wake word
-│   ├── text/            # LLM prompts & configs
-│   └── video/           # Vision models (future)
-├── mcp/                 # Model Context Protocol (v1.1.0)
-├── configuration/       # Settings and config
-├── scripts/             # Setup and utility scripts
-└── docs/                # Documentation
+We maintain comprehensive test coverage:
+
+```bash
+# Run all tests
+python -m testing
+
+# Individual test suites
+python testing/test_system_integrity.py
+python testing/test_protocols.py
+python testing/test_deep_analysis.py
 ```
 
----
-
-## 🤖 Supported Models
-
-| Model | Size | Speed | Quality | Use Case |
-|-------|------|-------|---------|----------|
-| **gemma2:2b** ⭐ | 1.6GB | ⚡⚡⚡⚡⚡ | ⭐⭐⭐⭐ | **Voice (Recommended)** |
-| **phi3:mini** | 2.3GB | ⚡⚡⚡ | ⭐⭐⭐⭐⭐ | Balanced |
-| **mistral:7b** | 4.1GB | ⚡⚡ | ⭐⭐⭐⭐⭐ | Complex tasks |
-| **codellama:7b** | 3.8GB | ⚡⚡ | ⭐⭐⭐⭐⭐ | Code generation |
-| **llava:7b** | 4.5GB | ⚡⚡ | ⭐⭐⭐⭐⭐ | Vision (images) |
-
-**Download:**
-```powershell
-ollama pull <model-name>
-```
+Our testing framework verifies:
+- ✅ System integrity
+- ✅ Protocol functionality
+- ✅ Import system
+- ✅ Configuration
+- ✅ Performance metrics
+- ✅ Dependency validation
 
 ---
 
 ## ⚙️ Configuration
 
-### Change Default Model
-Edit `configuration/settings.py`:
+Our global configuration system in `configuration/settings.py`:
+
 ```python
-default_model = "phi3:mini"  # Your preferred model
+from configuration import settings
+
+# AI Configuration
+settings.default_model = "phi3:mini"
+settings.temperature = 0.7
+settings.max_tokens = 4096
+
+# Voice Configuration
+settings.wake_word = "atulya"
+settings.tts_voice = "en-US-AriaNeural"
+
+# System Configuration
+settings.enable_voice_interface = True
+settings.enable_computer_control = True
 ```
 
-### Adjust Response Speed
-Edit `clients/gui/voice_gui.py`:
+All prompts centralized in `configuration/prompts.py`:
+
 ```python
-'num_predict': 10 if is_simple else 30  # Lower = faster
+from configuration import get_prompt
+
+# Get JARVIS prompt
+jarvis_prompt = get_prompt('jarvis')
+
+# Get specialized agent prompts
+code_prompt = get_prompt('code')
+research_prompt = get_prompt('research')
 ```
 
-### Change Voice
-Edit `clients/gui/voice_gui.py`:
+---
+
+## 🤖 Protocol Usage
+
+### Using JARVIS Protocol
+
 ```python
-communicate = edge_tts.Communicate(text, 'en-US-AriaNeural')
-# Try: en-US-GuyNeural, en-GB-SoniaNeural, etc.
+from protocols.jarvis import JarvisInterface
+
+# Initialize JARVIS
+jarvis = JarvisInterface()
+await jarvis.activate()
+
+# Process messages
+response = await jarvis.process_message("Hello, how are you?")
+print(response['response'])
+```
+
+### Using SKYNET Protocol
+
+```python
+from protocols.skynet import SkynetOrchestrator
+
+# Initialize SKYNET
+skynet = SkynetOrchestrator()
+await skynet.activate()
+
+# Route complex tasks
+result = await skynet.route_task("Build a Python web scraper")
+print(f"Routed to: {result['routed_to']}")
 ```
 
 ---
 
-## 🌐 Server Mode (Multi-Device)
+## 📊 Development Status
 
-Run server for access from multiple devices:
+### ✅ Phase 1: Foundation (COMPLETE)
+- Core architecture
+- JARVIS Protocol base
+- SKYNET Protocol base
+- Configuration system
+- Testing infrastructure
+- Professional structure
 
-```powershell
-# Start server
-cd server
-python main.py
+### 🔄 Phase 2: Enhancement (IN PROGRESS)
+- Full protocol implementation
+- Advanced agent coordination
+- ML-based emotion detection
+- Enhanced voice processing
+- Performance optimization
 
-# Access from:
-# - Desktop: python clients/gui/voice_gui.py
-# - Web: Open clients/web/index.html
-# - CLI: python clients/cli/atulya_cli.py
-# - API: http://localhost:8000/docs
+### 📋 Phase 3: Advanced Features (PLANNED)
+- Multi-modal understanding
+- Video analysis capabilities
+- Advanced automation
+- Cloud sync (optional)
+- Mobile applications
+
+See [ROADMAP.md](ROADMAP.md) for detailed development plans.
+
+---
+
+## 🛠️ Development
+
+### Project Standards
+
+We maintain professional development practices:
+- **Modular Architecture** - Clean separation of concerns
+- **Type Hints** - Full type annotation
+- **Documentation** - Comprehensive docstrings
+- **Testing** - High test coverage
+- **Logging** - Centralized logging system
+- **Error Handling** - Robust exception management
+
+### Contributing
+
+We welcome contributions! Our development guidelines:
+1. Follow our architecture patterns
+2. Add tests for new features
+3. Update documentation
+4. Use type hints
+5. Follow PEP 8 style guide
+
+---
+
+## 📚 API Reference
+
+### Server API
+
+**Base URL:** `http://localhost:8000`
+
+**Endpoints:**
+- `GET /` - Health check and system status
+- `POST /api/chat` - Send message to AI
+- `GET /api/models` - List available models
+- `GET /api/agents` - List active agents
+- `GET /api/status` - Get system status
+
+**WebSocket:**
+- `ws://localhost:8000/ws` - Real-time communication
+
+Full API documentation: `http://localhost:8000/docs`
+
+---
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+**Import Errors:**
+```bash
+# Run deep analysis
+python testing/test_deep_analysis.py
+```
+
+**Configuration Issues:**
+```bash
+# Verify configuration
+python -c "from configuration import settings; print(settings.get_status())"
+```
+
+**Protocol Issues:**
+```bash
+# Test protocols
+python testing/test_protocols.py
 ```
 
 ---
 
-## 🎤 Voice Features
+## 📖 Documentation
 
-### Smart Brevity
-- **Simple queries** (e.g., "Hi") → 10 tokens (~2-3s)
-- **Complex queries** (e.g., "Explain quantum physics") → 30 tokens (~5-8s)
-
-### Speech Normalization
-- "h r u" → "how are you"
-- "u" → "you"
-- "r" → "are"
-- Understands casual texting language!
-
-### Interruption Handling
-- AI stops when you start talking
-- Combines multiple questions
-- Natural conversation flow
+- **Getting Started** - `others/docs/getting-started.md`
+- **API Reference** - `http://localhost:8000/docs`
+- **Architecture** - This README
+- **Roadmap** - `ROADMAP.md`
+- **Changelog** - `CHANGELOG.md`
 
 ---
 
-## 📊 Performance
+## 🌐 System Requirements
 
-### Response Times
-- **Greetings:** 2-3 seconds (gemma2:2b)
-- **Simple queries:** 4-6 seconds
-- **Complex queries:** 8-12 seconds
+### Minimum
+- Python 3.8+
+- 2GB RAM
+- 5GB Disk Space
+- Internet (initial setup only)
 
-### Resource Usage
-- **RAM:** ~500MB (idle), ~2GB (active)
-- **CPU:** 20-30% during inference
-- **Disk:** ~2GB per model
-
----
-
-## 🔮 Roadmap
-
-### Coming Soon (v1.1.0)
-- [ ] LLaVA vision model (image understanding)
-- [ ] LangGraph workflow orchestration
-- [ ] Advanced MCP tools (calendar, email)
-- [ ] Proactive AI (offers suggestions)
-- [ ] Learning from interactions
-
-### Future (v1.2.0+)
-- [ ] Mobile app (iOS/Android)
-- [ ] Multi-language support
-- [ ] Voice cloning
-- [ ] Plugin system
-- [ ] Cloud sync
-
-See [ROADMAP.md](ROADMAP.md) for full details.
+### Recommended
+- Python 3.10+
+- 8GB RAM
+- 20GB Disk Space
+- Ollama with multiple models
 
 ---
 
-## 🤝 Contributing
+## 📞 Support
 
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-### Quick Contribution
-1. Fork the repository
-2. Create feature branch: `git checkout -b feature/your-feature`
-3. Commit changes: `git commit -m "Add: your feature"`
-4. Push: `git push origin feature/your-feature`
-5. Open Pull Request
+- **Issues:** [GitHub Issues](https://github.com/atulyaai/Atulya-Tantra/issues)
+- **Email:** admin@atulvij.com
+- **Documentation:** `others/docs/`
 
 ---
 
@@ -269,48 +373,62 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 MIT License - See [LICENSE](LICENSE) for details.
 
-**Free to use, modify, and distribute!**
+Free to use, modify, and distribute.
 
 ---
 
-## 🙏 Credits
+## 🙏 Acknowledgments
 
-Built with amazing open-source tools:
-- **Ollama** - Local LLM infrastructure
+**Inspired by:**
+- JARVIS (Iron Man) - Natural AI interaction
+- SKYNET (Terminator) - Multi-agent coordination
+
+**Built with:**
+- **Ollama** - Local LLM inference
 - **FastAPI** - Modern web framework
-- **Edge-TTS** - Microsoft Text-to-Speech
-- **SpeechRecognition** - Google Speech API
-- **ChromaDB** - Vector database for memory
-
-Inspired by:
-- **JARVIS** (Iron Man)
-- **ChatGPT Voice Mode** (OpenAI)
-- **Local-first AI movement**
+- **Edge-TTS** - Text-to-speech
+- **SpeechRecognition** - Voice input
+- **Python** - Core language
 
 ---
 
-## 📞 Support
+## 🎯 Our Vision
 
-- **Issues:** [GitHub Issues](https://github.com/atulyaai/Atulya-Tantra/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/atulyaai/Atulya-Tantra/discussions)
-- **Email:** atulya@tantra.ai
+Atulya Tantra represents our commitment to building:
 
----
-
-## ⭐ Star History
-
-If you find Atulya Tantra useful, please give it a star! ⭐
+1. **Privacy-First AI** - All processing stays local
+2. **Emotional Intelligence** - AI that understands context and emotion
+3. **Professional Architecture** - Enterprise-grade code quality
+4. **Open Innovation** - Community-driven development
+5. **Continuous Evolution** - Regular improvements and updates
 
 ---
 
-**🎉 Ready to build your own JARVIS?** [Get Started →](docs/getting-started.md)
+## 🚀 Ready to Start?
+
+```bash
+# Quick start command sequence
+git clone https://github.com/atulyaai/Atulya-Tantra.git
+cd Atulya-Tantra
+python -m pip install -r requirements.txt
+python testing/test_deep_analysis.py  # Verify installation
+cd others/server && python main.py    # Start server
+```
+
+Then open `webui/app.html` in your browser!
 
 ---
 
 <div align="center">
 
-**Made with ❤️ by the Open Source Community**
+**🤖 Atulya Tantra - Our Journey to Advanced AI**
 
-[Report Bug](https://github.com/atulyaai/Atulya-Tantra/issues) • [Request Feature](https://github.com/atulyaai/Atulya-Tantra/issues) • [Documentation](docs/README.md)
+*Building the future of personal AI, one commit at a time.*
+
+**Version 1.0.1 | Codename: JARVIS | Status: Active**
+
+---
+
+Made with ❤️ by our team | [GitHub](https://github.com/atulyaai/Atulya-Tantra) | [Documentation](others/docs/)
 
 </div>

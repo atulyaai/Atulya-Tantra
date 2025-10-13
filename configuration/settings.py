@@ -4,7 +4,10 @@ Configuration settings for Atulya Tantra AI System
 import os
 from pathlib import Path
 from typing import Dict, Any
-from pydantic import BaseSettings
+try:
+    from pydantic_settings import BaseSettings
+except ImportError:
+    from pydantic import BaseSettings
 from dotenv import load_dotenv
 
 # Load environment variables
