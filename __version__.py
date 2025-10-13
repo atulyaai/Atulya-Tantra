@@ -3,12 +3,13 @@ Atulya Tantra - Version Information
 Semantic Versioning: MAJOR.MINOR.PATCH
 """
 
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 __version_info__ = tuple(int(i) for i in __version__.split("."))
 
 # Version history
 VERSION_HISTORY = {
-    "1.0.1": "Sentiment analysis, interrupt & accumulate, profile memory, optimized response times",
+    "1.0.2": "Working JARVIS & SKYNET protocols, Docker setup, consolidated & modular architecture",
+    "1.0.1": "Professional restructure with protocol frameworks",
     "1.0.0": "Initial release - Voice assistant with multi-model support"
 }
 
