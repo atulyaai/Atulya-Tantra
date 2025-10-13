@@ -13,7 +13,7 @@
 
         :root {
             --sidebar-width: 260px;
-            --header-height: 60px;
+            --header-height: 64px;
             --primary: #111827;
             --border: #e5e7eb;
             --hover: #f3f4f6;
@@ -112,13 +112,14 @@
         }
 
         .header-title {
-            font-size: 1.25rem;
-            font-weight: 600;
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            letter-spacing: 0.5px;
+            letter-spacing: -0.5px;
+            text-shadow: 0 2px 10px rgba(102, 126, 234, 0.1);
         }
 
         .menu-btn {
@@ -152,7 +153,7 @@
 
         .orb-container {
             position: absolute;
-            top: 15%;
+            top: 8%;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -160,17 +161,16 @@
         }
 
         .orb {
-            width: 180px;
-            height: 180px;
+            width: 200px;
+            height: 200px;
             border-radius: 50%;
             background: radial-gradient(circle at 35% 35%, #dbeafe, #3b82f6);
             box-shadow: 
-                0 25px 60px rgba(59, 130, 246, 0.25),
+                0 25px 60px rgba(59, 130, 246, 0.3),
                 inset 0 -30px 40px rgba(147, 197, 253, 0.3),
                 inset 0 30px 40px rgba(255, 255, 255, 0.5);
             position: relative;
             overflow: hidden;
-            transition: transform 0.3s ease;
         }
 
         .orb::before {
@@ -189,8 +189,16 @@
             animation: shimmer 4s linear infinite;
         }
 
+        .orb::after {
+            content: '';
+            position: absolute;
+            inset: 20px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 40% 40%, rgba(255,255,255,0.3), transparent);
+        }
+
         .orb.talking {
-            animation: breathe 1.5s ease-in-out infinite;
+            animation: pulse-talk 0.8s ease-in-out infinite;
         }
 
         @keyframes shimmer {
@@ -198,9 +206,53 @@
             100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
         }
 
-        @keyframes breathe {
-            0%, 100% { transform: scale(1); box-shadow: 0 25px 60px rgba(59, 130, 246, 0.25); }
-            50% { transform: scale(1.08); box-shadow: 0 30px 80px rgba(59, 130, 246, 0.4); }
+        @keyframes pulse-talk {
+            0%, 100% { 
+                transform: scale(1); 
+                box-shadow: 0 25px 60px rgba(59, 130, 246, 0.3),
+                            0 0 0 0 rgba(59, 130, 246, 0.7);
+            }
+            50% { 
+                transform: scale(1.05); 
+                box-shadow: 0 30px 80px rgba(59, 130, 246, 0.4),
+                            0 0 0 15px rgba(59, 130, 246, 0);
+            }
+        }
+
+        /* Ripple Animation */
+        .ripple-container {
+            position: absolute;
+            top: 8%;
+            pointer-events: none;
+        }
+
+        .ripple {
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            border: 2px solid rgba(59, 130, 246, 0.6);
+            border-radius: 50%;
+            animation: ripple-effect 2s ease-out infinite;
+            opacity: 0;
+        }
+
+        .ripple:nth-child(2) {
+            animation-delay: 0.5s;
+        }
+
+        .ripple:nth-child(3) {
+            animation-delay: 1s;
+        }
+
+        @keyframes ripple-effect {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1.8);
+                opacity: 0;
+            }
         }
 
         .chat-area {
@@ -208,7 +260,7 @@
             width: 100%;
             max-width: 800px;
             overflow-y: auto;
-            padding: 280px 24px 24px;
+            padding: 320px 24px 24px;
             display: flex;
             flex-direction: column;
             gap: 16px;
@@ -336,42 +388,6 @@
             cursor: not-allowed;
         }
 
-        /* Wave Animation */
-        .wave-container {
-            display: none;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 300px;
-            height: 100px;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        .wave-container.active {
-            display: flex;
-        }
-
-        .wave-bar {
-            width: 6px;
-            background: linear-gradient(180deg, #3b82f6, #1d4ed8);
-            border-radius: 3px;
-            animation: wave 1.2s ease-in-out infinite;
-        }
-
-        .wave-bar:nth-child(1) { height: 30px; animation-delay: 0s; }
-        .wave-bar:nth-child(2) { height: 45px; animation-delay: 0.1s; }
-        .wave-bar:nth-child(3) { height: 60px; animation-delay: 0.2s; }
-        .wave-bar:nth-child(4) { height: 45px; animation-delay: 0.3s; }
-        .wave-bar:nth-child(5) { height: 30px; animation-delay: 0.4s; }
-
-        @keyframes wave {
-            0%, 100% { transform: scaleY(1); }
-            50% { transform: scaleY(1.5); }
-        }
-
         /* Responsive */
         @media (max-width: 768px) {
             .sidebar {
@@ -392,16 +408,20 @@
             }
 
             .orb {
-                width: 140px;
-                height: 140px;
+                width: 150px;
+                height: 150px;
             }
 
             .chat-area {
-                padding-top: 220px;
+                padding-top: 260px;
             }
 
             .message-content {
                 max-width: 85%;
+            }
+
+            .header-title {
+                font-size: 1.5rem;
             }
         }
 
@@ -412,7 +432,7 @@
             }
 
             .header-title {
-                font-size: 1.1rem;
+                font-size: 1.3rem;
             }
         }
     </style>
@@ -454,12 +474,10 @@
                 <div class="orb" id="orb"></div>
             </div>
             
-            <div class="wave-container" id="waveContainer">
-                <div class="wave-bar"></div>
-                <div class="wave-bar"></div>
-                <div class="wave-bar"></div>
-                <div class="wave-bar"></div>
-                <div class="wave-bar"></div>
+            <div class="ripple-container" id="rippleContainer">
+                <div class="ripple"></div>
+                <div class="ripple"></div>
+                <div class="ripple"></div>
             </div>
 
             <div class="chat-area" id="chatArea"></div>
@@ -511,7 +529,7 @@
         const cameraBtn = document.getElementById('cameraBtn');
         const attachBtn = document.getElementById('attachBtn');
         const orb = document.getElementById('orb');
-        const waveContainer = document.getElementById('waveContainer');
+        const rippleContainer = document.getElementById('rippleContainer');
         const sidebar = document.getElementById('sidebar');
 
         let isListening = false;
@@ -547,7 +565,7 @@
 
             // Show talking animation
             orb.classList.add('talking');
-            waveContainer.classList.add('active');
+            rippleContainer.style.display = 'block';
 
             const typingDiv = document.createElement('div');
             typingDiv.className = 'message assistant';
@@ -569,32 +587,44 @@
                 typingDiv.remove();
                 addMessage(data.response, false, data);
 
-                // Play audio
+                // Play audio with proper error handling
                 if (data.audio_file) {
-                    const audio = new Audio(`${API_URL}/${data.audio_file}`);
-                    audio.onended = () => {
-                        orb.classList.remove('talking');
-                        waveContainer.classList.remove('active');
+                    const audioPath = data.audio_file.startsWith('/') ? data.audio_file : `/${data.audio_file}`;
+                    const audio = new Audio(`${API_URL}${audioPath}`);
+                    
+                    audio.onloadeddata = () => {
+                        console.log('Audio loaded successfully');
+                        audio.play().catch(err => {
+                            console.error('Audio playback error:', err);
+                            stopTalking();
+                        });
                     };
-                    audio.play().catch(err => {
-                        console.log('Audio error:', err);
-                        orb.classList.remove('talking');
-                        waveContainer.classList.remove('active');
-                    });
+                    
+                    audio.onended = () => {
+                        stopTalking();
+                    };
+                    
+                    audio.onerror = (err) => {
+                        console.error('Audio loading error:', err);
+                        stopTalking();
+                    };
                 } else {
-                    orb.classList.remove('talking');
-                    waveContainer.classList.remove('active');
+                    stopTalking();
                 }
             } catch (error) {
                 typingDiv.remove();
                 addMessage('Error: Unable to reach server.', false);
-                orb.classList.remove('talking');
-                waveContainer.classList.remove('active');
+                stopTalking();
             }
 
             sendBtn.disabled = false;
             messageInput.disabled = false;
             messageInput.focus();
+        }
+
+        function stopTalking() {
+            orb.classList.remove('talking');
+            rippleContainer.style.display = 'none';
         }
 
         // Add message
@@ -610,7 +640,6 @@
             chatArea.appendChild(messageDiv);
             chatArea.scrollTop = chatArea.scrollHeight;
 
-            // Save to conversation history
             saveMessage(text, isUser);
         }
 
@@ -632,7 +661,7 @@
                 isListening = true;
                 micBtn.classList.add('active');
                 orb.classList.add('talking');
-                waveContainer.classList.add('active');
+                rippleContainer.style.display = 'block';
             };
 
             recognition.onresult = (event) => {
@@ -647,7 +676,7 @@
                 micBtn.classList.remove('active');
                 if (!isTalking) {
                     orb.classList.remove('talking');
-                    waveContainer.classList.remove('active');
+                    rippleContainer.style.display = 'none';
                 }
             };
 
@@ -655,7 +684,7 @@
                 isListening = false;
                 micBtn.classList.remove('active');
                 orb.classList.remove('talking');
-                waveContainer.classList.remove('active');
+                rippleContainer.style.display = 'none';
             };
 
             recognition.start();
@@ -687,7 +716,6 @@
         }
 
         function saveMessage(text, isUser) {
-            // Save to localStorage or backend
             const conv = conversations.find(c => c.id === currentConversationId) || {
                 id: currentConversationId,
                 title: text.substring(0, 30) + '...',
@@ -730,6 +758,9 @@
                 sidebar.classList.remove('open');
             }
         });
+
+        // Hide ripple initially
+        rippleContainer.style.display = 'none';
 
         messageInput.focus();
     </script>
