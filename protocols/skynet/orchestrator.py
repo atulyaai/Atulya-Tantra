@@ -106,19 +106,60 @@ class SkynetOrchestrator:
         Returns:
             Task routing information
         """
+        import time
+        start_time = time.time()
+        
         logger.info(f"Routing task: {task[:50]}...")
         
         # Analyze task and determine agent
         agent_type = self._analyze_task(task)
         
-        # TODO: Implement actual agent routing
-        # Placeholder response
-        return {
-            'task': task,
-            'routed_to': agent_type,
-            'status': 'queued',
-            'priority': TaskPriority.NORMAL.value
-        }
+        # Get the agent
+        agent_info = self.agents.get(agent_type)
+        if not agent_info:
+            return {
+                'task': task,
+                'routed_to': 'unknown',
+                'status': 'error',
+                'error': f'Agent {agent_type} not found'
+            }
+        
+        # Execute task with agent
+        try:
+            from .agent_base import ConversationAgent, CodeAgent
+            from configuration import settings
+            
+            # Create agent instance based on type
+            if agent_type == 'conversation':
+                agent = ConversationAgent(config={'model': settings.default_model})
+            elif agent_type == 'code':
+                agent = CodeAgent(config={'model': settings.default_model})
+            else:
+                # Use conversation agent as fallback
+                agent = ConversationAgent(config={'model': settings.default_model})
+            
+            # Execute the task
+            result = await agent.execute(task, context)
+            
+            execution_time = time.time() - start_time
+            
+            return {
+                'task': task,
+                'routed_to': agent_type,
+                'status': 'completed',
+                'priority': TaskPriority.NORMAL.value,
+                'result': result,
+                'execution_time': execution_time
+            }
+            
+        except Exception as e:
+            logger.error(f"Error executing task: {e}", exc_info=True)
+            return {
+                'task': task,
+                'routed_to': agent_type,
+                'status': 'error',
+                'error': str(e)
+            }
     
     def _analyze_task(self, task: str) -> str:
         """

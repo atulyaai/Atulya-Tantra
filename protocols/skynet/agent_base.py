@@ -107,21 +107,58 @@ class ConversationAgent(BaseAgent):
     
     def __init__(self, name: str = "ConversationAgent", config: Optional[Dict] = None):
         super().__init__(AgentType.CONVERSATION, name, config)
+        self.model = config.get('model', 'phi3:mini') if config else 'phi3:mini'
     
     async def execute(self, task: str, context: Optional[Dict] = None) -> Dict[str, Any]:
         """Execute conversation task"""
         self.status = AgentStatus.BUSY
         
-        # TODO: Implement conversation processing
-        result = {
-            'agent': self.name,
-            'type': self.agent_type.value,
-            'response': 'Conversation agent processing...',
-            'success': True
-        }
-        
-        self._mark_task_complete()
-        return result
+        try:
+            import ollama
+            import asyncio
+            from configuration.prompts import get_prompt
+            
+            # Get conversation prompt
+            system_prompt = get_prompt('conversation')
+            
+            messages = [
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': task}
+            ]
+            
+            # Add context if provided
+            if context:
+                context_str = "\n".join([f"{k}: {v}" for k, v in context.items()])
+                messages.insert(1, {'role': 'system', 'content': f"Context:\n{context_str}"})
+            
+            # Generate response
+            response = await asyncio.to_thread(
+                ollama.chat,
+                model=self.model,
+                messages=messages,
+                options={'num_predict': 150}
+            )
+            
+            result = {
+                'agent': self.name,
+                'type': self.agent_type.value,
+                'response': response['message']['content'],
+                'success': True,
+                'model': self.model
+            }
+            
+            self._mark_task_complete()
+            return result
+            
+        except Exception as e:
+            logger.error(f"Conversation agent error: {e}")
+            self.status = AgentStatus.ERROR
+            return {
+                'agent': self.name,
+                'type': self.agent_type.value,
+                'response': f'Error: {str(e)}',
+                'success': False
+            }
 
 
 class CodeAgent(BaseAgent):
@@ -129,21 +166,58 @@ class CodeAgent(BaseAgent):
     
     def __init__(self, name: str = "CodeAgent", config: Optional[Dict] = None):
         super().__init__(AgentType.CODE, name, config)
+        self.model = config.get('model', 'phi3:mini') if config else 'phi3:mini'
     
     async def execute(self, task: str, context: Optional[Dict] = None) -> Dict[str, Any]:
         """Execute code-related task"""
         self.status = AgentStatus.BUSY
         
-        # TODO: Implement code processing
-        result = {
-            'agent': self.name,
-            'type': self.agent_type.value,
-            'response': 'Code agent processing...',
-            'success': True
-        }
-        
-        self._mark_task_complete()
-        return result
+        try:
+            import ollama
+            import asyncio
+            from configuration.prompts import get_prompt
+            
+            # Get code prompt
+            system_prompt = get_prompt('code')
+            
+            messages = [
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': task}
+            ]
+            
+            # Add context if provided
+            if context:
+                context_str = "\n".join([f"{k}: {v}" for k, v in context.items()])
+                messages.insert(1, {'role': 'system', 'content': f"Context:\n{context_str}"})
+            
+            # Generate response
+            response = await asyncio.to_thread(
+                ollama.chat,
+                model=self.model,
+                messages=messages,
+                options={'num_predict': 200}  # More tokens for code
+            )
+            
+            result = {
+                'agent': self.name,
+                'type': self.agent_type.value,
+                'response': response['message']['content'],
+                'success': True,
+                'model': self.model
+            }
+            
+            self._mark_task_complete()
+            return result
+            
+        except Exception as e:
+            logger.error(f"Code agent error: {e}")
+            self.status = AgentStatus.ERROR
+            return {
+                'agent': self.name,
+                'type': self.agent_type.value,
+                'response': f'Error: {str(e)}',
+                'success': False
+            }
 
 
 __all__ = [
