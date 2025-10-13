@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atulya Tantra • LiveKit-style UI</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0b0f1a;
+            color: #e2e8f0;
+        }
+
+        .frame {
+            min-height: 100vh;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 18px;
+            border-bottom: 1px solid rgba(148,163,184,.15);
+            background: rgba(2,6,23,.6);
+            backdrop-filter: blur(6px);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            letter-spacing: .2px;
+        }
+        .brand .dot { width: 10px; height: 10px; background: #60a5fa; border-radius: 2px; }
+        .right a { color: #94a3b8; text-decoration: none; font-size: 12px; }
+
+        .stage {
+            display: grid;
+            place-items: center;
+            padding: 24px;
+        }
+        .visual {
+            width: min(780px, 92vw);
+            height: min(280px, 45vh);
+            background: radial-gradient(1200px 400px at 50% -100%, rgba(96,165,250,.15), transparent),
+                        linear-gradient(180deg, rgba(30,41,59,.7), rgba(15,23,42,.6));
+            border: 1px solid rgba(148,163,184,.15);
+            border-radius: 18px;
+            display: grid;
+            place-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+        canvas { width: 100%; height: 100%; display: block; }
+        .hint { position: absolute; bottom: 10px; right: 14px; font-size: 12px; color: #94a3b8; }
+
+        .dock {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 16px;
+            border-top: 1px solid rgba(148,163,184,.15);
+            background: rgba(2,6,23,.7);
+            backdrop-filter: blur(6px);
+        }
+        .controls { display: flex; gap: 10px; align-items: center; }
+        .btn {
+            height: 42px; min-width: 42px; padding: 0 12px;
+            border-radius: 12px; border: 1px solid rgba(148,163,184,.18);
+            background: #0b1220; color: #e2e8f0; cursor: pointer;
+        }
+        .btn.primary { background: linear-gradient(135deg,#6366f1,#06b6d4); border: none; }
+        .btn.danger { background: #ef4444; border: none; }
+        .btn.toggled { outline: 2px solid #60a5fa; }
+
+        .input {
+            flex: 1; display: flex; align-items: center; gap: 10px;
+            background: #0b1220; border: 1px solid rgba(148,163,184,.18);
+            border-radius: 14px; padding: 6px 10px;
+        }
+        .input textarea {
+            flex: 1; height: 42px; resize: none; border: 0; outline: 0;
+            background: transparent; color: #e2e8f0; font-family: inherit; font-size: 14px;
+        }
+        .status { font-size: 12px; color: #94a3b8; margin-left: 8px; }
+    </style>
+</head>
+<body>
+    <div class="frame">
+        <div class="topbar">
+            <div class="brand"><span class="dot"></span>Atulya Voice Agent</div>
+            <div class="right"><a href="#">built for Atulya Tantra</a></div>
+        </div>
+
+        <main class="stage">
+            <section class="visual">
+                <canvas id="viz"></canvas>
+                <div class="hint" id="hint">Mic idle</div>
+            </section>
+            <div class="status" id="status">Connecting…</div>
+        </main>
+
+        <footer class="dock">
+            <div class="controls">
+                <button class="btn" id="micBtn" title="Mic">🎤</button>
+                <button class="btn" id="voiceBtn" title="Voice output">🔊</button>
+                <button class="btn" id="screenBtn" title="Screen share (placeholder)">🖥️</button>
+            </div>
+            <div class="input">
+                <textarea id="msg" placeholder="Type a message…"></textarea>
+                <button class="btn primary" id="sendBtn">Send</button>
+                <button class="btn danger" id="endBtn">End</button>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8000';
+        const statusEl = document.getElementById('status');
+        const hintEl = document.getElementById('hint');
+        const micBtn = document.getElementById('micBtn');
+        const voiceBtn = document.getElementById('voiceBtn');
+        const sendBtn = document.getElementById('sendBtn');
+        const endBtn = document.getElementById('endBtn');
+        const msgEl = document.getElementById('msg');
+
+        let voiceEnabled = false;
+        let listening = false;
+        let mediaStream = null;
+        let analyser = null;
+        let rafId = null;
+
+        // Health check
+        async function check() {
+            try {
+                const r = await fetch(`${API_URL}/health`);
+                const j = await r.json();
+                statusEl.textContent = j.status === 'healthy' ? 'Server online' : 'Server offline';
+            } catch {
+                statusEl.textContent = 'Server offline';
+            }
+        }
+        check(); setInterval(check, 30000);
+
+        // Voice toggle
+        voiceBtn.addEventListener('click', () => {
+            voiceEnabled = !voiceEnabled;
+            voiceBtn.classList.toggle('toggled', voiceEnabled);
+        });
+
+        // Mic & waveform
+        micBtn.addEventListener('click', async () => {
+            if (listening) { stopMic(); return; }
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const src = ctx.createMediaStreamSource(mediaStream);
+                analyser = ctx.createAnalyser();
+                analyser.fftSize = 1024;
+                src.connect(analyser);
+                listening = true;
+                micBtn.classList.add('toggled');
+                hintEl.textContent = 'Listening…';
+                drawWaveform();
+                startSpeechRecognition();
+            } catch (e) {
+                alert('Microphone permission denied.');
+            }
+        });
+
+        function stopMic() {
+            if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+            mediaStream = null; listening = false; analyser = null;
+            micBtn.classList.remove('toggled');
+            hintEl.textContent = 'Mic idle';
+            if (rafId) cancelAnimationFrame(rafId);
+        }
+
+        // Simple waveform
+        function drawWaveform() {
+            const canvas = document.getElementById('viz');
+            const ctx = canvas.getContext('2d');
+            function resize() {
+                canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
+            }
+            resize();
+            const data = new Uint8Array(analyser.frequencyBinCount);
+            function loop() {
+                rafId = requestAnimationFrame(loop);
+                if (!analyser) return;
+                analyser.getByteTimeDomainData(data);
+                ctx.clearRect(0,0,canvas.width, canvas.height);
+                ctx.lineWidth = 2; ctx.strokeStyle = '#60a5fa';
+                ctx.beginPath();
+                const slice = canvas.width / data.length;
+                let x = 0;
+                for (let i=0;i<data.length;i++) {
+                    const v = (data[i] / 128.0) - 1.0;
+                    const y = (canvas.height/2) + v * (canvas.height/3);
+                    if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+                    x += slice;
+                }
+                ctx.stroke();
+            }
+            window.addEventListener('resize', resize);
+            loop();
+        }
+
+        // Speech recognition -> send
+        function startSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) return; // graceful degrade
+            const rec = new SpeechRecognition();
+            rec.lang = 'en-US'; rec.interimResults = false; rec.continuous = false;
+            rec.onresult = e => {
+                const text = e.results[0][0].transcript;
+                msgEl.value = text;
+                if (voiceEnabled) send();
+            };
+            rec.onend = () => { if (listening) hintEl.textContent = 'Listening…'; };
+            rec.start();
+        }
+
+        // Send message via REST
+        async function send() {
+            const message = msgEl.value.trim();
+            if (!message) return;
+            sendBtn.disabled = true; msgEl.disabled = true;
+            try {
+                const r = await fetch(`${API_URL}/api/chat`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message, enable_voice: voiceEnabled })
+                });
+                const j = await r.json();
+                hintEl.textContent = j.response || 'No response';
+                if (voiceEnabled && j.audio_file) new Audio(`${API_URL}/${j.audio_file}`).play().catch(()=>{});
+            } catch (e) {
+                hintEl.textContent = 'Error contacting server';
+            } finally {
+                sendBtn.disabled = false; msgEl.disabled = false; msgEl.value=''; msgEl.focus();
+            }
+        }
+        sendBtn.addEventListener('click', send);
+        msgEl.addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+
+        // End call behavior resets UI
+        endBtn.addEventListener('click', () => {
+            stopMic(); msgEl.value=''; hintEl.textContent='Call ended';
+        });
+
+        // Placeholder for screen share button
+        document.getElementById('screenBtn').addEventListener('click', () => {
+            alert('Screen share is a placeholder in this build.');
+        });
+    </script>
+</body>
+</html>
+
+
