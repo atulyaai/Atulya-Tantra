@@ -113,17 +113,9 @@ async def shutdown():
 
 @app.get("/")
 async def root():
-    """Root endpoint - health check"""
-    return {
-        "name": "Atulya Tantra",
-        "version": config.version,
-        "codename": config.codename,
-        "status": "operational",
-        "protocols": {
-            "jarvis": jarvis.is_active if jarvis else False,
-            "skynet": skynet.is_active if skynet else False
-        }
-    }
+    """Redirect to web UI"""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/webui/index.html")
 
 
 @app.get("/health")

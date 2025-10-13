@@ -94,8 +94,13 @@ data/vectors/
 *.wav
 *.mp3
 
+# Block unwanted markdown files (only allow essential docs)
+*.md
+!README.md
+!CHANGELOG.md
+!ROADMAP.md
+
 # Keep important files
 !.gitignore
-!README.md
 !LICENSE
 !requirements.txt
