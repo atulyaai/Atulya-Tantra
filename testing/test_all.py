@@ -71,7 +71,7 @@ class TestConfiguration(unittest.TestCase):
         """Test global configuration"""
         config = get_config()
         self.assertIsNotNone(config)
-        self.assertEqual(config.version, "1.0.2")
+        self.assertEqual(config.version, "1.0.3")
         self.assertEqual(config.codename, "JARVIS")
     
     def test_config_settings(self):

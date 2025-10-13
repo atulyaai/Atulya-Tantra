@@ -17,7 +17,7 @@ class GlobalConfig:
     """
     
     # Version Info
-    version: str = "1.0.2"
+    version: str = "1.0.3"
     codename: str = "JARVIS"
     
     # AI Model Settings

@@ -3,7 +3,7 @@ Atulya Tantra - Core Module
 Foundation utilities and base components
 """
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 __codename__ = "JARVIS"
 
 from pathlib import Path
