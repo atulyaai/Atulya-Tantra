@@ -1,160 +1,54 @@
 """
-Agent Orchestrator - MCP Server Integration & Multi-Agent System
-Coordinates multiple AI agents and tools for complex tasks
+Atulya Tantra - Agent Orchestrator
+Unified interface to SKYNET Protocol and MCP Server
+CONSOLIDATED - No duplicate code, uses protocols/skynet
 """
 
-import logging
 from typing import Dict, List, Optional, Any
-import asyncio
+from core.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger('automation.orchestrator')
 
-class Agent:
-    """Base agent class for specific tasks"""
-    
-    def __init__(self, name: str, model: str, system_prompt: str):
-        self.name = name
-        self.model = model
-        self.system_prompt = system_prompt
-    
-    async def execute(self, task: str, context: Optional[Dict] = None) -> str:
-        """Execute agent task"""
-        import ollama
-        
-        messages = [
-            {'role': 'system', 'content': self.system_prompt},
-            {'role': 'user', 'content': task}
-        ]
-        
-        if context:
-            # Add context from previous agents
-            for key, value in context.items():
-                messages.insert(1, {'role': 'user', 'content': f"Context - {key}: {value}"})
-        
-        response = ollama.chat(model=self.model, messages=messages, options={'num_predict': 100})
-        return response['message']['content']
+# Import from protocols instead of duplicating
+from protocols.skynet import SkynetOrchestrator, BaseAgent
 
-class AgentOrchestrator:
-    """Orchestrates multiple specialized agents for complex tasks"""
-    
-    def __init__(self):
-        # Specialized agents for different tasks
-        self.agents = {
-            'conversation': Agent(
-                name='Conversation Agent',
-                model='phi3:mini',
-                system_prompt='You are Atulya, a warm conversational AI. Keep responses brief (1 sentence for simple, 2 for complex). Be friendly and helpful. English only, no emojis.'
-            ),
-            
-            'code': Agent(
-                name='Code Agent',
-                model='phi3:mini',  # Will use codellama if available
-                system_prompt='You are a programming expert. Provide clear, concise code solutions. Explain briefly.'
-            ),
-            
-            'task_planner': Agent(
-                name='Task Planner',
-                model='phi3:mini',
-                system_prompt='You are a task planning agent. Break down requests into actionable steps. Be concise.'
-            ),
-            
-            'researcher': Agent(
-                name='Research Agent',
-                model='phi3:mini',
-                system_prompt='You are a research assistant. Provide accurate, concise information. Cite sources when possible.'
-            ),
-        }
-    
-    def detect_agent_type(self, message: str) -> str:
-        """Detect which agent should handle the message"""
-        msg_lower = message.lower()
-        
-        # Code-related
-        if any(word in msg_lower for word in ['code', 'function', 'debug', 'program', 'script']):
-            return 'code'
-        
-        # Research/factual
-        if any(word in msg_lower for word in ['what is', 'who is', 'explain', 'research', 'find out']):
-            return 'researcher'
-        
-        # Task planning
-        if any(word in msg_lower for word in ['plan', 'steps', 'how to', 'guide']):
-            return 'task_planner'
-        
-        # Default to conversation
-        return 'conversation'
-    
-    async def process(self, message: str, context: Optional[Dict] = None) -> Dict[str, Any]:
-        """
-        Process message through appropriate agent(s)
-        
-        Returns:
-            {
-                'response': str,
-                'agent_used': str,
-                'execution_time': float
-            }
-        """
-        import time
-        start_time = time.time()
-        
-        # Detect appropriate agent
-        agent_type = self.detect_agent_type(message)
-        agent = self.agents.get(agent_type)
-        
-        logger.info(f"Routing to {agent_type} agent")
-        
-        # Execute agent
-        response = await agent.execute(message, context)
-        
-        execution_time = time.time() - start_time
-        
-        return {
-            'response': response,
-            'agent_used': agent_type,
-            'model': agent.model,
-            'execution_time': execution_time
-        }
-
+# MCP Server implementation
 class MCPServer:
     """Model Context Protocol Server for tool integration"""
     
     def __init__(self):
         self.tools = {}
         self.register_default_tools()
+        logger.info("MCP Server initialized")
     
     def register_default_tools(self):
         """Register default MCP tools"""
         self.tools = {
             'get_system_info': self.get_system_info,
             'search_files': self.search_files,
-            'open_application': self.open_app,
-            'web_search': self.web_search,
             'calculate': self.calculate,
         }
     
     async def get_system_info(self, params: Dict) -> Dict:
         """MCP Tool: Get system information"""
-        from services.task_service import task_service
-        return await task_service.get_system_info()
+        from core.utils import get_system_info
+        return get_system_info()
     
     async def search_files(self, params: Dict) -> Dict:
         """MCP Tool: Search files"""
-        from services.task_service import task_service
-        return await task_service.search_files(
-            params.get('query', ''),
-            params.get('directory', '.')
-        )
-    
-    async def open_app(self, params: Dict) -> Dict:
-        """MCP Tool: Open application"""
-        from services.task_service import task_service
-        return await task_service.open_application(params.get('app_name', ''))
-    
-    async def web_search(self, params: Dict) -> Dict:
-        """MCP Tool: Web search"""
-        from services.task_service import task_service
-        return await task_service.web_search(params.get('query', ''))
+        import os
+        from pathlib import Path
+        
+        query = params.get('query', '')
+        directory = params.get('directory', '.')
+        
+        results = []
+        for root, dirs, files in os.walk(directory):
+            for file in files:
+                if query.lower() in file.lower():
+                    results.append(str(Path(root) / file))
+        
+        return {'success': True, 'results': results}
     
     async def calculate(self, params: Dict) -> Dict:
         """MCP Tool: Perform calculation"""
@@ -177,7 +71,9 @@ class MCPServer:
         """List available MCP tools"""
         return list(self.tools.keys())
 
-# Global instances
-orchestrator = AgentOrchestrator()
+
+# Global instances - USE protocols/skynet, don't duplicate!
+orchestrator = SkynetOrchestrator()
 mcp_server = MCPServer()
 
+__all__ = ['orchestrator', 'mcp_server', 'MCPServer', 'SkynetOrchestrator', 'BaseAgent']

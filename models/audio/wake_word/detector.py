@@ -5,11 +5,12 @@ Detects "Hey Atulya" or custom wake words
 
 import threading
 import queue
-import logging
 from typing import Callable, Optional
 import sys
 
-logger = logging.getLogger(__name__)
+from core.logger import get_logger
+
+logger = get_logger('models.audio.wake_word')
 
 class WakeWordDetector:
     """

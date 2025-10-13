@@ -32,14 +32,17 @@ def get_skynet():
     return SkynetOrchestrator()
 
 def get_settings():
-    """Get global settings"""
-    from configuration import settings
-    return settings
+    """Get global settings - DEPRECATED: Use get_config() instead"""
+    return core_get_config()
+
 
 def get_logger(name: str = 'AtulyaTantra'):
     """Get logger instance"""
-    from core.logger import get_logger as _get_logger
-    return _get_logger(name)
+    return core_get_logger(name)
+
+# Import core utilities
+from core import get_logger as core_get_logger
+from core import get_config as core_get_config
 
 
 if __name__ == '__main__':
