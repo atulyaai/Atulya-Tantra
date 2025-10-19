@@ -37,7 +37,6 @@ mouse==0.7.1
 # Database
 sqlalchemy==2.0.23
 alembic==1.13.1
-sqlite3
 
 # Security and Authentication
 cryptography==41.0.8

@@ -13,7 +13,8 @@ import uvicorn
 import logging
 
 from src.config.settings import get_settings
-from src.api.routes import chat
+from src.api.routes import chat, admin, auth
+from src.infrastructure.database.models import init_database
 
 # Configure logging
 logging.basicConfig(
@@ -26,6 +27,14 @@ logger = logging.getLogger(__name__)
 def create_app() -> FastAPI:
     """Application factory"""
     settings = get_settings()
+    
+    # Initialize database
+    try:
+        init_database()
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Database initialization error: {e}")
+        raise
     
     app = FastAPI(
         title=settings.app_name,
@@ -46,6 +55,8 @@ def create_app() -> FastAPI:
     
     # Include routers
     app.include_router(chat.router)
+    app.include_router(admin.router)
+    app.include_router(auth.router)
     
     # Health check endpoint
     @app.get("/health")

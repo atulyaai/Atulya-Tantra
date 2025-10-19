@@ -10,7 +10,7 @@ import logging
 from src.core.ai.classifier import TaskClassifier, ClassificationResult
 from src.core.ai.sentiment import SentimentAnalyzer, SentimentResult
 from src.core.ai.router import ModelRouter, ModelSelection
-from src.core.ai.model_clients import ModelClientManager, ModelRequest
+from src.core.ai.model_clients import ModelClientManager
 from src.core.ai.context import ConversationMemory, Message
 
 logger = logging.getLogger(__name__)
@@ -22,6 +22,8 @@ class AIRequest:
     message: str
     context: List[Dict]
     user_id: Optional[str] = None
+    model: str = "ollama"
+    attachments: List[Dict] = None
 
 
 @dataclass
@@ -75,12 +77,21 @@ class AIService:
         # Step 4: Get available models
         available_models = await self.model_client_manager.get_available_models()
         
-        # Step 5: Select model
-        model_selection = await self.router.select_model(
-            classification.task_type,
-            classification.complexity,
-            available_models
-        )
+        # Step 5: Select model (use requested model or intelligent routing)
+        if hasattr(request, 'model') and request.model and request.model in ["ollama", "openai", "anthropic"]:
+            # Use requested model
+            model_selection = ModelSelection(
+                provider=request.model,
+                model="default",  # Will be determined by client
+                reasoning=f"User requested {request.model}"
+            )
+        else:
+            # Use intelligent routing
+            model_selection = await self.router.select_model(
+                classification.task_type,
+                classification.complexity,
+                available_models
+            )
         
         # Step 6: Build context with relevant conversation history
         context_messages = await self._build_context_messages(
@@ -138,14 +149,18 @@ class AIService:
             
         except Exception as e:
             logger.error(f"AI generation failed: {e}")
-            # Fallback response
+            # Fallback response when no models available
             return AIResponse(
-                content="I apologize, but I'm experiencing technical difficulties. Please try again in a moment.",
+                content=f"I apologize, but I'm currently unable to process your request. The AI models are not available at the moment. However, I can tell you that your message was classified as a {classification.task_type.value} task with {classification.complexity.value} complexity. Please try again later or check the system configuration.",
                 model_used="fallback",
                 metadata={
                     "error": str(e),
                     "task_type": classification.task_type.value,
-                    "sentiment": sentiment.sentiment.value
+                    "complexity": classification.complexity.value,
+                    "sentiment": sentiment.sentiment.value,
+                    "classification_confidence": classification.confidence,
+                    "sentiment_confidence": sentiment.confidence,
+                    "fallback": True
                 }
             )
     

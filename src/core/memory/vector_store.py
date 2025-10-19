@@ -38,9 +38,15 @@ class VectorStore:
         try:
             import chromadb
             from sentence_transformers import SentenceTransformer
+            import os
             
-            # Initialize ChromaDB client
-            self.client = chromadb.PersistentClient(path="./data/vectors")
+            # Create data directory if it doesn't exist
+            os.makedirs("./data/vectors", exist_ok=True)
+            
+            # Initialize ChromaDB client with new configuration
+            self.client = chromadb.PersistentClient(
+                path="./data/vectors"
+            )
             
             # Initialize sentence transformer for embeddings
             self.embedder = SentenceTransformer('all-MiniLM-L6-v2')

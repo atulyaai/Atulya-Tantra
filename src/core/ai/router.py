@@ -1,7 +1,7 @@
 """
 Atulya Tantra - Model Router
 Version: 2.5.0
-Intelligent model routing based on task classification
+Intelligent model routing for Ollama models only
 """
 
 from typing import List, Optional, Dict
@@ -14,18 +14,17 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ModelSelection:
-    """Model selection result"""
-    provider: str  # "ollama", "openai", "anthropic"
+    provider: str  # "ollama"
     model: str
     reasoning: str
 
 
 class ModelRouter:
-    """Routes requests to optimal AI model based on task classification"""
+    """Routes requests to optimal Ollama model based on task classification"""
     
     def __init__(self, config: Dict):
         self.config = config
-        self.fallback_order = config.get('fallback_order', ['ollama', 'openai', 'anthropic'])
+        self.fallback_order = ["ollama"]  # Only Ollama
     
     async def select_model(
         self,
@@ -33,7 +32,7 @@ class ModelRouter:
         complexity: Complexity,
         available_models: Dict[str, List[str]]
     ) -> ModelSelection:
-        """Select best model for task"""
+        """Select best Ollama model for task"""
         
         # Define model preferences
         preferences = self._get_model_preferences(task_type, complexity)
@@ -48,68 +47,69 @@ class ModelRouter:
                     reasoning=f"Best match for {task_type.value} task with {complexity.value} complexity"
                 )
         
-        # Fallback to first available
-        for provider in self.fallback_order:
-            if provider in available_models and available_models[provider]:
-                model = available_models[provider][0]
-                logger.warning(f"Using fallback model {provider}/{model}")
-                return ModelSelection(
-                    provider=provider,
-                    model=model,
-                    reasoning="Fallback to available model"
-                )
+        # Fallback to first available Ollama model
+        if "ollama" in available_models and available_models["ollama"]:
+            model = available_models["ollama"][0]
+            logger.warning(f"Using fallback model ollama/{model}")
+            return ModelSelection(
+                provider="ollama",
+                model=model,
+                reasoning="Fallback to available Ollama model"
+            )
         
-        raise RuntimeError("No AI models available")
+        # If no models available, return a default
+        logger.warning("No Ollama models available, using default fallback")
+        return ModelSelection(
+            provider="ollama",
+            model="gemma2:2b",
+            reasoning="Default fallback - no models configured"
+        )
     
     def _get_model_preferences(self, task_type: TaskType, complexity: Complexity) -> List[tuple]:
-        """Get ordered list of preferred models"""
-        # Coding tasks - prefer coding-specialized models
+        """Get ordered list of preferred Ollama models"""
+        # Coding tasks - use coder model
         if task_type == TaskType.CODING:
             return [
                 ("ollama", "qwen2.5-coder:7b"),
                 ("ollama", "codellama:latest"),
-                ("openai", "gpt-4"),
-                ("anthropic", "claude-3-sonnet-20240229")
+                ("ollama", "mistral:latest")
             ]
         
-        # Simple tasks - use fast, efficient models
+        # Simple tasks - use gemma2 for conversation
         if complexity == Complexity.SIMPLE:
             return [
                 ("ollama", "gemma2:2b"),
                 ("ollama", "gemma:latest"),
-                ("openai", "gpt-3.5-turbo"),
-                ("anthropic", "claude-3-haiku-20240307")
+                ("ollama", "mistral:latest")
             ]
         
-        # Complex tasks - use most capable models
+        # Complex tasks - use mistral
         if complexity == Complexity.COMPLEX:
             return [
-                ("anthropic", "claude-3-sonnet-20240229"),
-                ("openai", "gpt-4"),
                 ("ollama", "mistral:latest"),
-                ("ollama", "llama2:latest")
+                ("ollama", "gemma2:2b"),
+                ("ollama", "qwen2.5-coder:7b")
             ]
         
-        # Research tasks - prefer models good at reasoning
+        # Research tasks - use mistral for reasoning
         if task_type == TaskType.RESEARCH:
             return [
-                ("anthropic", "claude-3-sonnet-20240229"),
-                ("openai", "gpt-4"),
-                ("ollama", "mistral:latest")
+                ("ollama", "mistral:latest"),
+                ("ollama", "gemma2:2b"),
+                ("ollama", "qwen2.5-coder:7b")
             ]
         
-        # Creative tasks - prefer models good at creative writing
+        # Creative tasks - use mistral for creativity
         if task_type == TaskType.CREATIVE:
             return [
-                ("openai", "gpt-4"),
-                ("anthropic", "claude-3-sonnet-20240229"),
-                ("ollama", "mistral:latest")
+                ("ollama", "mistral:latest"),
+                ("ollama", "gemma2:2b"),
+                ("ollama", "qwen2.5-coder:7b")
             ]
         
-        # Default - balanced approach
+        # Default - use gemma2 for general conversation
         return [
-            ("ollama", "mistral:latest"),
             ("ollama", "gemma2:2b"),
-            ("openai", "gpt-3.5-turbo"),
-            ("anthropic", "claude-3-haiku-20240307")
+            ("ollama", "mistral:latest"),
+            ("ollama", "qwen2.5-coder:7b")
         ]

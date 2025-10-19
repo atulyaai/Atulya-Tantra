@@ -16,7 +16,7 @@ class Settings:
     def __init__(self, config_dict: Dict[str, Any]):
         self.app_name = config_dict.get("app", {}).get("name", "Atulya Tantra")
         self.app_version = config_dict.get("app", {}).get("version", "2.5.0")
-        self.environment = os.getenv("ENV", config_dict.get("app", {}).get("environment", "development"))
+        self.environment = os.getenv("ENV", "development")
         self.debug = os.getenv("DEBUG", "false").lower() == "true"
         
         self.server_host = os.getenv("HOST", config_dict.get("server", {}).get("host", "0.0.0.0"))
