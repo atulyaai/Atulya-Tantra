@@ -1,0 +1,39 @@
+# Atulya Tantra - Docker Compose Configuration
+# Easy one-command setup
+
+version: '3.8'
+
+services:
+  atulya-tantra:
+    build: .
+    image: atulya-tantra:latest
+    container_name: atulya-tantra
+    ports:
+      - "8000:8000"     # API Server
+      - "11434:11434"   # Ollama
+    volumes:
+      - ./data:/app/data           # Persistent data
+      - ./logs:/app/logs           # Logs
+      - ollama_models:/root/.ollama  # Ollama models
+    environment:
+      - OLLAMA_HOST=http://localhost:11434
+      - DEFAULT_MODEL=phi3:mini
+      - TEMPERATURE=0.7
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "from protocols.jarvis import JarvisInterface; print('ok')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  ollama_models:
+    driver: local
+
+networks:
+  default:
+    name: atulya-network
+
