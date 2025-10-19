@@ -1,12 +1,30 @@
 """
-Atulya Tantra - Configuration Module
-Centralized configuration: settings, prompts, and protocols
+Atulya Tantra - Unified Configuration System
+Version: 2.0.1
+Centralized configuration management for the AGI system
 """
 
-# Settings
-from .settings import settings, Settings
+# Import unified configuration system
+from .unified_config import (
+    Config,
+    ConfigLoader,
+    get_config,
+    reload_config,
+    get_setting,
+    is_feature_enabled,
+    get_model_config,
+    get_database_config,
+    get_cache_config,
+    get_security_config,
+    is_debug,
+    get_log_level,
+    get_server_host,
+    get_server_port,
+    get_database_url
+)
 
-# Prompts
+# Import legacy modules for backward compatibility
+from .settings import settings, Settings
 from .prompts import (
     get_prompt,
     list_available_prompts,
@@ -17,8 +35,6 @@ from .prompts import (
     AGENT_RESEARCH,
     AGENT_TASK_PLANNER,
 )
-
-# Protocol configurations
 from .protocol_configs import (
     ProtocolConfig,
     JARVIS_CONFIG,
@@ -29,8 +45,6 @@ from .protocol_configs import (
     list_protocols,
     list_agents,
 )
-
-# Protocol implementations
 from .protocols import (
     JarvisInterface,
     ConversationManager,
@@ -41,37 +55,49 @@ from .protocols import (
     AgentType,
 )
 
+# Export unified configuration as default
 __all__ = [
-    # Settings
-    'settings',
-    'Settings',
+    # Unified configuration
+    "Config",
+    "ConfigLoader", 
+    "get_config",
+    "reload_config",
+    "get_setting",
+    "is_feature_enabled",
+    "get_model_config",
+    "get_database_config",
+    "get_cache_config",
+    "get_security_config",
+    "is_debug",
+    "get_log_level",
+    "get_server_host",
+    "get_server_port",
+    "get_database_url",
     
-    # Prompts
-    'get_prompt',
-    'list_available_prompts',
-    'JARVIS_CORE_PROMPT',
-    'SKYNET_ORCHESTRATOR_PROMPT',
-    'AGENT_CONVERSATION',
-    'AGENT_CODE',
-    'AGENT_RESEARCH',
-    'AGENT_TASK_PLANNER',
-    
-    # Protocol configurations
-    'ProtocolConfig',
-    'JARVIS_CONFIG',
-    'SKYNET_CONFIG',
-    'AGENT_CONFIGS',
-    'get_protocol_config',
-    'get_agent_config',
-    'list_protocols',
-    'list_agents',
-    
-    # Protocol implementations
-    'JarvisInterface',
-    'ConversationManager',
-    'PersonalityEngine',
-    'EmotionalState',
-    'SkynetOrchestrator',
-    'BaseAgent',
-    'AgentType',
+    # Legacy exports
+    "settings",
+    "Settings",
+    "get_prompt",
+    "list_available_prompts",
+    "JARVIS_CORE_PROMPT",
+    "SKYNET_ORCHESTRATOR_PROMPT",
+    "AGENT_CONVERSATION",
+    "AGENT_CODE",
+    "AGENT_RESEARCH",
+    "AGENT_TASK_PLANNER",
+    "ProtocolConfig",
+    "JARVIS_CONFIG",
+    "SKYNET_CONFIG",
+    "AGENT_CONFIGS",
+    "get_protocol_config",
+    "get_agent_config",
+    "list_protocols",
+    "list_agents",
+    "JarvisInterface",
+    "ConversationManager",
+    "PersonalityEngine",
+    "EmotionalState",
+    "SkynetOrchestrator",
+    "BaseAgent",
+    "AgentType",
 ]
