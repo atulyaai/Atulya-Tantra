@@ -3,12 +3,13 @@ Atulya Tantra - Version Information
 Semantic Versioning: MAJOR.MINOR.PATCH
 """
 
-__version__ = "2.0.1"
+__version__ = "2.2.0"
 __version_info__ = tuple(int(i) for i in __version__.split("."))
 
 # Version history
 VERSION_HISTORY = {
-    "2.0.1": "Production release: Deep testing suite, multi-tier caching, advanced security (2FA, audit logging), real-time analytics dashboard, performance profiling and optimization",
+    "2.2.0": "WebMaster release: Complete WebUI system with modern frontend, real-time analytics dashboard, advanced admin panel, comprehensive API system with authentication, performance optimization and monitoring",
+    "2.0.1": "Jarvis release: Deep testing suite, multi-tier caching, advanced security (2FA, audit logging), real-time analytics dashboard, performance profiling and optimization",
     "1.0.7": "Core infrastructure complete: JARVIS voice system, multi-agent orchestration, desktop automation, hybrid model routing",
     "1.0.6": "Repo reorg to 6 modules, dynamic webui config, voice UX + UI fixes",
     "1.0.5": "Production UI: ChatGPT-style interface, live camera vision, auth system, auto model selection",
@@ -21,5 +22,5 @@ VERSION_HISTORY = {
 
 # Release information
 RELEASE_DATE = "2025-01-16"
-CODENAME = "Jarvis"
+CODENAME = "WebMaster"
 STATUS = "stable"
