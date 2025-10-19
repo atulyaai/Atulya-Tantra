@@ -1,10 +1,8 @@
 """
 Atulya Tantra - Core Module
-Foundation utilities and base components
+Version: 2.0.1
+Foundation utilities and base components for the AGI system
 """
-
-__version__ = "1.0.3"
-__codename__ = "JARVIS"
 
 from pathlib import Path
 
@@ -17,6 +15,9 @@ from .logger import get_logger
 from .exceptions import *
 from .utils import *
 from .base import BaseProtocol, BaseAgent, BaseManager
+from .memory import *
+from .monitoring import *
+from .version import *
 
 __all__ = [
     # Version info
@@ -54,4 +55,39 @@ __all__ = [
     'format_uptime',
     'ensure_directory',
     'Timer',
+    
+    # Memory Management
+    'Memory',
+    'KnowledgeNode',
+    'VectorStore',
+    'KnowledgeGraph',
+    'MemoryManager',
+    'PreferenceLearning',
+    'get_memory_manager',
+    'get_vector_store',
+    'get_knowledge_graph',
+    'get_preference_learning',
+    
+    # Monitoring
+    'Metric',
+    'HealthStatus',
+    'MetricsCollector',
+    'HealthChecker',
+    'ContextMonitor',
+    'MonitoringSystem',
+    'get_metrics_collector',
+    'get_health_checker',
+    'get_context_monitor',
+    'get_monitoring_system',
+    
+    # Version Management
+    'VersionType',
+    'VersionInfo',
+    'VersionManager',
+    'get_version_manager',
+    'get_current_version',
+    'get_version_info',
+    'get_changelog',
+    'get_roadmap',
+    'get_release_notes'
 ]
