@@ -32,14 +32,24 @@ Atulya Tantra is a production-grade AGI system that combines the conversational 
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### Auto-Installation (Recommended)
 
-- **Python 3.10+**
-- **Git**
-- **2GB RAM** minimum
-- **5GB Disk** for models
+**Linux/macOS:**
+```bash
+chmod +x scripts/install.sh && ./scripts/install.sh
+```
 
-### Installation
+**Windows PowerShell:**
+```powershell
+.\scripts\install.ps1
+```
+
+**Cross-Platform:**
+```bash
+python scripts/setup.py
+```
+
+### Manual Installation
 
 ```bash
 # Clone the repository
@@ -59,6 +69,15 @@ python scripts/init_admin_db.py
 # Start the server
 python server.py
 ```
+
+### Prerequisites
+
+- **Python 3.8+** (3.11 recommended)
+- **Git** for version control
+- **API Keys** from OpenAI, Anthropic, or Google
+- **4GB RAM** minimum (8GB+ recommended)
+
+📖 **Detailed Installation Guide:** [INSTALLATION.md](INSTALLATION.md)
 
 ### Access the System
 
