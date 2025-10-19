@@ -1,0 +1,80 @@
+# Atulya Tantra - Unified Configuration System
+# Version: 2.5.0
+# SINGLE SOURCE OF TRUTH for all configuration
+
+app:
+  name: "Atulya Tantra"
+  version: "2.5.0"
+  environment: ${ENV:development}
+  debug: ${DEBUG:false}
+
+server:
+  host: ${HOST:0.0.0.0}
+  port: ${PORT:8000}
+  workers: ${WORKERS:1}
+  reload: ${RELOAD:false}
+
+ai:
+  models:
+    ollama:
+      base_url: ${OLLAMA_URL:http://localhost:11434}
+      models:
+        coding: "qwen2.5-coder:7b"
+        simple: "gemma2:2b"
+        complex: "mistral:latest"
+        default: "mistral:latest"
+    openai:
+      api_key: ${OPENAI_API_KEY}
+      base_url: "https://api.openai.com/v1"
+      models:
+        default: "gpt-4"
+        fallback: "gpt-3.5-turbo"
+    anthropic:
+      api_key: ${ANTHROPIC_API_KEY}
+      base_url: "https://api.anthropic.com"
+      models:
+        default: "claude-3-sonnet-20240229"
+        fallback: "claude-3-haiku-20240307"
+  
+  routing:
+    enabled: true
+    fallback_order: ["ollama", "openai", "anthropic"]
+  
+  sentiment:
+    enabled: true
+    adjust_tone: true
+
+database:
+  url: ${DATABASE_URL:sqlite:///./data/atulya.db}
+  pool_size: ${DB_POOL_SIZE:10}
+  echo: ${DB_ECHO:false}
+
+cache:
+  redis:
+    url: ${REDIS_URL:redis://localhost:6379/0}
+    enabled: ${REDIS_ENABLED:false}
+  memory:
+    max_size: 1000
+    ttl: 3600
+
+security:
+  jwt_secret: ${JWT_SECRET:change-in-production}
+  jwt_algorithm: "HS256"
+  token_expire_minutes: 60
+  enable_2fa: ${ENABLE_2FA:true}
+
+monitoring:
+  prometheus:
+    enabled: ${PROMETHEUS_ENABLED:true}
+    port: 9090
+  logging:
+    level: ${LOG_LEVEL:INFO}
+    format: "json"
+    file: "logs/atulya.log"
+
+features:
+  intelligent_routing: true
+  sentiment_analysis: true
+  autonomous_agents: true
+  desktop_automation: true
+  voice_interface: true

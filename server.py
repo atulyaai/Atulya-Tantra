@@ -60,10 +60,13 @@ conversations: Dict[str, List[Dict]] = {}
 openai_client = None
 anthropic_client = None
 ollama_available = False
+available_models = []
 
 def initialize_ai_clients():
     """Initialize AI model clients with fallback handling."""
-    global openai_client, anthropic_client, ollama_available
+    global openai_client, anthropic_client, ollama_available, available_models
+    
+    print("🔧 Initializing AI clients...")
     
     # Initialize OpenAI client
     openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -87,12 +90,17 @@ def initialize_ai_clients():
     else:
         logger.warning("⚠️ ANTHROPIC_API_KEY not found, Anthropic disabled")
     
-    # Check Ollama availability
+    # Check Ollama availability and get available models
+    available_models = []
     try:
-        ollama.list()  # Test connection
+        print("🔧 Checking Ollama...")
+        models_response = ollama.list()
+        available_models = [model.model for model in models_response.models]
         ollama_available = True
-        logger.info("✅ Ollama client available")
+        print(f"✅ Ollama available with models: {available_models}")
+        logger.info(f"✅ Ollama client available with models: {available_models}")
     except Exception as e:
+        print(f"❌ Ollama failed: {e}")
         logger.warning(f"⚠️ Ollama not available: {e}")
         ollama_available = False
 
@@ -490,29 +498,45 @@ async def generate_ai_response(message: str, conversation_id: str = "default") -
         # Try Ollama first (local, free)
         if ollama_available and not response_text:
             try:
-                logger.info("🤖 Trying Ollama (Llama 2)...")
+                # Select best available model (prefer larger models for better responses)
+                model_priority = ['mistral:latest', 'qwen2.5-coder:7b', 'gemma2:2b']
+                selected_model = None
                 
-                # Convert conversation to Ollama format
-                ollama_messages = []
-                for msg in context_messages:
-                    ollama_messages.append({
-                        "role": msg["role"],
-                        "content": msg["content"]
-                    })
+                for model in model_priority:
+                    if model in available_models:
+                        selected_model = model
+                        break
                 
-                response = ollama.chat(
-                    model='llama2',
-                    messages=ollama_messages,
-                    options={
-                        'temperature': 0.7,
-                        'top_p': 0.9,
-                        'max_tokens': 1000
-                    }
-                )
+                if not selected_model and available_models:
+                    # Use first available model if none match priority
+                    selected_model = available_models[0]
                 
-                response_text = response['message']['content']
-                model_used = "Ollama (Llama 2)"
-                logger.info("✅ Ollama response generated")
+                if selected_model:
+                    logger.info(f"🤖 Trying Ollama ({selected_model})...")
+                    
+                    # Convert conversation to Ollama format
+                    ollama_messages = []
+                    for msg in context_messages:
+                        ollama_messages.append({
+                            "role": msg["role"],
+                            "content": msg["content"]
+                        })
+                    
+                    response = ollama.chat(
+                        model=selected_model,
+                        messages=ollama_messages,
+                        options={
+                            'temperature': 0.7,
+                            'top_p': 0.9,
+                            'max_tokens': 1000
+                        }
+                    )
+                    
+                    response_text = response['message']['content']
+                    model_used = f"Ollama ({selected_model})"
+                    logger.info(f"✅ Ollama response generated using {selected_model}")
+                else:
+                    logger.warning("⚠️ No Ollama models available")
                 
             except Exception as e:
                 logger.warning(f"⚠️ Ollama failed: {e}")

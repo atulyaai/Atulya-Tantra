@@ -3,12 +3,12 @@ Atulya Tantra - Version Information
 Semantic Versioning: MAJOR.MINOR.PATCH
 """
 
-__version__ = "1.5.0"
+__version__ = "2.5.0"
 __version_info__ = tuple(int(i) for i in __version__.split("."))
 
 # Version history
 VERSION_HISTORY = {
-    "1.5.0": "Foundation Beta: Basic AI chat with Ollama integration, conversation context, model fallback system, honest feature documentation, and comprehensive roadmap for future development",
+    "2.5.0": "Level 5 AGI Foundation Complete: Clean architecture, intelligent AI routing, sentiment analysis, conversation memory, modern UI, and production-ready foundation",
     "2.0.1": "Jarvis release: Deep testing suite, multi-tier caching, advanced security (2FA, audit logging), real-time analytics dashboard, performance profiling and optimization",
     "1.0.7": "Core infrastructure complete: JARVIS voice system, multi-agent orchestration, desktop automation, hybrid model routing",
     "1.0.6": "Repo reorg to 6 modules, dynamic webui config, voice UX + UI fixes",
@@ -21,7 +21,7 @@ VERSION_HISTORY = {
 }
 
 # Release information
-RELEASE_DATE = "2025-01-16"
-CODENAME = "Foundation"
-STATUS = "beta"
+RELEASE_DATE = "2025-01-20"
+CODENAME = "Level 5 AGI Foundation"
+STATUS = "production-ready"
 FINAL_RELEASE = False
