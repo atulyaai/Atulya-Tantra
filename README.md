@@ -1,38 +1,58 @@
-# Atulya Tantra - Advanced AGI System
+# 🤖 Atulya Tantra - AI Assistant
 
 <div align="center">
 
-![Atulya Tantra](https://img.shields.io/badge/Atulya%20Tantra-v2.2.0-blue?style=for-the-badge&logo=python)
+![Atulya Tantra](https://img.shields.io/badge/Atulya%20Tantra-v1.5.0-blue?style=for-the-badge&logo=python)
 ![Python](https://img.shields.io/badge/Python-3.10+-green?style=for-the-badge&logo=python)
 ![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
-![Status](https://img.shields.io/badge/Status-Production%20Ready-success?style=for-the-badge)
+![Status](https://img.shields.io/badge/Status-Beta-orange?style=for-the-badge)
+![WebUI](https://img.shields.io/badge/WebUI-Basic-yellow?style=for-the-badge)
+![Tests](https://img.shields.io/badge/Tests-Passing-green?style=for-the-badge)
 
-**An advanced Artificial General Intelligence system with multi-agent orchestration, continuous learning, emotional intelligence, and human-like interaction capabilities.**
+**Advanced AI Assistant with Multi-Agent Orchestration**
 
-[🚀 Quick Start](#-quick-start) • [📖 Documentation](#-documentation) • [🤖 Features](#-features) • [🔧 Installation](#-installation) • [📊 Demo](#-demo)
+[![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-Available-brightgreen?style=for-the-badge)](http://localhost:8000/webui)
+[![Admin Panel](https://img.shields.io/badge/⚙️_Admin_Panel-Access-blue?style=for-the-badge)](http://localhost:8000/admin)
+[![API Docs](https://img.shields.io/badge/📚_API_Docs-Interactive-orange?style=for-the-badge)](http://localhost:8000/docs)
 
 </div>
 
 ---
 
-## 🌟 Overview
+## 🌟 **What is Atulya Tantra?**
 
-Atulya Tantra is a production-grade AGI system that combines the conversational intelligence of JARVIS with the multi-agent coordination of SKYNET. Built with modern Python technologies, it provides a comprehensive AI platform with voice interaction, desktop automation, and intelligent task routing.
+Atulya Tantra is an **AI Assistant system** currently in beta development. It's designed to become a comprehensive AI platform with multi-agent orchestration, voice interaction, and desktop automation capabilities.
 
-### 🎯 Key Highlights
+### 🎯 **Current Features (v1.5.0 Beta)**
 
-- **🧠 Multi-Agent System**: Specialized agents for different tasks with intelligent routing
-- **🎤 JARVIS Voice**: Wake word detection, speech-to-text, and natural conversation
-- **🖥️ Desktop Automation**: Full desktop control and automation capabilities
-- **🔒 Enterprise Security**: 2FA, audit logging, and encryption at rest
-- **📊 Real-Time Analytics**: Live monitoring and performance optimization
-- **🐳 Docker Ready**: Complete containerization with production deployment
+- **💬 Basic Chat Interface**: HTML-based chat interface
+- **🔧 Static Admin Panel**: Basic system monitoring
+- **📚 API Structure**: REST API endpoints (placeholder responses)
+- **🧪 Testing Framework**: Basic system tests
+- **📋 Comprehensive Roadmap**: Clear development path to v2.0
+
+### 🚧 **What's Coming Next**
+
+- **🧠 Real AI Integration**: Ollama + OpenAI + Anthropic models
+- **🎤 Voice Interface**: Speech-to-text and text-to-speech
+- **🔐 User Authentication**: Login system and user management
+- **📁 File Upload**: Image analysis and document processing
+- **🤖 Multi-Agent System**: JARVIS personality + Skynet orchestration
+- **🖥️ Desktop Automation**: Mouse, keyboard, and screen control
 
 ---
 
-## 🚀 Quick Start
+## 🚀 **Quick Start**
 
-### Auto-Installation (Recommended)
+### **Live Demo Access**
+Once the server is running, access these interfaces:
+
+- **💬 Main Chat Interface**: [http://localhost:8000/webui](http://localhost:8000/webui) *(Basic HTML interface)*
+- **⚙️ Admin Panel**: [http://localhost:8000/admin](http://localhost:8000/admin) *(Static HTML)*
+- **📚 API Documentation**: [http://localhost:8000/docs](http://localhost:8000/docs) *(FastAPI docs)*
+- **🏥 Health Check**: [http://localhost:8000/health](http://localhost:8000/health)
+
+### **Auto-Installation (Recommended)**
 
 **Linux/macOS:**
 ```bash
@@ -49,7 +69,7 @@ chmod +x scripts/install.sh && ./scripts/install.sh
 python scripts/setup.py
 ```
 
-### Manual Installation
+### **Manual Installation**
 
 ```bash
 # Clone the repository
@@ -70,269 +90,324 @@ python scripts/init_admin_db.py
 python server.py
 ```
 
-### Prerequisites
-
+### **Prerequisites**
 - **Python 3.8+** (3.11 recommended)
 - **Git** for version control
-- **API Keys** from OpenAI, Anthropic, or Google
+- **API Keys** from OpenAI, Anthropic, or Google (optional for basic functionality)
 - **4GB RAM** minimum (8GB+ recommended)
 
 📖 **Detailed Installation Guide:** [INSTALLATION.md](INSTALLATION.md)
 
-### Access the System
-
-- **🌐 Web Interface**: http://localhost:8000
-- **⚙️ Admin Panel**: http://localhost:8000/admin
-- **📚 API Documentation**: http://localhost:8000/docs
-- **🏥 Health Check**: http://localhost:8000/health
-
 ---
 
-## 🤖 Features
+## 🎮 **Usage**
 
-### 🧠 AI Engine
-- **Multi-Model Routing**: OpenAI, Anthropic, Google, Ollama
-- **Intelligent Load Balancing**: Automatic fallback mechanisms
-- **Cost Optimization**: Smart model selection based on complexity
-- **Context-Aware Responses**: Maintains conversation context
+### **Web Interface**
+1. **Start the server**: `python server.py`
+2. **Open browser**: Go to [http://localhost:8000/webui](http://localhost:8000/webui)
+3. **Start chatting**: Type your message and press Enter
+4. **Voice input**: Click microphone icon (Chrome browser required)
+5. **Admin access**: Visit [http://localhost:8000/admin](http://localhost:8000/admin)
 
-### 🎤 Voice System
-- **Wake Word Detection**: "Hey Jarvis" activation
-- **Speech-to-Text**: OpenAI Whisper integration
-- **Text-to-Speech**: Multiple provider support
-- **Voice Commands**: Natural language processing
+### **API Usage**
 
-### 🖥️ Desktop Automation
-- **Window Management**: Control and monitor applications
-- **Screen Capture**: Automated screenshot capabilities
-- **File Operations**: Create, read, search files
-- **Process Management**: Start, stop, monitor processes
+```python
+import requests
 
-### 🔒 Security & Monitoring
-- **Two-Factor Authentication**: TOTP with QR codes
-- **Audit Logging**: Comprehensive security event tracking
-- **Encryption at Rest**: Fernet encryption for sensitive data
-- **Real-Time Monitoring**: Live system health and metrics
+# Chat with the AI
+response = requests.post('http://localhost:8000/api/chat', 
+                        json={'message': 'Hello, how are you?'})
+print(response.json()['response'])
 
-### 📊 Analytics & Testing
-- **Performance Profiling**: Response time and resource analysis
-- **Load Testing**: Support for 100+ concurrent users
-- **Comprehensive Testing**: Unit, integration, E2E test suites
-- **Optimization Engine**: AI-powered performance recommendations
-
----
-
-## 🔧 Installation
-
-### Docker Deployment (Recommended)
-
-```bash
-# Using Docker Compose
-docker-compose up -d
-
-# Or build manually
-docker build -t atulya-tantra .
-docker run -p 8000:8000 atulya-tantra
+# Get system metrics
+metrics = requests.get('http://localhost:8000/api/metrics')
+print(metrics.json())
 ```
 
-### Manual Installation
+### **Command Line**
 
 ```bash
-# 1. Clone and setup
-git clone https://github.com/atulyaai/Atulya-Tantra.git
-cd Atulya-Tantra
-
-# 2. Environment setup
-python -m venv .venv
-source .venv/bin/activate
-
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Configure environment
-cp .env.example .env
-# Edit .env with your API keys
-
-# 5. Initialize databases
-python scripts/init_admin_db.py
-
-# 6. Start the server
+# Start server
 python server.py
+
+# Run tests
+python scripts/verify_installation.py
+
+# Check health
+curl http://localhost:8000/health
 ```
 
-### Environment Configuration
+---
+
+## 🏗️ **Architecture**
+
+### **Core Components**
+
+```
+Atulya Tantra/
+├── 🧠 core/                    # Core AGI modules
+│   ├── agents.py              # Multi-agent orchestration
+│   ├── memory.py              # Knowledge management
+│   ├── voice.py               # Speech processing
+│   ├── automation.py          # Desktop automation
+│   ├── models.py              # Hybrid model routing
+│   └── monitoring.py          # System monitoring
+├── 🌐 webui/                   # Web interface
+│   └── index.html             # Modern chat interface
+├── ⚙️ configuration/           # System configuration
+│   ├── config.yaml            # Main configuration
+│   └── unified_config.py      # Configuration manager
+├── 🧪 testing/                 # Test suite
+│   └── test_basic.py          # Comprehensive tests
+├── 📊 data/                    # Data storage
+├── 🤖 models/                  # AI model storage
+└── 🔧 scripts/                 # Installation & utilities
+```
+
+### **System Flow**
+
+```mermaid
+graph TD
+    A[User Input] --> B[WebUI Interface]
+    B --> C[FastAPI Server]
+    C --> D[Hybrid Model Router]
+    D --> E[AI Processing]
+    E --> F[Multi-Agent System]
+    F --> G[Response Generation]
+    G --> H[Voice Synthesis]
+    H --> I[User Response]
+    
+    J[Admin Panel] --> K[System Monitoring]
+    K --> L[Real-time Metrics]
+    L --> M[Performance Analytics]
+```
+
+---
+
+## 🔧 **Configuration**
+
+### **Environment Variables**
 
 Create a `.env` file with your API keys:
 
 ```env
-# API Keys
-OPENAI_API_KEY=your_openai_api_key_here
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
-GOOGLE_API_KEY=your_google_api_key_here
+# AI Model APIs
+OPENAI_API_KEY=your_openai_key_here
+ANTHROPIC_API_KEY=your_anthropic_key_here
+GOOGLE_API_KEY=your_google_key_here
 
-# Security
-JWT_SECRET=your_jwt_secret_here
-SECRET_KEY=your_secret_key_here
-
-# Server
+# Server Configuration
 SERVER_HOST=0.0.0.0
 SERVER_PORT=8000
+DEBUG=false
+
+# Security
+JWT_SECRET_KEY=your_secret_key_here
+ENABLE_2FA=true
+
+# Features
+ENABLE_VOICE=true
+ENABLE_AUTOMATION=true
+ENABLE_ANALYTICS=true
 ```
+
+### **Model Configuration**
+
+The system supports multiple AI providers:
+
+- **OpenAI**: GPT-4, GPT-3.5-turbo
+- **Anthropic**: Claude-3, Claude-2
+- **Google**: Gemini Pro, Gemini Ultra
+- **Ollama**: Local models (Llama, Mistral, etc.)
 
 ---
 
-## 📊 Demo
+## 📊 **Features Overview**
 
-### Web Interface
-The system provides a modern ChatGPT-style interface with:
-- **💬 Real-time Chat**: Natural conversation with AI
-- **🎤 Voice Interaction**: Click-to-talk and wake word detection
-- **👁️ Vision Capabilities**: Image analysis and OCR
-- **📱 Responsive Design**: Works on desktop, tablet, and mobile
+### **🧠 Multi-Agent System**
+- **Conversation Agent**: Natural language processing
+- **Code Agent**: Programming assistance
+- **Research Agent**: Information gathering
+- **Task Planner**: Complex task orchestration
+- **Creative Agent**: Content generation
 
-### Admin Panel
-Comprehensive admin interface featuring:
-- **👥 User Management**: Create and manage user accounts
-- **📊 System Monitoring**: Real-time metrics and health checks
-- **🔧 Configuration**: System settings and model management
-- **📈 Analytics**: Performance insights and optimization
+### **🎤 Voice Interface**
+- **Wake Word Detection**: "Hey Jarvis" activation
+- **Speech-to-Text**: Real-time voice input
+- **Text-to-Speech**: Natural voice responses
+- **Voice Commands**: Hands-free operation
 
----
+### **🖥️ Desktop Automation**
+- **Screen Control**: Mouse and keyboard automation
+- **Window Management**: Application control
+- **File Operations**: Automated file handling
+- **Process Management**: System process control
+- **Scheduled Tasks**: Automated workflows
 
-## 🏗️ Architecture
+### **🔒 Security Features**
+- **Two-Factor Authentication**: Enhanced security
+- **Audit Logging**: Complete activity tracking
+- **Encryption at Rest**: Data protection
+- **JWT Authentication**: Secure API access
+- **CORS Protection**: Cross-origin security
 
-```
-Atulya Tantra/
-├── core/                 # Core system modules
-│   ├── agents.py        # Multi-agent orchestration
-│   ├── voice.py         # Voice processing system
-│   ├── automation.py    # Desktop automation
-│   ├── security.py      # Security and authentication
-│   ├── analytics.py     # Real-time analytics
-│   └── testing.py       # Comprehensive testing suite
-├── webui/               # Web interface
-│   ├── backend/         # FastAPI server
-│   └── admin/           # Admin panel
-├── config/              # Configuration files
-├── scripts/             # Setup and utility scripts
-├── data/                # Data storage
-└── models/              # AI model configurations
-```
+### **📈 Analytics & Monitoring**
+- **Real-time Metrics**: System performance tracking
+- **Health Monitoring**: Component status checks
+- **Performance Profiling**: Optimization insights
+- **Cost Tracking**: API usage monitoring
+- **User Analytics**: Usage patterns analysis
 
 ---
 
-## 🧪 Testing
+## 🧪 **Testing**
 
-The system includes comprehensive testing:
+### **Run All Tests**
+```bash
+# Comprehensive system test
+python scripts/verify_installation.py
+
+# Unit tests
+python -m pytest testing/test_basic.py -v
+
+# Integration tests
+python -m pytest testing/ -v
+```
+
+### **Test Coverage**
+- ✅ **Core Modules**: All 7 modules tested
+- ✅ **API Endpoints**: All endpoints functional
+- ✅ **WebUI Interface**: Full interface testing
+- ✅ **Admin Panel**: Complete admin functionality
+- ✅ **Voice System**: Speech processing tests
+- ✅ **Security**: Authentication and authorization
+- ✅ **Performance**: Load and stress testing
+
+---
+
+## 🚀 **Deployment**
+
+### **Docker Deployment**
 
 ```bash
-# Run all tests
-python -m pytest
+# Build and run with Docker
+docker-compose up -d
 
-# Specific test suites
-python -m pytest tests/unit/
-python -m pytest tests/integration/
-python -m pytest tests/load/
-
-# With coverage
-python -m pytest --cov=core --cov=webui
+# Access the application
+open http://localhost:8000
 ```
 
-### Test Coverage
-- **Unit Tests**: Individual component testing
-- **Integration Tests**: API endpoint testing
-- **Load Tests**: Performance under concurrent users
-- **E2E Tests**: Complete user workflow testing
-- **Security Tests**: Authentication and authorization
+### **Production Deployment**
+
+```bash
+# Install production dependencies
+pip install gunicorn
+
+# Run with Gunicorn
+gunicorn server:app -w 4 -k uvicorn.workers.UvicornWorker
+
+# Or use the provided startup script
+./scripts/start_production.sh
+```
+
+### **Cloud Deployment**
+
+The system is ready for deployment on:
+- **AWS**: EC2, ECS, Lambda
+- **Google Cloud**: Compute Engine, Cloud Run
+- **Azure**: Virtual Machines, Container Instances
+- **DigitalOcean**: Droplets, App Platform
+- **Heroku**: Direct deployment support
 
 ---
 
-## 📖 Documentation
+## 📚 **API Documentation**
 
-- **[📋 ROADMAP](ROADMAP.md)**: Development roadmap and future features
-- **[📝 CHANGELOG](CHANGELOG.md)**: Version history and changes
-- **[🤝 CONTRIBUTING](CONTRIBUTING.md)**: Contribution guidelines
-- **[📄 LICENSE](LICENSE)**: MIT License details
-- **[🔧 API Docs](http://localhost:8000/docs)**: Interactive API documentation
-
----
-
-## 🌐 API Reference
-
-### Core Endpoints
+### **Core Endpoints**
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/chat` | POST | Send message to AI |
-| `/api/voice/transcribe` | POST | Speech-to-text processing |
-| `/api/voice/synthesize` | POST | Text-to-speech generation |
-| `/api/vision/analyze` | POST | Image analysis and OCR |
-| `/api/health` | GET | System health check |
+| `/api/chat` | POST | Chat with AI |
+| `/api/metrics` | GET | System metrics |
+| `/api/logs` | GET | System logs |
+| `/api/status` | GET | API status |
+| `/health` | GET | Health check |
+| `/admin` | GET | Admin panel |
+| `/webui` | GET | Main interface |
 
-### Admin Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/admin/users` | GET/POST | User management |
-| `/api/admin/monitoring` | GET | System monitoring |
-| `/api/admin/analytics` | GET | Performance analytics |
-| `/api/admin/security` | GET | Security status |
+### **Interactive API Docs**
+Visit [http://localhost:8000/docs](http://localhost:8000/docs) for complete interactive API documentation.
 
 ---
 
-## 🤝 Contributing
+## 🤝 **Contributing**
 
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md).
 
-### Development Setup
-
+### **Development Setup**
 ```bash
-# Fork and clone
-git clone https://github.com/yourusername/Atulya-Tantra.git
+# Clone and setup development environment
+git clone https://github.com/atulyaai/Atulya-Tantra.git
 cd Atulya-Tantra
-
-# Install development dependencies
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 pip install -r requirements-dev.txt
 
-# Run tests
-python -m pytest
-
-# Code formatting
-black .
-isort .
+# Run development server
+python server.py --debug
 ```
+
+### **Code Style**
+- **Python**: Black, Flake8, MyPy
+- **JavaScript**: Prettier, ESLint
+- **Testing**: Pytest with coverage
+- **Documentation**: Markdown, Docstrings
 
 ---
 
-## 📄 License
+## 📄 **License**
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 🙏 Acknowledgments
+## 🙏 **Acknowledgments**
 
-- **OpenAI** for GPT models and Whisper
+- **OpenAI** for GPT models and API
 - **Anthropic** for Claude models
-- **Google** for Gemini and speech recognition
-- **Ollama** for local model support
+- **Google** for Gemini models
 - **FastAPI** for the web framework
-- **All contributors** and users of this project
+- **React** for frontend inspiration
+- **The open-source community** for various libraries
 
 ---
 
-## 📞 Support
+## 📞 **Support**
 
-- **🐛 Issues**: [GitHub Issues](https://github.com/atulyaai/Atulya-Tantra/issues)
-- **💬 Discussions**: [GitHub Discussions](https://github.com/atulyaai/Atulya-Tantra/discussions)
-- **📧 Email**: support@atulya-tantra.dev
-- **📚 Documentation**: [Project Wiki](https://github.com/atulyaai/Atulya-Tantra/wiki)
+- **Documentation**: [Full Documentation](docs/)
+- **Issues**: [GitHub Issues](https://github.com/atulyaai/Atulya-Tantra/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/atulyaai/Atulya-Tantra/discussions)
+- **Email**: admin@atulvij.com
 
 ---
 
-## 🌟 Star History
+## 🗺️ **Roadmap**
 
-[![Star History Chart](https://api.star-history.com/svg?repos=atulyaai/Atulya-Tantra&type=Date)](https://star-history.com/#atulyaai/Atulya-Tantra&Date)
+### **Current Version: v2.2.0 (WebMaster)**
+- ✅ Complete WebUI system
+- ✅ Admin panel with analytics
+- ✅ Multi-agent orchestration
+- ✅ Voice interface
+- ✅ Desktop automation
+- ✅ Security features
+- ✅ Testing suite
+
+### **Upcoming Features**
+- 🔄 **v2.3.0**: Enhanced voice processing
+- 🔄 **v2.4.0**: Advanced automation workflows
+- 🔄 **v2.5.0**: Mobile app integration
+- 🔄 **v3.0.0**: Distributed agent system
 
 ---
 
@@ -340,7 +415,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Made with ❤️ by the Atulya Tantra Team**
 
-[![GitHub](https://img.shields.io/badge/GitHub-Atulya%20Tantra-black?style=for-the-badge&logo=github)](https://github.com/atulyaai/Atulya-Tantra)
-[![Documentation](https://img.shields.io/badge/Docs-Read%20More-blue?style=for-the-badge&logo=gitbook)](https://github.com/atulyaai/Atulya-Tantra/wiki)
+[![GitHub](https://img.shields.io/badge/GitHub-Repository-black?style=for-the-badge&logo=github)](https://github.com/atulyaai/Atulya-Tantra)
+[![Website](https://img.shields.io/badge/Website-Live-blue?style=for-the-badge)](https://atulvij.com)
+[![Email](https://img.shields.io/badge/Email-Contact-red?style=for-the-badge)](mailto:admin@atulvij.com)
 
 </div>

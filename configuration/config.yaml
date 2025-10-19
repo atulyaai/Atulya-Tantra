@@ -1,5 +1,5 @@
 # Atulya Tantra - Unified Configuration System
-# Version: 2.0.1
+# Version: 1.5.0
 # This file contains all system configuration in a single, organized location
 
 # =============================================================================
@@ -7,9 +7,10 @@
 # =============================================================================
 system:
   name: "Atulya Tantra"
-  version: "2.0.1"
-  codename: "Jarvis"
-  status: "stable"
+  version: "1.5.0"
+  codename: "Foundation"
+  status: "beta"
+  final_release: false
   debug: false
   log_level: "INFO"
   

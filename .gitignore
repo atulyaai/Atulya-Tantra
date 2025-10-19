@@ -129,24 +129,42 @@ dmypy.json
 .pyre/
 
 # Atulya Tantra specific
-data/logs/
-data/uploads/
-data/cache/
-data/security/
-data/analytics/
-data/memory/
-*.db
-*.sqlite
-*.sqlite3
+data/logs/*.log
+data/uploads/*
+data/cache/*
+data/security/*
+data/analytics/*
+!data/logs/.gitkeep
+!data/uploads/.gitkeep
+!data/cache/.gitkeep
+!data/security/.gitkeep
+!data/analytics/.gitkeep
 
-# IDE
+# API Keys and secrets
+.env.local
+.env.production
+secrets.json
+api_keys.json
+
+# Model files
+models/*.bin
+models/*.safetensors
+models/*.gguf
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS
+# OS files
 .DS_Store
 .DS_Store?
 ._*
@@ -155,46 +173,14 @@ data/memory/
 ehthumbs.db
 Thumbs.db
 
-# Temporary files
-tmp/
-temp/
-.tmp/
+# Test outputs
+test_results/
+coverage/
+.pytest_cache/
 
-# API Keys and secrets
-.env.local
-.env.production
-secrets.json
-credentials.json
-
-# Model files (too large for git)
-models/*.bin
-models/*.safetensors
-models/*.gguf
-*.model
-
-# Audio files
-*.wav
-*.mp3
-*.m4a
-*.ogg
-
-# Video files
-*.mp4
-*.avi
-*.mov
-*.mkv
-
-# Image files (except for documentation)
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.bmp
-*.tiff
-!docs/images/
-!assets/
+# Docker
+.dockerignore
 
 # Backup files
 *.bak
 *.backup
-*.old

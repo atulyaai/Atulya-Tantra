@@ -535,7 +535,48 @@
         let isListening = false;
         let isTalking = false;
         let conversations = [];
-        let currentConversationId = Date.now();
+        let currentConversationId = null;
+        
+        // Initialize conversation on page load
+        function initializeConversation() {
+            currentConversationId = 'conv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            console.log('New conversation started:', currentConversationId);
+            addWelcomeMessage();
+        }
+        
+        // Add welcome message
+        function addWelcomeMessage() {
+            const welcomeDiv = document.createElement('div');
+            welcomeDiv.className = 'message assistant welcome';
+            welcomeDiv.innerHTML = `
+                <div class="message-content">
+                    <h3>🤖 Welcome to Atulya Tantra v1.5.0</h3>
+                    <p>I'm your AI assistant powered by multiple models. I can help you with:</p>
+                    <ul>
+                        <li>General conversation and questions</li>
+                        <li>Code writing and debugging</li>
+                        <li>Research and analysis</li>
+                        <li>Creative tasks</li>
+                    </ul>
+                    <p><strong>Models available:</strong> Ollama (Llama 2), OpenAI (GPT-3.5), Anthropic (Claude)</p>
+                    <p>Start by typing a message below!</p>
+                </div>
+            `;
+            chatArea.appendChild(welcomeDiv);
+        }
+        
+        // New chat function
+        function newChat() {
+            currentConversationId = 'conv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            chatArea.innerHTML = '';
+            addWelcomeMessage();
+            console.log('New conversation started:', currentConversationId);
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeConversation();
+        });
 
         // Auto-resize textarea
         messageInput.addEventListener('input', function() {
@@ -579,13 +620,24 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         message: message,
-                        enable_voice: true
+                        conversation_id: currentConversationId,
+                        enable_voice: false  // Disable voice for now
                     })
                 });
 
                 const data = await response.json();
                 typingDiv.remove();
                 addMessage(data.response, false, data);
+
+                // Update conversation ID if provided
+                if (data.conversation_id) {
+                    currentConversationId = data.conversation_id;
+                }
+
+                // Show model information
+                if (data.model) {
+                    showModelInfo(data.model);
+                }
 
                 // Play audio with proper error handling
                 if (data.audio_file) {
@@ -627,7 +679,41 @@
             rippleContainer.style.display = 'none';
         }
 
-        // Add message
+        // Show model information
+        function showModelInfo(model) {
+            // Remove existing model info
+            const existingInfo = document.querySelector('.model-info');
+            if (existingInfo) {
+                existingInfo.remove();
+            }
+            
+            // Create model info display
+            const modelInfo = document.createElement('div');
+            modelInfo.className = 'model-info';
+            modelInfo.style.cssText = `
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                background: rgba(0, 0, 0, 0.8);
+                color: white;
+                padding: 8px 12px;
+                border-radius: 6px;
+                font-size: 12px;
+                z-index: 1000;
+                transition: opacity 0.3s;
+            `;
+            modelInfo.textContent = `Powered by: ${model}`;
+            
+            document.body.appendChild(modelInfo);
+            
+            // Auto-hide after 3 seconds
+            setTimeout(() => {
+                modelInfo.style.opacity = '0';
+                setTimeout(() => modelInfo.remove(), 300);
+            }, 3000);
+        }
+        
+        // Add message with metadata
         function addMessage(text, isUser = false, metadata = {}) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${isUser ? 'user' : 'assistant'}`;
@@ -635,6 +721,24 @@
             const content = document.createElement('div');
             content.className = 'message-content';
             content.textContent = text;
+            
+            // Add model info for assistant messages
+            if (!isUser && metadata.model) {
+                const modelSpan = document.createElement('span');
+                modelSpan.className = 'model-badge';
+                modelSpan.style.cssText = `
+                    display: inline-block;
+                    background: #e3f2fd;
+                    color: #1976d2;
+                    padding: 2px 6px;
+                    border-radius: 3px;
+                    font-size: 10px;
+                    margin-left: 8px;
+                    font-weight: 500;
+                `;
+                modelSpan.textContent = metadata.model;
+                content.appendChild(modelSpan);
+            }
             
             messageDiv.appendChild(content);
             chatArea.appendChild(messageDiv);

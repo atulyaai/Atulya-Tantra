@@ -17,6 +17,10 @@ from .utils import *
 from .base import BaseProtocol, BaseAgent, BaseManager
 from .memory import *
 from .monitoring import *
+from .voice import *
+from .agents import *
+from .automation import *
+from .models import *
 from .version import *
 
 __all__ = [
@@ -89,5 +93,56 @@ __all__ = [
     'get_version_info',
     'get_changelog',
     'get_roadmap',
-    'get_release_notes'
+    'get_release_notes',
+    
+    # Voice System
+    'VoiceConfig',
+    'AudioData',
+    'SpeechToText',
+    'TextToSpeech',
+    'WakeWordDetector',
+    'VoiceEngine',
+    'get_voice_engine',
+    
+    # Multi-Agent System
+    'AgentType',
+    'AgentStatus',
+    'AgentCapability',
+    'Task',
+    'AgentInfo',
+    'BaseAgent',
+    'ConversationAgent',
+    'CodeAgent',
+    'ResearchAgent',
+    'AgentRegistry',
+    'TaskQueue',
+    'MultiAgentOrchestrator',
+    'get_agent_registry',
+    'get_multi_agent_orchestrator',
+    
+    # Desktop Automation
+    'ScreenRegion',
+    'AutomationAction',
+    'AutomationRule',
+    'ScreenCapture',
+    'MouseController',
+    'KeyboardController',
+    'WindowManager',
+    'ProcessManager',
+    'AutomationEngine',
+    'get_automation_engine',
+    
+    # Hybrid Model Router
+    'ModelProvider',
+    'ModelStrategy',
+    'ModelConfig',
+    'ModelResponse',
+    'ModelMetrics',
+    'ModelClient',
+    'OpenAIClient',
+    'AnthropicClient',
+    'OllamaClient',
+    'HybridModelRouter',
+    'get_hybrid_model_router',
+    'get_model_router'
 ]

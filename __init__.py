@@ -5,12 +5,11 @@ JARVIS & SKYNET Protocols
 Our professional-grade AI system with emotional intelligence and multi-agent orchestration.
 """
 
-from __version__ import __version__, __version_info__, get_version
+from __version__ import __version__, __version_info__
 
 __all__ = [
     '__version__',
     '__version_info__',
-    'get_version',
 ]
 
 # Package metadata
