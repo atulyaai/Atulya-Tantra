@@ -6,45 +6,45 @@ Flattened agent modules for JARVIS, Skynet, and specialized agents
 
 from .agent_coordinator import AgentCoordinator
 
-# JARVIS Intelligence Layer
-from .jarvis_personality import PersonalityEngine
-from .jarvis_memory import ConversationalMemory
-from .jarvis_nlu import NaturalLanguageUnderstanding
-from .jarvis_assistant import TaskAssistant
-from .jarvis_knowledge import KnowledgeManager
-from .jarvis_voice import JARVISVoiceInterface
+# Conversational AI Layer
+from .conversational_personality import PersonalityEngine
+from .conversational_memory import ConversationalMemory
+from .conversational_nlu import NaturalLanguageUnderstanding
+from .conversational_assistant import TaskAssistant
+from .conversational_knowledge import KnowledgeManager
+from .conversational_voice import ConversationalVoiceInterface
 
-# Skynet Autonomous Operations
-from .skynet_system_control import SystemController
-from .skynet_automation import DesktopAutomation
-from .skynet_scheduler import TaskScheduler
-from .skynet_monitor import SystemMonitor
-from .skynet_healer import AutoHealer
-from .skynet_decision_engine import DecisionEngine
-from .skynet_coordinator import MultiAgentCoordinator
-from .skynet_executor import TaskExecutor, task_executor
-from .skynet_safety import SafetySystem, safety_system
+# System Automation Layer
+from .system_control import SystemController
+from .system_automation import DesktopAutomation
+from .system_scheduler import TaskScheduler
+from .system_monitor import SystemMonitor
+from .system_healer import AutoHealer
+from .system_decision_engine import DecisionEngine
+from .system_coordinator import MultiAgentCoordinator
+from .system_executor import TaskExecutor, task_executor
+from .system_safety import SafetySystem, safety_system
 
 # Specialized Agents
-from .base_agent import BaseAgent
-from .code_agent import CodeAgent
-from .research_agent import ResearchAgent
-from .creative_agent import CreativeAgent
-from .data_agent import DataAgent
+from .specialized.base_agent import BaseAgent
+from .specialized.code_agent import CodeAgent
+from .specialized.research_agent import ResearchAgent
+from .specialized.creative_agent import CreativeAgent
+from .specialized.data_agent import DataAgent
 
 __all__ = [
     # Core
     "AgentCoordinator",
     
-    # JARVIS Intelligence
+    # Conversational AI
     "PersonalityEngine",
     "ConversationalMemory", 
     "NaturalLanguageUnderstanding",
     "TaskAssistant",
     "KnowledgeManager",
-    "JARVISVoiceInterface",
+    "ConversationalVoiceInterface",
     
-    # Skynet Autonomous Operations
+    # System Automation
     "SystemController",
     "DesktopAutomation",
     "TaskScheduler", 

@@ -11,12 +11,12 @@ import logging
 from datetime import datetime
 
 from src.core.agents.agent_coordinator import AgentCoordinator
-from src.core.agents.skynet.monitor import SystemMonitor
-from src.core.agents.skynet.decision_engine import DecisionEngine
-from src.core.agents.skynet.executor import task_executor
-from src.core.agents.skynet.coordinator import MultiAgentCoordinator
-from src.core.agents.skynet.safety import safety_system
-from src.core.agents.jarvis.voice import JARVISVoiceInterface
+from src.core.agents.system_monitor import SystemMonitor
+from src.core.agents.system_decision_engine import DecisionEngine
+from src.core.agents.system_executor import task_executor
+from src.core.agents.system_coordinator import MultiAgentCoordinator
+from src.core.agents.system_safety import safety_system
+from src.core.agents.conversational_voice import ConversationalVoiceInterface
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["health"])

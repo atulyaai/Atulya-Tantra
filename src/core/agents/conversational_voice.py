@@ -72,8 +72,8 @@ class VoiceSession:
     status: VoiceStatus
 
 
-class JARVISVoiceInterface:
-    """JARVIS voice interface with wake word detection and natural speech"""
+class ConversationalVoiceInterface:
+    """Conversational voice interface with wake word detection and natural speech"""
     
     def __init__(self, config: Dict):
         self.config = config

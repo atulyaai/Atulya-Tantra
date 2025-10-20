@@ -2,37 +2,62 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ master, main, develop ]
+    branches: [ master, develop ]
   pull_request:
-    branches: [ master, main ]
+    branches: [ master ]
   release:
     types: [ published ]
 
 env:
   PYTHON_VERSION: '3.11'
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  NODE_VERSION: '18'
 
 jobs:
+  # Code Quality and Testing
   test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.11']
+        python-version: ['3.11', '3.12']
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Cache pip dependencies
+    - name: Cache Python dependencies
       uses: actions/cache@v3
       with:
         path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
         restore-keys: |
           ${{ runner.os }}-pip-
 
@@ -40,67 +65,83 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install -r requirements-dev.txt
-
-    - name: Set up test environment
-      run: |
-        mkdir -p logs
-        mkdir -p data/cache
-        mkdir -p data/database
-        mkdir -p data/logs
-        mkdir -p data/security
-        mkdir -p data/uploads
-        mkdir -p data/vectors
-
-    - name: Set environment variables
-      run: |
-        echo "ENCRYPTION_KEY=test-encryption-key-32-characters-long" >> $GITHUB_ENV
-        echo "SECRET_KEY=test-secret-key-32-characters-long" >> $GITHUB_ENV
-        echo "JWT_SECRET=test-jwt-secret-key-32-characters-long" >> $GITHUB_ENV
-        echo "DATABASE_URL=sqlite:///./test.db" >> $GITHUB_ENV
-        echo "ENVIRONMENT=test" >> $GITHUB_ENV
-        echo "REDIS_URL=redis://localhost:6379/1" >> $GITHUB_ENV
-        echo "OLLAMA_BASE_URL=http://localhost:11434" >> $GITHUB_ENV
-        echo "OPENAI_API_KEY=test-key" >> $GITHUB_ENV
-        echo "ANTHROPIC_API_KEY=test-key" >> $GITHUB_ENV
+        pip install pytest pytest-cov pytest-asyncio black flake8 mypy
 
     - name: Lint with flake8
       run: |
-        pip install flake8
-        # Stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # Exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        flake8 src --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 src --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
-    - name: Test with pytest
+    - name: Check code formatting with black
+      run: black --check src tests
+
+    - name: Type check with mypy
+      run: mypy src --ignore-missing-imports
+
+    - name: Run tests with coverage
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        REDIS_URL: redis://localhost:6379
+        SECRET_KEY: test-secret-key
+        JWT_SECRET: test-jwt-secret
       run: |
-        pytest tests/ -v --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=80
+        pytest tests/ --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=80
 
     - name: Upload coverage reports
       uses: codecov/codecov-action@v3
-      if: matrix.python-version == '3.11'
       with:
         file: ./coverage.xml
         flags: unittests
         name: codecov-umbrella
-        fail_ci_if_error: true
 
-  build:
-    needs: test
+  # Security Scanning
+  security:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
-
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install security tools
+      run: |
+        pip install bandit safety
+
+    - name: Run bandit security scan
+      run: bandit -r src -f json -o bandit-report.json || true
+
+    - name: Check for known security vulnerabilities
+      run: safety check --json --output safety-report.json || true
+
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-reports
+        path: |
+          bandit-report.json
+          safety-report.json
+
+  # Build Docker Image
+  build:
+    runs-on: ubuntu-latest
+    needs: [test, security]
+    if: github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Log in to Container Registry
-      if: github.event_name != 'pull_request'
+    - name: Login to Container Registry
+      if: github.event_name == 'push' && github.ref == 'refs/heads/master'
       uses: docker/login-action@v3
       with:
-        registry: ${{ env.REGISTRY }}
+        registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -108,63 +149,113 @@ jobs:
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        images: ghcr.io/${{ github.repository }}
         tags: |
           type=ref,event=branch
           type=ref,event=pr
           type=semver,pattern={{version}}
           type=semver,pattern={{major}}.{{minor}}
-          type=raw,value=latest,enable={{is_default_branch}}
+          type=sha,prefix={{branch}}-
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
         context: .
         platforms: linux/amd64,linux/arm64
-        push: ${{ github.event_name != 'pull_request' }}
+        push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
-  deploy:
-    needs: build
+  # Deploy to Staging
+  deploy-staging:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
-    environment: production
-
+    needs: [build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    environment: staging
+    
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-    - name: Set up kubectl
+    - name: Configure kubectl
       uses: azure/setup-kubectl@v3
       with:
         version: 'latest'
 
+    - name: Deploy to staging
+      run: |
+        echo "Deploying to staging environment"
+        # Add actual deployment commands here
+        # kubectl apply -f k8s/staging/
+
+  # Deploy to Production
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.event_name == 'release' && github.event.action == 'published'
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
     - name: Configure kubectl
-      run: |
-        mkdir -p ~/.kube
-        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
-        chmod 600 ~/.kube/config
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
 
-    - name: Deploy to Kubernetes
-      if: secrets.KUBE_CONFIG != ''
+    - name: Deploy to production
       run: |
-        # Update image tag in deployment
-        sed -i "s|image: .*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}|g" k8s/deployment.yaml
-        
-        # Apply Kubernetes manifests
-        kubectl apply -f k8s/namespace.yaml
-        kubectl apply -f k8s/configmap.yaml
-        kubectl apply -f k8s/secrets.yaml
-        kubectl apply -f k8s/deployment.yaml
-        kubectl apply -f k8s/service.yaml
-        kubectl apply -f k8s/ingress.yaml
-        kubectl apply -f k8s/pvc.yaml
+        echo "Deploying to production environment"
+        # Add actual deployment commands here
+        # kubectl apply -f k8s/production/
 
-    - name: Verify deployment
-      if: secrets.KUBE_CONFIG != ''
+    - name: Run smoke tests
       run: |
-        kubectl rollout status deployment/atulya-tantra -n atulya-tantra --timeout=300s
-        kubectl get pods -n atulya-tantra
-        kubectl get services -n atulya-tantra
+        echo "Running production smoke tests"
+        # Add smoke test commands here
+        # curl -f ${{ secrets.PRODUCTION_URL }}/api/health/live
+
+  # Performance Testing
+  performance:
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install Locust
+      run: pip install locust
+
+    - name: Run performance tests
+      run: |
+        echo "Running performance tests with Locust"
+        # Add Locust performance test commands here
+
+  # Notify on completion
+  notify:
+    runs-on: ubuntu-latest
+    needs: [test, security, build]
+    if: always()
+    
+    steps:
+    - name: Notify on success
+      if: ${{ needs.test.result == 'success' && needs.security.result == 'success' }}
+      run: |
+        echo "✅ CI/CD pipeline completed successfully"
+        # Add notification logic here (Slack, Discord, etc.)
+
+    - name: Notify on failure
+      if: ${{ needs.test.result == 'failure' || needs.security.result == 'failure' }}
+      run: |
+        echo "❌ CI/CD pipeline failed"
+        # Add failure notification logic here

@@ -308,7 +308,7 @@ task_executor.register_task("default", default_task_handler)
 
 async def system_health_check_handler(task_data: Dict[str, Any]) -> Dict[str, Any]:
     """System health check task handler"""
-    from src.core.agents.skynet.monitor import SystemMonitor
+    from .system_monitor import SystemMonitor
     
     monitor = SystemMonitor()
     health = await monitor.get_system_health()

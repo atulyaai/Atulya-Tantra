@@ -4,7 +4,7 @@ Unit tests for task executor
 
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
-from src.core.agents.skynet.executor import TaskExecutor, TaskPriority, TaskStatus
+from src.core.agents.system_executor import TaskExecutor, TaskPriority, TaskStatus
 
 
 class TestTaskExecutor:

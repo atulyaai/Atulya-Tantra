@@ -12,9 +12,9 @@ import uuid
 from enum import Enum
 from dataclasses import dataclass
 
-from src.core.agents.specialized.base_agent import BaseAgent
-from src.core.agents.skynet.decision_engine import DecisionEngine
-from src.core.agents.skynet.executor import TaskExecutor, TaskPriority
+from .specialized.base_agent import BaseAgent
+from .system_decision_engine import DecisionEngine
+from .system_executor import TaskExecutor, TaskPriority
 
 logger = logging.getLogger(__name__)
 

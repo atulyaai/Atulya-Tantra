@@ -15,8 +15,8 @@ from src.core.security.encryption import verify_password
 from src.services.chat_service import ChatService
 from src.services.auth_service import auth_service
 from src.core.agents.agent_coordinator import AgentCoordinator
-from src.core.agents.skynet.monitor import SystemMonitor
-from src.core.agents.skynet.decision_engine import DecisionEngine
+from src.core.agents.system_monitor import SystemMonitor
+from src.core.agents.system_decision_engine import DecisionEngine
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["admin"])

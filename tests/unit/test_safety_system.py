@@ -4,7 +4,7 @@ Unit tests for safety system
 
 import pytest
 from unittest.mock import Mock, AsyncMock
-from src.core.agents.skynet.safety import SafetySystem, ActionType, SafetyLevel, SafetyViolation
+from src.core.agents.system_safety import SafetySystem, ActionType, SafetyLevel, SafetyViolation
 
 
 class TestSafetySystem:

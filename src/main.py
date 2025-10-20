@@ -25,12 +25,12 @@ from src.api.dependencies import get_chat_service, get_ai_service, get_multimoda
 
 # Import core components
 from src.core.agents.agent_coordinator import AgentCoordinator
-from src.core.agents.skynet.monitor import SystemMonitor
-from src.core.agents.skynet.decision_engine import DecisionEngine
-from src.core.agents.skynet.executor import task_executor
-from src.core.agents.skynet.coordinator import MultiAgentCoordinator
-from src.core.agents.skynet.safety import safety_system
-from src.core.agents.jarvis.voice import JARVISVoiceInterface
+from src.core.agents.system_monitor import SystemMonitor
+from src.core.agents.system_decision_engine import DecisionEngine
+from src.core.agents.system_executor import task_executor
+from src.core.agents.system_coordinator import MultiAgentCoordinator
+from src.core.agents.system_safety import safety_system
+from src.core.agents.conversational_voice import ConversationalVoiceInterface
 from src.core.security.rate_limiter import get_rate_limiter
 
 # Import integrations
@@ -156,8 +156,8 @@ async def lifespan(app: FastAPI):
 # Create FastAPI application
 app = FastAPI(
     title="Atulya Tantra",
-    description="Level 5 AGI System with JARVIS Intelligence, Skynet Operations, and Specialized Agents",
-    version="2.5.0",
+    description="Level 5 AGI System with Conversational AI, System Automation, and Specialized Agents",
+    version="3.3.0",
     lifespan=lifespan
 )
 
@@ -249,7 +249,7 @@ async def root():
     """Root endpoint"""
     return {
         "name": "Atulya Tantra",
-        "version": "2.7.5",
+        "version": "3.3.0",
         "description": "Level 5 AGI System",
         "status": "operational",
         "features": {
@@ -271,7 +271,7 @@ async def system_status():
     try:
         status = {
             "system": "operational",
-            "version": "2.7.5",
+            "version": "3.3.0",
             "timestamp": asyncio.get_event_loop().time(),
             "components": {}
         }

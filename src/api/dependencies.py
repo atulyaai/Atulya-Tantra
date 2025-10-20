@@ -15,19 +15,27 @@ from src.core.ai.model_clients import ModelClientManager
 from src.core.ai.context import ConversationMemory
 from src.core.memory.vector_store import VectorStore
 from src.core.memory.knowledge_graph import KnowledgeGraph
-from src.config.settings import get_settings
+# from src.config.settings import get_settings  # Removed - using environment variables directly
 
 
 @lru_cache()
 def get_settings_service():
     """Get settings service"""
-    return get_settings()
+    import os
+    return {
+        "openai_api_key": os.getenv("OPENAI_API_KEY"),
+        "anthropic_api_key": os.getenv("ANTHROPIC_API_KEY"),
+        "database_url": os.getenv("DATABASE_URL", "sqlite:///./data/database/atulya.db"),
+        "redis_url": os.getenv("REDIS_URL", "redis://localhost:6379"),
+        "secret_key": os.getenv("SECRET_KEY", "default-secret-key"),
+        "jwt_secret": os.getenv("JWT_SECRET", "default-jwt-secret")
+    }
 
 
 @lru_cache()
 def get_vector_store() -> VectorStore:
     """Get vector store instance"""
-    settings = get_settings()
+    settings = get_settings_service()
     return VectorStore()
 
 
@@ -48,28 +56,28 @@ def get_conversation_memory() -> ConversationMemory:
 @lru_cache()
 def get_model_client_manager() -> ModelClientManager:
     """Get model client manager instance"""
-    settings = get_settings()
+    settings = get_settings_service()
     return ModelClientManager(settings.ai)
 
 
 @lru_cache()
 def get_task_classifier() -> TaskClassifier:
     """Get task classifier instance"""
-    settings = get_settings()
+    settings = get_settings_service()
     return TaskClassifier(settings.ai)
 
 
 @lru_cache()
 def get_sentiment_analyzer() -> SentimentAnalyzer:
     """Get sentiment analyzer instance"""
-    settings = get_settings()
+    settings = get_settings_service()
     return SentimentAnalyzer(settings.ai.get("sentiment", {}))
 
 
 @lru_cache()
 def get_model_router() -> ModelRouter:
     """Get model router instance"""
-    settings = get_settings()
+    settings = get_settings_service()
     return ModelRouter(settings.ai.get("routing", {}))
 
 
@@ -102,7 +110,7 @@ def get_chat_service() -> ChatService:
 @lru_cache()
 def get_multimodal_service() -> MultimodalService:
     """Get multimodal service instance"""
-    settings = get_settings()
+    settings = get_settings_service()
     return MultimodalService(settings.features)
 
 
