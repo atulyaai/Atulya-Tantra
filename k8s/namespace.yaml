@@ -1,7 +1,0 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: atulya-tantra
-  labels:
-    name: atulya-tantra
-    app: atulya-tantra
