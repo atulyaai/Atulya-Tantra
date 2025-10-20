@@ -11,6 +11,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 import uvicorn
 import os
 
@@ -19,7 +20,7 @@ from prometheus_client import CollectorRegistry, CONTENT_TYPE_LATEST, generate_l
 import time
 
 # Import API routes
-from src.api.routes import chat, admin, health
+from src.api.routes import chat, admin, health, auth
 from src.api.dependencies import get_chat_service, get_ai_service, get_multimodal_service
 
 # Import core components
@@ -235,6 +236,11 @@ async def global_exception_handler(request: Request, exc: Exception):
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(health.router, prefix="/api/health", tags=["health"])
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+
+# Mount static files
+app.mount("/webui", StaticFiles(directory="webui"), name="webui")
+app.mount("/admin", StaticFiles(directory="webui/admin"), name="admin")
 
 # Root endpoint
 @app.get("/")

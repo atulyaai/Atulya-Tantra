@@ -16,7 +16,7 @@ from ...infrastructure.database.schema import User
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/auth", tags=["authentication"])
+router = APIRouter(tags=["authentication"])
 security = HTTPBearer()
 
 # Pydantic models

@@ -19,7 +19,7 @@ from src.core.agents.skynet.monitor import SystemMonitor
 from src.core.agents.skynet.decision_engine import DecisionEngine
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/admin", tags=["admin"])
+router = APIRouter(tags=["admin"])
 security = HTTPBearer()
 
 async def verify_admin_token(credentials: HTTPAuthorizationCredentials = Depends(security)):

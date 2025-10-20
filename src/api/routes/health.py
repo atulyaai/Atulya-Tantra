@@ -19,7 +19,7 @@ from src.core.agents.skynet.safety import safety_system
 from src.core.agents.jarvis.voice import JARVISVoiceInterface
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/health", tags=["health"])
+router = APIRouter(tags=["health"])
 
 @router.get("/")
 async def health_check() -> Dict[str, Any]:
