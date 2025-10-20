@@ -3,11 +3,10 @@ Database schema definitions for Atulya Tantra Level 5 AGI System
 """
 
 from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, Float, ForeignKey, JSON
-from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
-Base = declarative_base()
+from . import Base
 
 class User(Base):
     """User accounts and authentication"""

@@ -11,8 +11,8 @@ import secrets
 import logging
 import os
 
-from ..infrastructure.database.schema import User, Session as UserSession
-from ..infrastructure.database.models import get_db
+from ..core.database.schema import User, Session as UserSession
+from ..core.database import get_db
 
 logger = logging.getLogger(__name__)
 

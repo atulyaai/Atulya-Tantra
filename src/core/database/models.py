@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 from typing import Generator
 import os
 
-from .schema import Base
+from . import Base
 
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/database/atulya.db")
