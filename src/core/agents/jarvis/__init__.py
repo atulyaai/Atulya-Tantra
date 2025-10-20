@@ -5,17 +5,17 @@ JARVIS module for conversational AI and personality
 """
 
 from .personality import PersonalityEngine
-from .memory import JARVISConversationalMemory
-from .nlu import JARVISNLU
-from .assistant import JARVISTaskAssistant
-from .knowledge import JARVISKnowledgeManager
+from .memory import ConversationalMemory
+from .nlu import NaturalLanguageUnderstanding
+from .assistant import TaskAssistant
+from .knowledge import KnowledgeManager
 from .voice import JARVISVoiceInterface
 
 __all__ = [
     "PersonalityEngine",
-    "JARVISConversationalMemory",
-    "JARVISNLU",
-    "JARVISTaskAssistant",
-    "JARVISKnowledgeManager",
+    "ConversationalMemory",
+    "NaturalLanguageUnderstanding",
+    "TaskAssistant",
+    "KnowledgeManager",
     "JARVISVoiceInterface"
 ]

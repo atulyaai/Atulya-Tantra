@@ -57,23 +57,35 @@ class WindowInfo:
     is_visible: bool
 
 
-class FileSystemEventHandler(FileSystemEventHandler):
-    """Custom file system event handler"""
-    
-    def __init__(self, automation_controller):
-        self.automation_controller = automation_controller
-    
-    def on_created(self, event):
-        if not event.is_directory:
-            self.automation_controller._handle_file_event("created", event.src_path)
-    
-    def on_modified(self, event):
-        if not event.is_directory:
-            self.automation_controller._handle_file_event("modified", event.src_path)
-    
-    def on_deleted(self, event):
-        if not event.is_directory:
-            self.automation_controller._handle_file_event("deleted", event.src_path)
+if WATCHDOG_AVAILABLE:
+    class CustomFileSystemEventHandler(FileSystemEventHandler):
+        """Custom file system event handler"""
+        
+        def __init__(self, automation_controller):
+            self.automation_controller = automation_controller
+        
+        def on_created(self, event):
+            if not event.is_directory:
+                self.automation_controller._handle_file_event("created", event.src_path)
+        
+        def on_modified(self, event):
+            if not event.is_directory:
+                self.automation_controller._handle_file_event("modified", event.src_path)
+        
+        def on_deleted(self, event):
+            if not event.is_directory:
+                self.automation_controller._handle_file_event("deleted", event.src_path)
+        
+        def on_moved(self, event):
+            if not event.is_directory:
+                self.automation_controller._handle_file_event("moved", event.dest_path, event.src_path)
+else:
+    # Fallback class when watchdog is not available
+    class CustomFileSystemEventHandler:
+        """Fallback file system event handler"""
+        
+        def __init__(self, automation_controller):
+            self.automation_controller = automation_controller
 
 
 class DesktopAutomation:
@@ -270,7 +282,7 @@ class DesktopAutomation:
             
             # Create observer
             observer = Observer()
-            event_handler = FileSystemEventHandler(self)
+            event_handler = CustomFileSystemEventHandler(self)
             
             # Start watching
             observer.schedule(event_handler, directory, recursive=recursive)

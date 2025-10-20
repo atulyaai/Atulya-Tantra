@@ -40,6 +40,7 @@ memory-profiler==0.61.0
 # API testing
 httpx==0.25.2
 selenium==4.15.2
+aiofiles==23.2.1
 
 # Database testing
 pytest-postgresql==5.0.0

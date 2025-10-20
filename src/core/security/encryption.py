@@ -43,7 +43,9 @@ class EncryptionManager:
         """
         key_str = os.getenv("ENCRYPTION_KEY")
         if not key_str:
-            raise ValueError("ENCRYPTION_KEY environment variable not set")
+            # Use a default key for development/testing (NOT for production)
+            logger.warning("ENCRYPTION_KEY not set, using default key (NOT for production)")
+            key_str = "default-dev-key-change-in-production-32-chars"
         
         # If key is base64 encoded, decode it
         try:

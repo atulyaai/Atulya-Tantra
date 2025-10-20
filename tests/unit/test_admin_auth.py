@@ -3,6 +3,7 @@ Unit tests for admin authentication and authorization
 """
 
 import pytest
+import asyncio
 from unittest.mock import Mock, patch
 from fastapi import HTTPException
 from src.services.auth_service import AuthService
@@ -16,45 +17,54 @@ class TestAdminAuth:
         """Setup test fixtures"""
         self.auth_service = AuthService()
     
-    def test_verify_admin_token_valid(self):
+    @pytest.mark.asyncio
+    async def test_verify_admin_token_valid(self):
         """Test valid admin token verification"""
         # Create a valid admin token
         token_data = {"sub": "admin", "roles": ["admin"], "exp": 9999999999}
-        with patch.object(self.auth_service, 'verify_token', return_value=token_data):
-            with patch.object(self.auth_service, 'require_roles', return_value=True):
-                # Mock the credentials
-                credentials = Mock()
-                credentials.credentials = "valid-token"
-                
-                # This should not raise an exception
-                result = verify_admin_token(credentials)
-                assert result == token_data
+        with patch('src.api.routes.admin.auth_service') as mock_auth:
+            mock_auth.verify_token.return_value = token_data
+            mock_auth.require_roles.return_value = True
+            
+            # Mock the credentials
+            credentials = Mock()
+            credentials.credentials = "valid-token"
+            
+            # This should not raise an exception
+            result = await verify_admin_token(credentials)
+            assert result == token_data
     
-    def test_verify_admin_token_invalid(self):
+    @pytest.mark.asyncio
+    async def test_verify_admin_token_invalid(self):
         """Test invalid token verification"""
-        with patch.object(self.auth_service, 'verify_token', return_value=None):
+        with patch('src.api.routes.admin.auth_service') as mock_auth:
+            mock_auth.verify_token.return_value = None
+            
             credentials = Mock()
             credentials.credentials = "invalid-token"
             
             with pytest.raises(HTTPException) as exc_info:
-                verify_admin_token(credentials)
+                await verify_admin_token(credentials)
             
             assert exc_info.value.status_code == 401
             assert "Invalid or expired token" in str(exc_info.value.detail)
     
-    def test_verify_admin_token_insufficient_roles(self):
+    @pytest.mark.asyncio
+    async def test_verify_admin_token_insufficient_roles(self):
         """Test token with insufficient roles"""
         token_data = {"sub": "user", "roles": ["user"], "exp": 9999999999}
-        with patch.object(self.auth_service, 'verify_token', return_value=token_data):
-            with patch.object(self.auth_service, 'require_roles', return_value=False):
-                credentials = Mock()
-                credentials.credentials = "user-token"
-                
-                with pytest.raises(HTTPException) as exc_info:
-                    verify_admin_token(credentials)
-                
-                assert exc_info.value.status_code == 403
-                assert "Insufficient permissions" in str(exc_info.value.detail)
+        with patch('src.api.routes.admin.auth_service') as mock_auth:
+            mock_auth.verify_token.return_value = token_data
+            mock_auth.require_roles.return_value = False
+            
+            credentials = Mock()
+            credentials.credentials = "user-token"
+            
+            with pytest.raises(HTTPException) as exc_info:
+                await verify_admin_token(credentials)
+            
+            assert exc_info.value.status_code == 403
+            assert "Insufficient permissions" in str(exc_info.value.detail)
     
     def test_generate_admin_token(self):
         """Test admin token generation"""

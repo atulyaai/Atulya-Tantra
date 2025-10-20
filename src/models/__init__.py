@@ -51,7 +51,7 @@ class Message(Base):
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     content = Column(Text, nullable=False)
     role = Column(String, nullable=False)  # user, assistant, system
-    metadata = Column(JSON, nullable=True)
+    message_metadata = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships

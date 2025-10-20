@@ -9,6 +9,7 @@ import asyncio
 from typing import Dict, Any, List, Optional, Callable, Set
 from datetime import datetime, timedelta
 from enum import Enum
+from dataclasses import dataclass
 import json
 import hashlib
 
