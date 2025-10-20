@@ -5,7 +5,7 @@ Base interface for external integrations
 """
 
 import logging
-from typing import Dict, List, Optional, Any, Protocol
+from typing import Dict, List, Optional, Any, Protocol, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
