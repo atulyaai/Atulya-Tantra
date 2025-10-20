@@ -3,12 +3,13 @@ Authentication service for Atulya Tantra Level 5 AGI System
 """
 
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 import secrets
 import logging
+import os
 
 from ..infrastructure.database.schema import User, Session as UserSession
 from ..infrastructure.database.models import get_db
@@ -18,11 +19,11 @@ logger = logging.getLogger(__name__)
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# JWT configuration
-SECRET_KEY = "your-secret-key-change-in-production"  # Should be from environment
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-REFRESH_TOKEN_EXPIRE_DAYS = 7
+# JWT configuration (read from environment)
+SECRET_KEY = os.getenv("JWT_SECRET", os.getenv("SECRET_KEY", "change-me"))
+ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRATION_MINUTES", "30"))
+REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("JWT_REFRESH_DAYS", "7"))
 
 class AuthService:
     """Authentication and authorization service"""
@@ -48,9 +49,16 @@ class AuthService:
         else:
             expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         
-        to_encode.update({"exp": expire})
+        to_encode.update({"exp": expire, "type": "access"})
         encoded_jwt = jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
         return encoded_jwt
+
+    def generate_admin_token(self, subject: str = "admin", roles: Optional[list] = None, minutes: Optional[int] = None) -> str:
+        """Generate an admin JWT for bootstrap scenarios (non-production)."""
+        roles = roles or ["admin"]
+        expires = timedelta(minutes=minutes or ACCESS_TOKEN_EXPIRE_MINUTES)
+        payload = {"sub": subject, "roles": roles}
+        return self.create_access_token(payload, expires)
     
     def create_refresh_token(self, data: dict) -> str:
         """Create JWT refresh token"""
@@ -137,6 +145,11 @@ class AuthService:
         
         user = db.query(User).filter(User.username == username).first()
         return user
+
+    def require_roles(self, payload: Dict[str, Any], required_roles: List[str]) -> bool:
+        """Check if JWT payload has at least one required role"""
+        roles = payload.get("roles", []) or []
+        return any(role in roles for role in required_roles)
     
     def get_user_from_session(self, db: Session, session_token: str) -> Optional[User]:
         """Get user from session token"""

@@ -4,9 +4,10 @@ Version: 2.5.0
 Orchestrates AI operations: classification, routing, and generation
 """
 
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, AsyncGenerator
 from dataclasses import dataclass
 import logging
+import asyncio
 from src.core.ai.classifier import TaskClassifier, ClassificationResult
 from src.core.ai.sentiment import SentimentAnalyzer, SentimentResult
 from src.core.ai.router import ModelRouter, ModelSelection
@@ -235,6 +236,102 @@ class AIService:
     async def get_conversation_stats(self) -> Dict[str, Any]:
         """Get conversation statistics"""
         return self.conversation_memory.get_conversation_stats()
+    
+    async def stream_response(
+        self,
+        request: AIRequest,
+        conversation_id: Optional[str] = None
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """Stream AI response with real-time chunks"""
+        
+        try:
+            # Step 1: Add user message to conversation memory
+            if conversation_id:
+                await self.conversation_memory.add_message(
+                    conversation_id=conversation_id,
+                    role="user",
+                    content=request.message,
+                    user_id=request.user_id,
+                    metadata={"timestamp": request.timestamp.isoformat() if hasattr(request, 'timestamp') else None}
+                )
+            
+            # Step 2: Classify task
+            classification = await self.classifier.classify(request.message)
+            
+            # Step 3: Analyze sentiment
+            sentiment = await self.sentiment_analyzer.analyze(request.message)
+            
+            # Step 4: Get available models
+            available_models = await self.model_client_manager.get_available_models()
+            
+            # Step 5: Select model
+            if hasattr(request, 'model') and request.model and request.model in ["ollama", "openai", "anthropic"]:
+                model_selection = ModelSelection(
+                    provider=request.model,
+                    model="default",
+                    reasoning=f"User requested {request.model}"
+                )
+            else:
+                model_selection = await self.router.select_model(
+                    classification.task_type,
+                    classification.complexity,
+                    available_models
+                )
+            
+            # Step 6: Build context and system prompt
+            context_messages = await self._build_context_messages(
+                conversation_id, request.message, classification
+            )
+            system_prompt = self._build_system_prompt(sentiment, classification)
+            
+            # Step 7: Stream response using model client
+            full_response = ""
+            async for chunk in self.model_client_manager.stream_generate(
+                provider=model_selection.provider,
+                model=model_selection.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    *context_messages,
+                    {"role": "user", "content": request.message}
+                ],
+                temperature=0.7,
+                max_tokens=1000
+            ):
+                full_response += chunk.get("content", "")
+                yield {
+                    "content": chunk.get("content", ""),
+                    "metadata": {
+                        "model_used": f"{model_selection.provider}/{model_selection.model}",
+                        "task_type": classification.task_type.value,
+                        "sentiment": sentiment.sentiment.value,
+                        "classification_confidence": classification.confidence,
+                        "sentiment_confidence": sentiment.confidence
+                    }
+                }
+                await asyncio.sleep(0.01)  # Smooth streaming
+            
+            # Step 8: Add AI response to conversation memory
+            if conversation_id:
+                await self.conversation_memory.add_message(
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    content=full_response,
+                    user_id=request.user_id,
+                    metadata={
+                        "model_used": f"{model_selection.provider}/{model_selection.model}",
+                        "task_type": classification.task_type.value,
+                        "sentiment": sentiment.sentiment.value,
+                        "classification_confidence": classification.confidence,
+                        "sentiment_confidence": sentiment.confidence
+                    }
+                )
+            
+        except Exception as e:
+            logger.error(f"Streaming error: {e}")
+            yield {
+                "content": f"Error: {str(e)}",
+                "metadata": {"error": True, "message": str(e)}
+            }
     
     async def health_check(self) -> Dict[str, Any]:
         """Check health of all AI components"""

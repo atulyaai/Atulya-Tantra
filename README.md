@@ -1,76 +1,86 @@
-# Atulya Tantra - Level 5 Autonomous AGI System
+# Atulya Tantra - Level 5 AGI System
 
-[![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)](https://github.com/yourusername/atulya-tantra)
-[![Status](https://img.shields.io/badge/status-production--ready-green.svg)](https://github.com/yourusername/atulya-tantra)
-[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+## 🚀 Overview
 
-**Atulya Tantra** is a Level 5 Autonomous AGI system designed to be the ultimate AI assistant, combining the conversational intelligence of ChatGPT with the advanced capabilities of Claude Anthropic, plus autonomous decision-making and system control capabilities.
+Atulya Tantra is a comprehensive Level 5 Artificial General Intelligence (AGI) system that combines the conversational intelligence of JARVIS, the autonomous operations of Skynet, and specialized agents for various domains. Built with modern technologies and production-ready architecture, it provides a complete AI assistant platform.
 
-## 🎯 **Current Status: v2.5.0 "Level 5 AGI Foundation"**
+## ✨ Key Features
 
-✅ **Phase 0 Complete**: Clean Architecture Refactoring  
-✅ **Phase 1 Complete**: Core AI Intelligence  
-✅ **Phase 2 Complete**: Modern UI  
+### 🧠 JARVIS Intelligence Layer
+- **Personality Engine**: Conversational memory, emotional intelligence, proactive behavior
+- **Natural Language Understanding**: Intent recognition, context management, ambiguity handling
+- **Enhanced Memory Systems**: Episodic, semantic, and conversational memory
+- **Task Assistance**: Problem-solving, recommendations, and step-by-step guidance
+- **Voice Interface**: Wake word detection, natural speech, conversational flow
 
-🚀 **Next**: Phase 3 (Admin Panel), Phase 4 (Testing), Phase 5 (Autonomous AI), Phase 6 (Production)
+### 🤖 Skynet Autonomous Operations
+- **System Control**: Desktop automation, file operations, process management
+- **Task Scheduling**: Cron-like scheduling, event-driven automation, workflow builder
+- **Self-Monitoring**: Health checks, error detection, performance optimization
+- **Auto-Healing**: Service restart, cache clearing, connection retry, fallback mechanisms
+- **Decision Engine**: Goal-oriented planning, autonomous execution, risk assessment
+- **Multi-Agent Coordination**: Agent registry, task distribution, communication protocol
+- **Safety & Security**: Permission system, sandbox execution, safety constraints
 
-## 🧠 **Core Features**
+### 🎯 Specialized Agents
+- **Code Agent**: Code generation, analysis, debugging, refactoring
+- **Research Agent**: Information gathering, analysis, citation
+- **Creative Agent**: Content creation, design suggestions, style adaptation
+- **Data Agent**: Data analysis, processing, database operations
+- **Agent Coordinator**: Task routing and multi-agent collaboration
 
-### **Intelligent AI Routing**
-- **Task Classification**: Automatically detects coding, research, creative, simple, and general tasks
-- **Sentiment Analysis**: Identifies frustrated, urgent, positive, negative, excited, neutral emotions
-- **Smart Model Selection**: Routes to optimal models (Ollama, OpenAI, Anthropic) based on task type and complexity
-- **Context-Aware Responses**: Uses conversation history for better responses
+### 🌟 Advanced Features
+- **Reasoning & Planning**: Chain-of-thought reasoning, multi-step planning, what-if analysis
+- **External Integrations**: Calendar, Email, Cloud Storage, Third-party APIs
+- **Multi-Modal Input**: Voice, vision, file attachments, text
+- **Streaming Responses**: Real-time communication with Server-Sent Events and WebSockets
+- **Rich Content Rendering**: Markdown, LaTeX, code highlighting, image previews
+- **Admin Dashboard**: System monitoring, agent management, user management
 
-### **Advanced Memory System**
-- **Semantic Search**: ChromaDB + SentenceTransformer for finding relevant conversation history
-- **Knowledge Graph**: NetworkX-based relationship storage for topics and entities
-- **Conversation Memory**: Intelligent context management with topic extraction
-- **Persistent Storage**: All conversations saved with embeddings for future reference
+### 🔒 Production Features
+- **Comprehensive Testing**: Unit, integration, E2E, performance, security tests
+- **CI/CD Pipeline**: Automated testing, building, and deployment
+- **Security Hardening**: JWT authentication, RBAC, encryption, rate limiting
+- **Monitoring & Observability**: Prometheus, Grafana, ELK Stack, OpenTelemetry
+- **Performance Optimization**: Caching, load balancing, async I/O, database optimization
+- **Containerization**: Docker and Kubernetes deployment ready
 
-### **Modern UI**
-- **ChatGPT-Style Interface**: Clean, professional design inspired by ChatGPT
-- **Claude Anthropic Color Theme**: Orange accent (#ff6b35) with professional grays
-- **Responsive Design**: Perfect experience on desktop, tablet, and mobile
-- **Dark Mode Support**: Automatic dark mode detection and styling
-- **Advanced Features**: Auto-resize input, loading animations, keyboard shortcuts
+## 🏗️ Architecture
 
-### **Production-Ready Architecture**
-- **Clean Modular Design**: Layered architecture with proper separation of concerns
-- **Dependency Injection**: Loose coupling between components
-- **Unified Configuration**: Single `config/config.yaml` source of truth
-- **Error Handling**: Robust error handling throughout
-- **Health Monitoring**: Comprehensive health checks and metrics
+### Core Components
+- **FastAPI Backend**: High-performance async web framework
+- **PostgreSQL**: Primary database with connection pooling
+- **Redis**: Caching, session storage, and rate limiting
+- **Nginx**: Reverse proxy and load balancer
+- **WebSocket/SSE**: Real-time communication
 
-## 🏗️ **Architecture**
+### AI/ML Stack
+- **OpenAI API**: GPT models for text generation
+- **Anthropic API**: Claude models for reasoning
+- **Ollama**: Local model support
+- **Sentence Transformers**: Embeddings and semantic search
+- **ChromaDB**: Vector database for memory systems
+- **NetworkX**: Knowledge graph operations
 
-```
-src/
-├── api/           # FastAPI routes and dependencies
-├── core/ai/       # AI intelligence (classifier, sentiment, router, context)
-├── core/memory/   # Vector store and knowledge graph
-├── services/      # Business logic (AI service, chat service)
-└── config/        # Configuration and DI container
+### Monitoring Stack
+- **Prometheus**: Metrics collection
+- **Grafana**: Visualization dashboards
+- **ELK Stack**: Centralized logging
+- **OpenTelemetry**: Distributed tracing
 
-webui/
-├── index.html     # Modern ChatGPT-style interface
-└── src/           # Ready for React migration
-```
+## 🚀 Quick Start
 
-## 🚀 **Quick Start**
-
-### **Prerequisites**
+### Prerequisites
 - Python 3.11+
-- Ollama (optional, for local models)
-- OpenAI API key (optional)
-- Anthropic API key (optional)
+- PostgreSQL 15+
+- Redis 7+
+- Docker (optional)
 
-### **Installation**
+### Installation
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/atulya-tantra.git
+git clone https://github.com/your-org/atulya-tantra.git
    cd atulya-tantra
    ```
 
@@ -81,160 +91,312 @@ webui/
 
 3. **Configure environment**
    ```bash
-   # Copy example environment file
    cp .env.example .env
-   
-   # Edit .env with your API keys
-   OPENAI_API_KEY=your_openai_key
-   ANTHROPIC_API_KEY=your_anthropic_key
-   ```
+# Edit .env with your configuration
+```
 
-4. **Start the server**
+4. **Initialize database**
+```bash
+alembic upgrade head
+```
+
+5. **Start the application**
    ```bash
-   python main.py
-   ```
+python -m uvicorn src.main:app --host 0.0.0.0 --port 8000
+```
 
-5. **Open your browser**
-   ```
-   http://localhost:8000
-   ```
-
-## 🧪 **Testing**
-
-Run the comprehensive test suite:
+### Docker Deployment
 
 ```bash
-# Test clean architecture
-python test_architecture.py
+# Build and run with Docker Compose
+docker-compose up -d
 
-# Test Phase 1 AI intelligence
-python test_phase1.py
-
-# Test Phase 2 UI
-python test_phase2.py
+# Or build and run with Docker
+docker build -t atulya-tantra .
+docker run -p 8000:8000 atulya-tantra
 ```
 
-## 📊 **Current Capabilities**
+### Kubernetes Deployment
 
-### **Level 2-3 AI Intelligence**
-- ✅ Smart task classification and model routing
-- ✅ Sentiment-aware responses with tone adjustment
-- ✅ Semantic conversation memory with context relevance
-- ✅ Professional ChatGPT-style UI
-- ✅ Production-ready architecture
+```bash
+# Deploy to Kubernetes
+kubectl apply -f k8s/
 
-### **Supported AI Models**
-- **Ollama**: `mistral:latest`, `gemma2:2b`, `qwen2.5-coder:7b`
-- **OpenAI**: `gpt-4`, `gpt-3.5-turbo`
-- **Anthropic**: `claude-3-sonnet-20240229`, `claude-3-haiku-20240307`
+# Or use the deployment script
+./scripts/deploy.sh deploy v1.0.0 production
 
-### **Task Types**
-- **Coding**: Python, JavaScript, Java, C++, SQL, algorithms
-- **Research**: Information gathering, analysis, explanations
-- **Creative**: Writing, storytelling, content creation
-- **Simple**: Greetings, basic questions, quick answers
-- **General**: Complex reasoning, multi-step tasks
+# Windows PowerShell
+pwsh ./scripts/start.ps1 start
+pwsh ./scripts/deploy.ps1 -Command deploy -Tag v1.0.0 -Registry your.registry
+```
 
-## 🎨 **UI Features**
+## 📖 Usage
 
-- **Welcome Screen**: Professional landing with feature showcase
-- **Chat Interface**: Message bubbles with avatars and metadata
-- **Sidebar**: Clean conversation list with active states
-- **Input Area**: Auto-resize textarea with action buttons
-- **Responsive Design**: Perfect mobile experience with sidebar toggle
-- **Keyboard Shortcuts**: Enter to send, Shift+Enter for new line
-- **Loading States**: Smooth animations during AI generation
+### Web Interface
+Access the web interface at `http://localhost:8000` for a ChatGPT-style experience with:
+- Real-time streaming responses
+- Rich content rendering (Markdown, LaTeX, code)
+- Multi-modal input (voice, vision, files)
+- Conversation management
+- Message actions (copy, edit, regenerate)
 
-## 🔧 **Configuration**
+### API Usage
 
-All configuration is managed through `config/config.yaml`:
+#### Send a Message
+```bash
+curl -X POST "http://localhost:8000/api/chat/send" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Hello, JARVIS!",
+    "conversation_id": "uuid",
+    "user_id": "user123"
+  }'
+```
 
+#### Get Admin Status (with JWT)
+```bash
+ADMIN_JWT=eyJ... # token with roles:["admin"]
+curl -H "Authorization: Bearer $ADMIN_JWT" http://localhost:8000/api/admin/status
+```
+
+#### Stream a Response
+```bash
+curl -X POST "http://localhost:8000/api/chat/stream" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Tell me a story",
+    "conversation_id": "uuid",
+    "user_id": "user123"
+  }'
+```
+
+#### Upload Files
+```bash
+curl -X POST "http://localhost:8000/api/chat/multimodal" \
+  -F "message=Analyze this document" \
+  -F "files=@document.pdf"
+```
+
+### Voice Interface
+```python
+# Wake word detection
+"Hey JARVIS, what's the weather like?"
+
+# Voice commands
+"JARVIS, open my calendar"
+"JARVIS, send an email to john@example.com"
+```
+
+### Autonomous Operations
+```python
+# System monitoring
+await system_monitor.get_system_health()
+
+# Task scheduling
+await scheduler.schedule_task("backup_database", "0 2 * * *")
+
+# Auto-healing
+await healer.trigger_healing("high_memory", {"usage": 85})
+```
+
+## 🔧 Configuration
+
+### Environment Variables
+```bash
+# Database
+DATABASE_URL=postgresql://user:password@host:port/database
+
+# Redis
+REDIS_URL=redis://host:port
+
+# AI Services
+OPENAI_API_KEY=your-openai-key
+ANTHROPIC_API_KEY=your-anthropic-key
+
+# Security
+SECRET_KEY=your-secret-key
+JWT_SECRET=your-jwt-secret
+
+# Features
+ENABLE_VOICE_INTERFACE=true
+ENABLE_VISION_PROCESSING=true
+ENABLE_AUTONOMOUS_OPERATIONS=false
+```
+
+### Feature Flags
 ```yaml
-app:
-  name: "Atulya Tantra"
-  version: "2.5.0"
-  environment: development
-
-ai:
-  models:
-    ollama:
-      base_url: "http://localhost:11434"
-      models:
-        coding: "qwen2.5-coder:7b"
-        simple: "gemma2:2b"
-        complex: "mistral:latest"
-    openai:
-      api_key: ${OPENAI_API_KEY}
-      models:
-        default: "gpt-4"
-    anthropic:
-      api_key: ${ANTHROPIC_API_KEY}
-      models:
-        default: "claude-3-sonnet-20240229"
-
 features:
-  intelligent_routing: true
-  sentiment_analysis: true
-  autonomous_agents: true
-  desktop_automation: true
+  # Core Features
+  streaming: true
+  markdown_rendering: true
   voice_interface: true
+  vision: true
+  file_attachments: true
+  
+  # JARVIS Features
+  personality_engine: true
+  proactive_assistance: true
+  emotional_intelligence: true
+  
+  # Skynet Features
+  autonomous_operations: false  # Requires explicit enable
+  desktop_automation: false      # Requires explicit enable
+  task_scheduling: true
+  self_monitoring: true
+  
+  # Specialized Agents
+  code_agent: true
+  research_agent: true
+  creative_agent: true
+  data_agent: true
 ```
 
-## 🛣️ **Roadmap**
+## 🧪 Testing
 
-### **Phase 3: Admin Panel** (Next)
-- React-based admin dashboard
-- Real-time analytics and monitoring
-- WebSocket integration for live updates
-- Advanced system management features
+### Run Tests
+```bash
+# Unit tests
+pytest tests/unit/ -v
 
-### **Phase 4: Testing Suite**
-- Comprehensive unit, integration, and E2E tests
-- Performance and security testing
-- AI behavior validation
-- Automated testing pipeline
+# Integration tests
+pytest tests/integration/ -v
 
-### **Phase 5: Autonomous AI**
-- Decision engine for autonomous operation
-- Proactive monitoring and self-healing
-- Self-learning capabilities
-- Multi-agent orchestration
+# E2E tests
+pytest tests/e2e/ -v
 
-### **Phase 6: Production Deployment**
-- Docker and Kubernetes deployment
-- Security hardening and monitoring
-- Scalability and performance optimization
-- Enterprise features and compliance
+# Performance tests
+pytest tests/performance/ -v
 
-## 🤝 **Contributing**
+# All tests with coverage
+pytest --cov=src --cov-report=html
+```
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+### Test Coverage
+- Unit Tests: 80%+ coverage
+- Integration Tests: All API endpoints
+- E2E Tests: Complete user workflows
+- Performance Tests: Load and stress testing
+- Security Tests: Penetration testing
+
+## 📊 Monitoring
+
+### Metrics
+- **Application Metrics**: Request rate, response time, error rate
+- **System Metrics**: CPU, memory, disk usage
+- **Business Metrics**: User activity, conversation count, agent performance
+
+### Dashboards
+- **System Dashboard**: Real-time system health and performance
+- **Agent Dashboard**: Agent status and performance metrics
+- **User Dashboard**: User activity and engagement metrics
+- **Security Dashboard**: Security events and threat detection
+
+### Alerting
+- **Critical Alerts**: System down, high error rate
+- **Warning Alerts**: High resource usage, slow response times
+- **Info Alerts**: Deployment status, feature usage
+
+## 🔒 Security
+
+### Authentication & Authorization
+- JWT tokens with refresh tokens
+- Role-based access control (RBAC)
+- Multi-factor authentication support
+- OAuth2 integration
+
+### Data Protection
+- Encryption at rest and in transit
+- Data masking in logs
+- Secure credential management
+- GDPR compliance
+
+### Network Security
+- Rate limiting and DDoS protection
+- CORS configuration
+- SSL/TLS encryption
+- Firewall rules
+
+## 🚀 Deployment
+
+### Production Deployment
+1. **Infrastructure Setup**: Kubernetes cluster, databases, monitoring
+2. **Security Configuration**: SSL certificates, secrets management
+3. **Application Deployment**: Docker containers, load balancing
+4. **Monitoring Setup**: Prometheus, Grafana, alerting
+5. **Backup & Recovery**: Database backups, disaster recovery
+
+### Scaling
+- **Horizontal Scaling**: Multiple application instances
+- **Load Balancing**: Nginx load balancer
+- **Database Scaling**: Read replicas, connection pooling
+- **Caching**: Redis cluster for high availability
+
+## 📚 Documentation
+
+- **API Documentation**: Available at `/docs`
+- **User Guide**: Available in the application
+- **Admin Guide**: Available for administrators
+- **Developer Guide**: Available for contributors
+- **Architecture Guide**: Available for system architects
+
+## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create a feature branch
+3. Make your changes
+4. Add tests for your changes
+5. Submit a pull request
 
-## 📄 **License**
+### Development Setup
+```bash
+# Install development dependencies
+pip install -r requirements-dev.txt
+
+# Run linting
+flake8 src/ tests/
+black src/ tests/
+isort src/ tests/
+
+# Run type checking
+mypy src/
+```
+
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 **Acknowledgments**
+## 🆘 Support
 
-- **OpenAI** for GPT models
-- **Anthropic** for Claude models
-- **Ollama** for local model hosting
-- **FastAPI** for the web framework
-- **ChromaDB** for vector storage
-- **NetworkX** for knowledge graphs
+- **Documentation**: [docs.atulya-tantra.com](https://docs.atulya-tantra.com)
+- **Issues**: [GitHub Issues](https://github.com/your-org/atulya-tantra/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/your-org/atulya-tantra/discussions)
+- **Email**: support@atulya-tantra.com
 
-## 📞 **Support**
+## 🎯 Roadmap
 
-- **Documentation**: [docs/](docs/)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/atulya-tantra/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/atulya-tantra/discussions)
+### Version 3.0.0
+- [ ] Advanced reasoning capabilities
+- [ ] Multi-modal learning
+- [ ] Enhanced autonomous operations
+- [ ] Advanced security features
+- [ ] Performance optimizations
+
+### Version 3.1.0
+- [ ] Mobile applications
+- [ ] Advanced integrations
+- [ ] Custom agent creation
+- [ ] Advanced analytics
+- [ ] Enterprise features
+
+## 🙏 Acknowledgments
+
+- OpenAI for GPT models
+- Anthropic for Claude models
+- FastAPI for the web framework
+- PostgreSQL for the database
+- Redis for caching
+- All contributors and users
 
 ---
 
-**Atulya Tantra** - Building the future of AI assistance, one conversation at a time. 🚀
+**Atulya Tantra** - The future of AI assistance is here. 🚀

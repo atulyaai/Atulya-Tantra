@@ -4,11 +4,12 @@ Version: 2.5.0
 Orchestrates chat operations and conversation management
 """
 
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, AsyncGenerator
 from dataclasses import dataclass
 from datetime import datetime
 import uuid
 import logging
+import asyncio
 from src.services.ai_service import AIService, AIRequest, AIResponse
 from src.core.ai.context import ConversationMemory, Message
 
@@ -143,14 +144,61 @@ class ChatService:
         """Get conversation summary"""
         return await self.conversation_memory.get_conversation_summary(conversation_id)
     
-    async def get_conversation_stats(self) -> Dict[str, Any]:
-        """Get conversation statistics"""
-        return self.conversation_memory.get_conversation_stats()
-    
-    async def health_check(self) -> Dict[str, Any]:
-        """Check health of chat service"""
-        return {
-            "chat_service": True,
-            "ai_service": await self.ai_service.health_check(),
-            "conversation_memory": True
-        }
+    async def stream_message(
+        self,
+        message: str,
+        conversation_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        model: str = "ollama"
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """Stream chat message with real-time chunks"""
+        
+        try:
+            # Generate conversation ID if not provided
+            if not conversation_id:
+                conversation_id = str(uuid.uuid4())
+            
+            # Send typing indicator
+            yield {
+                "type": "typing",
+                "status": "start",
+                "conversation_id": conversation_id
+            }
+            
+            # Create AI request
+            ai_request = AIRequest(
+                message=message,
+                context=[],
+                user_id=user_id,
+                model=model,
+                attachments=[]
+            )
+            
+            # Stream AI response
+            full_response = ""
+            async for chunk in self.ai_service.stream_response(ai_request, conversation_id):
+                full_response += chunk.get("content", "")
+                yield {
+                    "type": "content",
+                    "content": chunk.get("content", ""),
+                    "conversation_id": conversation_id,
+                    "metadata": chunk.get("metadata", {})
+                }
+                # Small delay for smooth streaming
+                await asyncio.sleep(0.01)
+            
+            # Send completion
+            yield {
+                "type": "complete",
+                "conversation_id": conversation_id,
+                "full_response": full_response,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Streaming error: {e}")
+            yield {
+                "type": "error",
+                "message": str(e),
+                "conversation_id": conversation_id or str(uuid.uuid4())
+            }

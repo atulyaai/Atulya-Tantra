@@ -7,6 +7,7 @@ FastAPI dependency injection for services
 from functools import lru_cache
 from src.services.chat_service import ChatService
 from src.services.ai_service import AIService
+from src.services.multimodal_service import MultimodalService
 from src.core.ai.classifier import TaskClassifier
 from src.core.ai.sentiment import SentimentAnalyzer
 from src.core.ai.router import ModelRouter
@@ -96,6 +97,13 @@ def get_chat_service() -> ChatService:
     ai_service = get_ai_service()
     conversation_memory = get_conversation_memory()
     return ChatService(ai_service, conversation_memory)
+
+
+@lru_cache()
+def get_multimodal_service() -> MultimodalService:
+    """Get multimodal service instance"""
+    settings = get_settings()
+    return MultimodalService(settings.features)
 
 
 def get_current_user():

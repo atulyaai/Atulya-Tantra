@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Atulya Tantra Admin</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; background: #0b1020; color: #e8eefc; }
+    header { padding: 16px 24px; background: #0f1630; border-bottom: 1px solid #1f2a4a; display: flex; align-items: center; justify-content: space-between; }
+    .title { font-weight: 700; }
+    .container { padding: 16px 24px; }
+    .card { background: #111a3a; border: 1px solid #1f2a4a; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+    label { display:block; font-size: 12px; opacity: 0.9; margin-bottom: 6px; }
+    input, button { border-radius: 8px; border: 1px solid #2a3968; background: #0f1630; color: #e8eefc; padding: 10px 12px; }
+    input { width: 100%; }
+    button { cursor: pointer; }
+    button.primary { background: #1e88e5; border-color: #1e88e5; }
+    button.danger { background: #e53935; border-color: #e53935; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 8px 10px; border-bottom: 1px solid #1f2a4a; text-align: left; }
+    code { background: #0b1020; padding: 2px 6px; border-radius: 6px; border: 1px solid #1f2a4a; }
+    .muted { opacity: 0.8; font-size: 12px; }
+  </style>
+  <script>
+    let jwtToken = '';
+    const apiBase = location.origin;
+
+    function setToken() {
+      const val = document.getElementById('jwt').value.trim();
+      jwtToken = val;
+      localStorage.setItem('admin_jwt', jwtToken);
+      log(`JWT set (${jwtToken.slice(0,12)}...)`);
+    }
+
+    function loadToken() {
+      const saved = localStorage.getItem('admin_jwt') || '';
+      if (saved) {
+        jwtToken = saved;
+        document.getElementById('jwt').value = saved;
+      }
+    }
+
+    function log(msg) {
+      const el = document.getElementById('log');
+      el.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + el.textContent;
+    }
+
+    async function apiGet(path) {
+      const res = await fetch(`${apiBase}${path}`, { headers: { 'Authorization': `Bearer ${jwtToken}` } });
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return res.json();
+    }
+
+    async function apiPost(path, body) {
+      const res = await fetch(`${apiBase}${path}`, { method: 'POST', headers: { 'Authorization': `Bearer ${jwtToken}`, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return res.json();
+    }
+
+    async function refreshStatus() {
+      try {
+        const status = await apiGet('/api/admin/status');
+        document.getElementById('status-json').textContent = JSON.stringify(status, null, 2);
+        log('Fetched system status');
+      } catch (e) {
+        log('Status error: ' + e.message);
+      }
+    }
+
+    async function refreshMetrics() {
+      try {
+        const metricsRes = await fetch(`${apiBase}/metrics`);
+        const text = await metricsRes.text();
+        document.getElementById('metrics-text').textContent = text;
+        log('Fetched Prometheus metrics');
+      } catch (e) {
+        log('Metrics error: ' + e.message);
+      }
+    }
+
+    async function refreshAgents() {
+      try {
+        const data = await apiGet('/api/admin/agents');
+        const table = document.getElementById('agents-body');
+        table.innerHTML = '';
+        const agents = data.agents || {};
+        Object.keys(agents).forEach(id => {
+          const a = agents[id];
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td><code>${id}</code></td><td>${a.enabled ? 'enabled' : 'disabled'}</td><td>${a.capabilities ? a.capabilities.length : 0}</td><td><button class="primary" onclick="enableAgent('${id}')">Enable</button> <button class="danger" onclick="disableAgent('${id}')">Disable</button></td>`;
+          table.appendChild(tr);
+        });
+        log('Fetched agents');
+      } catch (e) {
+        log('Agents error: ' + e.message);
+      }
+    }
+
+    async function enableAgent(id) {
+      try { await apiPost(`/api/admin/agents/${id}/enable`); log(`Enabled ${id}`); refreshAgents(); } catch (e) { log(e.message); }
+    }
+    async function disableAgent(id) {
+      try { await apiPost(`/api/admin/agents/${id}/disable`); log(`Disabled ${id}`); refreshAgents(); } catch (e) { log(e.message); }
+    }
+
+    async function restartSystem() {
+      try { await apiPost('/api/admin/maintenance/restart'); log('Restart initiated'); } catch (e) { log(e.message); }
+    }
+
+    window.addEventListener('load', () => {
+      loadToken();
+      refreshStatus();
+      refreshMetrics();
+      refreshAgents();
+    });
+  </script>
+</head>
+<body>
+  <header>
+    <div class="title">Atulya Tantra Admin</div>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <label for="jwt" style="margin:0 8px 0 0;">JWT</label>
+      <input id="jwt" placeholder="Paste admin JWT" style="min-width:360px;" />
+      <button class="primary" onclick="setToken()">Set</button>
+    </div>
+  </header>
+  <div class="container">
+    <div class="row">
+      <div class="card">
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <h3>System Status</h3>
+          <div>
+            <button onclick="refreshStatus()">Refresh</button>
+            <button class="danger" onclick="restartSystem()">Restart</button>
+          </div>
+        </div>
+        <pre id="status-json" class="muted">loading...</pre>
+      </div>
+      
+      <div class="card">
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <h3>Metrics</h3>
+          <button onclick="refreshMetrics()">Refresh</button>
+        </div>
+        <pre id="metrics-text" class="muted">loading...</pre>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <h3>Agents</h3>
+        <button onclick="refreshAgents()">Refresh</button>
+      </div>
+      <table>
+        <thead><tr><th>ID</th><th>Status</th><th>Capabilities</th><th>Actions</th></tr></thead>
+        <tbody id="agents-body"><tr><td colspan="4" class="muted">loading...</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>Logs</h3>
+      <pre id="log" class="muted"></pre>
+    </div>
+  </div>
+</body>
+</html>
+
+

@@ -5,8 +5,9 @@ Simplified model client manager for basic functionality
 """
 
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, AsyncGenerator
 from dataclasses import dataclass
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,35 @@ class ModelClientManager:
         return {
             "ollama": ["gemma2:2b", "mistral:latest", "qwen2.5-coder:7b", "codellama:latest"]
         }
+    
+    async def stream_generate(
+        self,
+        provider: str,
+        model: str,
+        messages: List[Dict],
+        **kwargs
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """Stream response using specified provider and model"""
+        logger.info(f"Streaming response with {provider}/{model}")
+        
+        # Simulate streaming response
+        response_text = f"I'm Atulya, your AI assistant. I received your message and would normally process it using {provider}/{model}, but the AI models are not currently configured. Please check your API keys and model configurations."
+        
+        # Split response into chunks for streaming
+        words = response_text.split()
+        current_chunk = ""
+        
+        for i, word in enumerate(words):
+            current_chunk += word + " "
+            
+            # Send chunk every few words
+            if (i + 1) % 3 == 0 or i == len(words) - 1:
+                yield {
+                    "content": current_chunk,
+                    "metadata": {"provider": provider, "model": model, "fallback": True}
+                }
+                current_chunk = ""
+                await asyncio.sleep(0.1)  # Simulate processing delay
     
     async def health_check(self) -> Dict[str, Dict[str, Any]]:
         """Check health of all providers"""

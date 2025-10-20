@@ -1,48 +1,74 @@
-# Atulya Tantra - Docker Container
-# Complete setup with all dependencies
+# Atulya Tantra - Production Dockerfile
+# Version: 2.5.0
 
-FROM python:3.11-slim
+# Multi-stage build for production optimization
+FROM python:3.11-slim as builder
 
-# Set working directory
-WORKDIR /app
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    curl \
-    git \
     build-essential \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Ollama
-RUN curl -fsSL https://ollama.com/install.sh | sh
+# Create and set working directory
+WORKDIR /app
 
-# Copy requirements
-COPY requirements.txt .
+# Copy requirements first for better caching
+COPY requirements.txt requirements-dev.txt ./
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
-
-# Create necessary directories
-RUN mkdir -p logs data
+# Production stage
+FROM python:3.11-slim as production
 
 # Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV OLLAMA_HOST=http://localhost:11434
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH="/app/.local/bin:$PATH"
 
-# Expose ports
-EXPOSE 8000 11434
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create non-root user
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Set working directory
+WORKDIR /app
+
+# Copy Python dependencies from builder stage
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Copy application code
+COPY src/ ./src/
+COPY webui/ ./webui/
+COPY config/ ./config/
+COPY alembic/ ./alembic/
+COPY alembic.ini ./
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/data /app/temp && \
+    chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
+EXPOSE 8000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "from core.logger import get_logger; print('healthy')" || exit 1
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/api/health || exit 1
 
-# Start script
-COPY docker-entrypoint.sh /
-RUN chmod +x /docker-entrypoint.sh
-
-ENTRYPOINT ["/docker-entrypoint.sh"]
-CMD ["python", "-m", "testing"]
-
+# Default command
+CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
