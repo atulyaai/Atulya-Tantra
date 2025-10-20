@@ -1,4 +1,4 @@
-# Atulya Tantra - Production Deployment Guide
+# Atulya Tantra - Production Deployment Guide v2.7.0
 
 ## Overview
 
@@ -297,17 +297,78 @@ tar -xzf app-backup.tar.gz -C /
 
 ### Common Issues
 
-1. **High Memory Usage**: Check for memory leaks
-2. **Slow Response Times**: Check database performance
-3. **Connection Issues**: Check network connectivity
-4. **Authentication Failures**: Check JWT configuration
+1. **Pod fails to start**
+   - Check logs: `kubectl logs deployment/atulya-tantra -n atulya-tantra`
+   - Verify environment variables in ConfigMap
+   - Check resource limits
+   - Verify image exists: `kubectl describe pod <pod-name> -n atulya-tantra`
+
+2. **Database connection issues**
+   - Verify database credentials in Secrets
+   - Check network connectivity
+   - Verify database server is running
+   - Check database logs and connection strings
+
+3. **High Memory Usage**: Check for memory leaks
+4. **Slow Response Times**: Check database performance
+5. **Connection Issues**: Check network connectivity
+6. **Authentication Failures**: Check JWT configuration
+7. **Import/Dependency errors**
+   - Verify all requirements are installed
+   - Check Python path configuration
+   - Verify environment variables
+   - Check for missing dependencies in Docker image
 
 ### Debugging Tools
 
 1. **Logs**: Check application logs
-2. **Metrics**: Check Prometheus metrics
+2. **Metrics**: Check Prometheus metrics at `/metrics`
 3. **Traces**: Check distributed traces
 4. **Profiling**: Use profiling tools
+
+### Debug Commands
+```bash
+# Check pod status
+kubectl get pods -n atulya-tantra
+
+# View pod logs
+kubectl logs -f deployment/atulya-tantra -n atulya-tantra
+
+# Check service endpoints
+kubectl get endpoints -n atulya-tantra
+
+# Test connectivity
+kubectl exec -it <pod-name> -n atulya-tantra -- curl localhost:8000/api/health/live
+
+# Check ingress status
+kubectl describe ingress atulya-tantra-ingress -n atulya-tantra
+
+# Check resource usage
+kubectl top pods -n atulya-tantra
+
+# Describe pod for detailed info
+kubectl describe pod <pod-name> -n atulya-tantra
+```
+
+### Rollback Procedures
+
+```bash
+# Quick rollback to previous version
+kubectl rollout undo deployment/atulya-tantra -n atulya-tantra
+
+# Verify rollback
+kubectl rollout status deployment/atulya-tantra -n atulya-tantra
+
+# Check pod status after rollback
+kubectl get pods -n atulya-tantra
+
+# Database rollback (if needed)
+# For SQLite (development)
+cp data/database/atulya.db.backup data/database/atulya.db
+
+# For PostgreSQL (production)
+pg_restore -d atulya_tantra_prod backup_file.dump
+```
 
 ## Support
 
