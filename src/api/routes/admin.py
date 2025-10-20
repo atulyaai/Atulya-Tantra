@@ -385,3 +385,49 @@ async def get_detailed_health(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get detailed health information"
         )
+
+@router.get("/stats")
+async def get_dashboard_stats(admin_user: Dict[str, Any] = Depends(verify_admin_token)) -> Dict[str, Any]:
+    """Get dashboard statistics"""
+    try:
+        # Mock data for now - replace with actual database queries
+        stats = {
+            "total_users": 150,
+            "total_conversations": 1250,
+            "total_messages": 15680,
+            "system_health": "healthy",
+            "uptime": "7 days, 14 hours",
+            "version": "3.1.0"
+        }
+        return stats
+    except Exception as e:
+        logger.error(f"Failed to get dashboard stats: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get dashboard stats"
+        )
+
+@router.get("/chat-metrics")
+async def get_chat_metrics(admin_user: Dict[str, Any] = Depends(verify_admin_token)) -> Dict[str, Any]:
+    """Get chat metrics"""
+    try:
+        # Mock data for now - replace with actual analytics
+        metrics = {
+            "total_messages": 15680,
+            "active_conversations": 45,
+            "messages_per_hour": 125,
+            "average_response_time": 2.3,
+            "model_usage": {
+                "ollama": 65,
+                "openai": 25,
+                "anthropic": 10
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+        return metrics
+    except Exception as e:
+        logger.error(f"Failed to get chat metrics: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get chat metrics"
+        )

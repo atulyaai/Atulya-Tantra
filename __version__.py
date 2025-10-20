@@ -3,11 +3,12 @@ Atulya Tantra - Version Information
 Semantic Versioning: MAJOR.MINOR.PATCH
 """
 
-__version__ = "2.7.5"
+__version__ = "3.1.0"
 __version_info__ = tuple(int(i) for i in __version__.split("."))
 
 # Version history
 VERSION_HISTORY = {
+    "3.1.0": "Phase 3.1.0 - React Admin Foundation: Modern React-based admin dashboard with Material-UI, TypeScript, Zustand state management, and comprehensive dashboard components",
     "2.7.5": "End-to-End Functionality Verified: Fixed API routing, static file serving, authentication endpoints, and verified complete system functionality from chat to admin dashboard",
     "2.7.0": "Production Hardening Complete: Fixed all import errors, dependencies, SQLAlchemy compatibility, test framework, CI/CD pipeline, and comprehensive production readiness",
     "2.5.0": "Level 5 AGI Foundation Complete: Clean architecture, intelligent AI routing, sentiment analysis, conversation memory, modern UI, and production-ready foundation",
@@ -24,6 +25,6 @@ VERSION_HISTORY = {
 
 # Release information
 RELEASE_DATE = "2025-01-20"
-CODENAME = "End-to-End Verified"
+CODENAME = "React Admin Foundation"
 STATUS = "production-ready"
 FINAL_RELEASE = False

@@ -241,6 +241,7 @@ app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 # Mount static files
 app.mount("/webui", StaticFiles(directory="webui"), name="webui")
 app.mount("/admin", StaticFiles(directory="webui/admin"), name="admin")
+app.mount("/admin-react", StaticFiles(directory="webui/admin-react/dist"), name="admin-react")
 
 # Root endpoint
 @app.get("/")
