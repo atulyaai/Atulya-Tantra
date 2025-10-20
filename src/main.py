@@ -248,7 +248,7 @@ async def root():
     """Root endpoint"""
     return {
         "name": "Atulya Tantra",
-        "version": "2.5.0",
+        "version": "2.7.5",
         "description": "Level 5 AGI System",
         "status": "operational",
         "features": {
@@ -270,7 +270,7 @@ async def system_status():
     try:
         status = {
             "system": "operational",
-            "version": "2.5.0",
+            "version": "2.7.5",
             "timestamp": asyncio.get_event_loop().time(),
             "components": {}
         }
