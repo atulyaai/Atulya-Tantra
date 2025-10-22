@@ -1,0 +1,64 @@
+# Professional AI Assistant Requirements
+# Core dependencies for the professional assistant system
+
+# GUI Framework
+tkinter  # Built-in with Python
+
+# HTTP requests and web services
+requests>=2.28.0
+urllib3>=1.26.0
+
+# Voice recognition and TTS
+SpeechRecognition>=3.10.0
+pyttsx3>=2.90
+pywin32>=306  # Windows TTS support (Windows only)
+
+# System monitoring and control
+psutil>=5.9.0
+pyautogui>=0.9.54
+
+# Web browsing and automation
+webbrowser  # Built-in with Python
+selenium>=4.8.0  # Optional for advanced web automation
+
+# Data handling and storage
+json  # Built-in with Python
+sqlite3  # Built-in with Python
+pandas>=1.5.0  # Optional for data analysis
+
+# Date and time handling
+datetime  # Built-in with Python
+pytz>=2022.7  # Timezone support
+
+# Email and communication
+smtplib  # Built-in with Python
+email  # Built-in with Python
+
+# File operations
+os  # Built-in with Python
+pathlib  # Built-in with Python
+shutil  # Built-in with Python
+
+# Threading and async
+threading  # Built-in with Python
+queue  # Built-in with Python
+asyncio  # Built-in with Python
+
+# Logging and debugging
+logging  # Built-in with Python
+
+# Type hints
+typing  # Built-in with Python
+
+# Optional: Advanced features
+# numpy>=1.24.0  # For advanced calculations
+# scipy>=1.10.0  # For scientific computing
+# matplotlib>=3.6.0  # For data visualization
+# opencv-python>=4.7.0  # For computer vision
+# pillow>=9.4.0  # For image processing
+
+# Development dependencies (optional)
+# pytest>=7.2.0  # For testing
+# black>=22.12.0  # For code formatting
+# flake8>=6.0.0  # For linting
+# mypy>=1.0.0  # For type checking
