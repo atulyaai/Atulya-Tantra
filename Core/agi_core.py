@@ -764,50 +764,6 @@ def get_agi_status() -> Dict[str, Any]:
         "decisions_made": len(agi_core.decision_history),
         "learning_entries": len(agi_core.learning_memory)
     }
-            # Store decision in history
-            self.decision_history.append(decision)
-            
-            return decision
-            
-        except Exception as e:
-            logger.error(f"Error making decision: {e}")
-            return {
-                "decision": "error",
-                "reason": f"Error in decision making: {e}",
-                "confidence": 0.0
-            }
-    
-    async def _create_action_plan(self, decision: Dict[str, Any], context: ReasoningContext) -> Dict[str, Any]:
-        """Create detailed action plan"""
-        try:
-            if decision["decision"] != "proceed":
-                return {"actions": [], "plan": "no_action"}
-            
-            alternative = decision["alternative"]
-            
-            # Create action plan using planning engine
-            action_plan = await self.planning_engine.create_action_plan(alternative, context)
-            
-            return action_plan
-            
-        except Exception as e:
-            logger.error(f"Error creating action plan: {e}")
-            return {"actions": [], "plan": "error", "error": str(e)}
-    
-    async def _execute_actions(self, action_plan: Dict[str, Any], context: ReasoningContext) -> Dict[str, Any]:
-        """Execute action plan"""
-        try:
-            if not action_plan.get("actions"):
-                return {"results": [], "success": True, "message": "No actions to execute"}
-            
-            # Execute using execution engine
-            results = await self.execution_engine.execute_actions(action_plan["actions"], context)
-            
-            return results
-            
-        except Exception as e:
-            logger.error(f"Error executing actions: {e}")
-            return {"results": [], "success": False, "error": str(e)}
     
     async def _learn_from_execution(self, decision: Dict[str, Any], results: Dict[str, Any], context: ReasoningContext):
         """Learn from execution results"""

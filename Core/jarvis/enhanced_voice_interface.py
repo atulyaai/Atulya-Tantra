@@ -547,13 +547,3 @@ def set_voice_callbacks(on_command=None, on_response=None, on_state_change=None)
     interface.on_command_received = on_command
     interface.on_response_ready = on_response
     interface.on_state_changed = on_state_change
-ate"""
-    interface = get_enhanced_voice_interface()
-    return interface.get_current_state()
-
-def set_voice_callbacks(on_command=None, on_response=None, on_state_change=None):
-    """Set voice interface callbacks"""
-    interface = get_enhanced_voice_interface()
-    interface.on_command_received = on_command
-    interface.on_response_ready = on_response
-    interface.on_state_changed = on_state_change
