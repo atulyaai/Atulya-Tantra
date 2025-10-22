@@ -191,6 +191,32 @@ class AgentExecutionError(AgentError):
         self.code = "AGENT_EXECUTION_ERROR"
 
 
+class AgentNotAvailableError(AgentError):
+    """Raised when agent is not available for task execution"""
+    
+    def __init__(self, agent: str):
+        super().__init__(
+            agent,
+            f"Agent '{agent}' is not available",
+            {"agent": agent}
+        )
+        self.code = "AGENT_NOT_AVAILABLE"
+        self.status_code = 503
+
+
+class AgentTimeoutError(AgentError):
+    """Raised when agent task execution times out"""
+    
+    def __init__(self, agent: str, timeout_seconds: int):
+        super().__init__(
+            agent,
+            f"Agent '{agent}' task timed out after {timeout_seconds} seconds",
+            {"agent": agent, "timeout_seconds": timeout_seconds}
+        )
+        self.code = "AGENT_TIMEOUT"
+        self.status_code = 504
+
+
 # Memory Exceptions
 class MemoryError(TantraException):
     """Base class for memory system errors"""
