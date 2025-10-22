@@ -10,6 +10,7 @@ import time
 from .llm_provider import OpenAIProvider
 from ..config.settings import settings
 from ..config.logging import get_logger
+from ..config.exceptions import ModelNotAvailableError, AIProviderError
 
 logger = get_logger(__name__)
 

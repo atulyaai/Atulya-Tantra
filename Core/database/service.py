@@ -9,6 +9,9 @@ import json
 
 from .database import get_database, DatabaseInterface
 from ..config.exceptions import DatabaseError, RecordNotFoundError
+from ..config.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class DatabaseService:
@@ -300,8 +303,30 @@ async def get_db_service() -> DatabaseService:
     return _db_service
 
 
+# Convenience functions for common operations
+async def insert_record(table: str, data: Dict[str, Any]) -> str:
+    """Insert a record into a table"""
+    db_service = await get_db_service()
+    return await db_service.db.insert(table, data)
+
+
+async def get_record_by_id(table: str, record_id: str) -> Optional[Dict[str, Any]]:
+    """Get a record by ID from a table"""
+    db_service = await get_db_service()
+    return await db_service.db.get_by_id(table, record_id)
+
+
+async def update_record(table: str, record_id: str, data: Dict[str, Any]) -> bool:
+    """Update a record by ID in a table"""
+    db_service = await get_db_service()
+    return await db_service.db.update(table, record_id, data)
+
+
 # Export public API
 __all__ = [
     "DatabaseService",
-    "get_db_service"
+    "get_db_service",
+    "insert_record",
+    "get_record_by_id", 
+    "update_record"
 ]

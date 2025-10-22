@@ -3,7 +3,7 @@ Ollama client for Atulya Tantra AGI
 Enhanced local AI integration with streaming support
 """
 
-from typing import Dict, List, Any, Optional, AsyncGenerator
+from typing import Dict, List, Any, Optional, AsyncGenerator, Union
 import json
 import asyncio
 import time

@@ -4,7 +4,6 @@ Specialized agent for research, information gathering, and analysis
 """
 
 import asyncio
-import aiohttp
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
 from urllib.parse import urljoin, urlparse
