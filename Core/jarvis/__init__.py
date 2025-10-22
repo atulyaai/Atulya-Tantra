@@ -64,3 +64,30 @@ __all__ = [
     "get_assistance_statistics"
 ]
 
+
+# Sentiment Analysis
+from .sentiment_analyzer import (
+    EmotionType,
+    SentimentPolarity,
+    EmotionalIntensity,
+    EmotionalContext,
+    SentimentAnalyzer,
+    get_sentiment_analyzer,
+    analyze_user_sentiment,
+    generate_emotional_response,
+    get_emotional_summary
+)
+
+# Update __all__ list
+__all__.extend([
+    # Sentiment Analysis
+    "EmotionType",
+    "SentimentPolarity", 
+    "EmotionalIntensity",
+    "EmotionalContext",
+    "SentimentAnalyzer",
+    "get_sentiment_analyzer",
+    "analyze_user_sentiment",
+    "generate_emotional_response",
+    "get_emotional_summary"
+])
