@@ -373,7 +373,7 @@ class SQLiteDatabase(DatabaseInterface):
         
         cursor = self.connection.cursor()
         if params:
-            cursor.execute(query, list(params.values()))
+            cursor.execute(query, list(params.values()) if isinstance(params, dict) else params)
         else:
             cursor.execute(query)
         
@@ -658,7 +658,10 @@ class PostgreSQLDatabase(DatabaseInterface):
             raise DatabaseError("Not connected to database")
         
         if params:
-            result = await self.connection.fetch(query, *params.values())
+            if isinstance(params, dict):
+                result = await self.connection.fetch(query, *params.values())
+            else:
+                result = await self.connection.fetch(query, *params)
             return [dict(row) for row in result]
         else:
             result = await self.connection.fetch(query)

@@ -38,8 +38,8 @@ class Settings(BaseSettings):
     workers: int = Field(default=1, env="WORKERS")
     
     # Security
-    secret_key: str = Field(default="your-secret-key-change-in-production", env="SECRET_KEY")
-    jwt_secret: str = Field(default="your-jwt-secret-change-in-production", env="JWT_SECRET")
+    secret_key: str = Field(default_factory=lambda: os.urandom(32).hex(), env="SECRET_KEY")
+    jwt_secret: str = Field(default_factory=lambda: os.urandom(32).hex(), env="JWT_SECRET")
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 30
     jwt_refresh_expire_days: int = 7

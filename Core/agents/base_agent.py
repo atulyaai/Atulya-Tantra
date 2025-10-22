@@ -371,8 +371,16 @@ class AgentOrchestrator:
     
     async def submit_task(self, task: AgentTask) -> str:
         """Submit a task for execution"""
-        self.task_queue.append(task)
-        self.task_queue.sort(key=lambda t: t.priority.value, reverse=True)
+        # Insert task in priority order to maintain sorted queue
+        inserted = False
+        for i, existing_task in enumerate(self.task_queue):
+            if task.priority.value > existing_task.priority.value:
+                self.task_queue.insert(i, task)
+                inserted = True
+                break
+        
+        if not inserted:
+            self.task_queue.append(task)
         
         logger.info(f"Submitted task {task.task_id} to orchestrator")
         return task.task_id
