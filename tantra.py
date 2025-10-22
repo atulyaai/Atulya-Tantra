@@ -12,7 +12,7 @@ import os
 import subprocess
 import webbrowser
 import pyautogui
-from tantra_tools import (
+from Tools.tantra_tools import (
     get_user_id,
     get_session_paths,
     append_jsonl,

@@ -418,21 +418,39 @@ Be thorough and professional in your response.
     async def _execute_python_code(self, code: str) -> Dict[str, Any]:
         """Execute Python code safely"""
         try:
+            # Validate code for dangerous operations
+            if not self._is_code_safe(code):
+                return {
+                    "stdout": "",
+                    "stderr": "Code contains potentially dangerous operations and cannot be executed",
+                    "return_code": -1,
+                    "execution_time": "blocked",
+                    "metadata": {
+                        "language": "python",
+                        "executed_at": datetime.utcnow().isoformat(),
+                        "safety_check": "failed"
+                    }
+                }
+            
             # Create a temporary file
             with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
                 f.write(code)
                 temp_file = f.name
             
-            # Execute the code
+            # Execute the code in a restricted environment
             result = subprocess.run(
-                ['python', temp_file],
+                ['python', '-c', f'exec(open("{temp_file}").read())'],
                 capture_output=True,
                 text=True,
-                timeout=30  # 30 second timeout
+                timeout=30,  # 30 second timeout
+                cwd=tempfile.gettempdir()  # Execute in temp directory
             )
             
             # Clean up
-            os.unlink(temp_file)
+            try:
+                os.unlink(temp_file)
+            except OSError:
+                pass  # File might already be deleted
             
             return {
                 "stdout": result.stdout,
@@ -606,6 +624,33 @@ Note: Automatic execution is not supported for {language} for security reasons.
                     code += '}' * (open_braces - close_braces)
         
         return code
+    
+    def _is_code_safe(self, code: str) -> bool:
+        """Check if code is safe to execute"""
+        dangerous_patterns = [
+            'import os', 'import subprocess', 'import sys', 'import shutil',
+            'import socket', 'import urllib', 'import requests', 'import http',
+            '__import__', 'eval(', 'exec(', 'compile(',
+            'open(', 'file(', 'input(', 'raw_input(',
+            'os.system', 'os.popen', 'subprocess.call', 'subprocess.run',
+            'subprocess.Popen', 'execfile(', 'reload(',
+            'exit(', 'quit(', 'sys.exit('
+        ]
+        
+        code_lower = code.lower()
+        for pattern in dangerous_patterns:
+            if pattern in code_lower:
+                return False
+        
+        # Check for file system operations
+        if any(op in code_lower for op in ['rm ', 'del ', 'remove', 'unlink', 'rmdir']):
+            return False
+        
+        # Check for network operations
+        if any(op in code_lower for op in ['socket', 'urllib', 'requests', 'http']):
+            return False
+        
+        return True
 
 
 # Export the agent class

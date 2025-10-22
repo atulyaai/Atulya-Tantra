@@ -77,7 +77,7 @@ class DatabaseService:
         # Get messages ordered by timestamp
         messages = await self.db.execute_raw(
             "SELECT * FROM messages WHERE conversation_id = ? ORDER BY timestamp ASC LIMIT ?",
-            {"conversation_id": conversation_id, "limit": limit}
+            [conversation_id, limit]
         )
         
         return messages
@@ -89,7 +89,7 @@ class DatabaseService:
         
         conversations = await self.db.execute_raw(
             "SELECT * FROM conversations WHERE user_id = ? ORDER BY updated_at DESC LIMIT ?",
-            {"user_id": user_id, "limit": limit}
+            [user_id, limit]
         )
         
         return conversations
@@ -179,7 +179,7 @@ class DatabaseService:
         if not self.db:
             self.db = await get_database()
         
-        # Build query
+        # Build query safely with parameterized queries
         where_conditions = ["user_id = ?"]
         params = [user_id]
         
@@ -273,11 +273,15 @@ class DatabaseService:
             stats[f"{table}_count"] = await self.db.count(table)
         
         # Get recent activity
-        recent_messages = await self.db.execute_raw(
-            "SELECT COUNT(*) FROM messages WHERE timestamp > ?",
-            {"timestamp": (datetime.utcnow() - timedelta(hours=24)).isoformat()}
-        )
-        stats["messages_last_24h"] = recent_messages[0]["COUNT(*)"] if recent_messages else 0
+        try:
+            recent_messages = await self.db.execute_raw(
+                "SELECT COUNT(*) as count FROM messages WHERE timestamp > ?",
+                [datetime.utcnow() - timedelta(hours=24)]
+            )
+            stats["messages_last_24h"] = recent_messages[0]["count"] if recent_messages else 0
+        except Exception as e:
+            logger.warning(f"Failed to get recent message count: {e}")
+            stats["messages_last_24h"] = 0
         
         return stats
 

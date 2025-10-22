@@ -38,6 +38,7 @@ class ResearchAgent(BaseAgent):
         self.search_engines = ["google", "bing", "duckduckgo"]
         self.max_search_results = 10
         self.cache_duration = timedelta(hours=1)
+        self.max_cache_size = 1000  # Maximum number of cached searches
         self.search_cache: Dict[str, Dict[str, Any]] = {}
     
     async def can_handle_task(self, task: AgentTask) -> bool:
@@ -134,11 +135,15 @@ class ResearchAgent(BaseAgent):
         # Perform search
         search_results = await self._perform_search(query, max_results, search_engine)
         
-        # Cache results
+        # Cache results with size limit
         self.search_cache[cache_key] = {
             "data": search_results,
             "timestamp": datetime.utcnow()
         }
+        
+        # Clean up cache if it gets too large
+        if len(self.search_cache) > self.max_cache_size:
+            await self._cleanup_cache()
         
         return search_results
     
@@ -175,15 +180,28 @@ class ResearchAgent(BaseAgent):
                     {"query": question, "max_results": 5}
                 )
                 
-                if search_results.get("results"):
+                if search_results and search_results.get("results"):
                     research_results["findings"].extend(search_results["results"])
                     research_results["references"].extend(search_results.get("references", []))
+                else:
+                    # Add a note about failed search
+                    research_results["findings"].append({
+                        "title": f"Search failed for: {question}",
+                        "content": "Unable to retrieve information for this research question",
+                        "source": "system"
+                    })
                 
                 # Small delay between searches to be respectful
                 await asyncio.sleep(1)
                 
             except Exception as e:
                 logger.warning(f"Failed to research question '{question}': {e}")
+                # Add error information to findings
+                research_results["findings"].append({
+                    "title": f"Error researching: {question}",
+                    "content": f"Research failed with error: {str(e)}",
+                    "source": "error"
+                })
         
         # Generate comprehensive summary
         if research_results["findings"]:
@@ -451,6 +469,31 @@ Return only the questions, one per line.
             return bool(parsed.netloc) and parsed.scheme in ['http', 'https']
         except:
             return False
+    
+    async def _cleanup_cache(self):
+        """Clean up old cache entries"""
+        current_time = datetime.utcnow()
+        expired_keys = []
+        
+        for key, entry in self.search_cache.items():
+            if current_time - entry["timestamp"] > self.cache_duration:
+                expired_keys.append(key)
+        
+        # Remove expired entries
+        for key in expired_keys:
+            del self.search_cache[key]
+        
+        # If still too large, remove oldest entries
+        if len(self.search_cache) > self.max_cache_size:
+            sorted_items = sorted(
+                self.search_cache.items(),
+                key=lambda x: x[1]["timestamp"]
+            )
+            items_to_remove = len(self.search_cache) - self.max_cache_size
+            for key, _ in sorted_items[:items_to_remove]:
+                del self.search_cache[key]
+        
+        logger.info(f"Cache cleanup completed. Current cache size: {len(self.search_cache)}")
 
 
 # Export the agent class
