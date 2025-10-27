@@ -26,12 +26,22 @@ from ..jarvis import process_user_message, get_conversation_summary, reset_conve
 from ..agents import get_orchestrator, submit_task, get_task_status
 from ..skynet import get_system_health, get_system_metrics, get_system_alerts
 from ..database.service import get_db_service, insert_record, get_record_by_id, update_record
+from ..auth import (
+    create_access_token, create_refresh_token, verify_token,
+    get_current_user, get_current_active_user,
+    get_password_hash, verify_password,
+    create_session, get_session, delete_session,
+    require_auth, require_role, require_permission, RBACManager, Role, Permission
+)
+from ..middleware import (
+    rate_limit_middleware, SecurityHeadersMiddleware, RequestLoggerMiddleware
+)
 
 logger = get_logger(__name__)
 
 # Security setup
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
+rbac_manager = RBACManager()
 
 # WebSocket connection manager
 class ConnectionManager:
@@ -145,85 +155,7 @@ class SystemStatus(BaseModel):
     metrics: Dict[str, Any]
     alerts: Dict[str, Any]
 
-# Authentication functions
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against its hash"""
-    return pwd_context.verify(plain_password, hashed_password)
-
-def get_password_hash(password: str) -> str:
-    """Hash a password"""
-    return pwd_context.hash(password)
-
-def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
-    """Create a JWT access token"""
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.jwt_expire_minutes)
-    
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
-    return encoded_jwt
-
-def verify_token(token: str) -> Dict[str, Any]:
-    """Verify and decode a JWT token"""
-    try:
-        payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
-        return payload
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    except jwt.JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict[str, Any]:
-    """Get current authenticated user"""
-    token = credentials.credentials
-    payload = verify_token(token)
-    
-    user_id = payload.get("sub")
-    if user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    # Get user from database
-    try:
-        user = await get_record_by_id("users", user_id)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        
-        return user
-    except Exception as e:
-        logger.error(f"Error getting user: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-async def get_current_active_user(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
-    """Get current active user"""
-    if not current_user.get("is_active", True):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user"
-        )
-    return current_user
+# Authentication functions are now imported from auth module
 
 # Create FastAPI app
 app = FastAPI(
@@ -247,6 +179,13 @@ app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=settings.allowed_hosts
 )
+
+# Add custom middleware
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestLoggerMiddleware)
+
+# Add rate limiting middleware
+app.middleware("http")(rate_limit_middleware)
 
 # API Routes
 
@@ -304,6 +243,7 @@ async def register_user(user: UserCreate):
             "email": user.email,
             "full_name": user.full_name,
             "hashed_password": hashed_password,
+            "role": "user",  # Default role
             "is_active": True,
             "created_at": datetime.utcnow().isoformat(),
             "last_login": None
@@ -367,6 +307,17 @@ async def login_user(user: UserLogin):
             expires_delta=access_token_expires
         )
         
+        # Create refresh token
+        refresh_token = create_refresh_token(
+            data={"sub": user_data["user_id"], "username": user_data["username"]}
+        )
+        
+        # Create session
+        await create_session(
+            user_id=user_data["user_id"],
+            username=user_data["username"]
+        )
+        
         # Update last login
         await update_record("users", user_data["user_id"], {
             "last_login": datetime.utcnow().isoformat()
@@ -401,6 +352,76 @@ async def get_current_user_info(current_user: Dict[str, Any] = Depends(get_curre
         "created_at": datetime.fromisoformat(current_user["created_at"]),
         "last_login": datetime.fromisoformat(current_user["last_login"]) if current_user.get("last_login") else None
     })
+
+@app.post("/api/auth/refresh", response_model=Token)
+async def refresh_token(refresh_token: str):
+    """Refresh access token using refresh token"""
+    try:
+        # Verify refresh token
+        payload = verify_token(refresh_token, "refresh")
+        user_id = payload.get("sub")
+        
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token"
+            )
+        
+        # Get user
+        user_data = await get_record_by_id("users", user_id)
+        if not user_data or not user_data.get("is_active", True):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found or inactive"
+            )
+        
+        # Create new access token
+        access_token_expires = timedelta(minutes=settings.jwt_expire_minutes)
+        access_token = create_access_token(
+            data={"sub": user_id, "username": user_data["username"]},
+            expires_delta=access_token_expires
+        )
+        
+        logger.info(f"Token refreshed for user: {user_data['username']}")
+        
+        return Token(
+            access_token=access_token,
+            token_type="bearer",
+            expires_in=settings.jwt_expire_minutes * 60
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Token refresh error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token refresh failed"
+        )
+
+@app.post("/api/auth/logout")
+async def logout_user(current_user: Dict[str, Any] = Depends(get_current_active_user)):
+    """Logout user and invalidate sessions"""
+    try:
+        user_id = current_user["user_id"]
+        
+        # Delete all user sessions
+        deleted_count = await delete_session(user_id)
+        
+        logger.info(f"User logged out: {current_user['username']} ({deleted_count} sessions deleted)")
+        
+        return {
+            "message": "Logged out successfully",
+            "sessions_deleted": deleted_count,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Logout error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Logout failed"
+        )
 
 # Chat endpoints
 @app.post("/api/chat/send", response_model=ChatResponse)
@@ -729,18 +750,12 @@ async def stream_chat_response(
 
 # Admin endpoints
 @app.get("/api/admin/status")
+@require_permission(Permission.SYSTEM_ADMIN)
 async def get_admin_status(
     current_user: Dict[str, Any] = Depends(get_current_active_user)
 ):
     """Get admin system status"""
     try:
-        # Check if user has admin privileges
-        if not current_user.get("is_admin", False):
-            raise HTTPException(
-                status_code=403,
-                detail="Admin privileges required"
-            )
-        
         # Get comprehensive system status
         system_health = await get_system_health()
         
@@ -751,13 +766,83 @@ async def get_admin_status(
             "timestamp": datetime.utcnow().isoformat()
         }
         
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Admin status error: {e}")
         raise HTTPException(
             status_code=500,
             detail="Failed to get admin status"
+        )
+
+@app.get("/api/admin/users")
+@require_permission(Permission.USER_MANAGE)
+async def get_all_users(
+    current_user: Dict[str, Any] = Depends(get_current_active_user)
+):
+    """Get all users (admin only)"""
+    try:
+        db_service = await get_db_service()
+        users = await db_service.get_all_records("users")
+        
+        # Remove sensitive data
+        for user in users:
+            user.pop("hashed_password", None)
+            user.pop("metadata", None)
+        
+        return {
+            "users": users,
+            "count": len(users),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Get users error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to get users"
+        )
+
+@app.put("/api/admin/users/{user_id}/role")
+@require_permission(Permission.USER_MANAGE)
+async def update_user_role(
+    user_id: str,
+    role: str,
+    current_user: Dict[str, Any] = Depends(get_current_active_user)
+):
+    """Update user role (admin only)"""
+    try:
+        # Validate role
+        if role not in [r.value for r in Role]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid role. Must be one of: {[r.value for r in Role]}"
+            )
+        
+        # Check if user exists
+        user_data = await get_record_by_id("users", user_id)
+        if not user_data:
+            raise HTTPException(
+                status_code=404,
+                detail="User not found"
+            )
+        
+        # Update role
+        await update_record("users", user_id, {"role": role})
+        
+        logger.info(f"User {user_id} role updated to {role} by {current_user['username']}")
+        
+        return {
+            "message": f"User role updated to {role}",
+            "user_id": user_id,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Update user role error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to update user role"
         )
 
 # Error handlers
