@@ -7,7 +7,7 @@ import json
 import os
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
-from ..assistant_core import ConversationContext
+from ..jarvis.personality_engine import ConversationContext
 
 class ConversationMemory:
     """

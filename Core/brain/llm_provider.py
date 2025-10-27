@@ -228,3 +228,100 @@ Be helpful, direct, and provide comprehensive information when asked about capab
         Get the current model
         """
         return self.provider_config.get('model', '')
+
+
+class OllamaProvider(LLMProvider):
+    """Ollama-specific LLM provider"""
+    
+    def __init__(self, config: Dict[str, Any] = None):
+        super().__init__("ollama", config)
+
+
+class OpenAIProvider(LLMProvider):
+    """OpenAI-specific LLM provider"""
+    
+    def __init__(self, config: Dict[str, Any] = None):
+        super().__init__("openai", config)
+
+
+class AnthropicProvider(LLMProvider):
+    """Anthropic-specific LLM provider"""
+    
+    def __init__(self, config: Dict[str, Any] = None):
+        # Anthropic uses a different base class structure
+        self.provider = "anthropic"
+        self.config = config or {}
+        self.session = requests.Session()
+        
+        self.providers = {
+            "anthropic": {
+                "base_url": "https://api.anthropic.com/v1",
+                "model": "claude-3-sonnet-20240229",
+                "timeout": 30
+            }
+        }
+        
+        self.provider_config = self.providers["anthropic"]
+
+
+class LLMProviderRouter:
+    """Router for managing multiple LLM providers"""
+    
+    def __init__(self):
+        self.providers = {}
+        self.default_provider = "ollama"
+    
+    def add_provider(self, name: str, provider: LLMProvider):
+        """Add a provider to the router"""
+        self.providers[name] = provider
+    
+    def get_provider(self, name: str = None) -> LLMProvider:
+        """Get a provider by name or default"""
+        if name and name in self.providers:
+            return self.providers[name]
+        return self.providers.get(self.default_provider)
+    
+    def generate_response(self, message: str, context: List[Dict[str, Any]] = None, 
+                         max_tokens: int = 150, provider: str = None) -> str:
+        """Generate response using specified or default provider"""
+        provider_instance = self.get_provider(provider)
+        if provider_instance:
+            return provider_instance.generate_response(message, context, max_tokens)
+        return "No provider available"
+
+
+# Global instances
+_llm_router = None
+
+def get_llm_router() -> LLMProviderRouter:
+    """Get global LLM router instance"""
+    global _llm_router
+    if _llm_router is None:
+        _llm_router = LLMProviderRouter()
+        # Add default providers
+        _llm_router.add_provider("ollama", OllamaProvider())
+        _llm_router.add_provider("openai", OpenAIProvider())
+        _llm_router.add_provider("anthropic", AnthropicProvider())
+    return _llm_router
+
+def generate_response(message: str, context: List[Dict[str, Any]] = None, 
+                     max_tokens: int = 150, provider: str = None) -> str:
+    """Generate response using the global router"""
+    router = get_llm_router()
+    return router.generate_response(message, context, max_tokens, provider)
+
+def count_tokens(text: str) -> int:
+    """Count tokens in text (approximate)"""
+    # Simple approximation: 1 token ≈ 4 characters
+    return len(text) // 4
+
+def get_provider_status() -> Dict[str, Any]:
+    """Get status of all providers"""
+    router = get_llm_router()
+    status = {}
+    for name, provider in router.providers.items():
+        status[name] = {
+            "available": provider.test_connection(),
+            "model": provider.get_model()
+        }
+    return status

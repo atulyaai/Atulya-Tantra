@@ -12,6 +12,7 @@ import queue
 import time
 from typing import Dict, List, Any, Optional, AsyncGenerator, Callable
 from datetime import datetime, timedelta
+from enum import Enum
 import json
 import re
 
