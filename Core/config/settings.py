@@ -5,8 +5,7 @@ Supports multiple AI providers, feature flags, and environment management
 
 import os
 from typing import Dict, List, Optional, Any
-from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic import BaseSettings, Field
 from enum import Enum
 
 
