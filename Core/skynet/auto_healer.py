@@ -1,820 +1,662 @@
 """
-Auto-Healing System for Atulya Tantra AGI
-Automated problem detection, diagnosis, and resolution
+Auto-Healer for Atulya Tantra AGI
+Automatically detects and resolves system issues
 """
 
 import asyncio
-import time
-from typing import Dict, List, Any, Optional, Callable, Tuple
-from datetime import datetime, timedelta
-from enum import Enum
 import json
-import traceback
+from typing import Dict, Any, List, Optional, Callable
+from datetime import datetime, timedelta
+from dataclasses import dataclass
+from enum import Enum
 
-from ..config.settings import settings
 from ..config.logging import get_logger
-from ..config.exceptions import AgentError
-from ..agents import get_orchestrator, submit_task, AgentPriority
-from .system_monitor import get_system_monitor, AlertLevel, HealthStatus
-from .task_scheduler import get_task_scheduler, schedule_task, ScheduleType, TaskPriority
+from ..config.exceptions import SystemError, ValidationError
+from ..monitoring.system_monitor import SystemMonitor
+from ..monitoring.alerting import AlertManager
 
 logger = get_logger(__name__)
 
 
-class HealingAction(str, Enum):
-    """Types of healing actions"""
+class HealAction(Enum):
+    """Healing action types"""
     RESTART_SERVICE = "restart_service"
     CLEAR_CACHE = "clear_cache"
-    FREE_MEMORY = "free_memory"
-    CLEAN_DISK = "clean_disk"
-    RESTART_AGENT = "restart_agent"
     SCALE_RESOURCES = "scale_resources"
-    FAILOVER = "failover"
-    CUSTOM = "custom"
+    ROLLBACK_CHANGES = "rollback_changes"
+    ISOLATE_COMPONENT = "isolate_component"
+    NOTIFY_ADMIN = "notify_admin"
+    CUSTOM_ACTION = "custom_action"
 
 
-class HealingPriority(str, Enum):
-    """Healing priority levels"""
-    LOW = "low"
-    NORMAL = "normal"
-    HIGH = "high"
-    CRITICAL = "critical"
+@dataclass
+class HealRule:
+    """Healing rule definition"""
+    id: str
+    name: str
+    condition: str
+    action: HealAction
+    parameters: Dict[str, Any]
+    enabled: bool
+    priority: int
+    cooldown_seconds: int
+    max_attempts: int
+    created_at: str
+    updated_at: str
 
 
-class HealingRule:
-    """Represents a healing rule"""
-    
-    def __init__(
-        self,
-        rule_id: str = None,
-        name: str = None,
-        description: str = None,
-        condition: Dict[str, Any] = None,
-        actions: List[Dict[str, Any]] = None,
-        priority: HealingPriority = HealingPriority.NORMAL,
-        enabled: bool = True,
-        cooldown: int = 300,
-        max_attempts: int = 3,
-        metadata: Dict[str, Any] = None
-    ):
-        self.rule_id = rule_id or f"rule_{int(time.time())}"
-        self.name = name or f"Healing Rule {self.rule_id[:8]}"
-        self.description = description or ""
-        self.condition = condition or {}
-        self.actions = actions or []
-        self.priority = priority
-        self.enabled = enabled
-        self.cooldown = cooldown  # seconds
-        self.max_attempts = max_attempts
-        self.metadata = metadata or {}
-        
-        self.last_triggered = None
-        self.trigger_count = 0
-        self.success_count = 0
-        self.failure_count = 0
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert rule to dictionary"""
-        return {
-            "rule_id": self.rule_id,
-            "name": self.name,
-            "description": self.description,
-            "condition": self.condition,
-            "actions": self.actions,
-            "priority": self.priority.value,
-            "enabled": self.enabled,
-            "cooldown": self.cooldown,
-            "max_attempts": self.max_attempts,
-            "metadata": self.metadata,
-            "last_triggered": self.last_triggered.isoformat() if self.last_triggered else None,
-            "trigger_count": self.trigger_count,
-            "success_count": self.success_count,
-            "failure_count": self.failure_count
-        }
-
-
-class HealingSession:
-    """Represents a healing session"""
-    
-    def __init__(
-        self,
-        session_id: str = None,
-        rule_id: str = None,
-        trigger_reason: str = None,
-        priority: HealingPriority = HealingPriority.NORMAL,
-        metadata: Dict[str, Any] = None
-    ):
-        self.session_id = session_id or f"healing_{int(time.time())}"
-        self.rule_id = rule_id
-        self.trigger_reason = trigger_reason or "Unknown"
-        self.priority = priority
-        self.metadata = metadata or {}
-        
-        self.status = "pending"
-        self.started_at = datetime.utcnow()
-        self.completed_at = None
-        self.actions_executed = []
-        self.results = {}
-        self.success = False
-        self.error = None
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert session to dictionary"""
-        return {
-            "session_id": self.session_id,
-            "rule_id": self.rule_id,
-            "trigger_reason": self.trigger_reason,
-            "priority": self.priority.value,
-            "metadata": self.metadata,
-            "status": self.status,
-            "started_at": self.started_at.isoformat(),
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
-            "actions_executed": self.actions_executed,
-            "results": self.results,
-            "success": self.success,
-            "error": self.error
-        }
+@dataclass
+class HealAttempt:
+    """Healing attempt record"""
+    id: str
+    rule_id: str
+    component: str
+    action: HealAction
+    status: str
+    message: str
+    timestamp: str
+    duration_seconds: float
+    parameters: Dict[str, Any]
 
 
 class AutoHealer:
-    """Automated healing system for system issues"""
+    """Auto-healer for system issues"""
     
-    def __init__(self):
-        self.healing_rules: Dict[str, HealingRule] = {}
-        self.healing_sessions: List[HealingSession] = []
-        self.is_monitoring = False
-        self.monitoring_task: Optional[asyncio.Task] = None
-        self.healing_actions: Dict[str, Callable] = {}
+    def __init__(
+        self,
+        system_monitor: SystemMonitor = None,
+        alert_manager: AlertManager = None
+    ):
+        self.system_monitor = system_monitor
+        self.alert_manager = alert_manager
         
-        # Initialize default healing rules
+        # Healing rules
+        self.heal_rules: Dict[str, HealRule] = {}
+        
+        # Healing attempts
+        self.heal_attempts: List[HealAttempt] = []
+        
+        # Component status
+        self.component_status: Dict[str, Dict[str, Any]] = {}
+        
+        # Custom actions
+        self.custom_actions: Dict[str, Callable] = {}
+        
+        # Initialize default rules
         self._initialize_default_rules()
         
-        # Initialize healing actions
-        self._initialize_healing_actions()
+        logger.info("Initialized Auto-Healer")
     
     def _initialize_default_rules(self):
         """Initialize default healing rules"""
-        # High CPU usage rule
-        self.add_healing_rule(
-            name="High CPU Usage",
-            description="Heal high CPU usage by clearing caches and restarting services",
-            condition={
-                "type": "metric_threshold",
-                "metric": "cpu_usage_percent",
-                "operator": ">",
-                "value": 85.0,
-                "duration": 300  # 5 minutes
-            },
-            actions=[
-                {"type": "clear_cache", "params": {}},
-                {"type": "restart_service", "params": {"service": "low_priority"}},
-                {"type": "free_memory", "params": {}}
-            ],
-            priority=HealingPriority.HIGH,
-            cooldown=600
-        )
-        
-        # High memory usage rule
-        self.add_healing_rule(
-            name="High Memory Usage",
-            description="Heal high memory usage by freeing memory and clearing caches",
-            condition={
-                "type": "metric_threshold",
-                "metric": "memory_usage_percent",
-                "operator": ">",
-                "value": 90.0,
-                "duration": 180  # 3 minutes
-            },
-            actions=[
-                {"type": "free_memory", "params": {}},
-                {"type": "clear_cache", "params": {}},
-                {"type": "restart_agent", "params": {"agent_type": "non_critical"}}
-            ],
-            priority=HealingPriority.CRITICAL,
-            cooldown=300
-        )
-        
-        # Disk space rule
-        self.add_healing_rule(
-            name="Low Disk Space",
-            description="Heal low disk space by cleaning temporary files",
-            condition={
-                "type": "metric_threshold",
-                "metric": "disk_usage_percent",
-                "operator": ">",
-                "value": 95.0,
-                "duration": 60  # 1 minute
-            },
-            actions=[
-                {"type": "clean_disk", "params": {"clean_logs": True, "clean_temp": True}},
-                {"type": "clear_cache", "params": {}}
-            ],
-            priority=HealingPriority.CRITICAL,
-            cooldown=1800
-        )
-        
-        # Agent failure rule
-        self.add_healing_rule(
-            name="Agent Failure",
-            description="Heal failed agents by restarting them",
-            condition={
-                "type": "health_check",
-                "check": "agent_system",
-                "status": "critical",
-                "duration": 120  # 2 minutes
-            },
-            actions=[
-                {"type": "restart_agent", "params": {"agent_type": "failed"}},
-                {"type": "clear_cache", "params": {}}
-            ],
-            priority=HealingPriority.HIGH,
-            cooldown=300
-        )
-        
-        # Database connectivity rule
-        self.add_healing_rule(
-            name="Database Connectivity",
-            description="Heal database connectivity issues",
-            condition={
-                "type": "health_check",
-                "check": "database_connectivity",
-                "status": "critical",
-                "duration": 60  # 1 minute
-            },
-            actions=[
-                {"type": "restart_service", "params": {"service": "database"}},
-                {"type": "failover", "params": {"service": "database"}}
-            ],
-            priority=HealingPriority.CRITICAL,
-            cooldown=600
-        )
-    
-    def _initialize_healing_actions(self):
-        """Initialize healing action handlers"""
-        self.healing_actions.update({
-            "restart_service": self._action_restart_service,
-            "clear_cache": self._action_clear_cache,
-            "free_memory": self._action_free_memory,
-            "clean_disk": self._action_clean_disk,
-            "restart_agent": self._action_restart_agent,
-            "scale_resources": self._action_scale_resources,
-            "failover": self._action_failover
-        })
-    
-    async def start_monitoring(self):
-        """Start auto-healing monitoring"""
-        if self.is_monitoring:
-            return
-        
-        self.is_monitoring = True
-        self.monitoring_task = asyncio.create_task(self._monitoring_loop())
-        logger.info("Auto-healing monitoring started")
-    
-    async def stop_monitoring(self):
-        """Stop auto-healing monitoring"""
-        self.is_monitoring = False
-        
-        if self.monitoring_task:
-            self.monitoring_task.cancel()
-            try:
-                await self.monitoring_task
-            except asyncio.CancelledError:
-                pass
-        
-        logger.info("Auto-healing monitoring stopped")
-    
-    async def _monitoring_loop(self):
-        """Main monitoring loop for healing triggers"""
-        while self.is_monitoring:
-            try:
-                # Check for healing triggers
-                await self._check_healing_triggers()
-                
-                # Wait before next check
-                await asyncio.sleep(30)
-                
-            except Exception as e:
-                logger.error(f"Error in healing monitoring loop: {e}")
-                await asyncio.sleep(60)
-    
-    async def _check_healing_triggers(self):
-        """Check for conditions that trigger healing"""
         try:
-            # Get system health and metrics
-            system_monitor = await get_system_monitor()
-            health_status = await system_monitor.get_system_health()
-            recent_metrics = await system_monitor.get_metrics(limit=10)
+            # High CPU usage rule
+            self.add_heal_rule(
+                id="high_cpu_usage",
+                name="High CPU Usage",
+                condition="cpu_usage > 80",
+                action=HealAction.SCALE_RESOURCES,
+                parameters={"cpu_limit": 2.0, "memory_limit": "4Gi"},
+                priority=1,
+                cooldown_seconds=300
+            )
             
-            # Check each healing rule
-            for rule_id, rule in self.healing_rules.items():
+            # High memory usage rule
+            self.add_heal_rule(
+                id="high_memory_usage",
+                name="High Memory Usage",
+                condition="memory_usage > 85",
+                action=HealAction.SCALE_RESOURCES,
+                parameters={"memory_limit": "8Gi", "cpu_limit": 1.5},
+                priority=1,
+                cooldown_seconds=300
+            )
+            
+            # Service down rule
+            self.add_heal_rule(
+                id="service_down",
+                name="Service Down",
+                condition="service_status == 'down'",
+                action=HealAction.RESTART_SERVICE,
+                parameters={"service_name": "auto_detect"},
+                priority=0,
+                cooldown_seconds=60
+            )
+            
+            # Cache issues rule
+            self.add_heal_rule(
+                id="cache_issues",
+                name="Cache Issues",
+                condition="cache_hit_rate < 0.7",
+                action=HealAction.CLEAR_CACHE,
+                parameters={"cache_type": "all"},
+                priority=2,
+                cooldown_seconds=600
+            )
+            
+            # Error rate rule
+            self.add_heal_rule(
+                id="high_error_rate",
+                name="High Error Rate",
+                condition="error_rate > 0.05",
+                action=HealAction.ISOLATE_COMPONENT,
+                parameters={"isolation_level": "partial"},
+                priority=0,
+                cooldown_seconds=120
+            )
+            
+            logger.info("Initialized default healing rules")
+            
+        except Exception as e:
+            logger.error(f"Error initializing default rules: {e}")
+    
+    def add_heal_rule(
+        self,
+        id: str,
+        name: str,
+        condition: str,
+        action: HealAction,
+        parameters: Dict[str, Any] = None,
+        priority: int = 5,
+        cooldown_seconds: int = 300,
+        max_attempts: int = 3,
+        enabled: bool = True
+    ) -> bool:
+        """Add a healing rule"""
+        try:
+            rule = HealRule(
+                id=id,
+                name=name,
+                condition=condition,
+                action=action,
+                parameters=parameters or {},
+                enabled=enabled,
+                priority=priority,
+                cooldown_seconds=cooldown_seconds,
+                max_attempts=max_attempts,
+                created_at=datetime.now().isoformat(),
+                updated_at=datetime.now().isoformat()
+            )
+            
+            self.heal_rules[id] = rule
+            logger.info(f"Added healing rule: {id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error adding healing rule: {e}")
+            return False
+    
+    def update_heal_rule(
+        self,
+        id: str,
+        **kwargs
+    ) -> bool:
+        """Update a healing rule"""
+        try:
+            if id not in self.heal_rules:
+                return False
+            
+            rule = self.heal_rules[id]
+            
+            # Update allowed fields
+            allowed_fields = [
+                "name", "condition", "action", "parameters", "enabled",
+                "priority", "cooldown_seconds", "max_attempts"
+            ]
+            
+            for field, value in kwargs.items():
+                if field in allowed_fields:
+                    setattr(rule, field, value)
+            
+            rule.updated_at = datetime.now().isoformat()
+            
+            logger.info(f"Updated healing rule: {id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error updating healing rule: {e}")
+            return False
+    
+    def remove_heal_rule(self, id: str) -> bool:
+        """Remove a healing rule"""
+        try:
+            if id in self.heal_rules:
+                del self.heal_rules[id]
+                logger.info(f"Removed healing rule: {id}")
+                return True
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error removing healing rule: {e}")
+            return False
+    
+    def add_custom_action(self, name: str, action_func: Callable) -> bool:
+        """Add a custom healing action"""
+        try:
+            self.custom_actions[name] = action_func
+            logger.info(f"Added custom action: {name}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error adding custom action: {e}")
+            return False
+    
+    async def check_and_heal(self) -> List[HealAttempt]:
+        """Check system and perform healing actions"""
+        try:
+            if not self.system_monitor:
+                logger.warning("No system monitor available for healing")
+                return []
+            
+            # Get system metrics
+            metrics = await self.system_monitor.get_system_metrics()
+            
+            # Check each rule
+            heal_attempts = []
+            for rule in self.heal_rules.values():
                 if not rule.enabled:
                     continue
                 
-                # Check cooldown
-                if rule.last_triggered:
-                    time_since_last = datetime.utcnow() - rule.last_triggered
-                    if time_since_last.total_seconds() < rule.cooldown:
+                # Check if rule should be triggered
+                if await self._should_trigger_rule(rule, metrics):
+                    # Check cooldown
+                    if self._is_in_cooldown(rule):
                         continue
-                
-                # Check if rule condition is met
-                if await self._evaluate_condition(rule.condition, health_status, recent_metrics):
-                    await self._trigger_healing(rule)
-                
+                    
+                    # Check max attempts
+                    if self._has_exceeded_max_attempts(rule):
+                        continue
+                    
+                    # Perform healing action
+                    attempt = await self._perform_heal_action(rule, metrics)
+                    if attempt:
+                        heal_attempts.append(attempt)
+            
+            return heal_attempts
+            
         except Exception as e:
-            logger.error(f"Error checking healing triggers: {e}")
+            logger.error(f"Error checking and healing: {e}")
+            return []
     
-    async def _evaluate_condition(
-        self, 
-        condition: Dict[str, Any], 
-        health_status: Dict[str, Any], 
-        metrics: List[Dict[str, Any]]
-    ) -> bool:
-        """Evaluate a healing condition"""
+    async def _should_trigger_rule(self, rule: HealRule, metrics: Dict[str, Any]) -> bool:
+        """Check if a rule should be triggered"""
         try:
-            condition_type = condition.get("type")
+            # Simple condition evaluation
+            # In a real implementation, this would use a proper expression evaluator
+            condition = rule.condition.lower()
             
-            if condition_type == "metric_threshold":
-                return await self._evaluate_metric_threshold(condition, metrics)
+            # Parse condition
+            if "cpu_usage" in condition:
+                cpu_usage = metrics.get("cpu_usage", 0)
+                if ">" in condition:
+                    threshold = float(condition.split(">")[1].strip())
+                    return cpu_usage > threshold
             
-            elif condition_type == "health_check":
-                return await self._evaluate_health_check(condition, health_status)
+            elif "memory_usage" in condition:
+                memory_usage = metrics.get("memory_usage", 0)
+                if ">" in condition:
+                    threshold = float(condition.split(">")[1].strip())
+                    return memory_usage > threshold
             
-            elif condition_type == "custom":
-                return await self._evaluate_custom_condition(condition)
+            elif "service_status" in condition:
+                service_status = metrics.get("service_status", "unknown")
+                if "==" in condition:
+                    expected_status = condition.split("==")[1].strip().strip("'\"")
+                    return service_status == expected_status
+            
+            elif "cache_hit_rate" in condition:
+                cache_hit_rate = metrics.get("cache_hit_rate", 1.0)
+                if "<" in condition:
+                    threshold = float(condition.split("<")[1].strip())
+                    return cache_hit_rate < threshold
+            
+            elif "error_rate" in condition:
+                error_rate = metrics.get("error_rate", 0.0)
+                if ">" in condition:
+                    threshold = float(condition.split(">")[1].strip())
+                    return error_rate > threshold
             
             return False
             
         except Exception as e:
-            logger.error(f"Error evaluating condition: {e}")
+            logger.error(f"Error checking rule condition: {e}")
             return False
     
-    async def _evaluate_metric_threshold(
-        self, 
-        condition: Dict[str, Any], 
-        metrics: List[Dict[str, Any]]
-    ) -> bool:
-        """Evaluate metric threshold condition"""
+    def _is_in_cooldown(self, rule: HealRule) -> bool:
+        """Check if rule is in cooldown period"""
         try:
-            metric_name = condition.get("metric")
-            operator = condition.get("operator", ">")
-            threshold_value = condition.get("value")
-            duration = condition.get("duration", 60)
-            
-            # Find recent metrics for this metric name
-            recent_metrics = [
-                m for m in metrics 
-                if m.get("name") == metric_name
+            # Find recent attempts for this rule
+            recent_attempts = [
+                attempt for attempt in self.heal_attempts
+                if attempt.rule_id == rule.id
+                and datetime.fromisoformat(attempt.timestamp) > 
+                   datetime.now() - timedelta(seconds=rule.cooldown_seconds)
             ]
             
-            if not recent_metrics:
-                return False
-            
-            # Check if threshold is exceeded for the specified duration
-            cutoff_time = datetime.utcnow() - timedelta(seconds=duration)
-            
-            threshold_exceeded_count = 0
-            for metric in recent_metrics:
-                metric_time = datetime.fromisoformat(metric["timestamp"])
-                if metric_time >= cutoff_time:
-                    metric_value = metric["value"]
-                    
-                    if operator == ">" and metric_value > threshold_value:
-                        threshold_exceeded_count += 1
-                    elif operator == ">=" and metric_value >= threshold_value:
-                        threshold_exceeded_count += 1
-                    elif operator == "<" and metric_value < threshold_value:
-                        threshold_exceeded_count += 1
-                    elif operator == "<=" and metric_value <= threshold_value:
-                        threshold_exceeded_count += 1
-            
-            # Consider condition met if threshold exceeded for most of the duration
-            return threshold_exceeded_count >= len(recent_metrics) * 0.8
+            return len(recent_attempts) > 0
             
         except Exception as e:
-            logger.error(f"Error evaluating metric threshold: {e}")
+            logger.error(f"Error checking cooldown: {e}")
             return False
     
-    async def _evaluate_health_check(
-        self, 
-        condition: Dict[str, Any], 
-        health_status: Dict[str, Any]
-    ) -> bool:
-        """Evaluate health check condition"""
+    def _has_exceeded_max_attempts(self, rule: HealRule) -> bool:
+        """Check if rule has exceeded max attempts"""
         try:
-            check_name = condition.get("check")
-            expected_status = condition.get("status")
-            duration = condition.get("duration", 60)
+            # Count recent attempts
+            recent_attempts = [
+                attempt for attempt in self.heal_attempts
+                if attempt.rule_id == rule.id
+                and datetime.fromisoformat(attempt.timestamp) > 
+                   datetime.now() - timedelta(hours=1)
+            ]
             
-            # Check if the health check has the expected status
-            checks = health_status.get("checks", {})
-            if check_name in checks:
-                check_status = checks[check_name].get("status")
-                return check_status == expected_status
-            
-            return False
+            return len(recent_attempts) >= rule.max_attempts
             
         except Exception as e:
-            logger.error(f"Error evaluating health check: {e}")
+            logger.error(f"Error checking max attempts: {e}")
             return False
     
-    async def _evaluate_custom_condition(self, condition: Dict[str, Any]) -> bool:
-        """Evaluate custom condition"""
+    async def _perform_heal_action(
+        self,
+        rule: HealRule,
+        metrics: Dict[str, Any]
+    ) -> Optional[HealAttempt]:
+        """Perform a healing action"""
         try:
-            # This would allow for custom condition evaluation
-            # For now, return False as a placeholder
-            return False
+            start_time = datetime.now()
             
-        except Exception as e:
-            logger.error(f"Error evaluating custom condition: {e}")
-            return False
-    
-    async def _trigger_healing(self, rule: HealingRule):
-        """Trigger healing for a rule"""
-        try:
-            logger.warning(f"Triggering healing for rule: {rule.name}")
-            
-            # Update rule statistics
-            rule.last_triggered = datetime.utcnow()
-            rule.trigger_count += 1
-            
-            # Create healing session
-            session = HealingSession(
-                rule_id=rule.rule_id,
-                trigger_reason=f"Rule condition met: {rule.name}",
-                priority=rule.priority,
-                metadata={"rule": rule.to_dict()}
+            # Create heal attempt record
+            attempt = HealAttempt(
+                id=f"heal_{int(start_time.timestamp())}",
+                rule_id=rule.id,
+                component=rule.parameters.get("service_name", "system"),
+                action=rule.action,
+                status="running",
+                message="Starting healing action",
+                timestamp=start_time.isoformat(),
+                duration_seconds=0.0,
+                parameters=rule.parameters
             )
             
-            self.healing_sessions.append(session)
+            # Perform the action
+            success = await self._execute_heal_action(rule, metrics)
             
-            # Execute healing actions
-            await self._execute_healing_session(session, rule)
+            # Update attempt record
+            end_time = datetime.now()
+            attempt.duration_seconds = (end_time - start_time).total_seconds()
+            attempt.status = "success" if success else "failed"
+            attempt.message = "Healing action completed" if success else "Healing action failed"
+            
+            # Store attempt
+            self.heal_attempts.append(attempt)
+            
+            # Send alert if failed
+            if not success and self.alert_manager:
+                await self.alert_manager.send_alert(
+                    level="warning",
+                    message=f"Healing action failed for rule: {rule.name}",
+                    component=attempt.component,
+                    metadata={
+                        "rule_id": rule.id,
+                        "action": rule.action.value,
+                        "attempt_id": attempt.id
+                    }
+                )
+            
+            logger.info(f"Healing action {'succeeded' if success else 'failed'}: {rule.name}")
+            return attempt
             
         except Exception as e:
-            logger.error(f"Error triggering healing: {e}")
+            logger.error(f"Error performing heal action: {e}")
+            return None
     
-    async def _execute_healing_session(self, session: HealingSession, rule: HealingRule):
-        """Execute a healing session"""
+    async def _execute_heal_action(
+        self,
+        rule: HealRule,
+        metrics: Dict[str, Any]
+    ) -> bool:
+        """Execute the actual healing action"""
         try:
-            session.status = "running"
+            action = rule.action
+            parameters = rule.parameters
             
-            logger.info(f"Starting healing session: {session.session_id}")
+            if action == HealAction.RESTART_SERVICE:
+                return await self._restart_service(parameters)
             
-            # Execute each action in sequence
-            for action_config in rule.actions:
-                try:
-                    action_type = action_config.get("type")
-                    action_params = action_config.get("params", {})
-                    
-                    if action_type in self.healing_actions:
-                        action_handler = self.healing_actions[action_type]
-                        result = await action_handler(action_params)
-                        
-                        session.actions_executed.append({
-                            "type": action_type,
-                            "params": action_params,
-                            "result": result,
-                            "timestamp": datetime.utcnow().isoformat()
-                        })
-                        
-                        logger.info(f"Executed healing action: {action_type}")
-                        
-                    else:
-                        logger.warning(f"Unknown healing action: {action_type}")
-                        
-                except Exception as e:
-                    logger.error(f"Error executing healing action {action_type}: {e}")
-                    session.actions_executed.append({
-                        "type": action_type,
-                        "params": action_config.get("params", {}),
-                        "error": str(e),
-                        "timestamp": datetime.utcnow().isoformat()
-                    })
+            elif action == HealAction.CLEAR_CACHE:
+                return await self._clear_cache(parameters)
             
-            # Mark session as completed
-            session.status = "completed"
-            session.completed_at = datetime.utcnow()
-            session.success = True
+            elif action == HealAction.SCALE_RESOURCES:
+                return await self._scale_resources(parameters)
             
-            # Update rule statistics
-            rule.success_count += 1
+            elif action == HealAction.ROLLBACK_CHANGES:
+                return await self._rollback_changes(parameters)
             
-            logger.info(f"Completed healing session: {session.session_id}")
+            elif action == HealAction.ISOLATE_COMPONENT:
+                return await self._isolate_component(parameters)
             
+            elif action == HealAction.NOTIFY_ADMIN:
+                return await self._notify_admin(parameters)
+            
+            elif action == HealAction.CUSTOM_ACTION:
+                return await self._execute_custom_action(parameters)
+            
+            else:
+                logger.warning(f"Unknown healing action: {action}")
+                return False
+                
         except Exception as e:
-            logger.error(f"Error executing healing session: {e}")
-            
-            session.status = "failed"
-            session.completed_at = datetime.utcnow()
-            session.success = False
-            session.error = str(e)
-            
-            # Update rule statistics
-            rule.failure_count += 1
+            logger.error(f"Error executing heal action: {e}")
+            return False
     
-    # Healing action implementations
-    async def _action_restart_service(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _restart_service(self, parameters: Dict[str, Any]) -> bool:
         """Restart a service"""
         try:
-            service = params.get("service", "general")
+            service_name = parameters.get("service_name", "auto_detect")
             
-            logger.info(f"Restarting service: {service}")
+            # Mock service restart
+            logger.info(f"Restarting service: {service_name}")
             
-            # This would integrate with actual service management
-            # For now, simulate the action
-            await asyncio.sleep(2)
-            
-            return {
-                "success": True,
-                "message": f"Service {service} restarted successfully",
-                "service": service
-            }
-            
-        except Exception as e:
-            return {
-                "success": False,
-                "error": str(e),
-                "service": params.get("service", "unknown")
-            }
-    
-    async def _action_clear_cache(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Clear system caches"""
-        try:
-            logger.info("Clearing system caches")
-            
-            # This would clear actual caches
-            # For now, simulate the action
+            # Simulate restart delay
             await asyncio.sleep(1)
             
-            return {
-                "success": True,
-                "message": "Caches cleared successfully",
-                "cache_size_freed": "256 MB"
+            # Update component status
+            self.component_status[service_name] = {
+                "status": "running",
+                "last_restart": datetime.now().isoformat(),
+                "restart_count": self.component_status.get(service_name, {}).get("restart_count", 0) + 1
             }
+            
+            return True
             
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            logger.error(f"Error restarting service: {e}")
+            return False
     
-    async def _action_free_memory(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Free up memory"""
+    async def _clear_cache(self, parameters: Dict[str, Any]) -> bool:
+        """Clear cache"""
         try:
-            logger.info("Freeing up memory")
+            cache_type = parameters.get("cache_type", "all")
             
-            # This would perform actual memory cleanup
-            # For now, simulate the action
+            # Mock cache clearing
+            logger.info(f"Clearing cache: {cache_type}")
+            
+            # Simulate cache clearing delay
+            await asyncio.sleep(0.5)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error clearing cache: {e}")
+            return False
+    
+    async def _scale_resources(self, parameters: Dict[str, Any]) -> bool:
+        """Scale resources"""
+        try:
+            cpu_limit = parameters.get("cpu_limit")
+            memory_limit = parameters.get("memory_limit")
+            
+            # Mock resource scaling
+            logger.info(f"Scaling resources - CPU: {cpu_limit}, Memory: {memory_limit}")
+            
+            # Simulate scaling delay
+            await asyncio.sleep(2)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error scaling resources: {e}")
+            return False
+    
+    async def _rollback_changes(self, parameters: Dict[str, Any]) -> bool:
+        """Rollback changes"""
+        try:
+            rollback_point = parameters.get("rollback_point", "last_known_good")
+            
+            # Mock rollback
+            logger.info(f"Rolling back to: {rollback_point}")
+            
+            # Simulate rollback delay
+            await asyncio.sleep(3)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error rolling back changes: {e}")
+            return False
+    
+    async def _isolate_component(self, parameters: Dict[str, Any]) -> bool:
+        """Isolate a component"""
+        try:
+            isolation_level = parameters.get("isolation_level", "partial")
+            component = parameters.get("component", "auto_detect")
+            
+            # Mock component isolation
+            logger.info(f"Isolating component {component} with level: {isolation_level}")
+            
+            # Simulate isolation delay
             await asyncio.sleep(1)
             
-            return {
-                "success": True,
-                "message": "Memory freed successfully",
-                "memory_freed": "512 MB"
-            }
+            return True
             
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            logger.error(f"Error isolating component: {e}")
+            return False
     
-    async def _action_clean_disk(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Clean disk space"""
+    async def _notify_admin(self, parameters: Dict[str, Any]) -> bool:
+        """Notify administrator"""
         try:
-            clean_logs = params.get("clean_logs", True)
-            clean_temp = params.get("clean_temp", True)
+            message = parameters.get("message", "System issue detected")
+            priority = parameters.get("priority", "medium")
             
-            logger.info(f"Cleaning disk space (logs: {clean_logs}, temp: {clean_temp})")
+            # Mock admin notification
+            logger.info(f"Notifying admin: {message} (Priority: {priority})")
             
-            # This would perform actual disk cleanup
-            # For now, simulate the action
-            await asyncio.sleep(3)
+            # Send alert if alert manager is available
+            if self.alert_manager:
+                await self.alert_manager.send_alert(
+                    level="critical",
+                    message=message,
+                    component="auto_healer",
+                    metadata={"priority": priority}
+                )
             
-            return {
-                "success": True,
-                "message": "Disk cleaned successfully",
-                "space_freed": "1.2 GB",
-                "files_removed": 45
-            }
+            return True
             
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            logger.error(f"Error notifying admin: {e}")
+            return False
     
-    async def _action_restart_agent(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Restart an agent"""
+    async def _execute_custom_action(self, parameters: Dict[str, Any]) -> bool:
+        """Execute custom action"""
         try:
-            agent_type = params.get("agent_type", "general")
+            action_name = parameters.get("action_name")
             
-            logger.info(f"Restarting agent: {agent_type}")
+            if not action_name or action_name not in self.custom_actions:
+                logger.warning(f"Custom action not found: {action_name}")
+                return False
             
-            # This would restart the actual agent
-            # For now, simulate the action
-            await asyncio.sleep(2)
+            action_func = self.custom_actions[action_name]
             
-            return {
-                "success": True,
-                "message": f"Agent {agent_type} restarted successfully",
-                "agent_type": agent_type
-            }
+            # Execute custom action
+            result = await action_func(parameters)
             
-        except Exception as e:
-            return {
-                "success": False,
-                "error": str(e),
-                "agent_type": params.get("agent_type", "unknown")
-            }
-    
-    async def _action_scale_resources(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Scale system resources"""
-        try:
-            scale_factor = params.get("scale_factor", 1.5)
-            
-            logger.info(f"Scaling resources by factor: {scale_factor}")
-            
-            # This would scale actual resources
-            # For now, simulate the action
-            await asyncio.sleep(2)
-            
-            return {
-                "success": True,
-                "message": f"Resources scaled by factor {scale_factor}",
-                "scale_factor": scale_factor
-            }
+            return bool(result)
             
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            logger.error(f"Error executing custom action: {e}")
+            return False
     
-    async def _action_failover(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Perform failover"""
-        try:
-            service = params.get("service", "general")
-            
-            logger.info(f"Performing failover for service: {service}")
-            
-            # This would perform actual failover
-            # For now, simulate the action
-            await asyncio.sleep(3)
-            
-            return {
-                "success": True,
-                "message": f"Failover completed for service {service}",
-                "service": service
-            }
-            
-        except Exception as e:
-            return {
-                "success": False,
-                "error": str(e),
-                "service": params.get("service", "unknown")
-            }
+    async def get_heal_rules(self) -> List[HealRule]:
+        """Get all healing rules"""
+        return list(self.heal_rules.values())
     
-    def add_healing_rule(
+    async def get_heal_attempts(
         self,
-        name: str,
-        description: str = None,
-        condition: Dict[str, Any] = None,
-        actions: List[Dict[str, Any]] = None,
-        priority: HealingPriority = HealingPriority.NORMAL,
-        cooldown: int = 300,
-        max_attempts: int = 3,
-        enabled: bool = True
-    ) -> str:
-        """Add a healing rule"""
-        rule = HealingRule(
-            name=name,
-            description=description,
-            condition=condition,
-            actions=actions,
-            priority=priority,
-            cooldown=cooldown,
-            max_attempts=max_attempts,
-            enabled=enabled
-        )
+        rule_id: str = None,
+        limit: int = 100
+    ) -> List[HealAttempt]:
+        """Get healing attempts"""
+        attempts = self.heal_attempts
         
-        self.healing_rules[rule.rule_id] = rule
-        logger.info(f"Added healing rule: {name}")
-        return rule.rule_id
+        if rule_id:
+            attempts = [a for a in attempts if a.rule_id == rule_id]
+        
+        # Sort by timestamp and limit
+        attempts.sort(key=lambda x: x.timestamp, reverse=True)
+        return attempts[:limit]
     
-    def remove_healing_rule(self, rule_id: str) -> bool:
-        """Remove a healing rule"""
-        if rule_id in self.healing_rules:
-            del self.healing_rules[rule_id]
-            logger.info(f"Removed healing rule: {rule_id}")
-            return True
-        return False
+    async def get_component_status(self) -> Dict[str, Dict[str, Any]]:
+        """Get component status"""
+        return self.component_status.copy()
     
-    def enable_healing_rule(self, rule_id: str) -> bool:
-        """Enable a healing rule"""
-        if rule_id in self.healing_rules:
-            self.healing_rules[rule_id].enabled = True
-            logger.info(f"Enabled healing rule: {rule_id}")
-            return True
-        return False
-    
-    def disable_healing_rule(self, rule_id: str) -> bool:
-        """Disable a healing rule"""
-        if rule_id in self.healing_rules:
-            self.healing_rules[rule_id].enabled = False
-            logger.info(f"Disabled healing rule: {rule_id}")
-            return True
-        return False
-    
-    async def get_healing_status(self) -> Dict[str, Any]:
-        """Get auto-healing status"""
+    async def get_healing_stats(self) -> Dict[str, Any]:
+        """Get healing statistics"""
         try:
-            active_sessions = len([s for s in self.healing_sessions if s.status == "running"])
-            total_rules = len(self.healing_rules)
-            enabled_rules = len([r for r in self.healing_rules.values() if r.enabled])
+            total_attempts = len(self.heal_attempts)
+            successful_attempts = len([a for a in self.heal_attempts if a.status == "success"])
+            failed_attempts = len([a for a in self.heal_attempts if a.status == "failed"])
             
-            recent_sessions = self.healing_sessions[-10:] if self.healing_sessions else []
+            # Recent attempts (last 24 hours)
+            recent_cutoff = datetime.now() - timedelta(hours=24)
+            recent_attempts = [
+                a for a in self.heal_attempts
+                if datetime.fromisoformat(a.timestamp) > recent_cutoff
+            ]
             
             return {
-                "monitoring_active": self.is_monitoring,
-                "total_rules": total_rules,
-                "enabled_rules": enabled_rules,
-                "active_sessions": active_sessions,
-                "recent_sessions": [s.to_dict() for s in recent_sessions],
-                "rules": [r.to_dict() for r in self.healing_rules.values()]
+                "total_attempts": total_attempts,
+                "successful_attempts": successful_attempts,
+                "failed_attempts": failed_attempts,
+                "success_rate": successful_attempts / total_attempts if total_attempts > 0 else 0,
+                "recent_attempts": len(recent_attempts),
+                "active_rules": len([r for r in self.heal_rules.values() if r.enabled]),
+                "total_rules": len(self.heal_rules),
+                "timestamp": datetime.now().isoformat()
             }
             
         except Exception as e:
-            logger.error(f"Error getting healing status: {e}")
-            return {"error": str(e)}
-    
-    async def trigger_manual_healing(
-        self, 
-        rule_id: str, 
-        reason: str = "Manual trigger"
-    ) -> str:
-        """Manually trigger healing for a rule"""
-        try:
-            if rule_id not in self.healing_rules:
-                raise AgentError(f"Healing rule not found: {rule_id}")
-            
-            rule = self.healing_rules[rule_id]
-            
-            # Create healing session
-            session = HealingSession(
-                rule_id=rule_id,
-                trigger_reason=reason,
-                priority=rule.priority,
-                metadata={"manual_trigger": True}
-            )
-            
-            self.healing_sessions.append(session)
-            
-            # Execute healing session
-            await self._execute_healing_session(session, rule)
-            
-            return session.session_id
-            
-        except Exception as e:
-            logger.error(f"Error triggering manual healing: {e}")
-            raise AgentError(f"Manual healing failed: {e}")
+            logger.error(f"Error getting healing stats: {e}")
+            return {}
 
 
 # Global auto-healer instance
-_auto_healer: Optional[AutoHealer] = None
+_auto_healer = None
 
 
-async def get_auto_healer() -> AutoHealer:
+def get_auto_healer() -> AutoHealer:
     """Get global auto-healer instance"""
     global _auto_healer
-    
     if _auto_healer is None:
         _auto_healer = AutoHealer()
-        await _auto_healer.start_monitoring()
-    
     return _auto_healer
-
-
-async def get_healing_status() -> Dict[str, Any]:
-    """Get auto-healing status"""
-    healer = await get_auto_healer()
-    return await healer.get_healing_status()
-
-
-async def trigger_manual_healing(rule_id: str, reason: str = "Manual trigger") -> str:
-    """Manually trigger healing"""
-    healer = await get_auto_healer()
-    return await healer.trigger_manual_healing(rule_id, reason)
 
 
 # Export public API
 __all__ = [
-    "HealingAction",
-    "HealingPriority",
-    "HealingRule",
-    "HealingSession",
+    "HealAction",
+    "HealRule",
+    "HealAttempt",
     "AutoHealer",
-    "get_auto_healer",
-    "get_healing_status",
-    "trigger_manual_healing"
+    "get_auto_healer"
 ]

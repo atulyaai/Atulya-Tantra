@@ -1,493 +1,539 @@
 """
-Natural Conversation System
-Human-like conversations without hardcoded responses using dynamic AI
+Natural Conversation Engine for Atulya Tantra AGI
+Handles natural language understanding and response generation
 """
 
-import asyncio
-import json
-import random
-from typing import Dict, List, Any, Optional, Tuple
-from datetime import datetime, timedelta
-from dataclasses import dataclass
-from enum import Enum
 import re
+import json
+from typing import Dict, Any, List, Optional, Tuple
+from datetime import datetime
+from dataclasses import dataclass
 
 from ..config.logging import get_logger
-from ..brain.llm_provider import get_llm_provider
-from ..memory.conversation_memory import get_conversation_memory
+from ..config.exceptions import ConversationError, ValidationError
+from ..brain.llm_provider import LLMProvider
+from ..memory.conversation_memory import ConversationMemory
+from ..jarvis.sentiment_analyzer import SentimentAnalyzer
+from ..jarvis.personality_engine import PersonalityEngine
 
 logger = get_logger(__name__)
 
 
-class ConversationStyle(str, Enum):
-    """Conversation styles"""
-    PROFESSIONAL = "professional"
-    CASUAL = "casual"
-    FRIENDLY = "friendly"
-    TECHNICAL = "technical"
-    CREATIVE = "creative"
-    ADAPTIVE = "adaptive"
-
-
-class ConversationContext(str, Enum):
-    """Conversation contexts"""
-    GREETING = "greeting"
-    QUESTION = "question"
-    REQUEST = "request"
-    COMPLAINT = "complaint"
-    COMPLIMENT = "compliment"
-    SMALL_TALK = "small_talk"
-    DEEP_DISCUSSION = "deep_discussion"
-    PROBLEM_SOLVING = "problem_solving"
-    CREATIVE_WORK = "creative_work"
-    TECHNICAL_SUPPORT = "technical_support"
-
-
 @dataclass
-class ConversationState:
-    """Current conversation state"""
+class ConversationContext:
+    """Conversation context"""
     user_id: str
     session_id: str
-    style: ConversationStyle
-    context: ConversationContext
-    mood: str  # happy, neutral, frustrated, excited, etc.
-    topics: List[str]
-    last_interaction: datetime
-    conversation_depth: int
-    user_preferences: Dict[str, Any]
-    emotional_context: Dict[str, float]  # emotional scores
+    message: str
+    timestamp: str
+    sentiment: str
+    intent: str
+    entities: List[Dict[str, Any]]
+    response_type: str
+    confidence: float
 
 
 @dataclass
-class ConversationMemory:
-    """Conversation memory entry"""
-    timestamp: datetime
-    user_message: str
-    ai_response: str
-    context: ConversationContext
-    emotional_tone: str
-    topics: List[str]
-    user_satisfaction: Optional[float] = None
-    follow_up_needed: bool = False
+class ConversationResponse:
+    """Conversation response"""
+    message: str
+    response_type: str
+    confidence: float
+    timestamp: str
+    metadata: Dict[str, Any]
 
 
 class NaturalConversationEngine:
-    """Advanced natural conversation engine with human-like responses"""
+    """Natural conversation engine"""
     
-    def __init__(self):
-        self.llm_provider = get_llm_provider()
-        self.memory = get_conversation_memory()
-        self.conversation_states: Dict[str, ConversationState] = {}
-        self.conversation_memories: Dict[str, List[ConversationMemory]] = {}
+    def __init__(
+        self,
+        llm_provider: LLMProvider = None,
+        memory: ConversationMemory = None,
+        sentiment_analyzer: SentimentAnalyzer = None,
+        personality_engine: PersonalityEngine = None
+    ):
+        self.llm_provider = llm_provider
+        self.memory = memory
+        self.sentiment_analyzer = sentiment_analyzer
+        self.personality_engine = personality_engine
         
-        # Conversation patterns and templates (minimal, mostly for fallback)
-        self.fallback_responses = {
+        # Conversation patterns
+        self.greeting_patterns = [
+            r'\b(hi|hello|hey|greetings|good morning|good afternoon|good evening)\b',
+            r'\b(how are you|how do you do|what\'s up|what\'s new)\b',
+            r'\b(nice to meet you|pleased to meet you)\b'
+        ]
+        
+        self.question_patterns = [
+            r'\b(what|when|where|why|how|who|which|can you|could you|would you)\b',
+            r'\b(explain|describe|tell me|show me|help me)\b',
+            r'\b(do you know|can you help|are you able)\b'
+        ]
+        
+        self.command_patterns = [
+            r'\b(create|make|build|generate|write|code|develop)\b',
+            r'\b(analyze|examine|review|check|inspect)\b',
+            r'\b(delete|remove|clear|reset|stop|cancel)\b',
+            r'\b(start|begin|launch|run|execute|perform)\b'
+        ]
+        
+        self.thank_you_patterns = [
+            r'\b(thank you|thanks|appreciate|grateful|much obliged)\b',
+            r'\b(that\'s helpful|that\'s great|perfect|excellent)\b'
+        ]
+        
+        self.goodbye_patterns = [
+            r'\b(goodbye|bye|see you|farewell|take care|until next time)\b',
+            r'\b(exit|quit|stop|end|finish)\b'
+        ]
+        
+        # Response templates
+        self.response_templates = {
             "greeting": [
-                "Hello! How can I help you today?",
-                "Hi there! What's on your mind?",
-                "Hey! Great to see you. What can I do for you?"
+                "Hello! I'm here to help you with your tasks.",
+                "Hi there! How can I assist you today?",
+                "Greetings! What would you like to work on?",
+                "Hello! I'm ready to help you achieve your goals."
             ],
-            "confusion": [
-                "I'm not sure I understand. Could you rephrase that?",
-                "Let me make sure I got that right. Are you asking about...?",
-                "I want to help, but I need a bit more context. Could you clarify?"
+            "question": [
+                "I'd be happy to help you with that question.",
+                "Let me think about that and provide you with a helpful answer.",
+                "That's a great question! Let me explain that for you.",
+                "I can help you understand that better."
             ],
-            "encouragement": [
-                "That's a great question!",
-                "I love that you're thinking about this.",
-                "You're absolutely right to ask about that."
+            "command": [
+                "I'll help you with that task right away.",
+                "Let me work on that for you.",
+                "I'm on it! Let me handle that request.",
+                "I'll get started on that immediately."
+            ],
+            "thank_you": [
+                "You're very welcome! I'm glad I could help.",
+                "My pleasure! I'm here whenever you need assistance.",
+                "Happy to help! Feel free to ask if you need anything else.",
+                "You're welcome! I enjoy helping you succeed."
+            ],
+            "goodbye": [
+                "Goodbye! It was great working with you today.",
+                "See you later! Feel free to come back anytime.",
+                "Take care! I'll be here when you need me.",
+                "Farewell! Have a wonderful day."
+            ],
+            "default": [
+                "I understand. Let me help you with that.",
+                "I'm here to assist you. What would you like to do?",
+                "I can help you with that. Let me know what you need.",
+                "I'm ready to help. What's your next step?"
             ]
         }
         
-        # Emotional intelligence patterns
-        self.emotional_patterns = {
-            "frustrated": {
-                "indicators": ["frustrated", "annoyed", "angry", "upset", "mad"],
-                "response_style": "patient, understanding, solution-focused",
-                "tone": "calm and supportive"
-            },
-            "excited": {
-                "indicators": ["excited", "thrilled", "amazing", "awesome", "fantastic"],
-                "response_style": "enthusiastic, engaging, matching energy",
-                "tone": "upbeat and positive"
-            },
-            "confused": {
-                "indicators": ["confused", "don't understand", "unclear", "lost"],
-                "response_style": "clear, step-by-step, patient",
-                "tone": "helpful and educational"
-            },
-            "sad": {
-                "indicators": ["sad", "depressed", "down", "upset", "disappointed"],
-                "response_style": "empathetic, supportive, gentle",
-                "tone": "caring and understanding"
-            }
-        }
+        logger.info("Initialized Natural Conversation Engine")
     
-    async def process_message(self, user_id: str, message: str, session_id: str = None) -> str:
-        """Process user message and generate natural response"""
+    async def process_message(
+        self,
+        user_id: str,
+        session_id: str,
+        message: str,
+        context: Dict[str, Any] = None
+    ) -> ConversationResponse:
+        """Process a natural language message"""
         try:
-            # Get or create conversation state
-            state = await self._get_conversation_state(user_id, session_id)
+            # Create conversation context
+            conversation_context = await self._create_context(
+                user_id, session_id, message, context
+            )
             
-            # Analyze the message
-            analysis = await self._analyze_message(message, state)
+            # Analyze sentiment
+            if self.sentiment_analyzer:
+                conversation_context.sentiment = await self._analyze_sentiment(message)
             
-            # Update conversation state
-            await self._update_conversation_state(state, analysis)
+            # Classify intent
+            conversation_context.intent = await self._classify_intent(message)
             
-            # Generate natural response
-            response = await self._generate_natural_response(message, analysis, state)
+            # Extract entities
+            conversation_context.entities = await self._extract_entities(message)
             
-            # Store conversation memory
-            await self._store_conversation_memory(user_id, message, response, analysis, state)
+            # Determine response type
+            conversation_context.response_type = await self._determine_response_type(
+                conversation_context
+            )
+            
+            # Generate response
+            response = await self._generate_response(conversation_context)
+            
+            # Store in memory
+            if self.memory:
+                await self._store_conversation(conversation_context, response)
             
             return response
             
         except Exception as e:
             logger.error(f"Error processing message: {e}")
-            return await self._generate_fallback_response(message)
+            raise ConversationError(f"Failed to process message: {e}")
     
-    async def _get_conversation_state(self, user_id: str, session_id: str = None) -> ConversationState:
-        """Get or create conversation state for user"""
-        if session_id is None:
-            session_id = f"session_{int(datetime.utcnow().timestamp())}"
-        
-        state_key = f"{user_id}_{session_id}"
-        
-        if state_key not in self.conversation_states:
-            # Create new conversation state
-            self.conversation_states[state_key] = ConversationState(
-                user_id=user_id,
-                session_id=session_id,
-                style=ConversationStyle.ADAPTIVE,
-                context=ConversationContext.GREETING,
-                mood="neutral",
-                topics=[],
-                last_interaction=datetime.utcnow(),
-                conversation_depth=0,
-                user_preferences={},
-                emotional_context={}
-            )
-        
-        return self.conversation_states[state_key]
+    async def _create_context(
+        self,
+        user_id: str,
+        session_id: str,
+        message: str,
+        context: Dict[str, Any] = None
+    ) -> ConversationContext:
+        """Create conversation context"""
+        return ConversationContext(
+            user_id=user_id,
+            session_id=session_id,
+            message=message,
+            timestamp=datetime.now().isoformat(),
+            sentiment="neutral",
+            intent="unknown",
+            entities=[],
+            response_type="default",
+            confidence=0.0
+        )
     
-    async def _analyze_message(self, message: str, state: ConversationState) -> Dict[str, Any]:
-        """Analyze user message for context, emotion, and intent"""
-        
-        # Use AI to analyze the message
-        analysis_prompt = f"""
-        Analyze this user message and provide a detailed analysis in JSON format:
-        
-        User Message: "{message}"
-        Current Context: {state.context.value}
-        Current Mood: {state.mood}
-        Previous Topics: {state.topics}
-        
-        Please analyze and return JSON with:
-        {{
-            "context": "greeting|question|request|complaint|compliment|small_talk|deep_discussion|problem_solving|creative_work|technical_support",
-            "emotional_tone": "happy|neutral|frustrated|excited|confused|sad|angry|curious|surprised",
-            "topics": ["list", "of", "main", "topics"],
-            "intent": "what the user wants to accomplish",
-            "requires_action": true/false,
-            "action_type": "if action required, what type",
-            "confidence": 0.0-1.0,
-            "follow_up_needed": true/false,
-            "conversation_depth": 1-10,
-            "suggested_style": "professional|casual|friendly|technical|creative|adaptive"
-        }}
-        """
-        
+    async def _analyze_sentiment(self, message: str) -> str:
+        """Analyze message sentiment"""
         try:
-            response = await self.llm_provider.generate_response(
-                prompt=analysis_prompt,
-                max_tokens=500,
-                temperature=0.3
-            )
+            if not self.sentiment_analyzer:
+                return "neutral"
             
-            # Parse AI response
-            analysis = json.loads(response.strip())
+            sentiment_result = await self.sentiment_analyzer.analyze_sentiment(message)
+            return sentiment_result.get("sentiment", "neutral")
             
         except Exception as e:
-            logger.warning(f"AI analysis failed, using fallback: {e}")
-            # Fallback analysis
-            analysis = self._fallback_analysis(message, state)
-        
-        return analysis
+            logger.error(f"Error analyzing sentiment: {e}")
+            return "neutral"
     
-    def _fallback_analysis(self, message: str, state: ConversationState) -> Dict[str, Any]:
-        """Fallback analysis when AI fails"""
-        message_lower = message.lower()
-        
-        # Simple pattern matching
-        if any(word in message_lower for word in ["hello", "hi", "hey", "good morning", "good afternoon"]):
-            context = "greeting"
-        elif "?" in message:
-            context = "question"
-        elif any(word in message_lower for word in ["please", "can you", "could you", "help me"]):
-            context = "request"
-        else:
-            context = "small_talk"
-        
-        return {
-            "context": context,
-            "emotional_tone": "neutral",
-            "topics": [],
-            "intent": "general conversation",
-            "requires_action": False,
-            "confidence": 0.5,
-            "follow_up_needed": False,
-            "conversation_depth": 1,
-            "suggested_style": "friendly"
-        }
-    
-    async def _update_conversation_state(self, state: ConversationState, analysis: Dict[str, Any]):
-        """Update conversation state based on analysis"""
-        state.context = ConversationContext(analysis.get("context", "small_talk"))
-        state.mood = analysis.get("emotional_tone", "neutral")
-        state.last_interaction = datetime.utcnow()
-        state.conversation_depth = analysis.get("conversation_depth", 1)
-        
-        # Update topics
-        new_topics = analysis.get("topics", [])
-        for topic in new_topics:
-            if topic not in state.topics:
-                state.topics.append(topic)
-        
-        # Keep only recent topics (last 10)
-        if len(state.topics) > 10:
-            state.topics = state.topics[-10:]
-        
-        # Update style based on suggestion
-        suggested_style = analysis.get("suggested_style", "adaptive")
-        if suggested_style != "adaptive":
-            state.style = ConversationStyle(suggested_style)
-    
-    async def _generate_natural_response(self, message: str, analysis: Dict[str, Any], state: ConversationState) -> str:
-        """Generate natural, human-like response"""
-        
-        # Build context for AI response generation
-        context_info = {
-            "user_message": message,
-            "conversation_context": state.context.value,
-            "emotional_tone": state.mood,
-            "conversation_style": state.style.value,
-            "topics": state.topics,
-            "conversation_depth": state.conversation_depth,
-            "user_preferences": state.user_preferences,
-            "requires_action": analysis.get("requires_action", False),
-            "action_type": analysis.get("action_type", ""),
-            "follow_up_needed": analysis.get("follow_up_needed", False)
-        }
-        
-        # Generate response using AI
-        response_prompt = self._build_response_prompt(context_info)
-        
+    async def _classify_intent(self, message: str) -> str:
+        """Classify message intent"""
         try:
-            response = await self.llm_provider.generate_response(
-                prompt=response_prompt,
-                max_tokens=300,
-                temperature=0.7  # Higher temperature for more natural responses
+            message_lower = message.lower()
+            
+            # Check greeting patterns
+            for pattern in self.greeting_patterns:
+                if re.search(pattern, message_lower, re.IGNORECASE):
+                    return "greeting"
+            
+            # Check question patterns
+            for pattern in self.question_patterns:
+                if re.search(pattern, message_lower, re.IGNORECASE):
+                    return "question"
+            
+            # Check command patterns
+            for pattern in self.command_patterns:
+                if re.search(pattern, message_lower, re.IGNORECASE):
+                    return "command"
+            
+            # Check thank you patterns
+            for pattern in self.thank_you_patterns:
+                if re.search(pattern, message_lower, re.IGNORECASE):
+                    return "thank_you"
+            
+            # Check goodbye patterns
+            for pattern in self.goodbye_patterns:
+                if re.search(pattern, message_lower, re.IGNORECASE):
+                    return "goodbye"
+            
+            return "unknown"
+            
+        except Exception as e:
+            logger.error(f"Error classifying intent: {e}")
+            return "unknown"
+    
+    async def _extract_entities(self, message: str) -> List[Dict[str, Any]]:
+        """Extract entities from message"""
+        try:
+            entities = []
+            
+            # Simple entity extraction patterns
+            patterns = {
+                "email": r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
+                "url": r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+',
+                "phone": r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b',
+                "date": r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b',
+                "time": r'\b\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\b',
+                "number": r'\b\d+\b',
+                "currency": r'\$\d+(?:\.\d{2})?\b'
+            }
+            
+            for entity_type, pattern in patterns.items():
+                matches = re.finditer(pattern, message, re.IGNORECASE)
+                for match in matches:
+                    entities.append({
+                        "type": entity_type,
+                        "value": match.group(),
+                        "start": match.start(),
+                        "end": match.end()
+                    })
+            
+            return entities
+            
+        except Exception as e:
+            logger.error(f"Error extracting entities: {e}")
+            return []
+    
+    async def _determine_response_type(self, context: ConversationContext) -> str:
+        """Determine response type based on context"""
+        try:
+            # Use intent to determine response type
+            intent_response_map = {
+                "greeting": "greeting",
+                "question": "question",
+                "command": "command",
+                "thank_you": "thank_you",
+                "goodbye": "goodbye"
+            }
+            
+            response_type = intent_response_map.get(context.intent, "default")
+            
+            # Adjust based on sentiment
+            if context.sentiment == "negative":
+                response_type = "empathetic"
+            elif context.sentiment == "positive":
+                response_type = "enthusiastic"
+            
+            return response_type
+            
+        except Exception as e:
+            logger.error(f"Error determining response type: {e}")
+            return "default"
+    
+    async def _generate_response(self, context: ConversationContext) -> ConversationResponse:
+        """Generate response based on context"""
+        try:
+            # Get response template
+            templates = self.response_templates.get(context.response_type, self.response_templates["default"])
+            
+            # Select template (simple round-robin for now)
+            template_index = hash(context.message) % len(templates)
+            base_response = templates[template_index]
+            
+            # Enhance with personality
+            if self.personality_engine:
+                enhanced_response = await self._enhance_with_personality(
+                    base_response, context
+                )
+            else:
+                enhanced_response = base_response
+            
+            # Use LLM for complex responses if available
+            if self.llm_provider and context.intent in ["question", "command"]:
+                llm_response = await self._generate_llm_response(context)
+                if llm_response:
+                    enhanced_response = llm_response
+            
+            # Calculate confidence
+            confidence = await self._calculate_confidence(context)
+            
+            return ConversationResponse(
+                message=enhanced_response,
+                response_type=context.response_type,
+                confidence=confidence,
+                timestamp=datetime.now().isoformat(),
+                metadata={
+                    "intent": context.intent,
+                    "sentiment": context.sentiment,
+                    "entities": context.entities,
+                    "template_used": template_index
+                }
             )
             
-            # Post-process response
-            response = self._post_process_response(response, analysis, state)
+        except Exception as e:
+            logger.error(f"Error generating response: {e}")
+            return ConversationResponse(
+                message="I apologize, but I'm having trouble processing your request right now.",
+                response_type="error",
+                confidence=0.0,
+                timestamp=datetime.now().isoformat(),
+                metadata={"error": str(e)}
+            )
+    
+    async def _enhance_with_personality(
+        self,
+        response: str,
+        context: ConversationContext
+    ) -> str:
+        """Enhance response with personality"""
+        try:
+            if not self.personality_engine:
+                return response
+            
+            # Get personality traits
+            traits = await self.personality_engine.get_personality_traits()
+            
+            # Apply personality modifications
+            if traits.get("enthusiasm", 0.5) > 0.7:
+                response = f"{response} I'm excited to help you with this!"
+            
+            if traits.get("empathy", 0.5) > 0.7 and context.sentiment == "negative":
+                response = f"I understand this might be challenging. {response}"
+            
+            if traits.get("humor", 0.5) > 0.7:
+                response = f"{response} (And I promise to keep things interesting!)"
             
             return response
             
         except Exception as e:
-            logger.error(f"Error generating AI response: {e}")
-            return await self._generate_fallback_response(message)
+            logger.error(f"Error enhancing with personality: {e}")
+            return response
     
-    def _build_response_prompt(self, context: Dict[str, Any]) -> str:
-        """Build prompt for AI response generation"""
-        
+    async def _generate_llm_response(self, context: ConversationContext) -> Optional[str]:
+        """Generate response using LLM"""
+        try:
+            if not self.llm_provider:
+                return None
+            
+            # Create prompt for LLM
+            prompt = self._create_llm_prompt(context)
+            
+            # Generate response
+            response = await self.llm_provider.generate_response(
+                prompt=prompt,
+                max_tokens=200,
+                temperature=0.7
+            )
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error generating LLM response: {e}")
+            return None
+    
+    def _create_llm_prompt(self, context: ConversationContext) -> str:
+        """Create prompt for LLM"""
         prompt = f"""
-        You are an advanced AI assistant having a natural, human-like conversation. 
+        You are JARVIS, an advanced AI assistant. Respond to the user's message naturally and helpfully.
         
-        Context:
-        - User Message: "{context['user_message']}"
-        - Conversation Context: {context['conversation_context']}
-        - Emotional Tone: {context['emotional_tone']}
-        - Style: {context['conversation_style']}
-        - Topics: {context['topics']}
-        - Conversation Depth: {context['conversation_depth']}
-        - Requires Action: {context['requires_action']}
-        - Action Type: {context['action_type']}
-        - Follow-up Needed: {context['follow_up_needed']}
+        User message: {context.message}
+        Intent: {context.intent}
+        Sentiment: {context.sentiment}
         
-        Guidelines:
-        1. Respond naturally and conversationally, like a human would
-        2. Match the emotional tone appropriately
-        3. Be helpful and engaging
-        4. If action is required, explain what you'll do
-        5. If follow-up is needed, ask relevant questions
-        6. Keep responses concise but complete
-        7. Show personality and warmth
-        8. Avoid robotic or template-like responses
-        
-        Generate a natural, human-like response:
+        Respond in a conversational, helpful manner. Keep your response concise but informative.
         """
         
-        return prompt
+        return prompt.strip()
     
-    def _post_process_response(self, response: str, analysis: Dict[str, Any], state: ConversationState) -> str:
-        """Post-process AI response to make it more natural"""
-        
-        # Clean up response
-        response = response.strip()
-        
-        # Remove any AI artifacts
-        response = re.sub(r'^(AI|Assistant|Bot):\s*', '', response, flags=re.IGNORECASE)
-        
-        # Add emotional context if needed
-        if state.mood in ["frustrated", "sad"] and "I understand" not in response:
-            response = f"I understand. {response}"
-        
-        # Add follow-up questions if needed
-        if analysis.get("follow_up_needed", False):
-            follow_up = self._generate_follow_up_question(analysis, state)
-            if follow_up:
-                response += f" {follow_up}"
-        
-        return response
+    async def _calculate_confidence(self, context: ConversationContext) -> float:
+        """Calculate response confidence"""
+        try:
+            confidence = 0.5  # Base confidence
+            
+            # Increase confidence based on intent clarity
+            if context.intent != "unknown":
+                confidence += 0.2
+            
+            # Increase confidence based on sentiment analysis
+            if context.sentiment != "neutral":
+                confidence += 0.1
+            
+            # Increase confidence based on entity extraction
+            if context.entities:
+                confidence += 0.1
+            
+            # Cap at 1.0
+            return min(confidence, 1.0)
+            
+        except Exception as e:
+            logger.error(f"Error calculating confidence: {e}")
+            return 0.5
     
-    def _generate_follow_up_question(self, analysis: Dict[str, Any], state: ConversationState) -> str:
-        """Generate natural follow-up questions"""
-        
-        context = analysis.get("context", "small_talk")
-        intent = analysis.get("intent", "")
-        
-        follow_ups = {
-            "question": "Is there anything specific you'd like to know more about?",
-            "request": "Would you like me to help you with that?",
-            "problem_solving": "What approach would you prefer to take?",
-            "creative_work": "What style or direction are you thinking?",
-            "technical_support": "Can you tell me more about the issue you're experiencing?"
-        }
-        
-        return follow_ups.get(context, "")
-    
-    async def _generate_fallback_response(self, message: str) -> str:
-        """Generate fallback response when AI fails"""
-        
-        message_lower = message.lower()
-        
-        # Check for greetings
-        if any(word in message_lower for word in ["hello", "hi", "hey"]):
-            return random.choice(self.fallback_responses["greeting"])
-        
-        # Check for confusion indicators
-        if any(word in message_lower for word in ["what", "how", "why", "when", "where"]):
-            return random.choice(self.fallback_responses["encouragement"])
-        
-        # Default response
-        return "I'm here to help! Could you tell me more about what you need?"
-    
-    async def _store_conversation_memory(self, user_id: str, message: str, response: str, 
-                                       analysis: Dict[str, Any], state: ConversationState):
+    async def _store_conversation(
+        self,
+        context: ConversationContext,
+        response: ConversationResponse
+    ) -> None:
         """Store conversation in memory"""
-        
-        memory_entry = ConversationMemory(
-            timestamp=datetime.utcnow(),
-            user_message=message,
-            ai_response=response,
-            context=ConversationContext(analysis.get("context", "small_talk")),
-            emotional_tone=analysis.get("emotional_tone", "neutral"),
-            topics=analysis.get("topics", []),
-            follow_up_needed=analysis.get("follow_up_needed", False)
-        )
-        
-        if user_id not in self.conversation_memories:
-            self.conversation_memories[user_id] = []
-        
-        self.conversation_memories[user_id].append(memory_entry)
-        
-        # Keep only recent conversations (last 100)
-        if len(self.conversation_memories[user_id]) > 100:
-            self.conversation_memories[user_id] = self.conversation_memories[user_id][-100:]
+        try:
+            if not self.memory:
+                return
+            
+            # Store user message
+            await self.memory.add_message(
+                user_id=context.user_id,
+                session_id=context.session_id,
+                message=context.message,
+                message_type="user",
+                metadata={
+                    "intent": context.intent,
+                    "sentiment": context.sentiment,
+                    "entities": context.entities
+                }
+            )
+            
+            # Store assistant response
+            await self.memory.add_message(
+                user_id=context.user_id,
+                session_id=context.session_id,
+                message=response.message,
+                message_type="assistant",
+                metadata={
+                    "response_type": response.response_type,
+                    "confidence": response.confidence,
+                    "template_used": response.metadata.get("template_used")
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"Error storing conversation: {e}")
     
-    async def get_conversation_history(self, user_id: str, limit: int = 10) -> List[Dict[str, Any]]:
-        """Get conversation history for user"""
-        if user_id not in self.conversation_memories:
+    async def get_conversation_history(
+        self,
+        user_id: str,
+        session_id: str,
+        limit: int = 10
+    ) -> List[Dict[str, Any]]:
+        """Get conversation history"""
+        try:
+            if not self.memory:
+                return []
+            
+            return await self.memory.get_conversation_history(
+                user_id=user_id,
+                session_id=session_id,
+                limit=limit
+            )
+            
+        except Exception as e:
+            logger.error(f"Error getting conversation history: {e}")
             return []
-        
-        recent_memories = self.conversation_memories[user_id][-limit:]
-        
-        return [
-            {
-                "timestamp": memory.timestamp.isoformat(),
-                "user_message": memory.user_message,
-                "ai_response": memory.ai_response,
-                "context": memory.context.value,
-                "emotional_tone": memory.emotional_tone,
-                "topics": memory.topics
-            }
-            for memory in recent_memories
-        ]
     
-    async def get_conversation_insights(self, user_id: str) -> Dict[str, Any]:
-        """Get insights about user's conversation patterns"""
-        if user_id not in self.conversation_memories:
-            return {"message": "No conversation history available"}
-        
-        memories = self.conversation_memories[user_id]
-        
-        # Analyze patterns
-        contexts = [memory.context.value for memory in memories]
-        emotional_tones = [memory.emotional_tone for memory in memories]
-        topics = []
-        for memory in memories:
-            topics.extend(memory.topics)
-        
-        # Count frequencies
-        context_counts = {}
-        for context in contexts:
-            context_counts[context] = context_counts.get(context, 0) + 1
-        
-        emotional_counts = {}
-        for tone in emotional_tones:
-            emotional_counts[tone] = emotional_counts.get(tone, 0) + 1
-        
-        topic_counts = {}
-        for topic in topics:
-            topic_counts[topic] = topic_counts.get(topic, 0) + 1
-        
-        return {
-            "total_conversations": len(memories),
-            "most_common_context": max(context_counts.items(), key=lambda x: x[1])[0] if context_counts else "unknown",
-            "most_common_emotional_tone": max(emotional_counts.items(), key=lambda x: x[1])[0] if emotional_counts else "neutral",
-            "top_topics": sorted(topic_counts.items(), key=lambda x: x[1], reverse=True)[:5],
-            "conversation_frequency": len(memories) / max(1, (datetime.utcnow() - memories[0].timestamp).days) if memories else 0
-        }
-    
-    def get_conversation_statistics(self) -> Dict[str, Any]:
-        """Get overall conversation statistics"""
-        total_users = len(self.conversation_memories)
-        total_conversations = sum(len(memories) for memories in self.conversation_memories.values())
-        active_sessions = len(self.conversation_states)
-        
-        return {
-            "total_users": total_users,
-            "total_conversations": total_conversations,
-            "active_sessions": active_sessions,
-            "average_conversations_per_user": total_conversations / max(1, total_users)
-        }
+    async def clear_conversation(
+        self,
+        user_id: str,
+        session_id: str
+    ) -> bool:
+        """Clear conversation history"""
+        try:
+            if not self.memory:
+                return False
+            
+            return await self.memory.clear_conversation(
+                user_id=user_id,
+                session_id=session_id
+            )
+            
+        except Exception as e:
+            logger.error(f"Error clearing conversation: {e}")
+            return False
 
 
 # Global conversation engine instance
-_conversation_engine: Optional[NaturalConversationEngine] = None
+_conversation_engine = None
 
 
-def get_natural_conversation_engine() -> NaturalConversationEngine:
-    """Get global natural conversation engine instance"""
+def get_conversation_engine() -> NaturalConversationEngine:
+    """Get global conversation engine instance"""
     global _conversation_engine
     if _conversation_engine is None:
         _conversation_engine = NaturalConversationEngine()
     return _conversation_engine
 
 
-async def chat_with_ai(user_message: str, user_id: str = "default", session_id: str = None) -> str:
-    """Simple function to chat with the AI"""
-    engine = get_natural_conversation_engine()
-    return await engine.process_message(user_id, user_message, session_id)
+# Export public API
+__all__ = [
+    "ConversationContext",
+    "ConversationResponse",
+    "NaturalConversationEngine",
+    "get_conversation_engine"
+]

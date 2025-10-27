@@ -1,185 +1,231 @@
 """
-Rate limiting middleware
-Implements sliding window rate limiting for API endpoints
+Rate Limiting Middleware for Atulya Tantra AGI
+Request rate limiting and throttling
 """
 
 import time
-from typing import Dict, List, Optional, Callable
-from collections import defaultdict, deque
-from fastapi import Request, HTTPException, status
+from typing import Dict, Optional
+from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 
-from ..config.settings import settings
 from ..config.logging import get_logger
+from ..config.exceptions import RateLimitExceeded
 
 logger = get_logger(__name__)
 
+
 class RateLimiter:
-    """Implements sliding window rate limiting"""
+    """Rate limiter implementation"""
     
     def __init__(self):
-        self.requests: Dict[str, deque] = defaultdict(deque)
+        self.requests: Dict[str, list] = {}
+        self.default_limit = 100  # requests per minute
+        self.default_window = 60  # seconds
         self.cleanup_interval = 300  # 5 minutes
         self.last_cleanup = time.time()
     
     def is_allowed(
-        self, 
-        identifier: str, 
-        limit: int = None, 
-        window: int = None
+        self,
+        identifier: str,
+        limit: Optional[int] = None,
+        window: Optional[int] = None
     ) -> bool:
-        """Check if request is allowed based on rate limit"""
-        limit = limit or settings.rate_limit_requests
-        window = window or settings.rate_limit_window
-        
-        now = time.time()
-        identifier_requests = self.requests[identifier]
-        
-        # Remove expired requests
-        while identifier_requests and identifier_requests[0] <= now - window:
-            identifier_requests.popleft()
-        
-        # Check if limit exceeded
-        if len(identifier_requests) >= limit:
-            return False
-        
-        # Add current request
-        identifier_requests.append(now)
-        
-        # Cleanup old entries periodically
-        if now - self.last_cleanup > self.cleanup_interval:
-            self._cleanup_expired_entries(now, window)
-            self.last_cleanup = now
-        
-        return True
-    
-    def get_remaining_requests(self, identifier: str, limit: int = None) -> int:
-        """Get remaining requests for identifier"""
-        limit = limit or settings.rate_limit_requests
-        identifier_requests = self.requests[identifier]
-        return max(0, limit - len(identifier_requests))
-    
-    def get_reset_time(self, identifier: str, window: int = None) -> float:
-        """Get time when rate limit resets"""
-        window = window or settings.rate_limit_window
-        identifier_requests = self.requests[identifier]
-        
-        if not identifier_requests:
-            return time.time()
-        
-        return identifier_requests[0] + window
-    
-    def _cleanup_expired_entries(self, now: float, window: int) -> None:
-        """Clean up expired entries from memory"""
-        expired_identifiers = []
-        
-        for identifier, requests in self.requests.items():
-            # Remove expired requests
-            while requests and requests[0] <= now - window:
-                requests.popleft()
+        """Check if request is allowed"""
+        try:
+            current_time = time.time()
+            limit = limit or self.default_limit
+            window = window or self.default_window
             
-            # Remove empty entries
-            if not requests:
-                expired_identifiers.append(identifier)
-        
-        for identifier in expired_identifiers:
-            del self.requests[identifier]
+            # Cleanup old entries periodically
+            if current_time - self.last_cleanup > self.cleanup_interval:
+                self._cleanup_old_entries(current_time, window)
+                self.last_cleanup = current_time
+            
+            # Get request history for identifier
+            if identifier not in self.requests:
+                self.requests[identifier] = []
+            
+            request_times = self.requests[identifier]
+            
+            # Remove old requests outside window
+            cutoff_time = current_time - window
+            request_times[:] = [t for t in request_times if t > cutoff_time]
+            
+            # Check if under limit
+            if len(request_times) < limit:
+                request_times.append(current_time)
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error checking rate limit: {e}")
+            return True  # Allow on error
+    
+    def get_remaining_requests(
+        self,
+        identifier: str,
+        limit: Optional[int] = None,
+        window: Optional[int] = None
+    ) -> int:
+        """Get remaining requests for identifier"""
+        try:
+            current_time = time.time()
+            limit = limit or self.default_limit
+            window = window or self.default_window
+            
+            if identifier not in self.requests:
+                return limit
+            
+            request_times = self.requests[identifier]
+            cutoff_time = current_time - window
+            recent_requests = [t for t in request_times if t > cutoff_time]
+            
+            return max(0, limit - len(recent_requests))
+            
+        except Exception as e:
+            logger.error(f"Error getting remaining requests: {e}")
+            return limit
+    
+    def get_reset_time(
+        self,
+        identifier: str,
+        window: Optional[int] = None
+    ) -> float:
+        """Get time when rate limit resets"""
+        try:
+            window = window or self.default_window
+            
+            if identifier not in self.requests:
+                return time.time() + window
+            
+            request_times = self.requests[identifier]
+            if not request_times:
+                return time.time() + window
+            
+            oldest_request = min(request_times)
+            return oldest_request + window
+            
+        except Exception as e:
+            logger.error(f"Error getting reset time: {e}")
+            return time.time() + window
+    
+    def _cleanup_old_entries(self, current_time: float, window: int):
+        """Clean up old request entries"""
+        try:
+            cutoff_time = current_time - window
+            
+            for identifier in list(self.requests.keys()):
+                request_times = self.requests[identifier]
+                request_times[:] = [t for t in request_times if t > cutoff_time]
+                
+                # Remove empty entries
+                if not request_times:
+                    del self.requests[identifier]
+                    
+        except Exception as e:
+            logger.error(f"Error cleaning up old entries: {e}")
+
 
 # Global rate limiter instance
-rate_limiter = RateLimiter()
+_rate_limiter = None
 
-def get_client_identifier(request: Request) -> str:
-    """Get unique identifier for rate limiting"""
-    # Try to get user ID from JWT token first
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
+
+def get_rate_limiter() -> RateLimiter:
+    """Get global rate limiter instance"""
+    global _rate_limiter
+    if _rate_limiter is None:
+        _rate_limiter = RateLimiter()
+    return _rate_limiter
+
+
+class RateLimitMiddleware:
+    """Rate limiting middleware for FastAPI"""
+    
+    def __init__(
+        self,
+        limit: int = 100,
+        window: int = 60,
+        identifier_func: Optional[callable] = None
+    ):
+        self.limit = limit
+        self.window = window
+        self.identifier_func = identifier_func or self._default_identifier
+        self.rate_limiter = get_rate_limiter()
+    
+    def _default_identifier(self, request: Request) -> str:
+        """Default identifier function using client IP"""
+        # Get client IP
+        client_ip = request.client.host
+        
+        # Check for forwarded IP
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        if forwarded_for:
+            client_ip = forwarded_for.split(",")[0].strip()
+        
+        return client_ip
+    
+    async def __call__(self, request: Request, call_next):
+        """Middleware function"""
         try:
-            from ..auth.jwt import verify_token
-            token = auth_header.split(" ")[1]
-            payload = verify_token(token)
-            return f"user:{payload.get('sub', 'unknown')}"
-        except Exception:
-            pass
-    
-    # Fall back to IP address
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        ip = forwarded_for.split(",")[0].strip()
-    else:
-        ip = request.client.host if request.client else "unknown"
-    
-    return f"ip:{ip}"
-
-async def rate_limit_middleware(request: Request, call_next):
-    """Rate limiting middleware"""
-    # Skip rate limiting for health checks and docs
-    if request.url.path in ["/health", "/docs", "/redoc", "/openapi.json"]:
-        return await call_next(request)
-    
-    # Get client identifier
-    identifier = get_client_identifier(request)
-    
-    # Check rate limit
-    if not rate_limiter.is_allowed(identifier):
-        reset_time = rate_limiter.get_reset_time(identifier)
-        retry_after = int(reset_time - time.time())
-        
-        logger.warning(f"Rate limit exceeded for {identifier}")
-        
-        return JSONResponse(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            content={
-                "error": "Rate limit exceeded",
-                "retry_after": retry_after,
-                "limit": settings.rate_limit_requests,
-                "window": settings.rate_limit_window
-            },
-            headers={
-                "Retry-After": str(retry_after),
-                "X-RateLimit-Limit": str(settings.rate_limit_requests),
-                "X-RateLimit-Remaining": "0",
-                "X-RateLimit-Reset": str(int(reset_time))
-            }
-        )
-    
-    # Add rate limit headers to response
-    response = await call_next(request)
-    
-    remaining = rate_limiter.get_remaining_requests(identifier)
-    reset_time = rate_limiter.get_reset_time(identifier)
-    
-    response.headers["X-RateLimit-Limit"] = str(settings.rate_limit_requests)
-    response.headers["X-RateLimit-Remaining"] = str(remaining)
-    response.headers["X-RateLimit-Reset"] = str(int(reset_time))
-    
-    return response
-
-def create_rate_limit_decorator(limit: int, window: int = 60):
-    """Create a rate limit decorator for specific endpoints"""
-    def decorator(func: Callable):
-        async def wrapper(*args, **kwargs):
-            # Extract request from kwargs
-            request = None
-            for arg in args:
-                if isinstance(arg, Request):
-                    request = arg
-                    break
+            # Get identifier
+            identifier = self.identifier_func(request)
             
-            if not request:
-                return await func(*args, **kwargs)
-            
-            identifier = get_client_identifier(request)
-            
-            if not rate_limiter.is_allowed(identifier, limit, window):
-                reset_time = rate_limiter.get_reset_time(identifier, window)
-                retry_after = int(reset_time - time.time())
+            # Check rate limit
+            if not self.rate_limiter.is_allowed(identifier, self.limit, self.window):
+                remaining = self.rate_limiter.get_remaining_requests(identifier, self.limit, self.window)
+                reset_time = self.rate_limiter.get_reset_time(identifier, self.window)
                 
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail=f"Rate limit exceeded. Try again in {retry_after} seconds",
-                    headers={"Retry-After": str(retry_after)}
+                response = JSONResponse(
+                    status_code=429,
+                    content={
+                        "error": "Rate limit exceeded",
+                        "message": "Too many requests",
+                        "retry_after": int(reset_time - time.time()),
+                        "remaining": remaining
+                    }
                 )
+                
+                # Add rate limit headers
+                response.headers["X-RateLimit-Limit"] = str(self.limit)
+                response.headers["X-RateLimit-Remaining"] = str(remaining)
+                response.headers["X-RateLimit-Reset"] = str(int(reset_time))
+                response.headers["Retry-After"] = str(int(reset_time - time.time()))
+                
+                return response
             
-            return await func(*args, **kwargs)
-        return wrapper
-    return decorator
+            # Process request
+            response = await call_next(request)
+            
+            # Add rate limit headers to response
+            remaining = self.rate_limiter.get_remaining_requests(identifier, self.limit, self.window)
+            reset_time = self.rate_limiter.get_reset_time(identifier, self.window)
+            
+            response.headers["X-RateLimit-Limit"] = str(self.limit)
+            response.headers["X-RateLimit-Remaining"] = str(remaining)
+            response.headers["X-RateLimit-Reset"] = str(int(reset_time))
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error in rate limit middleware: {e}")
+            # Allow request on error
+            return await call_next(request)
+
+
+def create_rate_limit_middleware(
+    limit: int = 100,
+    window: int = 60,
+    identifier_func: Optional[callable] = None
+) -> RateLimitMiddleware:
+    """Create rate limit middleware"""
+    return RateLimitMiddleware(limit, window, identifier_func)
+
+
+# Export public API
+__all__ = [
+    "RateLimiter",
+    "RateLimitMiddleware",
+    "get_rate_limiter",
+    "create_rate_limit_middleware"
+]

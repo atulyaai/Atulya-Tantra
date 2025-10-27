@@ -1,27 +1,22 @@
 """
-Advanced Alerting System
-Multi-channel alerting with intelligent routing and escalation
+Alerting System for Atulya Tantra AGI
+Handles system alerts and notifications
 """
 
 import asyncio
 import json
-import time
-from typing import Dict, List, Any, Optional, Callable, Union
+from typing import Dict, Any, List, Optional, Callable
 from datetime import datetime, timedelta
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-import smtplib
-import aiohttp
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
 from ..config.logging import get_logger
-from ..config.exceptions import MonitoringError
+from ..config.exceptions import SystemError, ValidationError
 
 logger = get_logger(__name__)
 
 
-class AlertSeverity(str, Enum):
+class AlertLevel(Enum):
     """Alert severity levels"""
     INFO = "info"
     WARNING = "warning"
@@ -29,7 +24,7 @@ class AlertSeverity(str, Enum):
     CRITICAL = "critical"
 
 
-class AlertStatus(str, Enum):
+class AlertStatus(Enum):
     """Alert status"""
     ACTIVE = "active"
     ACKNOWLEDGED = "acknowledged"
@@ -37,666 +32,506 @@ class AlertStatus(str, Enum):
     SUPPRESSED = "suppressed"
 
 
-class NotificationChannelType(str, Enum):
-    """Notification channel types"""
-    EMAIL = "email"
-    WEBHOOK = "webhook"
-    SLACK = "slack"
-    DISCORD = "discord"
-    TELEGRAM = "telegram"
-    CONSOLE = "console"
-    LOG = "log"
+@dataclass
+class Alert:
+    """Alert definition"""
+    id: str
+    level: AlertLevel
+    message: str
+    component: str
+    status: AlertStatus
+    created_at: str
+    updated_at: str
+    resolved_at: Optional[str]
+    metadata: Dict[str, Any]
+    user_id: Optional[str]
 
 
 @dataclass
 class AlertRule:
     """Alert rule definition"""
-    name: str
-    description: str
-    query: str  # Prometheus query
-    condition: str  # Condition to trigger alert
-    severity: AlertSeverity
-    duration: str = "0s"  # How long condition must be true
-    labels: Dict[str, str] = field(default_factory=dict)
-    annotations: Dict[str, str] = field(default_factory=dict)
-    enabled: bool = True
-    cooldown: int = 300  # Seconds between alerts
-
-
-@dataclass
-class Alert:
-    """Active alert instance"""
     id: str
-    rule_name: str
-    severity: AlertSeverity
-    status: AlertStatus
-    message: str
-    labels: Dict[str, str]
-    annotations: Dict[str, str]
-    created_at: datetime
-    updated_at: datetime
-    acknowledged_by: Optional[str] = None
-    acknowledged_at: Optional[datetime] = None
-    resolved_at: Optional[datetime] = None
-    escalation_level: int = 0
-
-
-@dataclass
-class NotificationChannel:
-    """Notification channel configuration"""
     name: str
-    type: NotificationChannelType
-    config: Dict[str, Any]
-    enabled: bool = True
-    escalation_delay: int = 0  # Minutes before escalation
-    max_escalation_level: int = 3
+    condition: str
+    level: AlertLevel
+    enabled: bool
+    cooldown_seconds: int
+    max_alerts_per_hour: int
+    notification_channels: List[str]
+    created_at: str
+    updated_at: str
 
 
 class AlertManager:
-    """Advanced alerting system with multi-channel support"""
+    """Alert management system"""
     
     def __init__(self):
-        self.rules: Dict[str, AlertRule] = {}
-        self.active_alerts: Dict[str, Alert] = {}
-        self.channels: Dict[str, NotificationChannel] = {}
-        self.escalation_timers: Dict[str, asyncio.Task] = {}
-        self.alert_history: List[Alert] = []
-        self.is_running = False
-        self.check_interval = 30  # seconds
+        self.alerts: Dict[str, Alert] = {}
+        self.alert_rules: Dict[str, AlertRule] = {}
+        self.notification_channels: Dict[str, Callable] = {}
         
-        # Initialize default rules and channels
-        self._create_default_rules()
-        self._create_default_channels()
+        # Alert suppression
+        self.suppressed_alerts: Dict[str, datetime] = {}
+        
+        # Initialize default rules
+        self._initialize_default_rules()
+        
+        logger.info("Initialized Alert Manager")
     
-    def _create_default_rules(self):
-        """Create default alert rules"""
-        
-        # High error rate
-        self.add_rule(AlertRule(
-            name="high_error_rate",
-            description="High error rate detected",
-            query="rate(tantra_errors_total[5m]) > 0.1",
-            condition="> 0.1",
-            severity=AlertSeverity.WARNING,
-            duration="2m",
-            labels={"service": "tantra"},
-            annotations={
-                "summary": "High error rate detected",
-                "description": "Error rate is above 0.1 errors per second"
-            }
-        ))
-        
-        # High response time
-        self.add_rule(AlertRule(
-            name="high_response_time",
-            description="High response time detected",
-            query="histogram_quantile(0.95, rate(tantra_request_duration_seconds_bucket[5m])) > 5",
-            condition="> 5",
-            severity=AlertSeverity.WARNING,
-            duration="5m",
-            labels={"service": "tantra"},
-            annotations={
-                "summary": "High response time detected",
-                "description": "95th percentile response time is above 5 seconds"
-            }
-        ))
-        
-        # High memory usage
-        self.add_rule(AlertRule(
-            name="high_memory_usage",
-            description="High memory usage detected",
-            query="tantra_memory_usage_bytes / 1024 / 1024 / 1024 > 8",
-            condition="> 8",
-            severity=AlertSeverity.WARNING,
-            duration="10m",
-            labels={"service": "tantra"},
-            annotations={
-                "summary": "High memory usage detected",
-                "description": "Memory usage is above 8GB"
-            }
-        ))
-        
-        # High CPU usage
-        self.add_rule(AlertRule(
-            name="high_cpu_usage",
-            description="High CPU usage detected",
-            query="tantra_cpu_usage_percent > 80",
-            condition="> 80",
-            severity=AlertSeverity.WARNING,
-            duration="5m",
-            labels={"service": "tantra"},
-            annotations={
-                "summary": "High CPU usage detected",
-                "description": "CPU usage is above 80%"
-            }
-        ))
-        
-        # Service down
-        self.add_rule(AlertRule(
-            name="service_down",
-            description="Service is down",
-            query="up == 0",
-            condition="== 0",
-            severity=AlertSeverity.CRITICAL,
-            duration="1m",
-            labels={"service": "tantra"},
-            annotations={
-                "summary": "Service is down",
-                "description": "Service is not responding"
-            }
-        ))
-        
-        # LLM provider down
-        self.add_rule(AlertRule(
-            name="llm_provider_down",
-            description="LLM provider is down",
-            query="rate(tantra_llm_requests_total{status=\"error\"}[5m]) / rate(tantra_llm_requests_total[5m]) > 0.5",
-            condition="> 0.5",
-            severity=AlertSeverity.ERROR,
-            duration="3m",
-            labels={"service": "llm"},
-            annotations={
-                "summary": "LLM provider is down",
-                "description": "LLM provider error rate is above 50%"
-            }
-        ))
-        
-        logger.info(f"Created {len(self.rules)} default alert rules")
-    
-    def _create_default_channels(self):
-        """Create default notification channels"""
-        
-        # Console channel
-        self.add_channel(NotificationChannel(
-            name="console",
-            type=NotificationChannelType.CONSOLE,
-            config={},
-            escalation_delay=0
-        ))
-        
-        # Log channel
-        self.add_channel(NotificationChannel(
-            name="log",
-            type=NotificationChannelType.LOG,
-            config={"level": "WARNING"},
-            escalation_delay=0
-        ))
-        
-        logger.info(f"Created {len(self.channels)} default notification channels")
-    
-    def add_rule(self, rule: AlertRule):
-        """Add an alert rule"""
-        self.rules[rule.name] = rule
-        logger.info(f"Added alert rule: {rule.name}")
-    
-    def remove_rule(self, rule_name: str):
-        """Remove an alert rule"""
-        if rule_name in self.rules:
-            del self.rules[rule_name]
-            logger.info(f"Removed alert rule: {rule_name}")
-    
-    def add_channel(self, channel: NotificationChannel):
-        """Add a notification channel"""
-        self.channels[channel.name] = channel
-        logger.info(f"Added notification channel: {channel.name}")
-    
-    def remove_channel(self, channel_name: str):
-        """Remove a notification channel"""
-        if channel_name in self.channels:
-            del self.channels[channel_name]
-            logger.info(f"Removed notification channel: {channel_name}")
-    
-    async def start(self):
-        """Start the alert manager"""
-        if self.is_running:
-            return
-        
-        self.is_running = True
-        logger.info("Alert manager started")
-        
-        # Start background checking
-        asyncio.create_task(self._check_alerts_loop())
-    
-    async def stop(self):
-        """Stop the alert manager"""
-        self.is_running = False
-        
-        # Cancel escalation timers
-        for task in self.escalation_timers.values():
-            task.cancel()
-        
-        logger.info("Alert manager stopped")
-    
-    async def _check_alerts_loop(self):
-        """Background loop to check for alerts"""
-        while self.is_running:
-            try:
-                await self._check_all_rules()
-                await asyncio.sleep(self.check_interval)
-            except Exception as e:
-                logger.error(f"Error in alert checking loop: {e}")
-                await asyncio.sleep(60)
-    
-    async def _check_all_rules(self):
-        """Check all alert rules"""
-        for rule_name, rule in self.rules.items():
-            if not rule.enabled:
-                continue
-            
-            try:
-                await self._check_rule(rule)
-            except Exception as e:
-                logger.error(f"Error checking rule {rule_name}: {e}")
-    
-    async def _check_rule(self, rule: AlertRule):
-        """Check a specific alert rule"""
-        # This would normally query Prometheus or another metrics source
-        # For now, we'll simulate based on system metrics
-        
+    def _initialize_default_rules(self):
+        """Initialize default alert rules"""
         try:
-            import psutil
-            process = psutil.Process()
+            # High CPU usage alert
+            self.add_alert_rule(
+                id="high_cpu_usage",
+                name="High CPU Usage",
+                condition="cpu_usage > 90",
+                level=AlertLevel.WARNING,
+                cooldown_seconds=300,
+                max_alerts_per_hour=3,
+                notification_channels=["log", "email"]
+            )
             
-            # Simulate rule evaluation based on rule name
-            should_alert = False
-            current_value = 0
+            # High memory usage alert
+            self.add_alert_rule(
+                id="high_memory_usage",
+                name="High Memory Usage",
+                condition="memory_usage > 95",
+                level=AlertLevel.ERROR,
+                cooldown_seconds=300,
+                max_alerts_per_hour=3,
+                notification_channels=["log", "email", "slack"]
+            )
             
-            if rule.name == "high_memory_usage":
-                memory_info = process.memory_info()
-                current_value = memory_info.rss / 1024 / 1024 / 1024  # GB
-                should_alert = current_value > 8
-                
-            elif rule.name == "high_cpu_usage":
-                current_value = process.cpu_percent()
-                should_alert = current_value > 80
-                
-            elif rule.name == "high_error_rate":
-                # Simulate error rate check
-                current_value = 0.05  # Simulated
-                should_alert = current_value > 0.1
-                
-            elif rule.name == "high_response_time":
-                # Simulate response time check
-                current_value = 2.0  # Simulated
-                should_alert = current_value > 5
-                
-            elif rule.name == "service_down":
-                # Service is up if we can check metrics
-                current_value = 1
-                should_alert = False
-                
-            elif rule.name == "llm_provider_down":
-                # Simulate LLM provider check
-                current_value = 0.1  # Simulated error rate
-                should_alert = current_value > 0.5
+            # Service down alert
+            self.add_alert_rule(
+                id="service_down",
+                name="Service Down",
+                condition="service_status == 'down'",
+                level=AlertLevel.CRITICAL,
+                cooldown_seconds=60,
+                max_alerts_per_hour=10,
+                notification_channels=["log", "email", "slack", "pagerduty"]
+            )
             
-            if should_alert:
-                await self._trigger_alert(rule, current_value)
-            else:
-                await self._resolve_alert(rule.name)
-                
+            # Error rate alert
+            self.add_alert_rule(
+                id="high_error_rate",
+                name="High Error Rate",
+                condition="error_rate > 0.1",
+                level=AlertLevel.ERROR,
+                cooldown_seconds=600,
+                max_alerts_per_hour=5,
+                notification_channels=["log", "email"]
+            )
+            
+            # Disk space alert
+            self.add_alert_rule(
+                id="low_disk_space",
+                name="Low Disk Space",
+                condition="disk_usage > 90",
+                level=AlertLevel.WARNING,
+                cooldown_seconds=1800,
+                max_alerts_per_hour=2,
+                notification_channels=["log", "email"]
+            )
+            
+            logger.info("Initialized default alert rules")
+            
         except Exception as e:
-            logger.error(f"Error evaluating rule {rule.name}: {e}")
+            logger.error(f"Error initializing default rules: {e}")
     
-    async def _trigger_alert(self, rule: AlertRule, current_value: float):
-        """Trigger an alert"""
-        alert_id = f"{rule.name}_{int(time.time())}"
-        
-        # Check if alert already exists
-        existing_alert = None
-        for alert in self.active_alerts.values():
-            if alert.rule_name == rule.name and alert.status in [AlertStatus.ACTIVE, AlertStatus.ACKNOWLEDGED]:
-                existing_alert = alert
-                break
-        
-        if existing_alert:
-            # Update existing alert
-            existing_alert.updated_at = datetime.utcnow()
-            existing_alert.message = f"Rule {rule.name} triggered: {current_value} {rule.condition}"
-            logger.info(f"Updated existing alert: {rule.name}")
-            return
-        
-        # Create new alert
-        alert = Alert(
-            id=alert_id,
-            rule_name=rule.name,
-            severity=rule.severity,
-            status=AlertStatus.ACTIVE,
-            message=f"Rule {rule.name} triggered: {current_value} {rule.condition}",
-            labels=rule.labels.copy(),
-            annotations=rule.annotations.copy(),
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
-        )
-        
-        self.active_alerts[alert_id] = alert
-        self.alert_history.append(alert)
-        
-        # Send notifications
-        await self._send_notifications(alert)
-        
-        # Start escalation timer
-        await self._start_escalation_timer(alert)
-        
-        logger.warning(f"Alert triggered: {rule.name} - {alert.message}")
+    def add_alert_rule(
+        self,
+        id: str,
+        name: str,
+        condition: str,
+        level: AlertLevel,
+        cooldown_seconds: int = 300,
+        max_alerts_per_hour: int = 5,
+        notification_channels: List[str] = None,
+        enabled: bool = True
+    ) -> bool:
+        """Add an alert rule"""
+        try:
+            rule = AlertRule(
+                id=id,
+                name=name,
+                condition=condition,
+                level=level,
+                enabled=enabled,
+                cooldown_seconds=cooldown_seconds,
+                max_alerts_per_hour=max_alerts_per_hour,
+                notification_channels=notification_channels or ["log"],
+                created_at=datetime.now().isoformat(),
+                updated_at=datetime.now().isoformat()
+            )
+            
+            self.alert_rules[id] = rule
+            logger.info(f"Added alert rule: {id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error adding alert rule: {e}")
+            return False
     
-    async def _resolve_alert(self, rule_name: str):
-        """Resolve alerts for a rule"""
-        for alert in self.active_alerts.values():
-            if alert.rule_name == rule_name and alert.status == AlertStatus.ACTIVE:
-                alert.status = AlertStatus.RESOLVED
-                alert.resolved_at = datetime.utcnow()
-                alert.updated_at = datetime.utcnow()
-                
-                # Cancel escalation timer
-                if alert.id in self.escalation_timers:
-                    self.escalation_timers[alert.id].cancel()
-                    del self.escalation_timers[alert.id]
-                
-                # Send resolution notification
-                await self._send_notifications(alert, resolved=True)
-                
-                logger.info(f"Alert resolved: {rule_name}")
+    def update_alert_rule(
+        self,
+        id: str,
+        **kwargs
+    ) -> bool:
+        """Update an alert rule"""
+        try:
+            if id not in self.alert_rules:
+                return False
+            
+            rule = self.alert_rules[id]
+            
+            # Update allowed fields
+            allowed_fields = [
+                "name", "condition", "level", "enabled", "cooldown_seconds",
+                "max_alerts_per_hour", "notification_channels"
+            ]
+            
+            for field, value in kwargs.items():
+                if field in allowed_fields:
+                    setattr(rule, field, value)
+            
+            rule.updated_at = datetime.now().isoformat()
+            
+            logger.info(f"Updated alert rule: {id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error updating alert rule: {e}")
+            return False
     
-    async def _send_notifications(self, alert: Alert, resolved: bool = False):
+    def remove_alert_rule(self, id: str) -> bool:
+        """Remove an alert rule"""
+        try:
+            if id in self.alert_rules:
+                del self.alert_rules[id]
+                logger.info(f"Removed alert rule: {id}")
+                return True
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error removing alert rule: {e}")
+            return False
+    
+    def add_notification_channel(
+        self,
+        name: str,
+        channel_func: Callable
+    ) -> bool:
+        """Add a notification channel"""
+        try:
+            self.notification_channels[name] = channel_func
+            logger.info(f"Added notification channel: {name}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error adding notification channel: {e}")
+            return False
+    
+    async def send_alert(
+        self,
+        level: AlertLevel,
+        message: str,
+        component: str,
+        metadata: Dict[str, Any] = None,
+        user_id: str = None
+    ) -> str:
+        """Send an alert"""
+        try:
+            # Create alert
+            alert_id = f"alert_{int(datetime.now().timestamp())}"
+            
+            alert = Alert(
+                id=alert_id,
+                level=level,
+                message=message,
+                component=component,
+                status=AlertStatus.ACTIVE,
+                created_at=datetime.now().isoformat(),
+                updated_at=datetime.now().isoformat(),
+                resolved_at=None,
+                metadata=metadata or {},
+                user_id=user_id
+            )
+            
+            # Store alert
+            self.alerts[alert_id] = alert
+            
+            # Send notifications
+            await self._send_notifications(alert)
+            
+            logger.info(f"Sent alert: {alert_id} - {message}")
+            return alert_id
+            
+        except Exception as e:
+            logger.error(f"Error sending alert: {e}")
+            return ""
+    
+    async def _send_notifications(self, alert: Alert):
         """Send notifications for an alert"""
-        for channel_name, channel in self.channels.items():
-            if not channel.enabled:
-                continue
+        try:
+            # Get notification channels
+            channels = ["log"]  # Default to log
             
-            try:
-                await self._send_to_channel(channel, alert, resolved)
-            except Exception as e:
-                logger.error(f"Error sending notification to {channel_name}: {e}")
-    
-    async def _send_to_channel(self, channel: NotificationChannel, alert: Alert, resolved: bool = False):
-        """Send notification to a specific channel"""
-        status = "RESOLVED" if resolved else "TRIGGERED"
-        message = f"[{alert.severity.value.upper()}] {status}: {alert.message}"
-        
-        if channel.type == NotificationChannelType.CONSOLE:
-            print(f"🚨 {message}")
+            # Find matching rule
+            for rule in self.alert_rules.values():
+                if rule.enabled and self._matches_rule(alert, rule):
+                    channels = rule.notification_channels
+                    break
             
-        elif channel.type == NotificationChannelType.LOG:
-            if alert.severity == AlertSeverity.CRITICAL:
-                logger.critical(message)
-            elif alert.severity == AlertSeverity.ERROR:
-                logger.error(message)
-            elif alert.severity == AlertSeverity.WARNING:
-                logger.warning(message)
-            else:
-                logger.info(message)
-                
-        elif channel.type == NotificationChannelType.EMAIL:
-            await self._send_email(channel, alert, resolved)
-            
-        elif channel.type == NotificationChannelType.WEBHOOK:
-            await self._send_webhook(channel, alert, resolved)
-            
-        elif channel.type == NotificationChannelType.SLACK:
-            await self._send_slack(channel, alert, resolved)
-            
-        elif channel.type == NotificationChannelType.DISCORD:
-            await self._send_discord(channel, alert, resolved)
-            
-        elif channel.type == NotificationChannelType.TELEGRAM:
-            await self._send_telegram(channel, alert, resolved)
-    
-    async def _send_email(self, channel: NotificationChannel, alert: Alert, resolved: bool):
-        """Send email notification"""
-        config = channel.config
-        
-        msg = MIMEMultipart()
-        msg['From'] = config.get('from_email', 'alerts@tantra.ai')
-        msg['To'] = config.get('to_email', 'admin@tantra.ai')
-        msg['Subject'] = f"[{alert.severity.value.upper()}] {alert.rule_name}"
-        
-        body = f"""
-Alert: {alert.rule_name}
-Status: {'RESOLVED' if resolved else 'TRIGGERED'}
-Severity: {alert.severity.value.upper()}
-Message: {alert.message}
-Time: {alert.created_at.isoformat()}
-Labels: {json.dumps(alert.labels, indent=2)}
-Annotations: {json.dumps(alert.annotations, indent=2)}
-        """
-        
-        msg.attach(MIMEText(body, 'plain'))
-        
-        # Send email (simplified - would need proper SMTP config)
-        logger.info(f"Email notification sent: {alert.rule_name}")
-    
-    async def _send_webhook(self, channel: NotificationChannel, alert: Alert, resolved: bool):
-        """Send webhook notification"""
-        config = channel.config
-        url = config.get('url')
-        
-        if not url:
-            logger.warning("Webhook URL not configured")
-            return
-        
-        payload = {
-            "alert_id": alert.id,
-            "rule_name": alert.rule_name,
-            "severity": alert.severity.value,
-            "status": "resolved" if resolved else "triggered",
-            "message": alert.message,
-            "labels": alert.labels,
-            "annotations": alert.annotations,
-            "timestamp": alert.created_at.isoformat()
-        }
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=payload) as response:
-                if response.status == 200:
-                    logger.info(f"Webhook notification sent: {alert.rule_name}")
+            # Send to each channel
+            for channel_name in channels:
+                if channel_name in self.notification_channels:
+                    try:
+                        await self.notification_channels[channel_name](alert)
+                    except Exception as e:
+                        logger.error(f"Error sending to channel {channel_name}: {e}")
                 else:
-                    logger.warning(f"Webhook notification failed: {response.status}")
-    
-    async def _send_slack(self, channel: NotificationChannel, alert: Alert, resolved: bool):
-        """Send Slack notification"""
-        config = channel.config
-        webhook_url = config.get('webhook_url')
-        
-        if not webhook_url:
-            logger.warning("Slack webhook URL not configured")
-            return
-        
-        color = {
-            AlertSeverity.INFO: "good",
-            AlertSeverity.WARNING: "warning",
-            AlertSeverity.ERROR: "danger",
-            AlertSeverity.CRITICAL: "danger"
-        }.get(alert.severity, "good")
-        
-        payload = {
-            "attachments": [{
-                "color": color,
-                "title": f"Alert: {alert.rule_name}",
-                "text": alert.message,
-                "fields": [
-                    {"title": "Severity", "value": alert.severity.value.upper(), "short": True},
-                    {"title": "Status", "value": "RESOLVED" if resolved else "TRIGGERED", "short": True},
-                    {"title": "Time", "value": alert.created_at.isoformat(), "short": False}
-                ]
-            }]
-        }
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.post(webhook_url, json=payload) as response:
-                if response.status == 200:
-                    logger.info(f"Slack notification sent: {alert.rule_name}")
-                else:
-                    logger.warning(f"Slack notification failed: {response.status}")
-    
-    async def _send_discord(self, channel: NotificationChannel, alert: Alert, resolved: bool):
-        """Send Discord notification"""
-        config = channel.config
-        webhook_url = config.get('webhook_url')
-        
-        if not webhook_url:
-            logger.warning("Discord webhook URL not configured")
-            return
-        
-        color = {
-            AlertSeverity.INFO: 0x00ff00,
-            AlertSeverity.WARNING: 0xffff00,
-            AlertSeverity.ERROR: 0xff0000,
-            AlertSeverity.CRITICAL: 0xff0000
-        }.get(alert.severity, 0x00ff00)
-        
-        payload = {
-            "embeds": [{
-                "title": f"Alert: {alert.rule_name}",
-                "description": alert.message,
-                "color": color,
-                "fields": [
-                    {"name": "Severity", "value": alert.severity.value.upper(), "inline": True},
-                    {"name": "Status", "value": "RESOLVED" if resolved else "TRIGGERED", "inline": True},
-                    {"name": "Time", "value": alert.created_at.isoformat(), "inline": False}
-                ]
-            }]
-        }
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.post(webhook_url, json=payload) as response:
-                if response.status == 200:
-                    logger.info(f"Discord notification sent: {alert.rule_name}")
-                else:
-                    logger.warning(f"Discord notification failed: {response.status}")
-    
-    async def _send_telegram(self, channel: NotificationChannel, alert: Alert, resolved: bool):
-        """Send Telegram notification"""
-        config = channel.config
-        bot_token = config.get('bot_token')
-        chat_id = config.get('chat_id')
-        
-        if not bot_token or not chat_id:
-            logger.warning("Telegram bot token or chat ID not configured")
-            return
-        
-        emoji = {
-            AlertSeverity.INFO: "ℹ️",
-            AlertSeverity.WARNING: "⚠️",
-            AlertSeverity.ERROR: "❌",
-            AlertSeverity.CRITICAL: "🚨"
-        }.get(alert.severity, "ℹ️")
-        
-        message = f"""
-{emoji} *Alert: {alert.rule_name}*
-Status: {'RESOLVED' if resolved else 'TRIGGERED'}
-Severity: {alert.severity.value.upper()}
-Message: {alert.message}
-Time: {alert.created_at.isoformat()}
-        """
-        
-        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        payload = {
-            "chat_id": chat_id,
-            "text": message,
-            "parse_mode": "Markdown"
-        }
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=payload) as response:
-                if response.status == 200:
-                    logger.info(f"Telegram notification sent: {alert.rule_name}")
-                else:
-                    logger.warning(f"Telegram notification failed: {response.status}")
-    
-    async def _start_escalation_timer(self, alert: Alert):
-        """Start escalation timer for an alert"""
-        if alert.id in self.escalation_timers:
-            return
-        
-        async def escalate():
-            await asyncio.sleep(300)  # 5 minutes default escalation delay
+                    # Default log channel
+                    await self._log_notification(alert)
             
-            if alert.id in self.active_alerts and alert.status == AlertStatus.ACTIVE:
-                alert.escalation_level += 1
-                alert.updated_at = datetime.utcnow()
-                
-                # Send escalated notification
-                await self._send_notifications(alert, escalated=True)
-                
-                logger.warning(f"Alert escalated: {alert.rule_name} (level {alert.escalation_level})")
-        
-        self.escalation_timers[alert.id] = asyncio.create_task(escalate())
+        except Exception as e:
+            logger.error(f"Error sending notifications: {e}")
     
-    async def acknowledge_alert(self, alert_id: str, acknowledged_by: str) -> bool:
+    def _matches_rule(self, alert: Alert, rule: AlertRule) -> bool:
+        """Check if alert matches a rule"""
+        try:
+            # Simple matching based on component and level
+            # In a real implementation, this would use the condition field
+            return (
+                alert.component in rule.condition or
+                alert.level.value in rule.condition or
+                rule.condition == "always"
+            )
+            
+        except Exception as e:
+            logger.error(f"Error matching rule: {e}")
+            return False
+    
+    async def _log_notification(self, alert: Alert):
+        """Log notification"""
+        try:
+            logger.warning(
+                f"ALERT [{alert.level.value.upper()}] {alert.component}: {alert.message}"
+            )
+            
+        except Exception as e:
+            logger.error(f"Error logging notification: {e}")
+    
+    async def acknowledge_alert(self, alert_id: str, user_id: str = None) -> bool:
         """Acknowledge an alert"""
-        if alert_id not in self.active_alerts:
+        try:
+            if alert_id not in self.alerts:
+                return False
+            
+            alert = self.alerts[alert_id]
+            alert.status = AlertStatus.ACKNOWLEDGED
+            alert.updated_at = datetime.now().isoformat()
+            
+            if user_id:
+                alert.metadata["acknowledged_by"] = user_id
+            
+            logger.info(f"Acknowledged alert: {alert_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error acknowledging alert: {e}")
             return False
-        
-        alert = self.active_alerts[alert_id]
-        alert.status = AlertStatus.ACKNOWLEDGED
-        alert.acknowledged_by = acknowledged_by
-        alert.acknowledged_at = datetime.utcnow()
-        alert.updated_at = datetime.utcnow()
-        
-        # Cancel escalation timer
-        if alert_id in self.escalation_timers:
-            self.escalation_timers[alert_id].cancel()
-            del self.escalation_timers[alert_id]
-        
-        logger.info(f"Alert acknowledged: {alert.rule_name} by {acknowledged_by}")
-        return True
     
-    async def resolve_alert(self, alert_id: str) -> bool:
-        """Manually resolve an alert"""
-        if alert_id not in self.active_alerts:
+    async def resolve_alert(self, alert_id: str, user_id: str = None) -> bool:
+        """Resolve an alert"""
+        try:
+            if alert_id not in self.alerts:
+                return False
+            
+            alert = self.alerts[alert_id]
+            alert.status = AlertStatus.RESOLVED
+            alert.resolved_at = datetime.now().isoformat()
+            alert.updated_at = datetime.now().isoformat()
+            
+            if user_id:
+                alert.metadata["resolved_by"] = user_id
+            
+            logger.info(f"Resolved alert: {alert_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error resolving alert: {e}")
             return False
-        
-        alert = self.active_alerts[alert_id]
-        alert.status = AlertStatus.RESOLVED
-        alert.resolved_at = datetime.utcnow()
-        alert.updated_at = datetime.utcnow()
-        
-        # Cancel escalation timer
-        if alert_id in self.escalation_timers:
-            self.escalation_timers[alert_id].cancel()
-            del self.escalation_timers[alert_id]
-        
-        # Send resolution notification
-        await self._send_notifications(alert, resolved=True)
-        
-        logger.info(f"Alert resolved: {alert.rule_name}")
-        return True
     
-    def get_active_alerts(self) -> List[Alert]:
-        """Get all active alerts"""
-        return [alert for alert in self.active_alerts.values() 
-                if alert.status in [AlertStatus.ACTIVE, AlertStatus.ACKNOWLEDGED]]
+    async def suppress_alert(
+        self,
+        alert_id: str,
+        duration_seconds: int = 3600,
+        user_id: str = None
+    ) -> bool:
+        """Suppress an alert"""
+        try:
+            if alert_id not in self.alerts:
+                return False
+            
+            alert = self.alerts[alert_id]
+            alert.status = AlertStatus.SUPPRESSED
+            alert.updated_at = datetime.now().isoformat()
+            
+            # Set suppression expiry
+            self.suppressed_alerts[alert_id] = datetime.now() + timedelta(seconds=duration_seconds)
+            
+            if user_id:
+                alert.metadata["suppressed_by"] = user_id
+                alert.metadata["suppression_duration"] = duration_seconds
+            
+            logger.info(f"Suppressed alert: {alert_id} for {duration_seconds} seconds")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error suppressing alert: {e}")
+            return False
     
-    def get_alert_history(self, limit: int = 100) -> List[Alert]:
-        """Get alert history"""
-        return self.alert_history[-limit:]
+    async def get_alerts(
+        self,
+        level: AlertLevel = None,
+        status: AlertStatus = None,
+        component: str = None,
+        user_id: str = None,
+        limit: int = 100
+    ) -> List[Alert]:
+        """Get alerts with filters"""
+        try:
+            filtered_alerts = []
+            
+            for alert in self.alerts.values():
+                # Check level filter
+                if level and alert.level != level:
+                    continue
+                
+                # Check status filter
+                if status and alert.status != status:
+                    continue
+                
+                # Check component filter
+                if component and alert.component != component:
+                    continue
+                
+                # Check user filter
+                if user_id and alert.user_id != user_id:
+                    continue
+                
+                filtered_alerts.append(alert)
+            
+            # Sort by created_at and limit
+            filtered_alerts.sort(key=lambda x: x.created_at, reverse=True)
+            return filtered_alerts[:limit]
+            
+        except Exception as e:
+            logger.error(f"Error getting alerts: {e}")
+            return []
     
-    def get_alert_summary(self) -> Dict[str, Any]:
-        """Get alert summary statistics"""
-        active_alerts = self.get_active_alerts()
-        
-        summary = {
-            "total_rules": len(self.rules),
-            "enabled_rules": len([r for r in self.rules.values() if r.enabled]),
-            "active_alerts": len(active_alerts),
-            "total_channels": len(self.channels),
-            "enabled_channels": len([c for c in self.channels.values() if c.enabled]),
-            "alerts_by_severity": {},
-            "recent_alerts": len([a for a in self.alert_history 
-                                if a.created_at > datetime.utcnow() - timedelta(hours=24)])
-        }
-        
-        # Count by severity
-        for alert in active_alerts:
-            severity = alert.severity.value
-            summary["alerts_by_severity"][severity] = summary["alerts_by_severity"].get(severity, 0) + 1
-        
-        return summary
+    async def get_alert_rules(self) -> List[AlertRule]:
+        """Get all alert rules"""
+        return list(self.alert_rules.values())
+    
+    async def get_alert_stats(self) -> Dict[str, Any]:
+        """Get alert statistics"""
+        try:
+            total_alerts = len(self.alerts)
+            active_alerts = len([a for a in self.alerts.values() if a.status == AlertStatus.ACTIVE])
+            acknowledged_alerts = len([a for a in self.alerts.values() if a.status == AlertStatus.ACKNOWLEDGED])
+            resolved_alerts = len([a for a in self.alerts.values() if a.status == AlertStatus.RESOLVED])
+            suppressed_alerts = len([a for a in self.alerts.values() if a.status == AlertStatus.SUPPRESSED])
+            
+            # Count by level
+            level_counts = {}
+            for alert in self.alerts.values():
+                level = alert.level.value
+                level_counts[level] = level_counts.get(level, 0) + 1
+            
+            # Count by component
+            component_counts = {}
+            for alert in self.alerts.values():
+                component = alert.component
+                component_counts[component] = component_counts.get(component, 0) + 1
+            
+            # Recent alerts (last 24 hours)
+            recent_cutoff = datetime.now() - timedelta(hours=24)
+            recent_alerts = [
+                a for a in self.alerts.values()
+                if datetime.fromisoformat(a.created_at) > recent_cutoff
+            ]
+            
+            return {
+                "total_alerts": total_alerts,
+                "active_alerts": active_alerts,
+                "acknowledged_alerts": acknowledged_alerts,
+                "resolved_alerts": resolved_alerts,
+                "suppressed_alerts": suppressed_alerts,
+                "level_counts": level_counts,
+                "component_counts": component_counts,
+                "recent_alerts": len(recent_alerts),
+                "active_rules": len([r for r in self.alert_rules.values() if r.enabled]),
+                "total_rules": len(self.alert_rules),
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting alert stats: {e}")
+            return {}
+    
+    async def cleanup_expired_alerts(self, days: int = 30) -> int:
+        """Cleanup expired alerts"""
+        try:
+            cutoff_date = datetime.now() - timedelta(days=days)
+            expired_alerts = []
+            
+            for alert_id, alert in self.alerts.items():
+                if datetime.fromisoformat(alert.created_at) < cutoff_date:
+                    expired_alerts.append(alert_id)
+            
+            # Remove expired alerts
+            for alert_id in expired_alerts:
+                del self.alerts[alert_id]
+            
+            logger.info(f"Cleaned up {len(expired_alerts)} expired alerts")
+            return len(expired_alerts)
+            
+        except Exception as e:
+            logger.error(f"Error cleaning up expired alerts: {e}")
+            return 0
+    
+    async def check_suppressed_alerts(self):
+        """Check and unsuppress expired suppressed alerts"""
+        try:
+            current_time = datetime.now()
+            expired_suppressions = []
+            
+            for alert_id, expiry_time in self.suppressed_alerts.items():
+                if current_time > expiry_time:
+                    expired_suppressions.append(alert_id)
+            
+            # Remove expired suppressions
+            for alert_id in expired_suppressions:
+                del self.suppressed_alerts[alert_id]
+                
+                # Update alert status if it exists
+                if alert_id in self.alerts:
+                    self.alerts[alert_id].status = AlertStatus.ACTIVE
+                    self.alerts[alert_id].updated_at = current_time.isoformat()
+            
+            if expired_suppressions:
+                logger.info(f"Unsuppressed {len(expired_suppressions)} alerts")
+            
+        except Exception as e:
+            logger.error(f"Error checking suppressed alerts: {e}")
 
 
 # Global alert manager instance
-_alert_manager: Optional[AlertManager] = None
+_alert_manager = None
 
 
 def get_alert_manager() -> AlertManager:
@@ -705,3 +540,14 @@ def get_alert_manager() -> AlertManager:
     if _alert_manager is None:
         _alert_manager = AlertManager()
     return _alert_manager
+
+
+# Export public API
+__all__ = [
+    "AlertLevel",
+    "AlertStatus",
+    "Alert",
+    "AlertRule",
+    "AlertManager",
+    "get_alert_manager"
+]

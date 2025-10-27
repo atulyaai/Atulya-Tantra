@@ -1,565 +1,528 @@
 """
-Dynamic Agent Factory
-Creates new agents on demand based on requirements and capabilities
+Agent Factory for Atulya Tantra AGI
+Dynamic agent creation and management
 """
 
+import uuid
 import asyncio
-import inspect
-import importlib
-import json
-from typing import Dict, List, Any, Optional, Type, Callable, Union
-from dataclasses import dataclass, field
+from typing import Dict, Any, List, Optional, Type, Callable
 from datetime import datetime
-from enum import Enum
-import threading
-import time
+from dataclasses import dataclass
 
 from ..config.logging import get_logger
-from ..config.exceptions import AgentError
+from ..config.exceptions import SystemError, ValidationError
+from ..agents.base_agent import BaseAgent
+from ..agents.code_agent import CodeAgent
+from ..agents.creative_agent import CreativeAgent
+from ..agents.data_agent import DataAgent
+from ..agents.research_agent import ResearchAgent
+from ..agents.system_agent import SystemAgent
 
 logger = get_logger(__name__)
 
 
-class AgentCapability(str, Enum):
-    """Agent capabilities"""
-    TEXT_PROCESSING = "text_processing"
-    CODE_GENERATION = "code_generation"
-    DATA_ANALYSIS = "data_analysis"
-    WEB_SEARCH = "web_search"
-    FILE_OPERATIONS = "file_operations"
-    SYSTEM_CONTROL = "system_control"
-    IMAGE_PROCESSING = "image_processing"
-    VOICE_PROCESSING = "voice_processing"
-    DATABASE_OPERATIONS = "database_operations"
-    API_INTEGRATION = "api_integration"
-    MACHINE_LEARNING = "machine_learning"
-    AUTOMATION = "automation"
-
-
-class AgentType(str, Enum):
-    """Agent types"""
-    SPECIALIST = "specialist"  # Focused on specific domain
-    GENERALIST = "generalist"  # Broad capabilities
-    COORDINATOR = "coordinator"  # Manages other agents
-    MONITOR = "monitor"  # Monitors system health
-    LEARNER = "learner"  # Learns and adapts
+@dataclass
+class AgentConfig:
+    """Agent configuration"""
+    id: str
+    name: str
+    agent_type: str
+    capabilities: List[str]
+    config: Dict[str, Any]
+    created_at: str
+    updated_at: str
+    status: str
 
 
 @dataclass
-class AgentSpecification:
-    """Agent specification for dynamic creation"""
-    name: str
-    type: AgentType
-    capabilities: List[AgentCapability]
-    description: str
-    tools: List[str] = field(default_factory=list)
-    dependencies: List[str] = field(default_factory=list)
-    config: Dict[str, Any] = field(default_factory=dict)
-    priority: int = 1
-    max_concurrent_tasks: int = 5
-    learning_enabled: bool = True
-
-
-@dataclass
-class AgentTemplate:
-    """Template for creating agents"""
-    name: str
-    base_class: str
-    capabilities: List[AgentCapability]
-    tools: List[str]
-    code_template: str
-    config_schema: Dict[str, Any]
-
-
-class DynamicAgent:
-    """Dynamically created agent"""
-    
-    def __init__(self, spec: AgentSpecification, agent_class: Type, instance: Any):
-        self.spec = spec
-        self.agent_class = agent_class
-        self.instance = instance
-        self.created_at = datetime.utcnow()
-        self.status = "idle"
-        self.active_tasks = 0
-        self.total_tasks = 0
-        self.success_rate = 0.0
-        self.last_activity = None
-        
-    async def execute_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute a task using this agent"""
-        try:
-            self.status = "busy"
-            self.active_tasks += 1
-            self.total_tasks += 1
-            self.last_activity = datetime.utcnow()
-            
-            # Execute the task
-            if hasattr(self.instance, 'execute_task'):
-                result = await self.instance.execute_task(task)
-            elif hasattr(self.instance, 'process'):
-                result = await self.instance.process(task)
-            else:
-                result = {"success": False, "error": "No execution method found"}
-            
-            # Update success rate
-            if result.get("success", False):
-                self.success_rate = ((self.success_rate * (self.total_tasks - 1)) + 1) / self.total_tasks
-            else:
-                self.success_rate = (self.success_rate * (self.total_tasks - 1)) / self.total_tasks
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"Error executing task with agent {self.spec.name}: {e}")
-            return {"success": False, "error": str(e)}
-        finally:
-            self.active_tasks -= 1
-            if self.active_tasks == 0:
-                self.status = "idle"
-    
-    def get_status(self) -> Dict[str, Any]:
-        """Get agent status"""
-        return {
-            "name": self.spec.name,
-            "type": self.spec.type.value,
-            "capabilities": [cap.value for cap in self.spec.capabilities],
-            "status": self.status,
-            "active_tasks": self.active_tasks,
-            "total_tasks": self.total_tasks,
-            "success_rate": self.success_rate,
-            "created_at": self.created_at.isoformat(),
-            "last_activity": self.last_activity.isoformat() if self.last_activity else None
-        }
+class AgentInstance:
+    """Agent instance"""
+    id: str
+    config: AgentConfig
+    agent: BaseAgent
+    created_at: str
+    status: str
+    stats: Dict[str, Any]
 
 
 class AgentFactory:
-    """Factory for creating dynamic agents"""
+    """Dynamic agent factory"""
     
     def __init__(self):
-        self.agent_templates: Dict[str, AgentTemplate] = {}
-        self.created_agents: Dict[str, DynamicAgent] = {}
-        self.agent_registry: Dict[str, Type] = {}
+        self.agent_types: Dict[str, Type[BaseAgent]] = {
+            "code": CodeAgent,
+            "creative": CreativeAgent,
+            "data": DataAgent,
+            "research": ResearchAgent,
+            "system": SystemAgent
+        }
         
-        # Load base agent templates
-        self._load_agent_templates()
+        self.agent_instances: Dict[str, AgentInstance] = {}
+        self.agent_configs: Dict[str, AgentConfig] = {}
         
-        # Register base agent classes
-        self._register_base_agents()
-    
-    def _load_agent_templates(self):
-        """Load agent templates for different types"""
-        
-        # Generalist Agent Template
-        generalist_template = AgentTemplate(
-            name="generalist",
-            base_class="BaseAgent",
-            capabilities=[
-                AgentCapability.TEXT_PROCESSING,
-                AgentCapability.CODE_GENERATION,
-                AgentCapability.DATA_ANALYSIS,
-                AgentCapability.WEB_SEARCH,
-                AgentCapability.FILE_OPERATIONS
+        # Agent capabilities registry
+        self.capability_registry: Dict[str, List[str]] = {
+            "code": [
+                "code_generation", "code_analysis", "debugging", "refactoring",
+                "testing", "optimization", "documentation", "code_review"
             ],
-            tools=["text_processor", "code_generator", "data_analyzer", "web_searcher", "file_manager"],
-            code_template="""
-class {agent_name}(BaseAgent):
-    def __init__(self, config=None):
-        super().__init__(config)
-        self.capabilities = {capabilities}
-        self.tools = {tools}
-    
-    async def execute_task(self, task):
-        task_type = task.get('type', 'general')
-        
-        if task_type == 'text_processing':
-            return await self._process_text(task)
-        elif task_type == 'code_generation':
-            return await self._generate_code(task)
-        elif task_type == 'data_analysis':
-            return await self._analyze_data(task)
-        elif task_type == 'web_search':
-            return await self._search_web(task)
-        elif task_type == 'file_operations':
-            return await self._handle_files(task)
-        else:
-            return await self._handle_general(task)
-    
-    async def _process_text(self, task):
-        # Text processing implementation
-        return {{"success": True, "result": "Text processed"}}
-    
-    async def _generate_code(self, task):
-        # Code generation implementation
-        return {{"success": True, "result": "Code generated"}}
-    
-    async def _analyze_data(self, task):
-        # Data analysis implementation
-        return {{"success": True, "result": "Data analyzed"}}
-    
-    async def _search_web(self, task):
-        # Web search implementation
-        return {{"success": True, "result": "Web search completed"}}
-    
-    async def _handle_files(self, task):
-        # File operations implementation
-        return {{"success": True, "result": "File operations completed"}}
-    
-    async def _handle_general(self, task):
-        # General task handling
-        return {{"success": True, "result": "General task completed"}}
-""",
-            config_schema={
-                "type": "object",
-                "properties": {
-                    "max_tasks": {"type": "integer", "default": 5},
-                    "timeout": {"type": "integer", "default": 30},
-                    "learning_enabled": {"type": "boolean", "default": True}
-                }
-            }
-        )
-        
-        # Specialist Agent Template
-        specialist_template = AgentTemplate(
-            name="specialist",
-            base_class="BaseAgent",
-            capabilities=[AgentCapability.TEXT_PROCESSING],  # Will be customized
-            tools=["specialized_tool"],  # Will be customized
-            code_template="""
-class {agent_name}(BaseAgent):
-    def __init__(self, config=None):
-        super().__init__(config)
-        self.capabilities = {capabilities}
-        self.tools = {tools}
-        self.specialization = "{specialization}"
-    
-    async def execute_task(self, task):
-        # Specialized implementation
-        return await self._specialized_processing(task)
-    
-    async def _specialized_processing(self, task):
-        # Specialized processing logic
-        return {{"success": True, "result": "Specialized processing completed"}}
-""",
-            config_schema={
-                "type": "object",
-                "properties": {
-                    "specialization": {"type": "string", "required": True},
-                    "expertise_level": {"type": "integer", "default": 5},
-                    "max_tasks": {"type": "integer", "default": 3}
-                }
-            }
-        )
-        
-        # Monitor Agent Template
-        monitor_template = AgentTemplate(
-            name="monitor",
-            base_class="BaseAgent",
-            capabilities=[AgentCapability.SYSTEM_CONTROL, AgentCapability.DATABASE_OPERATIONS],
-            tools=["system_monitor", "health_checker", "alert_manager"],
-            code_template="""
-class {agent_name}(BaseAgent):
-    def __init__(self, config=None):
-        super().__init__(config)
-        self.capabilities = {capabilities}
-        self.tools = {tools}
-        self.monitoring_interval = config.get('monitoring_interval', 30)
-    
-    async def execute_task(self, task):
-        task_type = task.get('type', 'monitor')
-        
-        if task_type == 'health_check':
-            return await self._check_health(task)
-        elif task_type == 'system_metrics':
-            return await self._collect_metrics(task)
-        elif task_type == 'alert_check':
-            return await self._check_alerts(task)
-        else:
-            return await self._monitor_system(task)
-    
-    async def _check_health(self, task):
-        # Health checking implementation
-        return {{"success": True, "result": "Health check completed"}}
-    
-    async def _collect_metrics(self, task):
-        # Metrics collection implementation
-        return {{"success": True, "result": "Metrics collected"}}
-    
-    async def _check_alerts(self, task):
-        # Alert checking implementation
-        return {{"success": True, "result": "Alerts checked"}}
-    
-    async def _monitor_system(self, task):
-        # General system monitoring
-        return {{"success": True, "result": "System monitoring completed"}}
-""",
-            config_schema={
-                "type": "object",
-                "properties": {
-                    "monitoring_interval": {"type": "integer", "default": 30},
-                    "alert_thresholds": {"type": "object"},
-                    "metrics_retention": {"type": "integer", "default": 24}
-                }
-            }
-        )
-        
-        # Learner Agent Template
-        learner_template = AgentTemplate(
-            name="learner",
-            base_class="BaseAgent",
-            capabilities=[AgentCapability.TEXT_PROCESSING, AgentCapability.MACHINE_LEARNING],
-            tools=["learning_engine", "model_trainer", "data_processor"],
-            code_template="""
-class {agent_name}(BaseAgent):
-    def __init__(self, config=None):
-        super().__init__(config)
-        self.capabilities = {capabilities}
-        self.tools = {tools}
-        self.learning_data = []
-        self.model = None
-    
-    async def execute_task(self, task):
-        task_type = task.get('type', 'learn')
-        
-        if task_type == 'train_model':
-            return await self._train_model(task)
-        elif task_type == 'predict':
-            return await self._predict(task)
-        elif task_type == 'learn_from_data':
-            return await self._learn_from_data(task)
-        else:
-            return await self._general_learning(task)
-    
-    async def _train_model(self, task):
-        # Model training implementation
-        return {{"success": True, "result": "Model trained"}}
-    
-    async def _predict(self, task):
-        # Prediction implementation
-        return {{"success": True, "result": "Prediction completed"}}
-    
-    async def _learn_from_data(self, task):
-        # Learning from data implementation
-        return {{"success": True, "result": "Learning completed"}}
-    
-    async def _general_learning(self, task):
-        # General learning implementation
-        return {{"success": True, "result": "General learning completed"}}
-""",
-            config_schema={
-                "type": "object",
-                "properties": {
-                    "learning_rate": {"type": "number", "default": 0.01},
-                    "model_type": {"type": "string", "default": "neural_network"},
-                    "training_data_limit": {"type": "integer", "default": 10000}
-                }
-            }
-        )
-        
-        self.agent_templates = {
-            "generalist": generalist_template,
-            "specialist": specialist_template,
-            "monitor": monitor_template,
-            "learner": learner_template
-        }
-        
-        logger.info(f"Loaded {len(self.agent_templates)} agent templates")
-    
-    def _register_base_agents(self):
-        """Register base agent classes"""
-        try:
-            from ..agents.base_agent import BaseAgent
-            self.agent_registry["BaseAgent"] = BaseAgent
-        except ImportError:
-            logger.warning("BaseAgent not available, using mock class")
-            self.agent_registry["BaseAgent"] = object
-    
-    async def create_agent(self, spec: AgentSpecification) -> DynamicAgent:
-        """Create a new agent based on specification"""
-        try:
-            logger.info(f"Creating agent: {spec.name} (type: {spec.type.value})")
-            
-            # Get template based on agent type
-            template = self.agent_templates.get(spec.type.value)
-            if not template:
-                raise AgentError(f"No template found for agent type: {spec.type.value}")
-            
-            # Generate agent code
-            agent_code = self._generate_agent_code(spec, template)
-            
-            # Create agent class dynamically
-            agent_class = self._create_agent_class(spec.name, agent_code)
-            
-            # Create agent instance
-            agent_instance = agent_class(spec.config)
-            
-            # Create dynamic agent wrapper
-            dynamic_agent = DynamicAgent(spec, agent_class, agent_instance)
-            
-            # Register the agent
-            self.created_agents[spec.name] = dynamic_agent
-            
-            logger.info(f"Successfully created agent: {spec.name}")
-            return dynamic_agent
-            
-        except Exception as e:
-            logger.error(f"Failed to create agent {spec.name}: {e}")
-            raise AgentError(f"Agent creation failed: {e}")
-    
-    def _generate_agent_code(self, spec: AgentSpecification, template: AgentTemplate) -> str:
-        """Generate agent code from template and specification"""
-        # Prepare template variables
-        template_vars = {
-            "agent_name": spec.name.replace(" ", "_").replace("-", "_").title(),
-            "capabilities": [cap.value for cap in spec.capabilities],
-            "tools": spec.tools,
-            "specialization": spec.config.get("specialization", "general")
-        }
-        
-        # Format the template
-        agent_code = template.code_template.format(**template_vars)
-        
-        return agent_code
-    
-    def _create_agent_class(self, name: str, code: str) -> Type:
-        """Create agent class from generated code"""
-        try:
-            # Create a new module for the agent
-            module_name = f"dynamic_agent_{name.lower()}"
-            
-            # Compile the code
-            compiled_code = compile(code, f"<{module_name}>", "exec")
-            
-            # Create a new namespace
-            namespace = {
-                "__name__": module_name,
-                "BaseAgent": self.agent_registry.get("BaseAgent", object)
-            }
-            
-            # Execute the code in the namespace
-            exec(compiled_code, namespace)
-            
-            # Get the agent class
-            agent_class_name = name.replace(" ", "_").replace("-", "_").title()
-            agent_class = namespace.get(agent_class_name)
-            
-            if not agent_class:
-                raise AgentError(f"Agent class {agent_class_name} not found in generated code")
-            
-            return agent_class
-            
-        except Exception as e:
-            logger.error(f"Failed to create agent class: {e}")
-            raise AgentError(f"Agent class creation failed: {e}")
-    
-    def get_agent(self, name: str) -> Optional[DynamicAgent]:
-        """Get created agent by name"""
-        return self.created_agents.get(name)
-    
-    def list_agents(self) -> List[Dict[str, Any]]:
-        """List all created agents"""
-        return [
-            {
-                "name": agent.spec.name,
-                "type": agent.spec.type.value,
-                "capabilities": [cap.value for cap in agent.spec.capabilities],
-                "status": agent.status,
-                "created_at": agent.created_at.isoformat(),
-                "total_tasks": agent.total_tasks,
-                "success_rate": agent.success_rate
-            }
-            for agent in self.created_agents.values()
-        ]
-    
-    def remove_agent(self, name: str) -> bool:
-        """Remove an agent"""
-        if name in self.created_agents:
-            del self.created_agents[name]
-            logger.info(f"Removed agent: {name}")
-            return True
-        return False
-    
-    def get_agent_by_capability(self, capability: AgentCapability) -> List[DynamicAgent]:
-        """Get agents that have a specific capability"""
-        return [
-            agent for agent in self.created_agents.values()
-            if capability in agent.spec.capabilities
-        ]
-    
-    def get_available_capabilities(self) -> List[AgentCapability]:
-        """Get all available capabilities from created agents"""
-        capabilities = set()
-        for agent in self.created_agents.values():
-            capabilities.update(agent.spec.capabilities)
-        return list(capabilities)
-    
-    async def execute_task_with_best_agent(self, task: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute a task using the best available agent"""
-        required_capabilities = task.get("required_capabilities", [])
-        task_type = task.get("type", "general")
-        
-        # Find suitable agents
-        suitable_agents = []
-        for agent in self.created_agents.values():
-            if agent.status == "idle" and agent.active_tasks < agent.spec.max_concurrent_tasks:
-                # Check if agent has required capabilities
-                if all(cap in agent.spec.capabilities for cap in required_capabilities):
-                    suitable_agents.append(agent)
-        
-        if not suitable_agents:
-            return {
-                "success": False,
-                "error": "No suitable agent available",
-                "required_capabilities": [cap.value for cap in required_capabilities]
-            }
-        
-        # Choose the best agent (highest success rate)
-        best_agent = max(suitable_agents, key=lambda a: a.success_rate)
-        
-        # Execute the task
-        result = await best_agent.execute_task(task)
-        result["executed_by"] = best_agent.spec.name
-        
-        return result
-    
-    def get_agent_statistics(self) -> Dict[str, Any]:
-        """Get statistics about created agents"""
-        if not self.created_agents:
-            return {"total_agents": 0}
-        
-        total_agents = len(self.created_agents)
-        active_agents = len([a for a in self.created_agents.values() if a.status == "busy"])
-        idle_agents = len([a for a in self.created_agents.values() if a.status == "idle"])
-        
-        total_tasks = sum(agent.total_tasks for agent in self.created_agents.values())
-        avg_success_rate = sum(agent.success_rate for agent in self.created_agents.values()) / total_agents
-        
-        capability_counts = {}
-        for agent in self.created_agents.values():
-            for cap in agent.spec.capabilities:
-                capability_counts[cap.value] = capability_counts.get(cap.value, 0) + 1
-        
-        return {
-            "total_agents": total_agents,
-            "active_agents": active_agents,
-            "idle_agents": idle_agents,
-            "total_tasks": total_tasks,
-            "average_success_rate": avg_success_rate,
-            "capability_distribution": capability_counts,
-            "agents": [
-                {
-                    "name": agent.spec.name,
-                    "type": agent.spec.type.value,
-                    "status": agent.status,
-                    "tasks": agent.total_tasks,
-                    "success_rate": agent.success_rate
-                }
-                for agent in self.created_agents.values()
+            "creative": [
+                "content_generation", "storytelling", "poetry", "music",
+                "art", "design", "brainstorming", "editing"
+            ],
+            "data": [
+                "data_analysis", "data_processing", "visualization",
+                "prediction", "cleaning", "transformation", "statistics"
+            ],
+            "research": [
+                "information_search", "analysis", "summarization",
+                "fact_checking", "synthesis", "citation", "verification"
+            ],
+            "system": [
+                "monitoring", "optimization", "maintenance", "diagnosis",
+                "backup", "security", "performance", "health_check"
             ]
         }
+        
+        # Initialize default agents
+        self._initialize_default_agents()
+        
+        logger.info("Initialized Agent Factory")
+    
+    def _initialize_default_agents(self):
+        """Initialize default agent configurations"""
+        try:
+            # Code Agent
+            self.add_agent_config(
+                id="default_code_agent",
+                name="Code Assistant",
+                agent_type="code",
+                capabilities=["code_generation", "code_analysis", "debugging"],
+                config={
+                    "max_tokens": 2000,
+                    "temperature": 0.7,
+                    "languages": ["python", "javascript", "typescript", "java", "go"]
+                }
+            )
+            
+            # Creative Agent
+            self.add_agent_config(
+                id="default_creative_agent",
+                name="Creative Assistant",
+                agent_type="creative",
+                capabilities=["content_generation", "storytelling", "brainstorming"],
+                config={
+                    "max_tokens": 1500,
+                    "temperature": 0.8,
+                    "styles": ["professional", "casual", "creative", "technical"]
+                }
+            )
+            
+            # Data Agent
+            self.add_agent_config(
+                id="default_data_agent",
+                name="Data Analyst",
+                agent_type="data",
+                capabilities=["data_analysis", "visualization", "statistics"],
+                config={
+                    "max_tokens": 1000,
+                    "temperature": 0.3,
+                    "chart_types": ["line", "bar", "pie", "scatter", "histogram"]
+                }
+            )
+            
+            # Research Agent
+            self.add_agent_config(
+                id="default_research_agent",
+                name="Research Assistant",
+                agent_type="research",
+                capabilities=["information_search", "analysis", "summarization"],
+                config={
+                    "max_tokens": 2500,
+                    "temperature": 0.4,
+                    "sources": ["web", "academic", "news", "technical"]
+                }
+            )
+            
+            # System Agent
+            self.add_agent_config(
+                id="default_system_agent",
+                name="System Monitor",
+                agent_type="system",
+                capabilities=["monitoring", "optimization", "maintenance"],
+                config={
+                    "max_tokens": 500,
+                    "temperature": 0.2,
+                    "monitoring_interval": 30,
+                    "alert_thresholds": {
+                        "cpu": 80,
+                        "memory": 85,
+                        "disk": 90
+                    }
+                }
+            )
+            
+            logger.info("Initialized default agent configurations")
+            
+        except Exception as e:
+            logger.error(f"Error initializing default agents: {e}")
+    
+    def add_agent_config(
+        self,
+        id: str,
+        name: str,
+        agent_type: str,
+        capabilities: List[str],
+        config: Dict[str, Any] = None
+    ) -> bool:
+        """Add an agent configuration"""
+        try:
+            if agent_type not in self.agent_types:
+                raise ValidationError(f"Unknown agent type: {agent_type}")
+            
+            # Validate capabilities
+            valid_capabilities = self.capability_registry.get(agent_type, [])
+            for capability in capabilities:
+                if capability not in valid_capabilities:
+                    logger.warning(f"Unknown capability for {agent_type}: {capability}")
+            
+            agent_config = AgentConfig(
+                id=id,
+                name=name,
+                agent_type=agent_type,
+                capabilities=capabilities,
+                config=config or {},
+                created_at=datetime.now().isoformat(),
+                updated_at=datetime.now().isoformat(),
+                status="inactive"
+            )
+            
+            self.agent_configs[id] = agent_config
+            logger.info(f"Added agent configuration: {id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error adding agent configuration: {e}")
+            return False
+    
+    def update_agent_config(
+        self,
+        id: str,
+        **kwargs
+    ) -> bool:
+        """Update an agent configuration"""
+        try:
+            if id not in self.agent_configs:
+                return False
+            
+            agent_config = self.agent_configs[id]
+            
+            # Update allowed fields
+            allowed_fields = ["name", "capabilities", "config"]
+            for field, value in kwargs.items():
+                if field in allowed_fields:
+                    setattr(agent_config, field, value)
+            
+            agent_config.updated_at = datetime.now().isoformat()
+            
+            logger.info(f"Updated agent configuration: {id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error updating agent configuration: {e}")
+            return False
+    
+    def remove_agent_config(self, id: str) -> bool:
+        """Remove an agent configuration"""
+        try:
+            if id in self.agent_configs:
+                del self.agent_configs[id]
+                logger.info(f"Removed agent configuration: {id}")
+                return True
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error removing agent configuration: {e}")
+            return False
+    
+    async def create_agent(
+        self,
+        config_id: str,
+        instance_id: str = None
+    ) -> Optional[str]:
+        """Create an agent instance"""
+        try:
+            if config_id not in self.agent_configs:
+                raise ValidationError(f"Agent configuration not found: {config_id}")
+            
+            agent_config = self.agent_configs[config_id]
+            
+            if instance_id is None:
+                instance_id = f"{config_id}_{uuid.uuid4().hex[:8]}"
+            
+            # Check if instance already exists
+            if instance_id in self.agent_instances:
+                raise ValidationError(f"Agent instance already exists: {instance_id}")
+            
+            # Get agent class
+            agent_class = self.agent_types[agent_config.agent_type]
+            
+            # Create agent instance
+            agent = agent_class(
+                agent_id=instance_id,
+                name=agent_config.name,
+                capabilities=agent_config.capabilities,
+                config=agent_config.config
+            )
+            
+            # Create agent instance record
+            agent_instance = AgentInstance(
+                id=instance_id,
+                config=agent_config,
+                agent=agent,
+                created_at=datetime.now().isoformat(),
+                status="created",
+                stats={
+                    "tasks_completed": 0,
+                    "tasks_failed": 0,
+                    "total_runtime": 0,
+                    "last_activity": None
+                }
+            )
+            
+            self.agent_instances[instance_id] = agent_instance
+            
+            logger.info(f"Created agent instance: {instance_id}")
+            return instance_id
+            
+        except Exception as e:
+            logger.error(f"Error creating agent instance: {e}")
+            return None
+    
+    async def start_agent(self, instance_id: str) -> bool:
+        """Start an agent instance"""
+        try:
+            if instance_id not in self.agent_instances:
+                return False
+            
+            agent_instance = self.agent_instances[instance_id]
+            
+            # Start the agent
+            await agent_instance.agent.start()
+            
+            # Update status
+            agent_instance.status = "running"
+            agent_instance.stats["last_activity"] = datetime.now().isoformat()
+            
+            logger.info(f"Started agent instance: {instance_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error starting agent instance: {e}")
+            return False
+    
+    async def stop_agent(self, instance_id: str) -> bool:
+        """Stop an agent instance"""
+        try:
+            if instance_id not in self.agent_instances:
+                return False
+            
+            agent_instance = self.agent_instances[instance_id]
+            
+            # Stop the agent
+            await agent_instance.agent.stop()
+            
+            # Update status
+            agent_instance.status = "stopped"
+            agent_instance.stats["last_activity"] = datetime.now().isoformat()
+            
+            logger.info(f"Stopped agent instance: {instance_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error stopping agent instance: {e}")
+            return False
+    
+    async def restart_agent(self, instance_id: str) -> bool:
+        """Restart an agent instance"""
+        try:
+            await self.stop_agent(instance_id)
+            await asyncio.sleep(1)  # Brief pause
+            return await self.start_agent(instance_id)
+            
+        except Exception as e:
+            logger.error(f"Error restarting agent instance: {e}")
+            return False
+    
+    async def remove_agent(self, instance_id: str) -> bool:
+        """Remove an agent instance"""
+        try:
+            if instance_id not in self.agent_instances:
+                return False
+            
+            agent_instance = self.agent_instances[instance_id]
+            
+            # Stop the agent if running
+            if agent_instance.status == "running":
+                await self.stop_agent(instance_id)
+            
+            # Remove instance
+            del self.agent_instances[instance_id]
+            
+            logger.info(f"Removed agent instance: {instance_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error removing agent instance: {e}")
+            return False
+    
+    def get_agent(self, instance_id: str) -> Optional[AgentInstance]:
+        """Get an agent instance"""
+        return self.agent_instances.get(instance_id)
+    
+    def get_all_agents(self) -> List[AgentInstance]:
+        """Get all agent instances"""
+        return list(self.agent_instances.values())
+    
+    def get_agents_by_type(self, agent_type: str) -> List[AgentInstance]:
+        """Get agents by type"""
+        return [
+            instance for instance in self.agent_instances.values()
+            if instance.config.agent_type == agent_type
+        ]
+    
+    def get_agents_by_capability(self, capability: str) -> List[AgentInstance]:
+        """Get agents by capability"""
+        return [
+            instance for instance in self.agent_instances.values()
+            if capability in instance.config.capabilities
+        ]
+    
+    async def execute_task(
+        self,
+        instance_id: str,
+        task: str,
+        parameters: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """Execute a task on an agent"""
+        try:
+            if instance_id not in self.agent_instances:
+                raise ValidationError(f"Agent instance not found: {instance_id}")
+            
+            agent_instance = self.agent_instances[instance_id]
+            
+            if agent_instance.status != "running":
+                raise SystemError(f"Agent is not running: {instance_id}")
+            
+            # Execute task
+            start_time = datetime.now()
+            result = await agent_instance.agent.execute_task(task, parameters or {})
+            end_time = datetime.now()
+            
+            # Update stats
+            agent_instance.stats["tasks_completed"] += 1
+            agent_instance.stats["total_runtime"] += (end_time - start_time).total_seconds()
+            agent_instance.stats["last_activity"] = end_time.isoformat()
+            
+            logger.info(f"Executed task on agent {instance_id}: {task}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error executing task on agent: {e}")
+            
+            # Update failure stats
+            if instance_id in self.agent_instances:
+                agent_instance = self.agent_instances[instance_id]
+                agent_instance.stats["tasks_failed"] += 1
+                agent_instance.stats["last_activity"] = datetime.now().isoformat()
+            
+            raise
+    
+    async def get_agent_status(self, instance_id: str) -> Dict[str, Any]:
+        """Get agent status"""
+        try:
+            if instance_id not in self.agent_instances:
+                return {}
+            
+            agent_instance = self.agent_instances[instance_id]
+            
+            return {
+                "id": agent_instance.id,
+                "name": agent_instance.config.name,
+                "type": agent_instance.config.agent_type,
+                "status": agent_instance.status,
+                "capabilities": agent_instance.config.capabilities,
+                "stats": agent_instance.stats,
+                "created_at": agent_instance.created_at,
+                "config": agent_instance.config.config
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting agent status: {e}")
+            return {}
+    
+    async def get_factory_stats(self) -> Dict[str, Any]:
+        """Get factory statistics"""
+        try:
+            total_agents = len(self.agent_instances)
+            running_agents = len([a for a in self.agent_instances.values() if a.status == "running"])
+            stopped_agents = len([a for a in self.agent_instances.values() if a.status == "stopped"])
+            
+            # Count by type
+            type_counts = {}
+            for instance in self.agent_instances.values():
+                agent_type = instance.config.agent_type
+                type_counts[agent_type] = type_counts.get(agent_type, 0) + 1
+            
+            # Total tasks
+            total_tasks = sum(instance.stats["tasks_completed"] for instance in self.agent_instances.values())
+            total_failures = sum(instance.stats["tasks_failed"] for instance in self.agent_instances.values())
+            
+            return {
+                "total_agents": total_agents,
+                "running_agents": running_agents,
+                "stopped_agents": stopped_agents,
+                "type_counts": type_counts,
+                "total_tasks": total_tasks,
+                "total_failures": total_failures,
+                "success_rate": total_tasks / (total_tasks + total_failures) if (total_tasks + total_failures) > 0 else 0,
+                "configurations": len(self.agent_configs),
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting factory stats: {e}")
+            return {}
+    
+    def register_agent_type(
+        self,
+        agent_type: str,
+        agent_class: Type[BaseAgent],
+        capabilities: List[str]
+    ) -> bool:
+        """Register a new agent type"""
+        try:
+            self.agent_types[agent_type] = agent_class
+            self.capability_registry[agent_type] = capabilities
+            
+            logger.info(f"Registered agent type: {agent_type}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error registering agent type: {e}")
+            return False
+    
+    def get_available_capabilities(self) -> Dict[str, List[str]]:
+        """Get available capabilities by agent type"""
+        return self.capability_registry.copy()
+    
+    def get_agent_types(self) -> List[str]:
+        """Get available agent types"""
+        return list(self.agent_types.keys())
 
 
 # Global agent factory instance
-_agent_factory: Optional[AgentFactory] = None
+_agent_factory = None
 
 
 def get_agent_factory() -> AgentFactory:
@@ -570,7 +533,10 @@ def get_agent_factory() -> AgentFactory:
     return _agent_factory
 
 
-async def create_agent(spec: AgentSpecification) -> DynamicAgent:
-    """Create a new agent using the global factory"""
-    factory = get_agent_factory()
-    return await factory.create_agent(spec)
+# Export public API
+__all__ = [
+    "AgentConfig",
+    "AgentInstance",
+    "AgentFactory",
+    "get_agent_factory"
+]

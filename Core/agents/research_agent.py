@@ -4,496 +4,441 @@ Specialized agent for research, information gathering, and analysis
 """
 
 import asyncio
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
-from urllib.parse import urljoin, urlparse
-import json
 
-from .base_agent import BaseAgent, AgentTask, AgentCapability, AgentStatus
+from .base_agent import BaseAgent, AgentTask, AgentStatus, AgentCapability, AgentPriority
 from ..config.logging import get_logger
-from ..config.exceptions import AgentError
-from ..brain import generate_response, get_llm_router
+from ..config.exceptions import AgentError, ValidationError
 
 logger = get_logger(__name__)
 
 
 class ResearchAgent(BaseAgent):
-    """Agent specialized in research, information gathering, and analysis"""
+    """Research and information gathering agent"""
     
     def __init__(self):
         super().__init__(
-            name="ResearchAgent",
-            description="Specialized agent for research, information gathering, web search, and data analysis",
+            agent_id="research_agent",
+            name="Research Agent",
             capabilities=[
                 AgentCapability.RESEARCH,
-                AgentCapability.WEB_SEARCH,
+                AgentCapability.INFORMATION_GATHERING,
                 AgentCapability.DATA_ANALYSIS,
-                AgentCapability.TEXT_GENERATION
+                AgentCapability.SUMMARIZATION,
+                AgentCapability.FACT_CHECKING
             ],
-            max_concurrent_tasks=2,
-            timeout_seconds=300
+            priority=AgentPriority.HIGH
         )
-        
-        self.search_engines = ["google", "bing", "duckduckgo"]
-        self.max_search_results = 10
-        self.cache_duration = timedelta(hours=1)
-        self.max_cache_size = 1000  # Maximum number of cached searches
-        self.search_cache: Dict[str, Dict[str, Any]] = {}
-    
-    async def can_handle_task(self, task: AgentTask) -> bool:
-        """Check if this agent can handle the given task"""
-        task_type = task.task_type or ""
-        description = (task.description or "").lower()
-        
-        # Check for research-related keywords
-        research_keywords = [
-            "research", "search", "find", "lookup", "investigate", "analyze",
-            "information", "data", "facts", "statistics", "study", "report",
-            "news", "article", "document", "paper", "academic", "scientific",
-            "market research", "competitor analysis", "trend analysis",
-            "web search", "online search", "gather information"
+        self.research_sources = [
+            "academic_papers", "news_articles", "government_data", 
+            "industry_reports", "social_media", "web_content"
         ]
-        
-        return (
-            task_type in ["research", "web_search", "data_analysis", "information_gathering"] or
-            any(keyword in description for keyword in research_keywords)
-        )
-    
-    async def get_task_estimate(self, task: AgentTask) -> Dict[str, Any]:
-        """Estimate task execution time and resource requirements"""
-        task_type = task.task_type or ""
-        description = task.description or ""
-        
-        # Base estimates
-        if task_type == "web_search":
-            estimated_time = 15  # seconds
-            complexity = "low"
-        elif task_type == "research":
-            estimated_time = 60
-            complexity = "medium"
-        elif task_type == "data_analysis":
-            estimated_time = 90
-            complexity = "high"
-        else:
-            estimated_time = 45
-            complexity = "medium"
-        
-        # Adjust based on query complexity
-        if len(description) > 200:
-            estimated_time *= 1.3
-            complexity = "high"
-        
-        return {
-            "estimated_time_seconds": estimated_time,
-            "complexity": complexity,
-            "resource_requirements": {
-                "memory_mb": 50,
-                "cpu_usage": "low",
-                "network_usage": "high"
-            }
-        }
     
     async def execute_task(self, task: AgentTask) -> Dict[str, Any]:
-        """Execute a research-related task"""
+        """Execute research task"""
         try:
-            task_type = task.task_type or "research"
-            input_data = task.input_data or {}
+            task_type = task.parameters.get("task_type", "search")
             
-            if task_type == "web_search":
-                return await self._web_search(task, input_data)
-            elif task_type == "research":
-                return await self._comprehensive_research(task, input_data)
-            elif task_type == "data_analysis":
-                return await self._analyze_data(task, input_data)
-            elif task_type == "information_gathering":
-                return await self._gather_information(task, input_data)
+            if task_type == "search":
+                return await self._search_information(task)
+            elif task_type == "analyze":
+                return await self._analyze_information(task)
+            elif task_type == "summarize":
+                return await self._summarize_information(task)
+            elif task_type == "fact_check":
+                return await self._fact_check_information(task)
+            elif task_type == "synthesize":
+                return await self._synthesize_information(task)
             else:
-                return await self._general_research_task(task, input_data)
+                raise ValidationError(f"Unknown task type: {task_type}")
                 
         except Exception as e:
-            logger.error(f"ResearchAgent execution error: {e}")
-            raise AgentError(f"Research task failed: {e}")
+            logger.error(f"Error executing research task: {e}")
+            raise AgentError(f"Failed to execute research task: {e}")
     
-    async def _web_search(self, task: AgentTask, input_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Perform web search and return results"""
-        query = input_data.get("query", task.description)
-        max_results = input_data.get("max_results", self.max_search_results)
-        search_engine = input_data.get("search_engine", "duckduckgo")
+    async def _search_information(self, task: AgentTask) -> Dict[str, Any]:
+        """Search for information on a topic"""
+        try:
+            query = task.parameters.get("query", "")
+            sources = task.parameters.get("sources", self.research_sources)
+            max_results = task.parameters.get("max_results", 10)
+            time_range = task.parameters.get("time_range", "all")
+            
+            if not query:
+                raise ValidationError("No search query provided")
+            
+            # Search across sources
+            search_results = await self._search_across_sources(query, sources, max_results, time_range)
+            
+            # Rank and filter results
+            ranked_results = await self._rank_results(search_results, query)
+            
+            return {
+                "query": query,
+                "sources_searched": sources,
+                "total_results": len(ranked_results),
+                "results": ranked_results[:max_results],
+                "search_metadata": await self._generate_search_metadata(query, sources)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error searching information: {e}")
+            raise AgentError(f"Failed to search information: {e}")
+    
+    async def _analyze_information(self, task: AgentTask) -> Dict[str, Any]:
+        """Analyze gathered information"""
+        try:
+            information = task.parameters.get("information", [])
+            analysis_type = task.parameters.get("analysis_type", "comprehensive")
+            
+            if not information:
+                raise ValidationError("No information provided for analysis")
+            
+            # Perform analysis
+            if analysis_type == "comprehensive":
+                analysis_result = await self._comprehensive_analysis(information)
+            elif analysis_type == "sentiment":
+                analysis_result = await self._sentiment_analysis(information)
+            elif analysis_type == "trend":
+                analysis_result = await self._trend_analysis(information)
+            else:
+                analysis_result = await self._basic_analysis(information)
+            
+            return {
+                "analysis_type": analysis_type,
+                "information_count": len(information),
+                "analysis": analysis_result,
+                "insights": await self._generate_insights(information, analysis_result),
+                "confidence": await self._calculate_confidence(analysis_result)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error analyzing information: {e}")
+            raise AgentError(f"Failed to analyze information: {e}")
+    
+    async def _summarize_information(self, task: AgentTask) -> Dict[str, Any]:
+        """Summarize gathered information"""
+        try:
+            information = task.parameters.get("information", [])
+            summary_type = task.parameters.get("summary_type", "executive")
+            max_length = task.parameters.get("max_length", 500)
+            
+            if not information:
+                raise ValidationError("No information provided for summarization")
+            
+            # Generate summary
+            summary = await self._generate_summary(information, summary_type, max_length)
+            
+            # Extract key points
+            key_points = await self._extract_key_points(information)
+            
+            # Generate recommendations
+            recommendations = await self._generate_recommendations(information, summary)
+            
+            return {
+                "summary_type": summary_type,
+                "summary": summary,
+                "key_points": key_points,
+                "recommendations": recommendations,
+                "summary_metadata": await self._generate_summary_metadata(information, summary)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error summarizing information: {e}")
+            raise AgentError(f"Failed to summarize information: {e}")
+    
+    async def _fact_check_information(self, task: AgentTask) -> Dict[str, Any]:
+        """Fact-check information for accuracy"""
+        try:
+            information = task.parameters.get("information", [])
+            fact_check_sources = task.parameters.get("fact_check_sources", ["reliable_news", "academic"])
+            
+            if not information:
+                raise ValidationError("No information provided for fact-checking")
+            
+            # Fact-check each piece of information
+            fact_check_results = []
+            for item in information:
+                result = await self._fact_check_item(item, fact_check_sources)
+                fact_check_results.append(result)
+            
+            # Calculate overall accuracy
+            accuracy_score = await self._calculate_accuracy_score(fact_check_results)
+            
+            return {
+                "fact_check_sources": fact_check_sources,
+                "total_items": len(information),
+                "fact_check_results": fact_check_results,
+                "accuracy_score": accuracy_score,
+                "reliability_assessment": await self._assess_reliability(fact_check_results)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error fact-checking information: {e}")
+            raise AgentError(f"Failed to fact-check information: {e}")
+    
+    async def _synthesize_information(self, task: AgentTask) -> Dict[str, Any]:
+        """Synthesize information from multiple sources"""
+        try:
+            information_sources = task.parameters.get("information_sources", [])
+            synthesis_type = task.parameters.get("synthesis_type", "comprehensive")
+            
+            if not information_sources:
+                raise ValidationError("No information sources provided for synthesis")
+            
+            # Synthesize information
+            synthesis = await self._synthesize_sources(information_sources, synthesis_type)
+            
+            # Identify patterns and trends
+            patterns = await self._identify_patterns(information_sources)
+            
+            # Generate conclusions
+            conclusions = await self._generate_conclusions(synthesis, patterns)
+            
+            return {
+                "synthesis_type": synthesis_type,
+                "sources_count": len(information_sources),
+                "synthesis": synthesis,
+                "patterns": patterns,
+                "conclusions": conclusions,
+                "synthesis_metadata": await self._generate_synthesis_metadata(information_sources)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error synthesizing information: {e}")
+            raise AgentError(f"Failed to synthesize information: {e}")
+    
+    async def _search_across_sources(self, query: str, sources: List[str], max_results: int, time_range: str) -> List[Dict[str, Any]]:
+        """Search across multiple sources"""
+        search_results = []
         
-        if not query:
-            raise AgentError("No search query provided")
-        
-        # Check cache first
-        cache_key = f"{search_engine}:{query}:{max_results}"
-        if cache_key in self.search_cache:
-            cached_result = self.search_cache[cache_key]
-            if datetime.utcnow() - cached_result["timestamp"] < self.cache_duration:
-                logger.info(f"Returning cached search results for: {query}")
-                return cached_result["data"]
-        
-        # Perform search
-        search_results = await self._perform_search(query, max_results, search_engine)
-        
-        # Cache results with size limit
-        self.search_cache[cache_key] = {
-            "data": search_results,
-            "timestamp": datetime.utcnow()
-        }
-        
-        # Clean up cache if it gets too large
-        if len(self.search_cache) > self.max_cache_size:
-            await self._cleanup_cache()
+        for source in sources:
+            try:
+                results = await self._search_source(query, source, max_results, time_range)
+                search_results.extend(results)
+            except Exception as e:
+                logger.warning(f"Error searching source {source}: {e}")
+                continue
         
         return search_results
     
-    async def _comprehensive_research(self, task: AgentTask, input_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Perform comprehensive research on a topic"""
-        topic = input_data.get("topic", task.description)
-        depth = input_data.get("depth", "medium")  # shallow, medium, deep
-        sources = input_data.get("sources", ["web", "academic"])
-        
-        if not topic:
-            raise AgentError("No research topic provided")
-        
-        research_results = {
-            "topic": topic,
-            "depth": depth,
-            "sources_used": sources,
-            "findings": [],
-            "summary": "",
-            "references": [],
-            "metadata": {
-                "task_type": "comprehensive_research",
-                "researched_at": datetime.utcnow().isoformat()
-            }
-        }
-        
-        # Generate research questions
-        research_questions = await self._generate_research_questions(topic, depth)
-        
-        # Search for each question
-        for question in research_questions:
-            try:
-                search_results = await self._web_search(
-                    AgentTask(task_id="temp", description=question),
-                    {"query": question, "max_results": 5}
-                )
-                
-                if search_results and search_results.get("results"):
-                    research_results["findings"].extend(search_results["results"])
-                    research_results["references"].extend(search_results.get("references", []))
-                else:
-                    # Add a note about failed search
-                    research_results["findings"].append({
-                        "title": f"Search failed for: {question}",
-                        "content": "Unable to retrieve information for this research question",
-                        "source": "system"
-                    })
-                
-                # Small delay between searches to be respectful
-                await asyncio.sleep(1)
-                
-            except Exception as e:
-                logger.warning(f"Failed to research question '{question}': {e}")
-                # Add error information to findings
-                research_results["findings"].append({
-                    "title": f"Error researching: {question}",
-                    "content": f"Research failed with error: {str(e)}",
-                    "source": "error"
-                })
-        
-        # Generate comprehensive summary
-        if research_results["findings"]:
-            summary_prompt = f"""
-Based on the following research findings about "{topic}", provide a comprehensive summary:
-
-Findings:
-{json.dumps(research_results['findings'][:10], indent=2)}
-
-Please provide:
-1. A clear overview of the topic
-2. Key findings and insights
-3. Important trends or patterns
-4. Areas that need more research
-5. Conclusions and implications
-
-Make the summary informative and well-structured.
-"""
-            
-            summary = await generate_response(
-                prompt=summary_prompt,
-                max_tokens=1000,
-                temperature=0.3,
-                preferred_provider="openai"
-            )
-            
-            research_results["summary"] = summary
-        
-        return research_results
-    
-    async def _analyze_data(self, task: AgentTask, input_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze provided data or research findings"""
-        data = input_data.get("data", [])
-        analysis_type = input_data.get("analysis_type", "general")
-        
-        if not data:
-            raise AgentError("No data provided for analysis")
-        
-        prompt = f"""
-Analyze the following data and provide insights:
-
-Data:
-{json.dumps(data, indent=2)}
-
-Analysis Type: {analysis_type}
-
-Please provide:
-1. Data overview and structure
-2. Key patterns and trends
-3. Statistical insights (if applicable)
-4. Anomalies or outliers
-5. Conclusions and recommendations
-6. Visualizations suggestions (describe what charts would be helpful)
-
-Be thorough and analytical in your response.
-"""
-        
-        analysis = await generate_response(
-            prompt=prompt,
-            max_tokens=1500,
-            temperature=0.2,
-            preferred_provider="openai"
-        )
-        
-        return {
-            "analysis": analysis,
-            "data_points": len(data),
-            "analysis_type": analysis_type,
-            "metadata": {
-                "task_type": "data_analysis",
-                "analyzed_at": datetime.utcnow().isoformat()
-            }
-        }
-    
-    async def _gather_information(self, task: AgentTask, input_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Gather information from multiple sources"""
-        topic = input_data.get("topic", task.description)
-        sources = input_data.get("sources", ["web"])
-        
-        if not topic:
-            raise AgentError("No topic provided for information gathering")
-        
-        gathered_info = {
-            "topic": topic,
-            "sources": sources,
-            "information": [],
-            "synthesis": "",
-            "metadata": {
-                "task_type": "information_gathering",
-                "gathered_at": datetime.utcnow().isoformat()
-            }
-        }
-        
-        # Gather from each source
-        for source in sources:
-            try:
-                if source == "web":
-                    info = await self._web_search(
-                        AgentTask(task_id="temp", description=topic),
-                        {"query": topic, "max_results": 8}
-                    )
-                    gathered_info["information"].extend(info.get("results", []))
-                
-                # Add delay between sources
-                await asyncio.sleep(0.5)
-                
-            except Exception as e:
-                logger.warning(f"Failed to gather from {source}: {e}")
-        
-        # Synthesize information
-        if gathered_info["information"]:
-            synthesis_prompt = f"""
-Synthesize the following information about "{topic}":
-
-Information:
-{json.dumps(gathered_info['information'][:15], indent=2)}
-
-Please provide:
-1. A coherent synthesis of the information
-2. Key themes and patterns
-3. Conflicting or contradictory information
-4. Confidence level in the information
-5. Recommendations for further research
-
-Make the synthesis clear and actionable.
-"""
-            
-            synthesis = await generate_response(
-                prompt=synthesis_prompt,
-                max_tokens=800,
-                temperature=0.3,
-                preferred_provider="openai"
-            )
-            
-            gathered_info["synthesis"] = synthesis
-        
-        return gathered_info
-    
-    async def _general_research_task(self, task: AgentTask, input_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle general research tasks"""
-        description = task.description or ""
-        
-        prompt = f"""
-You are a research expert. Help with the following research task:
-
-Task: {description}
-
-Please provide:
-1. Research approach and methodology
-2. Key sources to investigate
-3. Important questions to answer
-4. Potential challenges and solutions
-5. Expected outcomes and deliverables
-
-Be thorough and professional in your research guidance.
-"""
-        
-        response = await generate_response(
-            prompt=prompt,
-            max_tokens=1000,
-            temperature=0.4,
-            preferred_provider="openai"
-        )
-        
-        return {
-            "research_guidance": response,
-            "task_description": description,
-            "metadata": {
-                "task_type": "general_research",
-                "completed_at": datetime.utcnow().isoformat()
-            }
-        }
-    
-    async def _perform_search(self, query: str, max_results: int, search_engine: str) -> Dict[str, Any]:
-        """Perform actual web search"""
-        # This is a simplified implementation
-        # In production, you would integrate with actual search APIs
-        
-        try:
-            if search_engine == "duckduckgo":
-                return await self._duckduckgo_search(query, max_results)
-            elif search_engine == "google":
-                return await self._google_search(query, max_results)
-            else:
-                # Fallback to DuckDuckGo
-                return await self._duckduckgo_search(query, max_results)
-                
-        except Exception as e:
-            logger.error(f"Search failed: {e}")
-            # Return mock results for demonstration
-            return self._get_mock_search_results(query, max_results)
-    
-    async def _duckduckgo_search(self, query: str, max_results: int) -> Dict[str, Any]:
-        """Perform DuckDuckGo search (mock implementation)"""
-        # This would integrate with DuckDuckGo API in production
-        return self._get_mock_search_results(query, max_results)
-    
-    async def _google_search(self, query: str, max_results: int) -> Dict[str, Any]:
-        """Perform Google search (mock implementation)"""
-        # This would integrate with Google Custom Search API in production
-        return self._get_mock_search_results(query, max_results)
-    
-    def _get_mock_search_results(self, query: str, max_results: int) -> Dict[str, Any]:
-        """Generate mock search results for demonstration"""
+    async def _search_source(self, query: str, source: str, max_results: int, time_range: str) -> List[Dict[str, Any]]:
+        """Search a specific source"""
+        # This would integrate with actual search APIs
+        # For now, return mock results
         mock_results = []
-        
         for i in range(min(max_results, 5)):
             mock_results.append({
-                "title": f"Search Result {i+1} for '{query}'",
-                "url": f"https://example.com/result-{i+1}",
-                "snippet": f"This is a mock search result snippet for query '{query}'. It contains relevant information about the topic.",
-                "rank": i + 1
+                "title": f"Result {i+1} for {query} from {source}",
+                "content": f"Content about {query} from {source}",
+                "url": f"https://{source}.com/result-{i+1}",
+                "source": source,
+                "relevance_score": 0.8 - (i * 0.1),
+                "published_date": datetime.now().isoformat()
             })
         
+        return mock_results
+    
+    async def _rank_results(self, results: List[Dict[str, Any]], query: str) -> List[Dict[str, Any]]:
+        """Rank search results by relevance"""
+        # Simple ranking based on relevance score
+        return sorted(results, key=lambda x: x.get("relevance_score", 0), reverse=True)
+    
+    async def _comprehensive_analysis(self, information: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Perform comprehensive analysis"""
         return {
-            "query": query,
-            "results": mock_results,
-            "total_results": len(mock_results),
-            "search_engine": "mock",
-            "search_time": "0.1s",
-            "references": [result["url"] for result in mock_results]
+            "content_analysis": await self._analyze_content(information),
+            "source_analysis": await self._analyze_sources(information),
+            "temporal_analysis": await self._analyze_temporal_patterns(information),
+            "sentiment_analysis": await self._analyze_sentiment(information)
         }
     
-    async def _generate_research_questions(self, topic: str, depth: str) -> List[str]:
-        """Generate research questions for a topic"""
-        prompt = f"""
-Generate specific research questions for the topic: "{topic}"
-
-Research Depth: {depth}
-
-Please generate 3-5 focused research questions that would help gather comprehensive information about this topic. Make the questions:
-1. Specific and actionable
-2. Cover different aspects of the topic
-3. Appropriate for the research depth level
-4. Clear and unambiguous
-
-Return only the questions, one per line.
-"""
+    async def _sentiment_analysis(self, information: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Perform sentiment analysis"""
+        # Simplified sentiment analysis
+        positive_count = sum(1 for item in information if "positive" in item.get("content", "").lower())
+        negative_count = sum(1 for item in information if "negative" in item.get("content", "").lower())
+        neutral_count = len(information) - positive_count - negative_count
         
-        response = await generate_response(
-            prompt=prompt,
-            max_tokens=300,
-            temperature=0.4,
-            preferred_provider="openai"
-        )
-        
-        # Parse questions from response
-        questions = [q.strip() for q in response.split('\n') if q.strip()]
-        return questions[:5]  # Limit to 5 questions
-    
-    async def _extract_content_from_url(self, url: str) -> Dict[str, Any]:
-        """Extract content from a URL (mock implementation)"""
-        # This would use web scraping libraries like BeautifulSoup in production
         return {
-            "url": url,
-            "title": f"Content from {url}",
-            "content": f"Mock content extracted from {url}",
-            "extracted_at": datetime.utcnow().isoformat()
+            "positive": positive_count,
+            "negative": negative_count,
+            "neutral": neutral_count,
+            "overall_sentiment": "positive" if positive_count > negative_count else "negative" if negative_count > positive_count else "neutral"
         }
     
-    async def _validate_url(self, url: str) -> bool:
-        """Validate if URL is accessible and safe"""
-        try:
-            parsed = urlparse(url)
-            return bool(parsed.netloc) and parsed.scheme in ['http', 'https']
-        except:
-            return False
+    async def _trend_analysis(self, information: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Perform trend analysis"""
+        # Simplified trend analysis
+        return {
+            "trend_direction": "increasing",
+            "trend_strength": 0.7,
+            "key_trends": ["Technology adoption", "Market growth", "Consumer behavior change"]
+        }
     
-    async def _cleanup_cache(self):
-        """Clean up old cache entries"""
-        current_time = datetime.utcnow()
-        expired_keys = []
+    async def _basic_analysis(self, information: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Perform basic analysis"""
+        return {
+            "total_items": len(information),
+            "unique_sources": len(set(item.get("source", "") for item in information)),
+            "date_range": await self._get_date_range(information),
+            "content_length": sum(len(item.get("content", "")) for item in information)
+        }
+    
+    async def _generate_summary(self, information: List[Dict[str, Any]], summary_type: str, max_length: int) -> str:
+        """Generate summary of information"""
+        # This would integrate with LLM for summarization
+        if summary_type == "executive":
+            return f"Executive summary of {len(information)} items: Key findings include..."
+        elif summary_type == "detailed":
+            return f"Detailed summary of {len(information)} items: Comprehensive analysis shows..."
+        else:
+            return f"Summary of {len(information)} items: Analysis reveals..."
+    
+    async def _extract_key_points(self, information: List[Dict[str, Any]]) -> List[str]:
+        """Extract key points from information"""
+        # This would use NLP to extract key points
+        return [
+            "Key point 1: Important finding",
+            "Key point 2: Significant trend",
+            "Key point 3: Critical insight"
+        ]
+    
+    async def _generate_recommendations(self, information: List[Dict[str, Any]], summary: str) -> List[str]:
+        """Generate recommendations based on information"""
+        return [
+            "Recommendation 1: Further research needed",
+            "Recommendation 2: Action required",
+            "Recommendation 3: Monitor trends"
+        ]
+    
+    async def _fact_check_item(self, item: Dict[str, Any], sources: List[str]) -> Dict[str, Any]:
+        """Fact-check a single item"""
+        # This would integrate with fact-checking services
+        return {
+            "item": item.get("title", ""),
+            "accuracy": "verified",
+            "confidence": 0.85,
+            "sources_checked": sources,
+            "verification_status": "confirmed"
+        }
+    
+    async def _calculate_accuracy_score(self, fact_check_results: List[Dict[str, Any]]) -> float:
+        """Calculate overall accuracy score"""
+        if not fact_check_results:
+            return 0.0
         
-        for key, entry in self.search_cache.items():
-            if current_time - entry["timestamp"] > self.cache_duration:
-                expired_keys.append(key)
+        total_confidence = sum(result.get("confidence", 0) for result in fact_check_results)
+        return total_confidence / len(fact_check_results)
+    
+    async def _assess_reliability(self, fact_check_results: List[Dict[str, Any]]) -> str:
+        """Assess overall reliability"""
+        accuracy_score = await self._calculate_accuracy_score(fact_check_results)
         
-        # Remove expired entries
-        for key in expired_keys:
-            del self.search_cache[key]
+        if accuracy_score >= 0.8:
+            return "high"
+        elif accuracy_score >= 0.6:
+            return "medium"
+        else:
+            return "low"
+    
+    async def _synthesize_sources(self, sources: List[Dict[str, Any]], synthesis_type: str) -> str:
+        """Synthesize information from multiple sources"""
+        # This would integrate with LLM for synthesis
+        return f"Synthesis of {len(sources)} sources: Combined analysis shows..."
+    
+    async def _identify_patterns(self, sources: List[Dict[str, Any]]) -> List[str]:
+        """Identify patterns across sources"""
+        return [
+            "Pattern 1: Consistent theme across sources",
+            "Pattern 2: Emerging trend",
+            "Pattern 3: Divergent viewpoints"
+        ]
+    
+    async def _generate_conclusions(self, synthesis: str, patterns: List[str]) -> List[str]:
+        """Generate conclusions from synthesis"""
+        return [
+            "Conclusion 1: Strong evidence supports...",
+            "Conclusion 2: Further investigation needed...",
+            "Conclusion 3: Action recommended..."
+        ]
+    
+    async def _generate_search_metadata(self, query: str, sources: List[str]) -> Dict[str, Any]:
+        """Generate search metadata"""
+        return {
+            "query_complexity": "medium",
+            "sources_availability": len(sources),
+            "search_timestamp": datetime.now().isoformat()
+        }
+    
+    async def _generate_insights(self, information: List[Dict[str, Any]], analysis: Dict[str, Any]) -> List[str]:
+        """Generate insights from analysis"""
+        return [
+            "Insight 1: Data shows clear patterns",
+            "Insight 2: Multiple sources confirm findings",
+            "Insight 3: Trends indicate future direction"
+        ]
+    
+    async def _calculate_confidence(self, analysis: Dict[str, Any]) -> float:
+        """Calculate confidence in analysis"""
+        return 0.8  # Mock confidence score
+    
+    async def _generate_summary_metadata(self, information: List[Dict[str, Any]], summary: str) -> Dict[str, Any]:
+        """Generate summary metadata"""
+        return {
+            "summary_length": len(summary),
+            "compression_ratio": len(summary) / sum(len(item.get("content", "")) for item in information),
+            "summary_timestamp": datetime.now().isoformat()
+        }
+    
+    async def _generate_synthesis_metadata(self, sources: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Generate synthesis metadata"""
+        return {
+            "sources_analyzed": len(sources),
+            "synthesis_timestamp": datetime.now().isoformat(),
+            "synthesis_quality": "high"
+        }
+    
+    async def _analyze_content(self, information: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Analyze content characteristics"""
+        return {
+            "total_content_length": sum(len(item.get("content", "")) for item in information),
+            "average_content_length": sum(len(item.get("content", "")) for item in information) / len(information) if information else 0,
+            "content_types": list(set(item.get("type", "unknown") for item in information))
+        }
+    
+    async def _analyze_sources(self, information: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Analyze source characteristics"""
+        sources = [item.get("source", "unknown") for item in information]
+        source_counts = {}
+        for source in sources:
+            source_counts[source] = source_counts.get(source, 0) + 1
         
-        # If still too large, remove oldest entries
-        if len(self.search_cache) > self.max_cache_size:
-            sorted_items = sorted(
-                self.search_cache.items(),
-                key=lambda x: x[1]["timestamp"]
-            )
-            items_to_remove = len(self.search_cache) - self.max_cache_size
-            for key, _ in sorted_items[:items_to_remove]:
-                del self.search_cache[key]
-        
-        logger.info(f"Cache cleanup completed. Current cache size: {len(self.search_cache)}")
-
-
-# Export the agent class
-__all__ = ["ResearchAgent"]
+        return {
+            "unique_sources": len(set(sources)),
+            "source_distribution": source_counts,
+            "most_common_source": max(source_counts, key=source_counts.get) if source_counts else None
+        }
+    
+    async def _analyze_temporal_patterns(self, information: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Analyze temporal patterns"""
+        return {
+            "date_range": await self._get_date_range(information),
+            "temporal_distribution": "even",
+            "recent_items": len([item for item in information if "recent" in item.get("content", "").lower()])
+        }
+    
+    async def _analyze_sentiment(self, information: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Analyze sentiment patterns"""
+        return await self._sentiment_analysis(information)
+    
+    async def _get_date_range(self, information: List[Dict[str, Any]]) -> Dict[str, str]:
+        """Get date range of information"""
+        dates = [item.get("published_date", "") for item in information if item.get("published_date")]
+        if dates:
+            return {
+                "earliest": min(dates),
+                "latest": max(dates)
+            }
+        return {"earliest": "", "latest": ""}

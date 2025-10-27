@@ -1,280 +1,348 @@
 """
-Session management for user authentication
-Handles session creation, validation, and cleanup
+Session Management for Atulya Tantra AGI
+User sessions, session data, and session lifecycle
 """
 
 import json
-import uuid
-from datetime import datetime, timedelta
+import secrets
 from typing import Dict, Any, Optional, List
+from datetime import datetime, timedelta
 from dataclasses import dataclass, asdict
 
-from ..config.settings import settings
 from ..config.logging import get_logger
-from ..database.service import get_db_service, insert_record, get_record_by_id, update_record, delete_record
+from ..config.exceptions import SessionError, ValidationError
 
 logger = get_logger(__name__)
+
 
 @dataclass
 class SessionData:
     """Session data structure"""
     session_id: str
     user_id: str
-    username: str
     created_at: datetime
     last_accessed: datetime
     expires_at: datetime
-    ip_address: Optional[str] = None
-    user_agent: Optional[str] = None
-    is_active: bool = True
-    metadata: Optional[Dict[str, Any]] = None
+    ip_address: str
+    user_agent: str
+    data: Dict[str, Any] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
+        return {
+            "session_id": self.session_id,
+            "user_id": self.user_id,
+            "created_at": self.created_at.isoformat(),
+            "last_accessed": self.last_accessed.isoformat(),
+            "expires_at": self.expires_at.isoformat(),
+            "ip_address": self.ip_address,
+            "user_agent": self.user_agent,
+            "data": self.data or {}
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'SessionData':
+        """Create from dictionary"""
+        return cls(
+            session_id=data["session_id"],
+            user_id=data["user_id"],
+            created_at=datetime.fromisoformat(data["created_at"]),
+            last_accessed=datetime.fromisoformat(data["last_accessed"]),
+            expires_at=datetime.fromisoformat(data["expires_at"]),
+            ip_address=data["ip_address"],
+            user_agent=data["user_agent"],
+            data=data.get("data", {})
+        )
+
 
 class SessionManager:
-    """Manages user sessions"""
+    """Session management utilities"""
     
     def __init__(self):
-        self.default_expire_hours = 24
+        self.sessions: Dict[str, SessionData] = {}
+        self.default_session_duration = timedelta(hours=24)
         self.max_sessions_per_user = 5
-        self.cleanup_interval_hours = 1
     
-    async def create_session(
-        self, 
-        user_id: str, 
-        username: str,
-        ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        expires_hours: Optional[int] = None
-    ) -> SessionData:
-        """Create a new user session"""
-        session_id = str(uuid.uuid4())
-        now = datetime.utcnow()
-        expires_hours = expires_hours or self.default_expire_hours
-        expires_at = now + timedelta(hours=expires_hours)
-        
-        session_data = SessionData(
-            session_id=session_id,
-            user_id=user_id,
-            username=username,
-            created_at=now,
-            last_accessed=now,
-            expires_at=expires_at,
-            ip_address=ip_address,
-            user_agent=user_agent,
-            is_active=True,
-            metadata=metadata or {}
-        )
-        
-        # Store session in database
-        await self._store_session(session_data)
-        
-        # Clean up old sessions for this user
-        await self._cleanup_user_sessions(user_id)
-        
-        logger.info(f"Session created for user {username}: {session_id}")
-        return session_data
+    def create_session(
+        self,
+        user_id: str,
+        ip_address: str,
+        user_agent: str,
+        duration: Optional[timedelta] = None
+    ) -> str:
+        """Create new session"""
+        try:
+            # Generate session ID
+            session_id = secrets.token_urlsafe(32)
+            
+            # Set expiration
+            expires_at = datetime.utcnow() + (duration or self.default_session_duration)
+            
+            # Create session data
+            session_data = SessionData(
+                session_id=session_id,
+                user_id=user_id,
+                created_at=datetime.utcnow(),
+                last_accessed=datetime.utcnow(),
+                expires_at=expires_at,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                data={}
+            )
+            
+            # Store session
+            self.sessions[session_id] = session_data
+            
+            # Clean up old sessions for user
+            self._cleanup_user_sessions(user_id)
+            
+            logger.info(f"Session created for user {user_id}")
+            return session_id
+            
+        except Exception as e:
+            logger.error(f"Error creating session: {e}")
+            raise SessionError("Failed to create session")
     
-    async def get_session(self, session_id: str) -> Optional[SessionData]:
+    def get_session(self, session_id: str) -> Optional[SessionData]:
         """Get session by ID"""
         try:
-            session_record = await get_record_by_id("sessions", session_id)
-            if not session_record:
+            if session_id not in self.sessions:
                 return None
+            
+            session = self.sessions[session_id]
             
             # Check if session is expired
-            expires_at = datetime.fromisoformat(session_record["expires_at"])
-            if datetime.utcnow() > expires_at:
-                await self.delete_session(session_id)
+            if datetime.utcnow() > session.expires_at:
+                del self.sessions[session_id]
                 return None
             
-            # Check if session is active
-            if not session_record.get("is_active", True):
-                return None
+            # Update last accessed
+            session.last_accessed = datetime.utcnow()
             
-            # Update last accessed time
-            await self._update_last_accessed(session_id)
+            return session
             
-            return SessionData(
-                session_id=session_record["session_id"],
-                user_id=session_record["user_id"],
-                username=session_record["username"],
-                created_at=datetime.fromisoformat(session_record["created_at"]),
-                last_accessed=datetime.fromisoformat(session_record["last_accessed"]),
-                expires_at=expires_at,
-                ip_address=session_record.get("ip_address"),
-                user_agent=session_record.get("user_agent"),
-                is_active=session_record.get("is_active", True),
-                metadata=session_record.get("metadata", {})
-            )
         except Exception as e:
-            logger.error(f"Error getting session {session_id}: {e}")
+            logger.error(f"Error getting session: {e}")
             return None
     
-    async def validate_session(self, session_id: str) -> bool:
-        """Validate if session exists and is active"""
-        session = await self.get_session(session_id)
-        return session is not None
-    
-    async def refresh_session(self, session_id: str, expires_hours: Optional[int] = None) -> bool:
-        """Refresh session expiration time"""
+    def update_session(self, session_id: str, data: Dict[str, Any]) -> bool:
+        """Update session data"""
         try:
-            session = await self.get_session(session_id)
-            if not session:
+            if session_id not in self.sessions:
                 return False
             
-            expires_hours = expires_hours or self.default_expire_hours
-            new_expires_at = datetime.utcnow() + timedelta(hours=expires_hours)
+            session = self.sessions[session_id]
             
-            await update_record("sessions", session_id, {
-                "expires_at": new_expires_at.isoformat(),
-                "last_accessed": datetime.utcnow().isoformat()
-            })
+            # Check if session is expired
+            if datetime.utcnow() > session.expires_at:
+                del self.sessions[session_id]
+                return False
             
-            logger.info(f"Session refreshed: {session_id}")
+            # Update data
+            if session.data is None:
+                session.data = {}
+            session.data.update(data)
+            session.last_accessed = datetime.utcnow()
+            
             return True
+            
         except Exception as e:
-            logger.error(f"Error refreshing session {session_id}: {e}")
+            logger.error(f"Error updating session: {e}")
             return False
     
-    async def delete_session(self, session_id: str) -> bool:
-        """Delete a session"""
+    def delete_session(self, session_id: str) -> bool:
+        """Delete session"""
         try:
-            await delete_record("sessions", session_id)
-            logger.info(f"Session deleted: {session_id}")
-            return True
+            if session_id in self.sessions:
+                del self.sessions[session_id]
+                logger.info(f"Session {session_id} deleted")
+                return True
+            return False
+            
         except Exception as e:
-            logger.error(f"Error deleting session {session_id}: {e}")
+            logger.error(f"Error deleting session: {e}")
             return False
     
-    async def delete_user_sessions(self, user_id: str) -> int:
-        """Delete all sessions for a user"""
+    def delete_user_sessions(self, user_id: str) -> int:
+        """Delete all sessions for user"""
         try:
-            # Get all sessions for user
-            db_service = await get_db_service()
-            sessions = await db_service.get_records_by_field("sessions", "user_id", user_id)
-            
             deleted_count = 0
-            for session in sessions:
-                if await self.delete_session(session["session_id"]):
-                    deleted_count += 1
+            sessions_to_delete = []
+            
+            for session_id, session in self.sessions.items():
+                if session.user_id == user_id:
+                    sessions_to_delete.append(session_id)
+            
+            for session_id in sessions_to_delete:
+                del self.sessions[session_id]
+                deleted_count += 1
             
             logger.info(f"Deleted {deleted_count} sessions for user {user_id}")
             return deleted_count
+            
         except Exception as e:
-            logger.error(f"Error deleting sessions for user {user_id}: {e}")
+            logger.error(f"Error deleting user sessions: {e}")
             return 0
     
-    async def get_user_sessions(self, user_id: str) -> List[SessionData]:
-        """Get all active sessions for a user"""
-        try:
-            db_service = await get_db_service()
-            sessions = await db_service.get_records_by_field("sessions", "user_id", user_id)
-            
-            session_list = []
-            for session_record in sessions:
-                if session_record.get("is_active", True):
-                    expires_at = datetime.fromisoformat(session_record["expires_at"])
-                    if datetime.utcnow() <= expires_at:
-                        session_list.append(SessionData(
-                            session_id=session_record["session_id"],
-                            user_id=session_record["user_id"],
-                            username=session_record["username"],
-                            created_at=datetime.fromisoformat(session_record["created_at"]),
-                            last_accessed=datetime.fromisoformat(session_record["last_accessed"]),
-                            expires_at=expires_at,
-                            ip_address=session_record.get("ip_address"),
-                            user_agent=session_record.get("user_agent"),
-                            is_active=session_record.get("is_active", True),
-                            metadata=session_record.get("metadata", {})
-                        ))
-            
-            return session_list
-        except Exception as e:
-            logger.error(f"Error getting sessions for user {user_id}: {e}")
-            return []
-    
-    async def cleanup_expired_sessions(self) -> int:
+    def cleanup_expired_sessions(self) -> int:
         """Clean up expired sessions"""
         try:
-            db_service = await get_db_service()
-            all_sessions = await db_service.get_all_records("sessions")
+            current_time = datetime.utcnow()
+            expired_sessions = []
             
-            deleted_count = 0
-            now = datetime.utcnow()
+            for session_id, session in self.sessions.items():
+                if current_time > session.expires_at:
+                    expired_sessions.append(session_id)
             
-            for session in all_sessions:
-                expires_at = datetime.fromisoformat(session["expires_at"])
-                if now > expires_at:
-                    if await self.delete_session(session["session_id"]):
-                        deleted_count += 1
+            for session_id in expired_sessions:
+                del self.sessions[session_id]
             
-            logger.info(f"Cleaned up {deleted_count} expired sessions")
-            return deleted_count
+            if expired_sessions:
+                logger.info(f"Cleaned up {len(expired_sessions)} expired sessions")
+            
+            return len(expired_sessions)
+            
         except Exception as e:
             logger.error(f"Error cleaning up expired sessions: {e}")
             return 0
     
-    async def _store_session(self, session_data: SessionData) -> None:
-        """Store session in database"""
-        session_record = {
-            "session_id": session_data.session_id,
-            "user_id": session_data.user_id,
-            "username": session_data.username,
-            "created_at": session_data.created_at.isoformat(),
-            "last_accessed": session_data.last_accessed.isoformat(),
-            "expires_at": session_data.expires_at.isoformat(),
-            "ip_address": session_data.ip_address,
-            "user_agent": session_data.user_agent,
-            "is_active": session_data.is_active,
-            "metadata": json.dumps(session_data.metadata) if session_data.metadata else "{}"
-        }
-        
-        await insert_record("sessions", session_record)
-    
-    async def _update_last_accessed(self, session_id: str) -> None:
-        """Update last accessed time for session"""
-        await update_record("sessions", session_id, {
-            "last_accessed": datetime.utcnow().isoformat()
-        })
-    
-    async def _cleanup_user_sessions(self, user_id: str) -> None:
-        """Clean up old sessions for a user if they exceed the limit"""
+    def _cleanup_user_sessions(self, user_id: str):
+        """Clean up old sessions for user"""
         try:
-            sessions = await self.get_user_sessions(user_id)
+            user_sessions = [
+                (session_id, session) for session_id, session in self.sessions.items()
+                if session.user_id == user_id
+            ]
             
-            if len(sessions) > self.max_sessions_per_user:
-                # Sort by last accessed and remove oldest
-                sessions.sort(key=lambda x: x.last_accessed)
-                sessions_to_remove = sessions[:-self.max_sessions_per_user]
+            if len(user_sessions) > self.max_sessions_per_user:
+                # Sort by last accessed and keep only the most recent
+                user_sessions.sort(key=lambda x: x[1].last_accessed, reverse=True)
                 
-                for session in sessions_to_remove:
-                    await self.delete_session(session.session_id)
+                sessions_to_delete = user_sessions[self.max_sessions_per_user:]
+                for session_id, _ in sessions_to_delete:
+                    del self.sessions[session_id]
                 
-                logger.info(f"Cleaned up {len(sessions_to_remove)} old sessions for user {user_id}")
+                logger.info(f"Cleaned up {len(sessions_to_delete)} old sessions for user {user_id}")
+                
         except Exception as e:
             logger.error(f"Error cleaning up user sessions: {e}")
+    
+    def get_user_sessions(self, user_id: str) -> List[SessionData]:
+        """Get all sessions for user"""
+        try:
+            return [
+                session for session in self.sessions.values()
+                if session.user_id == user_id and datetime.utcnow() <= session.expires_at
+            ]
+        except Exception as e:
+            logger.error(f"Error getting user sessions: {e}")
+            return []
+    
+    def extend_session(self, session_id: str, duration: timedelta) -> bool:
+        """Extend session duration"""
+        try:
+            if session_id not in self.sessions:
+                return False
+            
+            session = self.sessions[session_id]
+            
+            # Check if session is expired
+            if datetime.utcnow() > session.expires_at:
+                del self.sessions[session_id]
+                return False
+            
+            # Extend expiration
+            session.expires_at = datetime.utcnow() + duration
+            session.last_accessed = datetime.utcnow()
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error extending session: {e}")
+            return False
+    
+    def get_session_stats(self) -> Dict[str, Any]:
+        """Get session statistics"""
+        try:
+            current_time = datetime.utcnow()
+            active_sessions = len([
+                session for session in self.sessions.values()
+                if current_time <= session.expires_at
+            ])
+            
+            expired_sessions = len([
+                session for session in self.sessions.values()
+                if current_time > session.expires_at
+            ])
+            
+            return {
+                "total_sessions": len(self.sessions),
+                "active_sessions": active_sessions,
+                "expired_sessions": expired_sessions,
+                "max_sessions_per_user": self.max_sessions_per_user
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting session stats: {e}")
+            return {}
+
 
 # Global session manager instance
-session_manager = SessionManager()
+_session_manager = None
+
+
+def get_session_manager() -> SessionManager:
+    """Get global session manager instance"""
+    global _session_manager
+    if _session_manager is None:
+        _session_manager = SessionManager()
+    return _session_manager
+
 
 # Convenience functions
-async def create_session(
-    user_id: str, 
-    username: str,
-    ip_address: Optional[str] = None,
-    user_agent: Optional[str] = None,
-    metadata: Optional[Dict[str, Any]] = None,
-    expires_hours: Optional[int] = None
-) -> SessionData:
-    """Create a new user session"""
-    return await session_manager.create_session(
-        user_id, username, ip_address, user_agent, metadata, expires_hours
-    )
+def create_session(
+    user_id: str,
+    ip_address: str,
+    user_agent: str,
+    duration: Optional[timedelta] = None
+) -> str:
+    """Create new session"""
+    manager = get_session_manager()
+    return manager.create_session(user_id, ip_address, user_agent, duration)
 
-async def get_session(session_id: str) -> Optional[SessionData]:
+
+def get_session(session_id: str) -> Optional[SessionData]:
     """Get session by ID"""
-    return await session_manager.get_session(session_id)
+    manager = get_session_manager()
+    return manager.get_session(session_id)
 
-async def delete_session(session_id: str) -> bool:
-    """Delete a session"""
-    return await session_manager.delete_session(session_id)
+
+def update_session(session_id: str, data: Dict[str, Any]) -> bool:
+    """Update session data"""
+    manager = get_session_manager()
+    return manager.update_session(session_id, data)
+
+
+def delete_session(session_id: str) -> bool:
+    """Delete session"""
+    manager = get_session_manager()
+    return manager.delete_session(session_id)
+
+
+def cleanup_expired_sessions() -> int:
+    """Clean up expired sessions"""
+    manager = get_session_manager()
+    return manager.cleanup_expired_sessions()
+
+
+# Export public API
+__all__ = [
+    "SessionData",
+    "SessionManager",
+    "get_session_manager",
+    "create_session",
+    "get_session",
+    "update_session",
+    "delete_session",
+    "cleanup_expired_sessions"
+]

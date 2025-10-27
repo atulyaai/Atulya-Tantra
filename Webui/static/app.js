@@ -1,578 +1,532 @@
 /**
- * Atulya Tantra AGI - JARVIS Interface JavaScript
- * Modern, responsive chat interface with real-time capabilities
+ * Atulya Tantra AGI - Web Interface JavaScript
+ * Main application logic for the web interface
  */
 
-class JARVISInterface {
+class TantraAGI {
     constructor() {
-        this.currentConversationId = null;
-        this.isStreaming = false;
-        this.isVoiceEnabled = false;
-        this.recognition = null;
-        this.websocket = null;
-        this.settings = this.loadSettings();
+        this.apiBase = '/api';
+        this.wsUrl = `ws://${window.location.host}/ws`;
+        this.socket = null;
+        this.isConnected = false;
+        this.currentSession = null;
+        this.messageHistory = [];
         
-        this.initializeElements();
-        this.attachEventListeners();
-        this.initializeVoiceRecognition();
-        this.loadConversations();
-        this.applyTheme();
-        
-        // Auto-save settings
-        setInterval(() => this.saveSettings(), 30000);
+        this.init();
     }
     
-    initializeElements() {
-        // Main elements
-        this.sidebar = document.getElementById('sidebar');
-        this.chatMessages = document.getElementById('chatMessages');
-        this.messageInput = document.getElementById('messageInput');
-        this.sendBtn = document.getElementById('sendBtn');
-        this.newChatBtn = document.getElementById('newChatBtn');
-        this.conversationsList = document.getElementById('conversationsList');
-        this.chatTitle = document.getElementById('chatTitle');
-        this.chatStatus = document.getElementById('chatStatus');
-        
-        // Action buttons
-        this.voiceBtn = document.getElementById('voiceBtn');
-        this.attachBtn = document.getElementById('attachBtn');
-        this.clearBtn = document.getElementById('clearBtn');
-        this.fileInput = document.getElementById('fileInput');
-        
-        // Settings modal
-        this.settingsModal = document.getElementById('settingsModal');
-        this.settingsBtn = document.getElementById('settingsBtn');
-        this.closeSettingsBtn = document.getElementById('closeSettingsBtn');
-        this.saveSettingsBtn = document.getElementById('saveSettingsBtn');
-        this.cancelSettingsBtn = document.getElementById('cancelSettingsBtn');
-        
-        // Loading overlay
-        this.loadingOverlay = document.getElementById('loadingOverlay');
-        
-        // Toast container
-        this.toastContainer = document.getElementById('toastContainer');
-        
-        // Character count
-        this.charCount = document.getElementById('charCount');
-        this.modelInfo = document.getElementById('modelInfo');
+    init() {
+        this.setupEventListeners();
+        this.setupWebSocket();
+        this.loadUserPreferences();
+        this.renderInterface();
     }
     
-    attachEventListeners() {
-        // Message input
-        this.messageInput.addEventListener('input', () => this.handleInputChange());
-        this.messageInput.addEventListener('keydown', (e) => this.handleKeyDown(e));
+    setupEventListeners() {
+        // Send message button
+        document.getElementById('sendButton').addEventListener('click', () => {
+            this.sendMessage();
+        });
         
-        // Send button
-        this.sendBtn.addEventListener('click', () => this.sendMessage());
-        
-        // New chat
-        this.newChatBtn.addEventListener('click', () => this.startNewChat());
-        
-        // Action buttons
-        this.voiceBtn.addEventListener('click', () => this.toggleVoiceInput());
-        this.attachBtn.addEventListener('click', () => this.fileInput.click());
-        this.clearBtn.addEventListener('click', () => this.clearChat());
-        
-        // File input
-        this.fileInput.addEventListener('change', (e) => this.handleFileUpload(e));
-        
-        // Settings
-        this.settingsBtn.addEventListener('click', () => this.showSettings());
-        this.closeSettingsBtn.addEventListener('click', () => this.hideSettings());
-        this.saveSettingsBtn.addEventListener('click', () => this.saveSettings());
-        this.cancelSettingsBtn.addEventListener('click', () => this.hideSettings());
-        
-        // Quick actions
-        document.addEventListener('click', (e) => {
-            if (e.target.classList.contains('quick-action-btn')) {
-                this.messageInput.value = e.target.dataset.message;
-                this.handleInputChange();
+        // Enter key in message input
+        document.getElementById('messageInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
                 this.sendMessage();
             }
         });
         
-        // Auto-resize textarea
-        this.messageInput.addEventListener('input', () => this.autoResizeTextarea());
-        
-        // Settings change handlers
-        document.getElementById('temperature').addEventListener('input', (e) => {
-            document.getElementById('temperatureValue').textContent = e.target.value;
+        // Clear chat button
+        document.getElementById('clearChat').addEventListener('click', () => {
+            this.clearChat();
         });
         
-        // Theme change
-        document.getElementById('theme').addEventListener('change', (e) => {
-            this.applyTheme(e.target.value);
+        // Settings button
+        document.getElementById('settingsButton').addEventListener('click', () => {
+            this.showSettings();
+        });
+        
+        // Voice input button
+        document.getElementById('voiceInput').addEventListener('click', () => {
+            this.toggleVoiceInput();
+        });
+        
+        // Theme toggle
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            this.toggleTheme();
         });
     }
     
-    initializeVoiceRecognition() {
-        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            this.recognition = new SpeechRecognition();
-            this.recognition.continuous = false;
-            this.recognition.interimResults = false;
-            this.recognition.lang = 'en-US';
+    setupWebSocket() {
+        try {
+            this.socket = new WebSocket(this.wsUrl);
             
-            this.recognition.onresult = (event) => {
-                const transcript = event.results[0][0].transcript;
-                this.messageInput.value = transcript;
-                this.handleInputChange();
+            this.socket.onopen = () => {
+                console.log('WebSocket connected');
+                this.isConnected = true;
+                this.updateConnectionStatus('connected');
             };
             
-            this.recognition.onerror = (event) => {
-                console.error('Speech recognition error:', event.error);
-                this.showToast('Voice recognition error: ' + event.error, 'error');
+            this.socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                this.handleWebSocketMessage(data);
             };
             
-            this.recognition.onend = () => {
-                this.isVoiceEnabled = false;
-                this.updateVoiceButton();
+            this.socket.onclose = () => {
+                console.log('WebSocket disconnected');
+                this.isConnected = false;
+                this.updateConnectionStatus('disconnected');
+                
+                // Attempt to reconnect after 3 seconds
+                setTimeout(() => {
+                    this.setupWebSocket();
+                }, 3000);
             };
+            
+            this.socket.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                this.updateConnectionStatus('error');
+            };
+            
+        } catch (error) {
+            console.error('Error setting up WebSocket:', error);
+            this.updateConnectionStatus('error');
         }
     }
     
-    handleInputChange() {
-        const message = this.messageInput.value.trim();
-        this.sendBtn.disabled = !message || this.isStreaming;
-        this.charCount.textContent = `${this.messageInput.value.length}/10000`;
-        
-        // Auto-resize textarea
-        this.autoResizeTextarea();
-    }
-    
-    handleKeyDown(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            if (!this.sendBtn.disabled) {
-                this.sendMessage();
-            }
+    handleWebSocketMessage(data) {
+        switch (data.type) {
+            case 'message':
+                this.displayMessage(data.message, 'assistant');
+                break;
+            case 'status':
+                this.updateSystemStatus(data.status);
+                break;
+            case 'error':
+                this.displayError(data.error);
+                break;
+            case 'typing':
+                this.showTypingIndicator();
+                break;
+            default:
+                console.log('Unknown message type:', data.type);
         }
-    }
-    
-    autoResizeTextarea() {
-        this.messageInput.style.height = 'auto';
-        this.messageInput.style.height = Math.min(this.messageInput.scrollHeight, 120) + 'px';
     }
     
     async sendMessage() {
-        const message = this.messageInput.value.trim();
-        if (!message || this.isStreaming) return;
+        const messageInput = document.getElementById('messageInput');
+        const message = messageInput.value.trim();
+        
+        if (!message) return;
         
         // Clear input
-        this.messageInput.value = '';
-        this.handleInputChange();
+        messageInput.value = '';
         
-        // Hide welcome message
-        const welcomeMessage = document.querySelector('.welcome-message');
-        if (welcomeMessage) {
-            welcomeMessage.style.display = 'none';
-        }
+        // Display user message
+        this.displayMessage(message, 'user');
         
-        // Add user message
-        this.addMessage('user', message);
-        
-        // Show loading
-        this.showLoading();
-        this.isStreaming = true;
-        this.updateStatus('Processing...', 'processing');
+        // Show typing indicator
+        this.showTypingIndicator();
         
         try {
-            // Send message to API
-            const response = await this.sendToAPI(message);
-            
-            if (response.stream) {
-                // Handle streaming response
-                await this.handleStreamingResponse(response);
+            // Send via WebSocket if available
+            if (this.isConnected && this.socket) {
+                this.socket.send(JSON.stringify({
+                    type: 'message',
+                    message: message,
+                    session_id: this.currentSession
+                }));
             } else {
-                // Handle regular response
-                this.addMessage('ai', response.response);
+                // Fallback to HTTP API
+                await this.sendMessageViaAPI(message);
             }
-            
-            // Update conversation list
-            this.loadConversations();
-            
         } catch (error) {
             console.error('Error sending message:', error);
-            this.addMessage('ai', 'Sorry, I encountered an error processing your request. Please try again.');
-            this.showToast('Error: ' + error.message, 'error');
-        } finally {
-            this.hideLoading();
-            this.isStreaming = false;
-            this.updateStatus('Ready', 'ready');
+            this.displayError('Failed to send message. Please try again.');
         }
     }
     
-    async sendToAPI(message) {
-        const response = await fetch('/api/chat/send', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${this.getAuthToken()}`
-            },
-            body: JSON.stringify({
-                message: message,
-                conversation_id: this.currentConversationId,
-                user_id: this.getCurrentUserId(),
-                stream: this.settings.streamingEnabled
-            })
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        return await response.json();
-    }
-    
-    async handleStreamingResponse(response) {
-        // This would handle Server-Sent Events
-        // For now, we'll simulate streaming
-        const aiMessage = this.addMessage('ai', '');
-        const words = response.response.split(' ');
-        
-        for (let i = 0; i < words.length; i++) {
-            await new Promise(resolve => setTimeout(resolve, 50));
-            aiMessage.querySelector('.message-bubble').textContent += words[i] + ' ';
-            this.scrollToBottom();
+    async sendMessageViaAPI(message) {
+        try {
+            const response = await fetch(`${this.apiBase}/chat/message`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    message: message,
+                    session_id: this.currentSession
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            this.displayMessage(data.message, 'assistant');
+            
+        } catch (error) {
+            console.error('Error sending message via API:', error);
+            this.displayError('Failed to send message. Please try again.');
         }
     }
     
-    addMessage(role, content) {
+    displayMessage(message, sender) {
+        const chatContainer = document.getElementById('chatContainer');
         const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${role}`;
+        messageDiv.className = `message ${sender}`;
         
-        const avatar = document.createElement('div');
-        avatar.className = 'message-avatar';
-        avatar.textContent = role === 'user' ? '👤' : '🤖';
+        // Create message content
+        const messageContent = document.createElement('div');
+        messageContent.className = 'message-content';
         
-        const contentDiv = document.createElement('div');
-        contentDiv.className = 'message-content';
+        // Add sender info
+        const senderInfo = document.createElement('div');
+        senderInfo.className = 'sender-info';
+        senderInfo.textContent = sender === 'user' ? 'You' : 'JARVIS';
+        messageContent.appendChild(senderInfo);
         
-        const bubble = document.createElement('div');
-        bubble.className = 'message-bubble';
+        // Add message text
+        const messageText = document.createElement('div');
+        messageText.className = 'message-text';
+        messageText.innerHTML = this.formatMessage(message);
+        messageContent.appendChild(messageText);
         
-        if (role === 'ai') {
-            // Process markdown and code
-            bubble.innerHTML = this.processMarkdown(content);
-        } else {
-            bubble.textContent = content;
-        }
+        // Add timestamp
+        const timestamp = document.createElement('div');
+        timestamp.className = 'timestamp';
+        timestamp.textContent = new Date().toLocaleTimeString();
+        messageContent.appendChild(timestamp);
         
-        const time = document.createElement('div');
-        time.className = 'message-time';
-        time.textContent = new Date().toLocaleTimeString();
+        messageDiv.appendChild(messageContent);
+        chatContainer.appendChild(messageDiv);
         
-        contentDiv.appendChild(bubble);
-        contentDiv.appendChild(time);
-        messageDiv.appendChild(avatar);
-        messageDiv.appendChild(contentDiv);
+        // Scroll to bottom
+        chatContainer.scrollTop = chatContainer.scrollHeight;
         
-        this.chatMessages.appendChild(messageDiv);
-        this.scrollToBottom();
-        
-        return messageDiv;
+        // Store in history
+        this.messageHistory.push({
+            message: message,
+            sender: sender,
+            timestamp: new Date().toISOString()
+        });
     }
     
-    processMarkdown(content) {
-        // Basic markdown processing
-        let processed = content
+    formatMessage(message) {
+        // Basic markdown-like formatting
+        return message
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/\*(.*?)\*/g, '<em>$1</em>')
             .replace(/`(.*?)`/g, '<code>$1</code>')
-            .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
             .replace(/\n/g, '<br>');
+    }
+    
+    showTypingIndicator() {
+        const chatContainer = document.getElementById('chatContainer');
+        const typingDiv = document.createElement('div');
+        typingDiv.className = 'message assistant typing';
+        typingDiv.id = 'typingIndicator';
         
-        return processed;
-    }
-    
-    scrollToBottom() {
-        this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
-    }
-    
-    startNewChat() {
-        this.currentConversationId = null;
-        this.chatTitle.textContent = 'New Conversation';
-        this.chatMessages.innerHTML = `
-            <div class="welcome-message">
-                <div class="welcome-icon">🤖</div>
-                <h3>Welcome to JARVIS</h3>
-                <p>I'm your AI assistant powered by Atulya Tantra AGI. How can I help you today?</p>
-                <div class="quick-actions">
-                    <button class="quick-action-btn" data-message="What can you help me with?">
-                        What can you help me with?
-                    </button>
-                    <button class="quick-action-btn" data-message="Tell me about your capabilities">
-                        Tell me about your capabilities
-                    </button>
-                    <button class="quick-action-btn" data-message="Help me with a coding problem">
-                        Help me with coding
-                    </button>
-                    <button class="quick-action-btn" data-message="Analyze some data for me">
-                        Analyze data
-                    </button>
+        typingDiv.innerHTML = `
+            <div class="message-content">
+                <div class="sender-info">JARVIS</div>
+                <div class="message-text">
+                    <div class="typing-dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
                 </div>
             </div>
         `;
+        
+        chatContainer.appendChild(typingDiv);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+    
+    hideTypingIndicator() {
+        const typingIndicator = document.getElementById('typingIndicator');
+        if (typingIndicator) {
+            typingIndicator.remove();
+        }
+    }
+    
+    displayError(error) {
+        const chatContainer = document.getElementById('chatContainer');
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'message error';
+        
+        errorDiv.innerHTML = `
+            <div class="message-content">
+                <div class="sender-info">System</div>
+                <div class="message-text">${error}</div>
+            </div>
+        `;
+        
+        chatContainer.appendChild(errorDiv);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
     }
     
     clearChat() {
-        if (confirm('Are you sure you want to clear this chat?')) {
-            this.startNewChat();
+        const chatContainer = document.getElementById('chatContainer');
+        chatContainer.innerHTML = '';
+        this.messageHistory = [];
+        
+        // Send clear request to server
+        if (this.isConnected && this.socket) {
+            this.socket.send(JSON.stringify({
+                type: 'clear_chat',
+                session_id: this.currentSession
+            }));
+        }
+    }
+    
+    updateConnectionStatus(status) {
+        const statusIndicator = document.getElementById('connectionStatus');
+        const statusText = document.getElementById('statusText');
+        
+        statusIndicator.className = `status-indicator ${status}`;
+        
+        switch (status) {
+            case 'connected':
+                statusText.textContent = 'Connected';
+                break;
+            case 'disconnected':
+                statusText.textContent = 'Disconnected';
+                break;
+            case 'error':
+                statusText.textContent = 'Connection Error';
+                break;
+            default:
+                statusText.textContent = 'Unknown';
+        }
+    }
+    
+    updateSystemStatus(status) {
+        // Update system status indicators
+        const cpuUsage = document.getElementById('cpuUsage');
+        const memoryUsage = document.getElementById('memoryUsage');
+        const diskUsage = document.getElementById('diskUsage');
+        
+        if (cpuUsage && status.cpu_usage !== undefined) {
+            cpuUsage.textContent = `${status.cpu_usage.toFixed(1)}%`;
+            cpuUsage.className = status.cpu_usage > 80 ? 'warning' : 'normal';
+        }
+        
+        if (memoryUsage && status.memory_usage !== undefined) {
+            memoryUsage.textContent = `${status.memory_usage.toFixed(1)}%`;
+            memoryUsage.className = status.memory_usage > 85 ? 'warning' : 'normal';
+        }
+        
+        if (diskUsage && status.disk_usage !== undefined) {
+            diskUsage.textContent = `${status.disk_usage.toFixed(1)}%`;
+            diskUsage.className = status.disk_usage > 90 ? 'warning' : 'normal';
         }
     }
     
     toggleVoiceInput() {
-        if (!this.recognition) {
-            this.showToast('Voice recognition not supported in this browser', 'warning');
+        const voiceButton = document.getElementById('voiceInput');
+        
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+            this.displayError('Voice input is not supported in this browser.');
             return;
         }
         
-        if (this.isVoiceEnabled) {
-            this.recognition.stop();
+        if (voiceButton.classList.contains('recording')) {
+            this.stopVoiceInput();
         } else {
-            this.recognition.start();
-            this.isVoiceEnabled = true;
-            this.updateVoiceButton();
-            this.showToast('Listening...', 'info');
+            this.startVoiceInput();
         }
     }
     
-    updateVoiceButton() {
-        this.voiceBtn.style.backgroundColor = this.isVoiceEnabled ? '#ef4444' : '';
-        this.voiceBtn.style.color = this.isVoiceEnabled ? '#ffffff' : '';
+    startVoiceInput() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+        
+        recognition.onstart = () => {
+            const voiceButton = document.getElementById('voiceInput');
+            voiceButton.classList.add('recording');
+            voiceButton.textContent = '🎤 Listening...';
+        };
+        
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            document.getElementById('messageInput').value = transcript;
+        };
+        
+        recognition.onend = () => {
+            const voiceButton = document.getElementById('voiceInput');
+            voiceButton.classList.remove('recording');
+            voiceButton.textContent = '🎤';
+        };
+        
+        recognition.onerror = (event) => {
+            console.error('Speech recognition error:', event.error);
+            const voiceButton = document.getElementById('voiceInput');
+            voiceButton.classList.remove('recording');
+            voiceButton.textContent = '🎤';
+        };
+        
+        recognition.start();
     }
     
-    handleFileUpload(event) {
-        const files = Array.from(event.target.files);
-        if (files.length === 0) return;
-        
-        // Process files
-        files.forEach(file => {
-            this.showToast(`Processing file: ${file.name}`, 'info');
-            // Here you would upload the file to the API
-        });
-        
-        // Clear file input
-        event.target.value = '';
+    stopVoiceInput() {
+        // Voice input will stop automatically
     }
     
-    async loadConversations() {
-        try {
-            const response = await fetch('/api/chat/conversations', {
-                headers: {
-                    'Authorization': `Bearer ${this.getAuthToken()}`
-                }
-            });
-            
-            if (response.ok) {
-                const conversations = await response.json();
-                this.renderConversations(conversations);
-            }
-        } catch (error) {
-            console.error('Error loading conversations:', error);
-        }
-    }
-    
-    renderConversations(conversations) {
-        this.conversationsList.innerHTML = '';
+    toggleTheme() {
+        const body = document.body;
+        const currentTheme = body.classList.contains('dark-theme') ? 'dark' : 'light';
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
         
-        conversations.forEach(conv => {
-            const convDiv = document.createElement('div');
-            convDiv.className = 'conversation-item';
-            convDiv.innerHTML = `
-                <div class="conversation-title">${conv.title}</div>
-                <div class="conversation-preview">${conv.preview || 'No messages yet'}</div>
-                <div class="conversation-time">${new Date(conv.updated_at).toLocaleDateString()}</div>
-            `;
-            
-            convDiv.addEventListener('click', () => {
-                this.loadConversation(conv.conversation_id);
-            });
-            
-            this.conversationsList.appendChild(convDiv);
-        });
-    }
-    
-    async loadConversation(conversationId) {
-        try {
-            const response = await fetch(`/api/chat/history/${conversationId}`, {
-                headers: {
-                    'Authorization': `Bearer ${this.getAuthToken()}`
-                }
-            });
-            
-            if (response.ok) {
-                const history = await response.json();
-                this.currentConversationId = conversationId;
-                this.chatTitle.textContent = history.title || 'Conversation';
-                this.renderConversationHistory(history.messages);
-            }
-        } catch (error) {
-            console.error('Error loading conversation:', error);
-            this.showToast('Error loading conversation', 'error');
-        }
-    }
-    
-    renderConversationHistory(messages) {
-        this.chatMessages.innerHTML = '';
+        body.classList.toggle('dark-theme');
         
-        messages.forEach(msg => {
-            this.addMessage(msg.role, msg.content);
-        });
+        // Save preference
+        localStorage.setItem('theme', newTheme);
         
-        this.scrollToBottom();
+        // Update theme button
+        const themeButton = document.getElementById('themeToggle');
+        themeButton.textContent = newTheme === 'dark' ? '☀️' : '🌙';
     }
     
     showSettings() {
-        this.settingsModal.classList.add('show');
-        this.populateSettings();
+        // Create settings modal
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Settings</h2>
+                    <span class="close">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div class="setting">
+                        <label for="themeSelect">Theme:</label>
+                        <select id="themeSelect">
+                            <option value="light">Light</option>
+                            <option value="dark">Dark</option>
+                        </select>
+                    </div>
+                    <div class="setting">
+                        <label for="fontSize">Font Size:</label>
+                        <input type="range" id="fontSize" min="12" max="18" value="14">
+                    </div>
+                    <div class="setting">
+                        <label for="autoScroll">Auto Scroll:</label>
+                        <input type="checkbox" id="autoScroll" checked>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="saveSettings">Save</button>
+                    <button id="cancelSettings">Cancel</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Setup event listeners
+        modal.querySelector('.close').addEventListener('click', () => {
+            modal.remove();
+        });
+        
+        modal.querySelector('#cancelSettings').addEventListener('click', () => {
+            modal.remove();
+        });
+        
+        modal.querySelector('#saveSettings').addEventListener('click', () => {
+            this.saveSettings();
+            modal.remove();
+        });
+        
+        // Load current settings
+        this.loadSettings(modal);
     }
     
-    hideSettings() {
-        this.settingsModal.classList.remove('show');
-    }
-    
-    populateSettings() {
-        document.getElementById('aiProvider').value = this.settings.aiProvider || 'ollama';
-        document.getElementById('model').value = this.settings.model || 'gemma2:2b';
-        document.getElementById('temperature').value = this.settings.temperature || 0.7;
-        document.getElementById('temperatureValue').textContent = this.settings.temperature || 0.7;
-        document.getElementById('voiceEnabled').checked = this.settings.voiceEnabled !== false;
-        document.getElementById('theme').value = this.settings.theme || 'auto';
+    loadSettings(modal) {
+        const theme = localStorage.getItem('theme') || 'light';
+        const fontSize = localStorage.getItem('fontSize') || '14';
+        const autoScroll = localStorage.getItem('autoScroll') !== 'false';
+        
+        modal.querySelector('#themeSelect').value = theme;
+        modal.querySelector('#fontSize').value = fontSize;
+        modal.querySelector('#autoScroll').checked = autoScroll;
     }
     
     saveSettings() {
-        this.settings = {
-            aiProvider: document.getElementById('aiProvider').value,
-            model: document.getElementById('model').value,
-            temperature: parseFloat(document.getElementById('temperature').value),
-            voiceEnabled: document.getElementById('voiceEnabled').checked,
-            theme: document.getElementById('theme').value,
-            streamingEnabled: true
-        };
+        const theme = document.querySelector('#themeSelect').value;
+        const fontSize = document.querySelector('#fontSize').value;
+        const autoScroll = document.querySelector('#autoScroll').checked;
         
-        localStorage.setItem('jarvis-settings', JSON.stringify(this.settings));
-        this.applyTheme();
-        this.hideSettings();
-        this.showToast('Settings saved', 'success');
+        localStorage.setItem('theme', theme);
+        localStorage.setItem('fontSize', fontSize);
+        localStorage.setItem('autoScroll', autoScroll);
+        
+        // Apply settings
+        document.body.className = theme === 'dark' ? 'dark-theme' : '';
+        document.documentElement.style.fontSize = fontSize + 'px';
     }
     
-    loadSettings() {
-        const saved = localStorage.getItem('jarvis-settings');
-        return saved ? JSON.parse(saved) : {
-            aiProvider: 'ollama',
-            model: 'gemma2:2b',
-            temperature: 0.7,
-            voiceEnabled: true,
-            theme: 'auto',
-            streamingEnabled: true
-        };
-    }
-    
-    applyTheme(theme = null) {
-        const selectedTheme = theme || this.settings.theme;
+    loadUserPreferences() {
+        const theme = localStorage.getItem('theme') || 'light';
+        const fontSize = localStorage.getItem('fontSize') || '14';
+        const autoScroll = localStorage.getItem('autoScroll') !== 'false';
         
-        if (selectedTheme === 'auto') {
-            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
-        } else {
-            document.documentElement.setAttribute('data-theme', selectedTheme);
+        // Apply theme
+        if (theme === 'dark') {
+            document.body.classList.add('dark-theme');
+        }
+        
+        // Apply font size
+        document.documentElement.style.fontSize = fontSize + 'px';
+        
+        // Update theme button
+        const themeButton = document.getElementById('themeToggle');
+        if (themeButton) {
+            themeButton.textContent = theme === 'dark' ? '☀️' : '🌙';
         }
     }
     
-    updateStatus(text, type) {
-        const statusText = this.chatStatus.querySelector('span');
-        const indicator = this.chatStatus.querySelector('.status-indicator');
+    renderInterface() {
+        // Initialize interface elements
+        this.currentSession = this.generateSessionId();
         
-        statusText.textContent = text;
-        
-        indicator.className = 'status-indicator';
-        if (type === 'processing') {
-            indicator.style.backgroundColor = '#f59e0b';
-        } else if (type === 'error') {
-            indicator.style.backgroundColor = '#ef4444';
-        } else {
-            indicator.style.backgroundColor = '#10b981';
-        }
+        // Display welcome message
+        this.displayMessage(
+            "Hello! I'm JARVIS, your AI assistant. How can I help you today?",
+            'assistant'
+        );
     }
     
-    showLoading() {
-        this.loadingOverlay.classList.add('show');
-    }
-    
-    hideLoading() {
-        this.loadingOverlay.classList.remove('show');
-    }
-    
-    showToast(message, type = 'info') {
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-        toast.textContent = message;
-        
-        this.toastContainer.appendChild(toast);
-        
-        // Trigger animation
-        setTimeout(() => toast.classList.add('show'), 100);
-        
-        // Remove after 3 seconds
-        setTimeout(() => {
-            toast.classList.remove('show');
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
-    }
-    
-    getAuthToken() {
-        // In a real app, this would get the token from localStorage or cookies
-        return 'demo-token';
-    }
-    
-    getCurrentUserId() {
-        // In a real app, this would get the user ID from the auth system
-        return 'demo-user';
+    generateSessionId() {
+        return 'session_' + Math.random().toString(36).substr(2, 9);
     }
 }
 
-// Initialize the application when DOM is loaded
+// Initialize the application when the page loads
 document.addEventListener('DOMContentLoaded', () => {
-    window.jarvis = new JARVISInterface();
+    window.tantraAGI = new TantraAGI();
 });
 
-// Handle theme changes
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-    if (window.jarvis && window.jarvis.settings.theme === 'auto') {
-        window.jarvis.applyTheme();
-    }
-});
-
-// Handle visibility change (pause/resume when tab is hidden/visible)
+// Handle page visibility changes
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
-        // Pause any ongoing operations
-        console.log('App paused');
+        // Page is hidden, pause non-essential operations
+        console.log('Page hidden, pausing operations');
     } else {
-        // Resume operations
-        console.log('App resumed');
+        // Page is visible, resume operations
+        console.log('Page visible, resuming operations');
     }
 });
 
-// Handle online/offline status
-window.addEventListener('online', () => {
-    window.jarvis?.showToast('Connection restored', 'success');
+// Handle beforeunload
+window.addEventListener('beforeunload', () => {
+    if (window.tantraAGI && window.tantraAGI.socket) {
+        window.tantraAGI.socket.close();
+    }
 });
-
-window.addEventListener('offline', () => {
-    window.jarvis?.showToast('Connection lost', 'warning');
-});
-
-// Service Worker registration (for PWA capabilities)
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-            .then(registration => {
-                console.log('SW registered: ', registration);
-            })
-            .catch(registrationError => {
-                console.log('SW registration failed: ', registrationError);
-            });
-    });
-}

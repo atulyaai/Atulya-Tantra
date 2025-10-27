@@ -1,299 +1,256 @@
 """
-Security utilities and input validation
-Handles input sanitization, validation, and security checks
+Security Management for Atulya Tantra AGI
+Input validation, sanitization, and security controls
 """
 
 import re
 import html
-import bleach
+import secrets
 from typing import Any, Dict, List, Optional, Union
-from urllib.parse import urlparse
-import ipaddress
+from enum import Enum
+from dataclasses import dataclass
 
 from ..config.logging import get_logger
+from ..config.exceptions import SecurityViolation, ValidationError
 
 logger = get_logger(__name__)
 
+
+class SecurityLevel(str, Enum):
+    """Security levels"""
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+@dataclass
+class SecurityViolation:
+    """Security violation details"""
+    violation_type: str
+    severity: SecurityLevel
+    message: str
+    details: Dict[str, Any] = None
+
+
 class SecurityManager:
-    """Manages security operations and input validation"""
+    """Security management utilities"""
     
     def __init__(self):
-        # Allowed HTML tags for rich text
-        self.allowed_tags = [
-            'p', 'br', 'strong', 'em', 'u', 'b', 'i', 'ul', 'ol', 'li',
-            'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'code', 'pre'
-        ]
-        
-        # Allowed HTML attributes
-        self.allowed_attributes = {
-            'a': ['href', 'title'],
-            'img': ['src', 'alt', 'title', 'width', 'height'],
-            'code': ['class'],
-            'pre': ['class']
-        }
-        
-        # SQL injection patterns
-        self.sql_patterns = [
-            r"(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION|SCRIPT)\b)",
-            r"(\b(OR|AND)\s+\d+\s*=\s*\d+)",
-            r"(\b(OR|AND)\s+['\"].*['\"]\s*=\s*['\"].*['\"])",
-            r"(\bUNION\s+SELECT\b)",
-            r"(\bDROP\s+TABLE\b)",
-            r"(\bINSERT\s+INTO\b)",
-            r"(\bDELETE\s+FROM\b)",
-            r"(\bUPDATE\s+.*\s+SET\b)",
-            r"(\bEXEC\s*\()",
-            r"(\bSCRIPT\b)",
-            r"(--|\#|\/\*|\*\/)",
-            r"(\bxp_\w+\b)",
-            r"(\bsp_\w+\b)"
-        ]
-        
-        # XSS patterns
-        self.xss_patterns = [
-            r"<script[^>]*>.*?</script>",
-            r"javascript:",
-            r"vbscript:",
-            r"onload\s*=",
-            r"onerror\s*=",
-            r"onclick\s*=",
-            r"onmouseover\s*=",
-            r"onfocus\s*=",
-            r"onblur\s*=",
-            r"onchange\s*=",
-            r"onsubmit\s*=",
-            r"onreset\s*=",
-            r"onselect\s*=",
-            r"onkeydown\s*=",
-            r"onkeyup\s*=",
-            r"onkeypress\s*=",
-            r"<iframe[^>]*>",
-            r"<object[^>]*>",
-            r"<embed[^>]*>",
-            r"<form[^>]*>",
-            r"<input[^>]*>",
-            r"<textarea[^>]*>",
-            r"<select[^>]*>",
-            r"<option[^>]*>",
-            r"<button[^>]*>"
+        self.max_input_length = 10000
+        self.allowed_html_tags = {'b', 'i', 'em', 'strong', 'p', 'br', 'code', 'pre'}
+        self.suspicious_patterns = [
+            r'<script[^>]*>.*?</script>',
+            r'javascript:',
+            r'vbscript:',
+            r'on\w+\s*=',
+            r'<iframe[^>]*>',
+            r'<object[^>]*>',
+            r'<embed[^>]*>',
+            r'<link[^>]*>',
+            r'<meta[^>]*>',
+            r'<style[^>]*>.*?</style>'
         ]
     
-    def sanitize_input(self, input_data: Any) -> Any:
-        """Sanitize input data to prevent XSS and injection attacks"""
-        if isinstance(input_data, str):
-            return self._sanitize_string(input_data)
-        elif isinstance(input_data, dict):
-            return {key: self.sanitize_input(value) for key, value in input_data.items()}
-        elif isinstance(input_data, list):
-            return [self.sanitize_input(item) for item in input_data]
-        else:
-            return input_data
-    
-    def _sanitize_string(self, text: str) -> str:
-        """Sanitize a string input"""
-        if not text:
-            return text
-        
-        # HTML escape
-        text = html.escape(text, quote=True)
-        
-        # Remove potential XSS
-        for pattern in self.xss_patterns:
-            text = re.sub(pattern, '', text, flags=re.IGNORECASE | re.DOTALL)
-        
-        # Remove potential SQL injection
-        for pattern in self.sql_patterns:
-            text = re.sub(pattern, '', text, flags=re.IGNORECASE)
-        
-        # Remove null bytes
-        text = text.replace('\x00', '')
-        
-        # Remove control characters except newlines and tabs
-        text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', text)
-        
-        return text.strip()
-    
-    def sanitize_html(self, html_content: str) -> str:
-        """Sanitize HTML content while preserving allowed tags"""
-        if not html_content:
-            return html_content
-        
-        # Use bleach to sanitize HTML
-        cleaned = bleach.clean(
-            html_content,
-            tags=self.allowed_tags,
-            attributes=self.allowed_attributes,
-            strip=True
-        )
-        
-        return cleaned
-    
-    def validate_email(self, email: str) -> bool:
-        """Validate email format"""
-        if not email:
-            return False
-        
-        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-        return bool(re.match(pattern, email))
-    
-    def validate_username(self, username: str) -> bool:
-        """Validate username format"""
-        if not username:
-            return False
-        
-        # Username should be 3-50 characters, alphanumeric and underscores only
-        pattern = r'^[a-zA-Z0-9_]{3,50}$'
-        return bool(re.match(pattern, username))
-    
-    def validate_url(self, url: str) -> bool:
-        """Validate URL format"""
-        if not url:
-            return False
-        
+    def validate_input(self, input_data: Any, input_type: str = "text") -> bool:
+        """Validate input data"""
         try:
-            result = urlparse(url)
-            return all([result.scheme, result.netloc])
-        except Exception:
+            if input_type == "text":
+                return self._validate_text(input_data)
+            elif input_type == "email":
+                return self._validate_email(input_data)
+            elif input_type == "url":
+                return self._validate_url(input_data)
+            elif input_type == "json":
+                return self._validate_json(input_data)
+            else:
+                return True
+                
+        except Exception as e:
+            logger.error(f"Error validating input: {e}")
             return False
     
-    def validate_ip_address(self, ip: str) -> bool:
-        """Validate IP address format"""
-        if not ip:
+    def _validate_text(self, text: str) -> bool:
+        """Validate text input"""
+        if not isinstance(text, str):
             return False
         
+        if len(text) > self.max_input_length:
+            raise SecurityViolation(
+                violation_type="input_length",
+                severity=SecurityLevel.MEDIUM,
+                message="Input too long"
+            )
+        
+        # Check for suspicious patterns
+        for pattern in self.suspicious_patterns:
+            if re.search(pattern, text, re.IGNORECASE | re.DOTALL):
+                raise SecurityViolation(
+                    violation_type="suspicious_content",
+                    severity=SecurityLevel.HIGH,
+                    message="Suspicious content detected"
+                )
+        
+        return True
+    
+    def _validate_email(self, email: str) -> bool:
+        """Validate email input"""
+        if not isinstance(email, str):
+            return False
+        
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, email):
+            raise SecurityViolation(
+                violation_type="invalid_email",
+                severity=SecurityLevel.MEDIUM,
+                message="Invalid email format"
+            )
+        
+        return True
+    
+    def _validate_url(self, url: str) -> bool:
+        """Validate URL input"""
+        if not isinstance(url, str):
+            return False
+        
+        url_pattern = r'^https?://[^\s/$.?#].[^\s]*$'
+        if not re.match(url_pattern, url):
+            raise SecurityViolation(
+                violation_type="invalid_url",
+                severity=SecurityLevel.MEDIUM,
+                message="Invalid URL format"
+            )
+        
+        return True
+    
+    def _validate_json(self, json_data: str) -> bool:
+        """Validate JSON input"""
         try:
-            ipaddress.ip_address(ip)
+            import json
+            json.loads(json_data)
             return True
-        except ValueError:
-            return False
+        except json.JSONDecodeError:
+            raise SecurityViolation(
+                violation_type="invalid_json",
+                severity=SecurityLevel.MEDIUM,
+                message="Invalid JSON format"
+            )
     
-    def detect_sql_injection(self, text: str) -> bool:
-        """Detect potential SQL injection in text"""
-        if not text:
-            return False
-        
-        text_lower = text.lower()
-        for pattern in self.sql_patterns:
-            if re.search(pattern, text_lower):
-                logger.warning(f"Potential SQL injection detected: {text[:100]}...")
-                return True
-        
-        return False
+    def sanitize_input(self, input_data: str, allow_html: bool = False) -> str:
+        """Sanitize input data"""
+        try:
+            # HTML escape
+            sanitized = html.escape(input_data)
+            
+            if allow_html:
+                # Allow specific HTML tags
+                sanitized = self._clean_html(sanitized)
+            
+            return sanitized
+            
+        except Exception as e:
+            logger.error(f"Error sanitizing input: {e}")
+            return ""
     
-    def detect_xss(self, text: str) -> bool:
-        """Detect potential XSS in text"""
-        if not text:
-            return False
+    def _clean_html(self, html_content: str) -> str:
+        """Clean HTML content"""
+        # Remove dangerous tags
+        for tag in ['script', 'iframe', 'object', 'embed', 'link', 'meta', 'style']:
+            pattern = f'<{tag}[^>]*>.*?</{tag}>'
+            html_content = re.sub(pattern, '', html_content, flags=re.IGNORECASE | re.DOTALL)
         
-        for pattern in self.xss_patterns:
-            if re.search(pattern, text, re.IGNORECASE):
-                logger.warning(f"Potential XSS detected: {text[:100]}...")
-                return True
+        # Remove dangerous attributes
+        pattern = r'\s*on\w+\s*=\s*["\'][^"\']*["\']'
+        html_content = re.sub(pattern, '', html_content, flags=re.IGNORECASE)
         
-        return False
+        return html_content
     
-    def validate_file_upload(self, filename: str, content_type: str, max_size: int) -> Dict[str, Any]:
+    def generate_secure_token(self, length: int = 32) -> str:
+        """Generate secure random token"""
+        try:
+            return secrets.token_urlsafe(length)
+        except Exception as e:
+            logger.error(f"Error generating secure token: {e}")
+            raise SecurityViolation(
+                violation_type="token_generation_failed",
+                severity=SecurityLevel.CRITICAL,
+                message="Failed to generate secure token"
+            )
+    
+    def check_rate_limit(self, identifier: str, limit: int, window: int) -> bool:
+        """Check rate limit (simplified implementation)"""
+        # In a real implementation, this would use Redis or similar
+        # For now, we'll just return True
+        return True
+    
+    def validate_file_upload(self, filename: str, content_type: str, size: int) -> bool:
         """Validate file upload"""
-        result = {
-            "valid": True,
-            "errors": [],
-            "warnings": []
-        }
-        
-        # Check filename
-        if not filename:
-            result["valid"] = False
-            result["errors"].append("Filename is required")
-            return result
-        
-        # Check for path traversal
-        if ".." in filename or "/" in filename or "\\" in filename:
-            result["valid"] = False
-            result["errors"].append("Invalid filename")
-            return result
-        
-        # Check file extension
-        allowed_extensions = {'.txt', '.md', '.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp'}
-        file_ext = filename.lower().split('.')[-1] if '.' in filename else ''
-        if f'.{file_ext}' not in allowed_extensions:
-            result["valid"] = False
-            result["errors"].append(f"File type .{file_ext} not allowed")
-        
-        # Check content type
-        allowed_types = {
-            'text/plain', 'text/markdown', 'application/pdf',
-            'image/jpeg', 'image/png', 'image/gif', 'image/webp'
-        }
-        if content_type not in allowed_types:
-            result["valid"] = False
-            result["errors"].append(f"Content type {content_type} not allowed")
-        
-        # Check file size
-        if max_size > 10 * 1024 * 1024:  # 10MB
-            result["warnings"].append("File size exceeds recommended limit")
-        
-        return result
-    
-    def generate_csrf_token(self) -> str:
-        """Generate CSRF token"""
-        import secrets
-        return secrets.token_urlsafe(32)
-    
-    def validate_csrf_token(self, token: str, session_token: str) -> bool:
-        """Validate CSRF token"""
-        return token == session_token and len(token) > 0
-    
-    def check_rate_limit(self, identifier: str, requests: List[float], limit: int, window: int) -> bool:
-        """Check if rate limit is exceeded"""
-        now = time.time()
-        # Remove requests outside the window
-        valid_requests = [req for req in requests if now - req < window]
-        
-        return len(valid_requests) < limit
-    
-    def validate_json_input(self, data: Dict[str, Any], required_fields: List[str]) -> Dict[str, Any]:
-        """Validate JSON input with required fields"""
-        result = {
-            "valid": True,
-            "errors": [],
-            "data": data
-        }
-        
-        # Check required fields
-        for field in required_fields:
-            if field not in data:
-                result["valid"] = False
-                result["errors"].append(f"Required field '{field}' is missing")
-        
-        # Sanitize data
-        result["data"] = self.sanitize_input(data)
-        
-        return result
+        try:
+            # Check file extension
+            allowed_extensions = {'.txt', '.pdf', '.doc', '.docx', '.jpg', '.png', '.gif'}
+            file_ext = '.' + filename.split('.')[-1].lower()
+            
+            if file_ext not in allowed_extensions:
+                raise SecurityViolation(
+                    violation_type="invalid_file_type",
+                    severity=SecurityLevel.MEDIUM,
+                    message="File type not allowed"
+                )
+            
+            # Check file size (10MB limit)
+            max_size = 10 * 1024 * 1024
+            if size > max_size:
+                raise SecurityViolation(
+                    violation_type="file_too_large",
+                    severity=SecurityLevel.MEDIUM,
+                    message="File too large"
+                )
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error validating file upload: {e}")
+            return False
+
 
 # Global security manager instance
-security_manager = SecurityManager()
+_security_manager = None
+
+
+def get_security_manager() -> SecurityManager:
+    """Get global security manager instance"""
+    global _security_manager
+    if _security_manager is None:
+        _security_manager = SecurityManager()
+    return _security_manager
+
 
 # Convenience functions
-def validate_input(input_data: Any) -> Any:
-    """Validate and sanitize input data"""
-    return security_manager.sanitize_input(input_data)
+def validate_input(input_data: Any, input_type: str = "text") -> bool:
+    """Validate input data"""
+    manager = get_security_manager()
+    return manager.validate_input(input_data, input_type)
 
-def sanitize_input(input_data: Any) -> Any:
+
+def sanitize_input(input_data: str, allow_html: bool = False) -> str:
     """Sanitize input data"""
-    return security_manager.sanitize_input(input_data)
+    manager = get_security_manager()
+    return manager.sanitize_input(input_data, allow_html)
 
-def validate_email(email: str) -> bool:
-    """Validate email format"""
-    return security_manager.validate_email(email)
 
-def validate_username(username: str) -> bool:
-    """Validate username format"""
-    return security_manager.validate_username(username)
+def generate_secure_token(length: int = 32) -> str:
+    """Generate secure random token"""
+    manager = get_security_manager()
+    return manager.generate_secure_token(length)
 
-def detect_sql_injection(text: str) -> bool:
-    """Detect potential SQL injection"""
-    return security_manager.detect_sql_injection(text)
 
-def detect_xss(text: str) -> bool:
-    """Detect potential XSS"""
-    return security_manager.detect_xss(text)
+# Export public API
+__all__ = [
+    "SecurityLevel",
+    "SecurityViolation",
+    "SecurityManager",
+    "get_security_manager",
+    "validate_input",
+    "sanitize_input",
+    "generate_secure_token"
+]

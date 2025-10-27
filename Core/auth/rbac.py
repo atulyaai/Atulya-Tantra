@@ -1,24 +1,26 @@
 """
-Role-Based Access Control (RBAC) system
-Handles user roles, permissions, and authorization
+Role-Based Access Control (RBAC) for Atulya Tantra AGI
+Roles, permissions, and authorization management
 """
 
-from enum import Enum
 from typing import Dict, List, Set, Optional, Any
-from functools import wraps
-from fastapi import HTTPException, Depends, status
+from enum import Enum
+from dataclasses import dataclass
+from datetime import datetime
 
 from ..config.logging import get_logger
-from .jwt import get_current_user
+from ..config.exceptions import AuthorizationError, ValidationError
 
 logger = get_logger(__name__)
 
+
 class Role(str, Enum):
-    """User roles"""
+    """System roles"""
     ADMIN = "admin"
     USER = "user"
     AGENT = "agent"
     GUEST = "guest"
+
 
 class Permission(str, Enum):
     """System permissions"""
@@ -26,209 +28,404 @@ class Permission(str, Enum):
     CHAT_READ = "chat:read"
     CHAT_WRITE = "chat:write"
     CHAT_DELETE = "chat:delete"
+    CHAT_STREAM = "chat:stream"
     
     # Agent permissions
+    AGENT_READ = "agent:read"
     AGENT_EXECUTE = "agent:execute"
     AGENT_MANAGE = "agent:manage"
-    
-    # System permissions
-    SYSTEM_READ = "system:read"
-    SYSTEM_MANAGE = "system:manage"
-    SYSTEM_ADMIN = "system:admin"
-    
-    # User management
-    USER_READ = "user:read"
-    USER_MANAGE = "user:manage"
-    USER_DELETE = "user:delete"
     
     # Memory permissions
     MEMORY_READ = "memory:read"
     MEMORY_WRITE = "memory:write"
     MEMORY_DELETE = "memory:delete"
+    MEMORY_SEARCH = "memory:search"
     
-    # File permissions
-    FILE_UPLOAD = "file:upload"
-    FILE_DOWNLOAD = "file:download"
-    FILE_DELETE = "file:delete"
+    # System permissions
+    SYSTEM_READ = "system:read"
+    SYSTEM_MANAGE = "system:manage"
+    SYSTEM_MONITOR = "system:monitor"
+    
+    # Admin permissions
+    ADMIN_READ = "admin:read"
+    ADMIN_WRITE = "admin:write"
+    ADMIN_DELETE = "admin:delete"
+    ADMIN_MANAGE = "admin:manage"
+    
+    # User management
+    USER_READ = "user:read"
+    USER_WRITE = "user:write"
+    USER_DELETE = "user:delete"
+    USER_MANAGE = "user:manage"
 
-# Role-Permission mapping
-ROLE_PERMISSIONS: Dict[Role, Set[Permission]] = {
-    Role.ADMIN: {
-        Permission.CHAT_READ, Permission.CHAT_WRITE, Permission.CHAT_DELETE,
-        Permission.AGENT_EXECUTE, Permission.AGENT_MANAGE,
-        Permission.SYSTEM_READ, Permission.SYSTEM_MANAGE, Permission.SYSTEM_ADMIN,
-        Permission.USER_READ, Permission.USER_MANAGE, Permission.USER_DELETE,
-        Permission.MEMORY_READ, Permission.MEMORY_WRITE, Permission.MEMORY_DELETE,
-        Permission.FILE_UPLOAD, Permission.FILE_DOWNLOAD, Permission.FILE_DELETE
-    },
-    Role.USER: {
-        Permission.CHAT_READ, Permission.CHAT_WRITE,
-        Permission.AGENT_EXECUTE,
-        Permission.SYSTEM_READ,
-        Permission.MEMORY_READ, Permission.MEMORY_WRITE,
-        Permission.FILE_UPLOAD, Permission.FILE_DOWNLOAD
-    },
-    Role.AGENT: {
-        Permission.CHAT_READ, Permission.CHAT_WRITE,
-        Permission.AGENT_EXECUTE,
-        Permission.SYSTEM_READ,
-        Permission.MEMORY_READ, Permission.MEMORY_WRITE,
-        Permission.FILE_UPLOAD, Permission.FILE_DOWNLOAD
-    },
-    Role.GUEST: {
-        Permission.CHAT_READ,
-        Permission.SYSTEM_READ
-    }
-}
+
+@dataclass
+class UserRole:
+    """User role assignment"""
+    user_id: str
+    role: Role
+    assigned_at: datetime
+    assigned_by: str
+    expires_at: Optional[datetime] = None
+    metadata: Dict[str, Any] = None
+
+
+@dataclass
+class RolePermission:
+    """Role permission mapping"""
+    role: Role
+    permission: Permission
+    granted: bool = True
+    conditions: Dict[str, Any] = None
+
 
 class RBACManager:
-    """Manages role-based access control"""
+    """Role-Based Access Control Manager"""
     
     def __init__(self):
-        self.role_permissions = ROLE_PERMISSIONS.copy()
-        self.custom_permissions: Dict[str, Set[Permission]] = {}
+        self.role_permissions = self._initialize_role_permissions()
+        self.user_roles: Dict[str, List[UserRole]] = {}
+        self.permission_cache: Dict[str, Set[Permission]] = {}
     
-    def get_user_permissions(self, user: Dict[str, Any]) -> Set[Permission]:
-        """Get all permissions for a user"""
-        user_role = Role(user.get("role", "user"))
-        permissions = self.role_permissions.get(user_role, set())
-        
-        # Add custom permissions if any
-        user_id = user.get("user_id")
-        if user_id and user_id in self.custom_permissions:
-            permissions.update(self.custom_permissions[user_id])
-        
-        return permissions
-    
-    def has_permission(self, user: Dict[str, Any], permission: Permission) -> bool:
-        """Check if user has a specific permission"""
-        user_permissions = self.get_user_permissions(user)
-        return permission in user_permissions
-    
-    def has_role(self, user: Dict[str, Any], role: Role) -> bool:
-        """Check if user has a specific role"""
-        user_role = user.get("role", "user")
-        return Role(user_role) == role
-    
-    def has_any_role(self, user: Dict[str, Any], roles: List[Role]) -> bool:
-        """Check if user has any of the specified roles"""
-        user_role = user.get("role", "user")
-        return Role(user_role) in roles
-    
-    def add_custom_permission(self, user_id: str, permission: Permission) -> None:
-        """Add custom permission to a user"""
-        if user_id not in self.custom_permissions:
-            self.custom_permissions[user_id] = set()
-        self.custom_permissions[user_id].add(permission)
-        logger.info(f"Added custom permission {permission} to user {user_id}")
-    
-    def remove_custom_permission(self, user_id: str, permission: Permission) -> None:
-        """Remove custom permission from a user"""
-        if user_id in self.custom_permissions:
-            self.custom_permissions[user_id].discard(permission)
-            if not self.custom_permissions[user_id]:
-                del self.custom_permissions[user_id]
-            logger.info(f"Removed custom permission {permission} from user {user_id}")
-    
-    def get_role_hierarchy(self, role: Role) -> List[Role]:
-        """Get role hierarchy (roles that this role can manage)"""
-        hierarchy = {
-            Role.ADMIN: [Role.ADMIN, Role.USER, Role.AGENT, Role.GUEST],
-            Role.USER: [Role.USER, Role.GUEST],
-            Role.AGENT: [Role.AGENT],
-            Role.GUEST: [Role.GUEST]
+    def _initialize_role_permissions(self) -> Dict[Role, Set[Permission]]:
+        """Initialize default role permissions"""
+        return {
+            Role.ADMIN: {
+                Permission.CHAT_READ, Permission.CHAT_WRITE, Permission.CHAT_DELETE, Permission.CHAT_STREAM,
+                Permission.AGENT_READ, Permission.AGENT_EXECUTE, Permission.AGENT_MANAGE,
+                Permission.MEMORY_READ, Permission.MEMORY_WRITE, Permission.MEMORY_DELETE, Permission.MEMORY_SEARCH,
+                Permission.SYSTEM_READ, Permission.SYSTEM_MANAGE, Permission.SYSTEM_MONITOR,
+                Permission.ADMIN_READ, Permission.ADMIN_WRITE, Permission.ADMIN_DELETE, Permission.ADMIN_MANAGE,
+                Permission.USER_READ, Permission.USER_WRITE, Permission.USER_DELETE, Permission.USER_MANAGE
+            },
+            Role.USER: {
+                Permission.CHAT_READ, Permission.CHAT_WRITE, Permission.CHAT_STREAM,
+                Permission.AGENT_READ, Permission.AGENT_EXECUTE,
+                Permission.MEMORY_READ, Permission.MEMORY_WRITE, Permission.MEMORY_SEARCH,
+                Permission.SYSTEM_READ
+            },
+            Role.AGENT: {
+                Permission.CHAT_READ, Permission.CHAT_WRITE,
+                Permission.AGENT_READ, Permission.AGENT_EXECUTE,
+                Permission.MEMORY_READ, Permission.MEMORY_WRITE, Permission.MEMORY_SEARCH,
+                Permission.SYSTEM_READ, Permission.SYSTEM_MONITOR
+            },
+            Role.GUEST: {
+                Permission.CHAT_READ,
+                Permission.AGENT_READ,
+                Permission.MEMORY_READ
+            }
         }
-        return hierarchy.get(role, [])
     
-    def can_manage_user(self, manager: Dict[str, Any], target_user: Dict[str, Any]) -> bool:
-        """Check if manager can manage target user"""
-        manager_role = Role(manager.get("role", "user"))
-        target_role = Role(target_user.get("role", "user"))
-        
-        manageable_roles = self.get_role_hierarchy(manager_role)
-        return target_role in manageable_roles
+    def assign_role(self, user_id: str, role: Role, assigned_by: str, expires_at: Optional[datetime] = None) -> bool:
+        """Assign role to user"""
+        try:
+            if user_id not in self.user_roles:
+                self.user_roles[user_id] = []
+            
+            # Check if role already assigned
+            for user_role in self.user_roles[user_id]:
+                if user_role.role == role and not user_role.expires_at:
+                    logger.warning(f"Role {role} already assigned to user {user_id}")
+                    return False
+            
+            # Assign role
+            user_role = UserRole(
+                user_id=user_id,
+                role=role,
+                assigned_at=datetime.utcnow(),
+                assigned_by=assigned_by,
+                expires_at=expires_at
+            )
+            
+            self.user_roles[user_id].append(user_role)
+            
+            # Clear permission cache
+            if user_id in self.permission_cache:
+                del self.permission_cache[user_id]
+            
+            logger.info(f"Role {role} assigned to user {user_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error assigning role: {e}")
+            return False
+    
+    def revoke_role(self, user_id: str, role: Role) -> bool:
+        """Revoke role from user"""
+        try:
+            if user_id not in self.user_roles:
+                return False
+            
+            # Remove role
+            self.user_roles[user_id] = [
+                user_role for user_role in self.user_roles[user_id]
+                if user_role.role != role
+            ]
+            
+            # Clear permission cache
+            if user_id in self.permission_cache:
+                del self.permission_cache[user_id]
+            
+            logger.info(f"Role {role} revoked from user {user_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error revoking role: {e}")
+            return False
+    
+    def get_user_roles(self, user_id: str) -> List[Role]:
+        """Get user roles"""
+        try:
+            if user_id not in self.user_roles:
+                return []
+            
+            current_time = datetime.utcnow()
+            active_roles = []
+            
+            for user_role in self.user_roles[user_id]:
+                # Check if role is not expired
+                if not user_role.expires_at or user_role.expires_at > current_time:
+                    active_roles.append(user_role.role)
+            
+            return active_roles
+            
+        except Exception as e:
+            logger.error(f"Error getting user roles: {e}")
+            return []
+    
+    def get_user_permissions(self, user_id: str) -> Set[Permission]:
+        """Get user permissions based on roles"""
+        try:
+            # Check cache first
+            if user_id in self.permission_cache:
+                return self.permission_cache[user_id]
+            
+            roles = self.get_user_roles(user_id)
+            permissions = set()
+            
+            for role in roles:
+                if role in self.role_permissions:
+                    permissions.update(self.role_permissions[role])
+            
+            # Cache permissions
+            self.permission_cache[user_id] = permissions
+            
+            return permissions
+            
+        except Exception as e:
+            logger.error(f"Error getting user permissions: {e}")
+            return set()
+    
+    def get_role_permissions(self, role: Role) -> Set[Permission]:
+        """Get permissions for a role"""
+        return self.role_permissions.get(role, set())
+    
+    def check_permission(self, user_id: str, permission: Permission) -> bool:
+        """Check if user has permission"""
+        try:
+            user_permissions = self.get_user_permissions(user_id)
+            return permission in user_permissions
+            
+        except Exception as e:
+            logger.error(f"Error checking permission: {e}")
+            return False
+    
+    def require_permission(self, permission: Permission):
+        """Decorator to require permission"""
+        def decorator(func):
+            def wrapper(*args, **kwargs):
+                # Extract user_id from arguments (this is a simplified implementation)
+                user_id = kwargs.get('user_id') or (args[0] if args else None)
+                
+                if not user_id:
+                    raise AuthorizationError("User ID required for permission check")
+                
+                if not self.check_permission(user_id, permission):
+                    raise AuthorizationError(f"Permission {permission} required")
+                
+                return func(*args, **kwargs)
+            return wrapper
+        return decorator
+    
+    def require_role(self, role: Role):
+        """Decorator to require role"""
+        def decorator(func):
+            def wrapper(*args, **kwargs):
+                # Extract user_id from arguments
+                user_id = kwargs.get('user_id') or (args[0] if args else None)
+                
+                if not user_id:
+                    raise AuthorizationError("User ID required for role check")
+                
+                user_roles = self.get_user_roles(user_id)
+                if role not in user_roles:
+                    raise AuthorizationError(f"Role {role} required")
+                
+                return func(*args, **kwargs)
+            return wrapper
+        return decorator
+    
+    def add_permission_to_role(self, role: Role, permission: Permission) -> bool:
+        """Add permission to role"""
+        try:
+            if role not in self.role_permissions:
+                self.role_permissions[role] = set()
+            
+            self.role_permissions[role].add(permission)
+            
+            # Clear all permission caches
+            self.permission_cache.clear()
+            
+            logger.info(f"Permission {permission} added to role {role}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error adding permission to role: {e}")
+            return False
+    
+    def remove_permission_from_role(self, role: Role, permission: Permission) -> bool:
+        """Remove permission from role"""
+        try:
+            if role in self.role_permissions:
+                self.role_permissions[role].discard(permission)
+                
+                # Clear all permission caches
+                self.permission_cache.clear()
+                
+                logger.info(f"Permission {permission} removed from role {role}")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error removing permission from role: {e}")
+            return False
+    
+    def create_custom_role(self, role_name: str, permissions: Set[Permission]) -> bool:
+        """Create custom role"""
+        try:
+            # Convert string to Role enum
+            role = Role(role_name)
+            
+            self.role_permissions[role] = permissions
+            
+            # Clear all permission caches
+            self.permission_cache.clear()
+            
+            logger.info(f"Custom role {role_name} created with {len(permissions)} permissions")
+            return True
+            
+        except ValueError:
+            logger.error(f"Invalid role name: {role_name}")
+            return False
+        except Exception as e:
+            logger.error(f"Error creating custom role: {e}")
+            return False
+    
+    def get_user_role_info(self, user_id: str) -> List[Dict[str, Any]]:
+        """Get detailed user role information"""
+        try:
+            if user_id not in self.user_roles:
+                return []
+            
+            role_info = []
+            for user_role in self.user_roles[user_id]:
+                role_info.append({
+                    "role": user_role.role.value,
+                    "assigned_at": user_role.assigned_at.isoformat(),
+                    "assigned_by": user_role.assigned_by,
+                    "expires_at": user_role.expires_at.isoformat() if user_role.expires_at else None,
+                    "permissions": list(self.get_role_permissions(user_role.role))
+                })
+            
+            return role_info
+            
+        except Exception as e:
+            logger.error(f"Error getting user role info: {e}")
+            return []
+    
+    def cleanup_expired_roles(self) -> int:
+        """Clean up expired roles"""
+        try:
+            current_time = datetime.utcnow()
+            cleaned_count = 0
+            
+            for user_id, user_roles in self.user_roles.items():
+                original_count = len(user_roles)
+                self.user_roles[user_id] = [
+                    user_role for user_role in user_roles
+                    if not user_role.expires_at or user_role.expires_at > current_time
+                ]
+                cleaned_count += original_count - len(self.user_roles[user_id])
+            
+            # Clear permission caches for users with cleaned roles
+            self.permission_cache.clear()
+            
+            if cleaned_count > 0:
+                logger.info(f"Cleaned up {cleaned_count} expired roles")
+            
+            return cleaned_count
+            
+        except Exception as e:
+            logger.error(f"Error cleaning up expired roles: {e}")
+            return 0
+
 
 # Global RBAC manager instance
-rbac_manager = RBACManager()
+_rbac_manager = None
 
-# Authorization decorators
-def require_auth(func):
-    """Require authentication"""
-    @wraps(func)
-    async def wrapper(*args, **kwargs):
-        # This will be handled by FastAPI dependency injection
-        return await func(*args, **kwargs)
-    return wrapper
 
-def require_role(required_role: Role):
-    """Require specific role"""
-    def decorator(func):
-        @wraps(func)
-        async def wrapper(*args, current_user: Dict[str, Any] = Depends(get_current_user), **kwargs):
-            if not rbac_manager.has_role(current_user, required_role):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Role {required_role.value} required"
-                )
-            return await func(*args, current_user=current_user, **kwargs)
-        return wrapper
-    return decorator
+def get_rbac_manager() -> RBACManager:
+    """Get global RBAC manager instance"""
+    global _rbac_manager
+    if _rbac_manager is None:
+        _rbac_manager = RBACManager()
+    return _rbac_manager
 
-def require_permission(required_permission: Permission):
-    """Require specific permission"""
-    def decorator(func):
-        @wraps(func)
-        async def wrapper(*args, current_user: Dict[str, Any] = Depends(get_current_user), **kwargs):
-            if not rbac_manager.has_permission(current_user, required_permission):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Permission {required_permission.value} required"
-                )
-            return await func(*args, current_user=current_user, **kwargs)
-        return wrapper
-    return decorator
 
-def require_any_role(required_roles: List[Role]):
-    """Require any of the specified roles"""
-    def decorator(func):
-        @wraps(func)
-        async def wrapper(*args, current_user: Dict[str, Any] = Depends(get_current_user), **kwargs):
-            if not rbac_manager.has_any_role(current_user, required_roles):
-                role_names = [role.value for role in required_roles]
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"One of these roles required: {', '.join(role_names)}"
-                )
-            return await func(*args, current_user=current_user, **kwargs)
-        return wrapper
-    return decorator
-
-# Dependency functions
-async def get_current_user_role(current_user: Dict[str, Any] = Depends(get_current_user)) -> Role:
-    """Get current user's role"""
-    return Role(current_user.get("role", "user"))
-
-async def get_current_user_permissions(current_user: Dict[str, Any] = Depends(get_current_user)) -> Set[Permission]:
-    """Get current user's permissions"""
-    return rbac_manager.get_user_permissions(current_user)
-
-# Utility functions
-def check_permission(user: Dict[str, Any], permission: Permission) -> bool:
+# Convenience functions
+def check_permission(user_id: str, permission: Permission) -> bool:
     """Check if user has permission"""
-    return rbac_manager.has_permission(user, permission)
+    manager = get_rbac_manager()
+    return manager.check_permission(user_id, permission)
 
-def check_role(user: Dict[str, Any], role: Role) -> bool:
-    """Check if user has role"""
-    return rbac_manager.has_role(user, role)
 
-def get_available_permissions() -> List[Permission]:
-    """Get all available permissions"""
-    return list(Permission)
+def require_permission(permission: Permission):
+    """Decorator to require permission"""
+    manager = get_rbac_manager()
+    return manager.require_permission(permission)
 
-def get_available_roles() -> List[Role]:
-    """Get all available roles"""
-    return list(Role)
+
+def require_role(role: Role):
+    """Decorator to require role"""
+    manager = get_rbac_manager()
+    return manager.require_role(role)
+
+
+def get_user_permissions(user_id: str) -> Set[Permission]:
+    """Get user permissions"""
+    manager = get_rbac_manager()
+    return manager.get_user_permissions(user_id)
+
 
 def get_role_permissions(role: Role) -> Set[Permission]:
-    """Get permissions for a role"""
-    return ROLE_PERMISSIONS.get(role, set())
+    """Get role permissions"""
+    manager = get_rbac_manager()
+    return manager.get_role_permissions(role)
+
+
+# Export public API
+__all__ = [
+    "Role",
+    "Permission",
+    "UserRole",
+    "RolePermission",
+    "RBACManager",
+    "get_rbac_manager",
+    "check_permission",
+    "require_permission",
+    "require_role",
+    "get_user_permissions",
+    "get_role_permissions"
+]

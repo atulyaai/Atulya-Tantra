@@ -1,136 +1,107 @@
 """
-Request logging middleware
-Logs HTTP requests and responses for monitoring and debugging
+Request Logging Middleware for Atulya Tantra AGI
+Request/response logging and monitoring
 """
 
 import time
-import uuid
-from typing import Dict, Any
-from fastapi import Request
-from fastapi.responses import Response
-from starlette.middleware.base import BaseHTTPMiddleware
+import json
+from typing import Dict, Any, Optional
+from fastapi import Request, Response
+from fastapi.responses import StreamingResponse
 
 from ..config.logging import get_logger
+from ..config.settings import settings
 
 logger = get_logger(__name__)
 
-class RequestLoggerMiddleware(BaseHTTPMiddleware):
-    """Logs HTTP requests and responses"""
+
+class RequestLogger:
+    """Request logging utility"""
     
-    def __init__(self, app, **kwargs):
-        super().__init__(app)
-        self.sensitive_headers = {
-            "authorization", "cookie", "x-api-key", "x-auth-token"
-        }
-        self.sensitive_paths = {
-            "/api/auth/login", "/api/auth/register", "/api/auth/refresh"
-        }
+    def __init__(self):
+        self.log_requests = settings.LOG_REQUESTS
+        self.log_responses = settings.LOG_RESPONSES
+        self.log_body = settings.LOG_REQUEST_BODY
+        self.max_body_size = settings.MAX_LOG_BODY_SIZE
     
-    async def dispatch(self, request: Request, call_next):
-        # Generate request ID
-        request_id = str(uuid.uuid4())
-        request.state.request_id = request_id
-        
-        # Start timing
-        start_time = time.time()
-        
-        # Log request
-        await self._log_request(request, request_id)
-        
-        # Process request
-        try:
-            response = await call_next(request)
-        except Exception as e:
-            # Log error
-            await self._log_error(request, request_id, e, time.time() - start_time)
-            raise
-        
-        # Log response
-        await self._log_response(request, response, request_id, time.time() - start_time)
-        
-        return response
-    
-    async def _log_request(self, request: Request, request_id: str):
+    def log_request(self, request: Request, start_time: float):
         """Log incoming request"""
-        # Get client IP
-        client_ip = self._get_client_ip(request)
-        
-        # Get user info if available
-        user_info = self._get_user_info(request)
-        
-        # Prepare request data
-        request_data = {
-            "request_id": request_id,
-            "method": request.method,
-            "url": str(request.url),
-            "path": request.url.path,
-            "query_params": dict(request.query_params),
-            "client_ip": client_ip,
-            "user_agent": request.headers.get("user-agent", ""),
-            "content_type": request.headers.get("content-type", ""),
-            "content_length": request.headers.get("content-length", "0"),
-            "user_info": user_info,
-            "timestamp": time.time()
-        }
-        
-        # Add headers (excluding sensitive ones)
-        headers = {}
-        for name, value in request.headers.items():
-            if name.lower() not in self.sensitive_headers:
-                headers[name] = value
-        request_data["headers"] = headers
-        
-        # Add body for non-sensitive requests
-        if request.method in ["POST", "PUT", "PATCH"] and request.url.path not in self.sensitive_paths:
-            try:
-                body = await request.body()
-                if body and len(body) < 1000:  # Only log small bodies
-                    request_data["body"] = body.decode("utf-8", errors="ignore")
-            except Exception:
-                pass
-        
-        logger.info("HTTP Request", extra=request_data)
+        try:
+            if not self.log_requests:
+                return
+            
+            # Get request details
+            method = request.method
+            url = str(request.url)
+            headers = dict(request.headers)
+            client_ip = self._get_client_ip(request)
+            user_agent = headers.get("user-agent", "")
+            
+            # Get request body if enabled
+            body = None
+            if self.log_body and method in ["POST", "PUT", "PATCH"]:
+                body = self._get_request_body(request)
+            
+            # Create log entry
+            log_entry = {
+                "type": "request",
+                "method": method,
+                "url": url,
+                "client_ip": client_ip,
+                "user_agent": user_agent,
+                "headers": self._sanitize_headers(headers),
+                "body": body,
+                "timestamp": start_time
+            }
+            
+            logger.info(f"Request: {method} {url}", extra=log_entry)
+            
+        except Exception as e:
+            logger.error(f"Error logging request: {e}")
     
-    async def _log_response(self, request: Request, response: Response, request_id: str, duration: float):
+    def log_response(
+        self,
+        request: Request,
+        response: Response,
+        start_time: float,
+        end_time: float
+    ):
         """Log outgoing response"""
-        response_data = {
-            "request_id": request_id,
-            "status_code": response.status_code,
-            "duration_ms": round(duration * 1000, 2),
-            "content_type": response.headers.get("content-type", ""),
-            "content_length": response.headers.get("content-length", "0"),
-            "timestamp": time.time()
-        }
-        
-        # Add response headers (excluding sensitive ones)
-        headers = {}
-        for name, value in response.headers.items():
-            if name.lower() not in self.sensitive_headers:
-                headers[name] = value
-        response_data["headers"] = headers
-        
-        # Log level based on status code
-        if response.status_code >= 500:
-            logger.error("HTTP Response", extra=response_data)
-        elif response.status_code >= 400:
-            logger.warning("HTTP Response", extra=response_data)
-        else:
-            logger.info("HTTP Response", extra=response_data)
-    
-    async def _log_error(self, request: Request, request_id: str, error: Exception, duration: float):
-        """Log request error"""
-        error_data = {
-            "request_id": request_id,
-            "method": request.method,
-            "url": str(request.url),
-            "path": request.url.path,
-            "error_type": type(error).__name__,
-            "error_message": str(error),
-            "duration_ms": round(duration * 1000, 2),
-            "timestamp": time.time()
-        }
-        
-        logger.error("HTTP Request Error", extra=error_data)
+        try:
+            if not self.log_responses:
+                return
+            
+            # Calculate processing time
+            processing_time = end_time - start_time
+            
+            # Get response details
+            status_code = response.status_code
+            headers = dict(response.headers)
+            
+            # Get response body if enabled
+            body = None
+            if self.log_body and hasattr(response, 'body'):
+                body = self._get_response_body(response)
+            
+            # Create log entry
+            log_entry = {
+                "type": "response",
+                "method": request.method,
+                "url": str(request.url),
+                "status_code": status_code,
+                "processing_time": processing_time,
+                "headers": self._sanitize_headers(headers),
+                "body": body,
+                "timestamp": end_time
+            }
+            
+            logger.info(
+                f"Response: {request.method} {request.url} - {status_code} ({processing_time:.3f}s)",
+                extra=log_entry
+            )
+            
+        except Exception as e:
+            logger.error(f"Error logging response: {e}")
     
     def _get_client_ip(self, request: Request) -> str:
         """Get client IP address"""
@@ -144,23 +115,118 @@ class RequestLoggerMiddleware(BaseHTTPMiddleware):
         if real_ip:
             return real_ip
         
-        # Fall back to client host
+        # Use client host
         return request.client.host if request.client else "unknown"
     
-    def _get_user_info(self, request: Request) -> Dict[str, Any]:
-        """Get user information from request"""
-        user_info = {}
-        
-        # Try to get user ID from JWT token
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
+    def _get_request_body(self, request: Request) -> Optional[str]:
+        """Get request body"""
+        try:
+            # Check content type
+            content_type = request.headers.get("content-type", "")
+            
+            # Skip binary content
+            if "application/octet-stream" in content_type:
+                return "[Binary content]"
+            
+            # Get body
+            body = request.body()
+            if not body:
+                return None
+            
+            # Limit body size
+            if len(body) > self.max_body_size:
+                return f"[Body too large: {len(body)} bytes]"
+            
+            # Decode body
             try:
-                from ..auth.jwt import verify_token
-                token = auth_header.split(" ")[1]
-                payload = verify_token(token)
-                user_info["user_id"] = payload.get("sub")
-                user_info["username"] = payload.get("username")
-            except Exception:
-                pass
+                return body.decode("utf-8")
+            except UnicodeDecodeError:
+                return "[Binary content]"
+                
+        except Exception as e:
+            logger.error(f"Error getting request body: {e}")
+            return None
+    
+    def _get_response_body(self, response: Response) -> Optional[str]:
+        """Get response body"""
+        try:
+            # Skip streaming responses
+            if isinstance(response, StreamingResponse):
+                return "[Streaming response]"
+            
+            # Get body
+            if hasattr(response, 'body') and response.body:
+                body = response.body
+                
+                # Limit body size
+                if len(body) > self.max_body_size:
+                    return f"[Body too large: {len(body)} bytes]"
+                
+                # Decode body
+                try:
+                    return body.decode("utf-8")
+                except UnicodeDecodeError:
+                    return "[Binary content]"
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error getting response body: {e}")
+            return None
+    
+    def _sanitize_headers(self, headers: Dict[str, str]) -> Dict[str, str]:
+        """Sanitize headers for logging"""
+        sensitive_headers = {
+            "authorization",
+            "cookie",
+            "x-api-key",
+            "x-auth-token",
+            "x-access-token"
+        }
         
-        return user_info
+        sanitized = {}
+        for key, value in headers.items():
+            if key.lower() in sensitive_headers:
+                sanitized[key] = "[REDACTED]"
+            else:
+                sanitized[key] = value
+        
+        return sanitized
+
+
+class RequestLoggingMiddleware:
+    """Request logging middleware for FastAPI"""
+    
+    def __init__(self, request_logger: Optional[RequestLogger] = None):
+        self.request_logger = request_logger or RequestLogger()
+    
+    async def __call__(self, request: Request, call_next):
+        """Middleware function"""
+        start_time = time.time()
+        
+        # Log request
+        self.request_logger.log_request(request, start_time)
+        
+        # Process request
+        response = await call_next(request)
+        
+        # Log response
+        end_time = time.time()
+        self.request_logger.log_response(request, response, start_time, end_time)
+        
+        return response
+
+
+def create_request_logging_middleware(
+    request_logger: Optional[RequestLogger] = None
+) -> RequestLoggingMiddleware:
+    """Create request logging middleware"""
+    return RequestLoggingMiddleware(request_logger)
+
+
+# Export public API
+__all__ = [
+    "RequestLogger",
+    "RequestLoggingMiddleware",
+    "create_request_logging_middleware"
+]
