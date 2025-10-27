@@ -1,0 +1,227 @@
+# Atulya Tantra AGI - Production Docker Compose
+# Complete production stack with all services
+
+version: '3.8'
+
+services:
+  # Main AGI Application
+  tantra-agi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: tantra-agi
+    restart: unless-stopped
+    ports:
+      - "8000:8000"  # Main API
+      - "8001:8001"  # Monitoring
+    environment:
+      - DATABASE_URL=postgresql://tantra:tantra123@postgres:5432/tantra_agi
+      - REDIS_URL=redis://redis:6379
+      - OLLAMA_URL=http://ollama:11434
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+    volumes:
+      - tantra_data:/app/data
+      - tantra_logs:/app/logs
+      - tantra_models:/app/models
+    depends_on:
+      - postgres
+      - redis
+      - ollama
+    networks:
+      - tantra-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: tantra-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=tantra_agi
+      - POSTGRES_USER=tantra
+      - POSTGRES_PASSWORD=tantra123
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - tantra-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tantra -d tantra_agi"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: tantra-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass tantra123
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - tantra-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Ollama LLM Server
+  ollama:
+    image: ollama/ollama:latest
+    container_name: tantra-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    networks:
+      - tantra-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Prometheus Metrics
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: tantra-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - tantra-network
+
+  # Grafana Dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: tantra-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - tantra-network
+    depends_on:
+      - prometheus
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: tantra-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - tantra-agi
+      - grafana
+    networks:
+      - tantra-network
+
+  # Backup Service
+  backup:
+    image: postgres:15-alpine
+    container_name: tantra-backup
+    restart: "no"
+    environment:
+      - PGPASSWORD=tantra123
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup.sh:/backup.sh
+    command: /bin/sh -c "while true; do sleep 86400; /backup.sh; done"
+    depends_on:
+      - postgres
+    networks:
+      - tantra-network
+
+  # Log Aggregator
+  loki:
+    image: grafana/loki:latest
+    container_name: tantra-loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./monitoring/loki.yml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - tantra-network
+
+  # Log Shipper
+  promtail:
+    image: grafana/promtail:latest
+    container_name: tantra-promtail
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/promtail.yml:/etc/promtail/config.yml
+      - tantra_logs:/var/log/tantra
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    networks:
+      - tantra-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  ollama_models:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  loki_data:
+    driver: local
+  tantra_data:
+    driver: local
+  tantra_logs:
+    driver: local
+  tantra_models:
+    driver: local
+
+networks:
+  tantra-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
