@@ -36,6 +36,7 @@ from ..auth import (
 from ..middleware import (
     rate_limit_middleware, SecurityHeadersMiddleware, RequestLoggerMiddleware
 )
+from .conversation_endpoints import router as conversation_router
 
 logger = get_logger(__name__)
 
@@ -186,6 +187,9 @@ app.add_middleware(RequestLoggerMiddleware)
 
 # Add rate limiting middleware
 app.middleware("http")(rate_limit_middleware)
+
+# Include conversation router
+app.include_router(conversation_router)
 
 # API Routes
 
