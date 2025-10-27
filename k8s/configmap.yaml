@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jarvis-config
+  namespace: jarvis-agi
+data:
+  JARVIS_ENV: "production"
+  DATABASE_URL: "postgresql://jarvis:${POSTGRES_PASSWORD}@postgres-service:5432/jarvis_db"
+  REDIS_URL: "redis://redis-service:6379/0"
+  OLLAMA_BASE_URL: "http://ollama-service:11434"
+  CHROMA_URL: "http://chroma-service:8000"
+  LOG_LEVEL: "INFO"
+  API_HOST: "0.0.0.0"
+  API_PORT: "8000"
+  MAX_CONVERSATIONS: "1000"
+  MAX_MESSAGE_LENGTH: "10000"
+  RATE_LIMIT_REQUESTS: "100"
+  RATE_LIMIT_WINDOW: "60"
+  SESSION_TIMEOUT: "3600"
+  CORS_ORIGINS: "https://jarvis.example.com,https://admin.jarvis.example.com"
+  ALLOWED_HOSTS: "jarvis.example.com,admin.jarvis.example.com,localhost"
+  MONITORING_ENABLED: "true"
+  TRACING_ENABLED: "true"
+  METRICS_ENABLED: "true"
+  HEALTH_CHECK_INTERVAL: "30"
+  AUTO_SCALING_ENABLED: "true"
+  MIN_REPLICAS: "2"
+  MAX_REPLICAS: "10"
+  TARGET_CPU_UTILIZATION: "70"
+  TARGET_MEMORY_UTILIZATION: "80"

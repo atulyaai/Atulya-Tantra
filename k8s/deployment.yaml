@@ -1,0 +1,188 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jarvis-app
+  namespace: jarvis-agi
+  labels:
+    app: jarvis
+    component: app
+    version: v3.0.0
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: jarvis
+      component: app
+  template:
+    metadata:
+      labels:
+        app: jarvis
+        component: app
+        version: v3.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: jarvis-service-account
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: jarvis-app
+        image: jarvis-agi:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        - containerPort: 8001
+          name: websocket
+          protocol: TCP
+        - containerPort: 8002
+          name: admin
+          protocol: TCP
+        env:
+        - name: JARVIS_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: jarvis-config
+              key: JARVIS_ENV
+        - name: DATABASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: jarvis-config
+              key: DATABASE_URL
+        - name: REDIS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: jarvis-config
+              key: REDIS_URL
+        - name: OLLAMA_BASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: jarvis-config
+              key: OLLAMA_BASE_URL
+        - name: CHROMA_URL
+          valueFrom:
+            configMapKeyRef:
+              name: jarvis-config
+              key: CHROMA_URL
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: jarvis-config
+              key: LOG_LEVEL
+        - name: API_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: jarvis-config
+              key: API_HOST
+        - name: API_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: jarvis-config
+              key: API_PORT
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: jarvis-secrets
+              key: POSTGRES_PASSWORD
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: jarvis-secrets
+              key: REDIS_PASSWORD
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: jarvis-secrets
+              key: JWT_SECRET_KEY
+        - name: ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: jarvis-secrets
+              key: ENCRYPTION_KEY
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: jarvis-secrets
+              key: OPENAI_API_KEY
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: jarvis-secrets
+              key: ANTHROPIC_API_KEY
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        volumeMounts:
+        - name: app-data
+          mountPath: /app/data
+        - name: app-logs
+          mountPath: /app/logs
+        - name: app-models
+          mountPath: /app/models
+        - name: app-uploads
+          mountPath: /app/uploads
+        - name: app-config
+          mountPath: /app/config
+      volumes:
+      - name: app-data
+        persistentVolumeClaim:
+          claimName: jarvis-data-pvc
+      - name: app-logs
+        persistentVolumeClaim:
+          claimName: jarvis-logs-pvc
+      - name: app-models
+        persistentVolumeClaim:
+          claimName: jarvis-models-pvc
+      - name: app-uploads
+        persistentVolumeClaim:
+          claimName: jarvis-uploads-pvc
+      - name: app-config
+        configMap:
+          name: jarvis-config
+      imagePullSecrets:
+      - name: jarvis-registry-secret
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+      - key: "jarvis-agi"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - jarvis
+              topologyKey: kubernetes.io/hostname
