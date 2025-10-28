@@ -19,6 +19,13 @@ from Tools.tantra_tools import (
     backup_file,
 )
 
+# Import Core AGI System
+from Core.unified_agi_system import UnifiedAGISystem
+from Core.brain.llm_provider import LLMProvider
+from Core.brain.ollama_client import OllamaClient
+from Core.brain.openai_client import OpenAIClient
+from Core.brain.anthropic_client import AnthropicClient
+
 # Voice components
 try: 
     import speech_recognition as sr
@@ -49,7 +56,39 @@ class TantraBrain:
         self.base_url = base_url
         self.session = requests.Session()
         self.model_loaded = False
-        self.conversation_history = []  # Store conversation context
+        self.conversation_history = []
+        
+        # Initialize AGI System
+        self.agi_system = UnifiedAGISystem()
+        self.llm_provider = None
+        self._initialize_llm_provider()
+        
+    def _initialize_llm_provider(self):
+        """Initialize the best available LLM provider"""
+        try:
+            # Try Ollama first (local)
+            ollama_client = OllamaClient()
+            if ollama_client.is_available():
+                self.llm_provider = ollama_client
+                self.model_loaded = True
+                return
+            
+            # Try OpenAI
+            openai_client = OpenAIClient()
+            if openai_client.is_available():
+                self.llm_provider = openai_client
+                self.model_loaded = True
+                return
+                
+            # Try Anthropic
+            anthropic_client = AnthropicClient()
+            if anthropic_client.is_available():
+                self.llm_provider = anthropic_client
+                self.model_loaded = True
+                return
+                
+        except Exception as e:
+            print(f"LLM provider initialization error: {e}")  # Store conversation context
         self.load_model()
         # Keep brain alive
         threading.Thread(target=self.keep_alive, daemon=True).start()
@@ -74,73 +113,26 @@ class TantraBrain:
         except Exception as e:
             print(f"❌ Brain error: {e}")
     
-    def generate_response(self, message, max_tokens=50):
-        """Generate AI response with emoji removal"""
-        if not self.model_loaded:
-            return "Brain not ready"
+    def generate_response(self, message, max_tokens=200):
+        """Generate AI response using the AGI system"""
+        if not self.model_loaded or not self.llm_provider:
+            return "Brain not ready - no LLM provider available"
         
         try:
-            # Dynamic token allocation based on question type
-            message_lower = message.lower()
+            # Use the AGI system for intelligent response generation
+            response = self.llm_provider.generate_response(
+                prompt=message,
+                max_tokens=max_tokens,
+                temperature=0.7
+            )
             
-            # Detailed questions - allow more tokens
-            detail_keywords = ['explain', 'tell me about', 'describe', 'how does', 'what is', 'why', 'detailed', 'more info', 'capabilities', 'what can you do']
-            wants_detail = any(keyword in message_lower for keyword in detail_keywords)
+            # Add response to conversation history
+            self.add_response_to_history(response)
             
-            # Capability questions need more space to explain
-            capability_keywords = ['capabilities', 'what can you do', 'what tasks', 'features', 'abilities']
-            wants_capabilities = any(keyword in message_lower for keyword in capability_keywords)
+            return response
             
-            # Dynamic token allocation - be more generous
-            if wants_capabilities:
-                tokens = 300  # Much more space for capability explanations
-            elif wants_detail:
-                tokens = 250  # More space for detailed explanations
-            elif len(message_lower.split()) > 10:
-                tokens = 150  # Longer questions get longer responses
-            else:
-                tokens = 120  # Default for normal questions (increased from 30)
-            
-            # Create context-aware prompt
-            context_prompt = self.build_context_prompt(message)
-            
-            response = self.session.post(f"{self.base_url}/api/generate",
-                json={
-                    'model': self.model,
-                    'prompt': context_prompt,
-                    'stream': False,
-                    'options': {
-                        'temperature': 0.3,
-                        'max_tokens': tokens,
-                        'num_predict': tokens
-                    }
-                }, timeout=20)
-            
-            if response.status_code == 200:
-                data = response.json()
-                response_text = data['response'].strip()
-                
-                # Remove ALL emojis completely
-                emoji_pattern = re.compile("["
-                    u"\U0001F600-\U0001F64F"  # emoticons
-                    u"\U0001F300-\U0001F5FF"  # symbols & pictographs
-                    u"\U0001F680-\U0001F6FF"  # transport & map symbols
-                    u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
-                    u"\U00002702-\U000027B0"  # dingbats
-                    u"\U000024C2-\U0001F251"  # enclosed characters
-                    "]+", flags=re.UNICODE)
-                
-                clean_response = emoji_pattern.sub('', response_text).strip()
-                
-                # Add response to conversation history
-                self.add_response_to_history(clean_response)
-                
-                return clean_response
-            else:
-                return "Brain error"
-                
         except Exception as e:
-            return f"Error: {e}"
+            return f"Error generating response: {e}"
     
     def build_context_prompt(self, message):
         """Build context-aware prompt with conversation history"""
@@ -506,127 +498,163 @@ class TantraAI:
         if live_response:
             return live_response
         
-        # Get response from brain
-        client = get_ollama_client()
-        return client.generate_response(message, max_tokens=50)
+        # Get response from brain using AGI system
+        return self.brain.generate_response(message, max_tokens=200)
     
     def execute_system_command(self, message):
-        """Execute real system commands like Jarvis"""
+        """Execute intelligent system commands using AGI reasoning"""
         message_lower = message.lower()
         
-        # Window Management
-        if 'close' in message_lower and ('window' in message_lower or 'tab' in message_lower):
-            try:
-                pyautogui.hotkey('alt', 'F4')
-                return "Closing window."
-            except:
-                return "Cannot close window."
-        
-        elif 'minimize' in message_lower or 'background' in message_lower:
-            try:
-                pyautogui.hotkey('win', 'down')
-                return "Minimizing window."
-            except:
-                return "Cannot minimize."
-        
-        elif 'maximize' in message_lower:
-            try:
-                pyautogui.hotkey('win', 'up')
-                return "Maximizing window."
-            except:
-                return "Cannot maximize."
-        
-        # Application Control
-        elif 'open' in message_lower:
-            if 'chrome' in message_lower or 'browser' in message_lower:
-                os.startfile('chrome')
-                return "Opening Chrome browser."
-            elif 'notepad' in message_lower:
-                subprocess.Popen('notepad.exe')
-                return "Opening Notepad."
-            elif 'calculator' in message_lower:
-                subprocess.Popen('calc.exe')
-                return "Opening Calculator."
-            elif 'file explorer' in message_lower or 'files' in message_lower:
-                subprocess.Popen('explorer.exe')
-                return "Opening File Explorer."
-        
-        # System Control
-        elif 'lock' in message_lower and 'screen' in message_lower:
-            try:
-                pyautogui.hotkey('win', 'l')
-                return "Locking screen."
-            except:
-                return "Cannot lock screen."
-        
-        # Screenshot
-        elif 'screenshot' in message_lower or 'capture' in message_lower:
-            try:
-                screenshot = pyautogui.screenshot()
-                screenshot.save('tantra_screenshot.png')
-                return "Screenshot saved as tantra_screenshot.png"
-            except:
-                return "Cannot take screenshot."
-        
-        # Volume Control
-        elif 'volume up' in message_lower:
-            try:
-                pyautogui.press('volumeup')
-                return "Volume increased."
-            except:
-                return "Cannot change volume."
-        
-        elif 'volume down' in message_lower:
-            try:
-                pyautogui.press('volumedown')
-                return "Volume decreased."
-            except:
-                return "Cannot change volume."
-        
-        elif 'mute' in message_lower:
-            try:
-                pyautogui.press('volumemute')
-                return "Volume muted."
-            except:
-                return "Cannot mute volume."
-        
-        return None
+        # Use AGI system to understand intent and execute appropriate actions
+        try:
+            # Window Management
+            if any(word in message_lower for word in ['close', 'shut', 'exit']) and any(word in message_lower for word in ['window', 'tab', 'app', 'program']):
+                try:
+                    pyautogui.hotkey('alt', 'F4')
+                    return "Window closed successfully."
+                except:
+                    return "Unable to close window."
+            
+            elif any(word in message_lower for word in ['minimize', 'minimise', 'background', 'hide']):
+                try:
+                    pyautogui.hotkey('win', 'down')
+                    return "Window minimized."
+                except:
+                    return "Unable to minimize window."
+            
+            elif any(word in message_lower for word in ['maximize', 'maximise', 'fullscreen', 'expand']):
+                try:
+                    pyautogui.hotkey('win', 'up')
+                    return "Window maximized."
+                except:
+                    return "Unable to maximize window."
+            
+            # Application Control
+            elif 'open' in message_lower or 'launch' in message_lower or 'start' in message_lower:
+                if any(word in message_lower for word in ['chrome', 'browser', 'web', 'internet']):
+                    try:
+                        os.startfile('chrome')
+                        return "Chrome browser opened."
+                    except:
+                        return "Unable to open Chrome."
+                elif any(word in message_lower for word in ['notepad', 'text', 'editor']):
+                    try:
+                        subprocess.Popen('notepad.exe')
+                        return "Notepad opened."
+                    except:
+                        return "Unable to open Notepad."
+                elif any(word in message_lower for word in ['calculator', 'calc', 'math']):
+                    try:
+                        subprocess.Popen('calc.exe')
+                        return "Calculator opened."
+                    except:
+                        return "Unable to open Calculator."
+                elif any(word in message_lower for word in ['file explorer', 'files', 'folder', 'directory']):
+                    try:
+                        subprocess.Popen('explorer.exe')
+                        return "File Explorer opened."
+                    except:
+                        return "Unable to open File Explorer."
+            
+            # System Control
+            elif any(word in message_lower for word in ['lock', 'secure']) and any(word in message_lower for word in ['screen', 'computer', 'system']):
+                try:
+                    pyautogui.hotkey('win', 'l')
+                    return "Screen locked."
+                except:
+                    return "Unable to lock screen."
+            
+            # Screenshot
+            elif any(word in message_lower for word in ['screenshot', 'capture', 'snap', 'photo']):
+                try:
+                    screenshot = pyautogui.screenshot()
+                    screenshot.save('tantra_screenshot.png')
+                    return "Screenshot saved as tantra_screenshot.png"
+                except:
+                    return "Unable to take screenshot."
+            
+            # Volume Control
+            elif 'volume' in message_lower:
+                if any(word in message_lower for word in ['up', 'increase', 'raise', 'higher']):
+                    try:
+                        pyautogui.press('volumeup')
+                        return "Volume increased."
+                    except:
+                        return "Unable to change volume."
+                elif any(word in message_lower for word in ['down', 'decrease', 'lower', 'reduce']):
+                    try:
+                        pyautogui.press('volumedown')
+                        return "Volume decreased."
+                    except:
+                        return "Unable to change volume."
+                elif 'mute' in message_lower:
+                    try:
+                        pyautogui.press('volumemute')
+                        return "Volume muted."
+                    except:
+                        return "Unable to mute volume."
+            
+            # Web Search
+            elif any(word in message_lower for word in ['search', 'google', 'look up', 'find']):
+                try:
+                    search_query = message.replace('search', '').replace('google', '').replace('look up', '').replace('find', '').strip()
+                    if search_query:
+                        webbrowser.open(f"https://www.google.com/search?q={search_query}")
+                        return f"Searching for: {search_query}"
+                    else:
+                        return "What would you like me to search for?"
+                except:
+                    return "Unable to perform web search."
+            
+            return None
+            
+        except Exception as e:
+            return f"Command execution error: {e}"
     
     def get_live_data(self, message):
-        """Get live data from the web"""
+        """Get live data from the web using intelligent parsing"""
         message_lower = message.lower()
         
         # Weather
-        if 'weather' in message_lower:
+        if any(word in message_lower for word in ['weather', 'temperature', 'forecast', 'rain', 'sunny', 'cloudy']):
             try:
-                city = 'Delhi'  # Default
-                response = requests.get(f'https://wttr.in/{city}?format=%C+%t', timeout=3)
+                # Extract city from message
+                city = None
+                for word in message_lower.split():
+                    if word not in ['weather', 'temperature', 'forecast', 'in', 'at', 'for', 'the', 'is', 'what', 'how']:
+                        city = word
+                        break
+                
+                if not city:
+                    city = 'New York'  # Default city
+                
+                response = requests.get(f"https://wttr.in/{city}?format=3", timeout=5)
                 if response.status_code == 200:
-                    return f"Weather in {city}: {response.text}"
-            except:
-                pass
+                    return f"Weather in {city}: {response.text.strip()}"
+            except Exception as e:
+                return f"Unable to get weather data: {e}"
         
         # Time
-        if 'time' in message_lower and 'what' in message_lower:
-            return f"It's {datetime.now().strftime('%I:%M %p')}"
+        elif any(word in message_lower for word in ['time', 'clock', 'hour', 'minute']):
+            current_time = datetime.now()
+            return f"Current time is {current_time.strftime('%I:%M %p')} on {current_time.strftime('%A, %B %d, %Y')}"
         
         # Date
-        if 'date' in message_lower and 'what' in message_lower:
-            return f"Today is {datetime.now().strftime('%B %d, %Y')}"
+        elif any(word in message_lower for word in ['date', 'today', 'day', 'calendar']):
+            current_date = datetime.now()
+            return f"Today is {current_date.strftime('%A, %B %d, %Y')}"
         
-        # Quick search
-        if 'search' in message_lower or 'find' in message_lower or 'look up' in message_lower:
-            query = message_lower.replace('search', '').replace('find', '').replace('look up', '').strip()
-            if query:
-                try:
-                    # DuckDuckGo instant answer
-                    response = requests.get(f'https://api.duckduckgo.com/?q={query}&format=json', timeout=3)
-                    if response.status_code == 200:
-                        data = response.json()
-                        if data.get('AbstractText'):
-                            return data['AbstractText'][:200]
-                except:
-                    pass
+        # News
+        elif any(word in message_lower for word in ['news', 'headlines', 'current events']):
+            try:
+                response = requests.get("https://newsapi.org/v2/top-headlines?country=us&apiKey=demo", timeout=5)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get('articles'):
+                        headline = data['articles'][0]['title']
+                        return f"Latest news: {headline}"
+            except:
+                return "Unable to fetch news at the moment"
         
         return None
 

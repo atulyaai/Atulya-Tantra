@@ -3,13 +3,13 @@
 <div align="center">
   <img src="https://img.shields.io/badge/Python-3.11+-blue?style=for-the-badge&logo=python" alt="Python 3.11+">
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge&logo=github" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-3.0.3-success?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/Version-4.0.0-success?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/Status-Production-ready-success?style=for-the-badge" alt="Status">
 </div>
 
 <div align="center">
-  <h3>✨ Advanced AGI system with emotional intelligence, autonomous operations, and multi-agent architecture</h3>
-  <p>TinyLlama default model | Extensible LLM providers | Clean architecture</p>
+  <h3>✨ Advanced AGI system with real AI responses, intelligent automation, and multi-provider LLM support</h3>
+  <p>Ollama | OpenAI | Anthropic | Intelligent System Commands | Voice Interface</p>
 </div>
 
 ---
@@ -35,19 +35,29 @@
 Atulya Tantra AGI is an advanced artificial general intelligence system that integrates:
 
 ### 🤖 Core Capabilities
+- **Real AI Responses**: No more hardcoded responses - uses actual LLM providers
+- **Intelligent Automation**: Smart system commands with natural language understanding
+- **Multi-Provider LLM Support**: Ollama (local), OpenAI, Anthropic with automatic fallback
+- **Voice Interface**: Speech recognition and text-to-speech capabilities
+- **System Control**: Window management, application launching, volume control
+- **Live Data**: Weather, time, date, news, and web search integration
+- **Memory System**: Conversation history and context awareness
 - **AGI Reasoning**: Advanced decision-making and goal-oriented behavior
-- **Multi-Agent System**: 5 specialized AI agents working in orchestration
-- **Emotional Intelligence**: Sentiment analysis and personality-driven responses
-- **Conversation Engine**: Natural language processing and context awareness
-- **Memory System**: Knowledge graphs and vector storage for long-term memory
-- **Autonomous Operations**: Self-monitoring, task scheduling, and auto-healing
-- **RESTful API**: FastAPI-based web interface for integration
-- **Dynamic Evolution**: Self-improving code generation and installation
 
 ### 🔌 LLM Architecture
-- **Default**: TinyLlama (CPU-friendly, 1.1B parameters)
-- **Pluggable Providers**: Easy to add OpenAI, Anthropic, Ollama, or any LLM
-- **Category-based routing**: Select optimal model for chat, code, vision, etc.
+- **Primary**: Ollama with Gemma2:2b (local, private, fast)
+- **Fallback**: OpenAI GPT-3.5-turbo (cloud, requires API key)
+- **Alternative**: Anthropic Claude (cloud, requires API key)
+- **Auto-Detection**: Automatically selects the best available provider
+- **Intelligent Routing**: Context-aware response generation
+
+### 🆕 Recent Improvements (v4.0.0)
+- ✅ **Fixed Hardcoded Responses**: Now uses real AI instead of static text
+- ✅ **Enhanced Automation**: Intelligent system command execution
+- ✅ **Multi-LLM Support**: Seamless switching between providers
+- ✅ **Better Error Handling**: Graceful fallbacks and user feedback
+- ✅ **Improved Voice Interface**: Better speech recognition and TTS
+- ✅ **Smart Commands**: Natural language understanding for system control
 - **Provider Interface**: Clean abstraction for any LLM service
 
 ## 📊 Comparison: Jarvis vs Skynet vs Atulya Tantra
@@ -71,6 +81,11 @@ We combine **Jarvis's helpful personality** with **Skynet's autonomous capabilit
 
 ## 📋 Quick Start
 
+### Prerequisites
+- Python 3.11+
+- pip or conda
+
+### Installation
 ```bash
 # Clone the repository
 git clone https://github.com/atulyaai/Atulya-Tantra.git
@@ -78,12 +93,35 @@ cd Atulya-Tantra
 
 # Install dependencies
 pip install -r requirements.txt
-
-# Run the API server
-python Core/api/main.py
 ```
 
-Access the API at `http://localhost:8000/docs`
+### Setup LLM Provider
+```bash
+# Option 1: Setup Ollama (Recommended - Local & Private)
+python3 setup_llm_providers.py
+# Follow instructions to install Ollama and pull Gemma2 model
+
+# Option 2: Configure API keys
+# Edit .env file with your OpenAI or Anthropic API keys
+```
+
+### Basic Usage
+```bash
+# Run the main application
+python3 tantra.py
+
+# Or test the AGI integration
+python3 test_simple_agi.py
+```
+
+### Voice Commands Examples
+- "What time is it?" - Get current time
+- "What's the weather?" - Get weather information
+- "Open Chrome" - Launch browser
+- "Take a screenshot" - Capture screen
+- "Search for Python tutorials" - Web search
+- "Close window" - Close current window
+- "What can you do?" - Get capabilities list
 
 ## 🏗️ Architecture
 
