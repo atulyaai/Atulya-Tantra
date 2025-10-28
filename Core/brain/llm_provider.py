@@ -1,327 +1,49 @@
 """
-LLM Provider
-Unified interface for different language model providers
+Compatibility shim over the new Core.llm router. TinyLlama is default primary.
 """
 
-import requests
-import json
-from typing import Dict, List, Any, Optional
-from datetime import datetime
+from typing import Any, Dict, List, Optional
 
-class LLMProvider:
-    """
-    Unified interface for different language model providers
-    Supports Ollama, OpenAI, and other LLM services
-    """
-    
-    def __init__(self, provider: str = "ollama", config: Dict[str, Any] = None):
-        self.provider = provider
-        self.config = config or {}
-        self.session = requests.Session()
-        
-        # Provider-specific configurations
-        self.providers = {
-            "ollama": {
-                "base_url": "http://localhost:11434",
-                "model": "gemma2:2b",
-                "timeout": 30
-            },
-            "openai": {
-                "base_url": "https://api.openai.com/v1",
-                "model": "gpt-3.5-turbo",
-                "timeout": 30
-            }
-        }
-        
-        # Set up provider configuration
-        if provider in self.providers:
-            self.provider_config = self.providers[provider]
-        else:
-            raise ValueError(f"Unsupported provider: {provider}")
-    
-    def generate_response(self, message: str, context: List[Dict[str, Any]] = None, 
-                         max_tokens: int = 150) -> str:
-        """
-        Generate response using the configured LLM provider
-        """
-        if self.provider == "ollama":
-            return self._generate_ollama_response(message, context, max_tokens)
-        elif self.provider == "openai":
-            return self._generate_openai_response(message, context, max_tokens)
-        else:
-            raise ValueError(f"Unsupported provider: {self.provider}")
-    
-    def _generate_ollama_response(self, message: str, context: List[Dict[str, Any]] = None, 
-                                 max_tokens: int = 150) -> str:
-        """
-        Generate response using Ollama
-        """
-        try:
-            # Build context-aware prompt
-            prompt = self._build_ollama_prompt(message, context)
-            
-            response = self.session.post(
-                f"{self.provider_config['base_url']}/api/generate",
-                json={
-                    'model': self.provider_config['model'],
-                    'prompt': prompt,
-                    'stream': False,
-                    'options': {
-                        'temperature': 0.3,
-                        'max_tokens': max_tokens,
-                        'num_predict': max_tokens
-                    }
-                },
-                timeout=self.provider_config['timeout']
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                return data['response'].strip()
-            else:
-                return "I'm having trouble processing your request right now. Please try again."
-        
-        except Exception as e:
-            print(f"Ollama error: {e}")
-            return "I'm experiencing technical difficulties. Please try again later."
-    
-    def _generate_openai_response(self, message: str, context: List[Dict[str, Any]] = None, 
-                                 max_tokens: int = 150) -> str:
-        """
-        Generate response using OpenAI API
-        """
-        try:
-            # Build messages for OpenAI format
-            messages = self._build_openai_messages(message, context)
-            
-            response = self.session.post(
-                f"{self.provider_config['base_url']}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.config.get('api_key', '')}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    'model': self.provider_config['model'],
-                    'messages': messages,
-                    'max_tokens': max_tokens,
-                    'temperature': 0.3
-                },
-                timeout=self.provider_config['timeout']
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                return data['choices'][0]['message']['content'].strip()
-            else:
-                return "I'm having trouble processing your request right now. Please try again."
-        
-        except Exception as e:
-            print(f"OpenAI error: {e}")
-            return "I'm experiencing technical difficulties. Please try again later."
-    
-    def _build_ollama_prompt(self, message: str, context: List[Dict[str, Any]] = None) -> str:
-        """
-        Build context-aware prompt for Ollama
-        """
-        prompt = """You are a professional AI assistant. You are helpful, knowledgeable, and can assist with various tasks.
-
-CAPABILITIES:
-- System control (open/close applications, manage windows, control volume)
-- Web searches and information retrieval
-- Communication (emails, messages, notifications)
-- Scheduling and calendar management
-- General conversation and problem-solving
-
-Be helpful, direct, and provide comprehensive information when asked about capabilities.
-
-"""
-        
-        # Add conversation context if available
-        if context:
-            prompt += "Recent conversation:\n"
-            for msg in context[-6:]:  # Last 6 messages
-                role = msg.get('role', 'user')
-                content = msg.get('content', '')
-                if role == 'user':
-                    prompt += f"User: {content}\n"
-                else:
-                    prompt += f"Assistant: {content}\n"
-            prompt += "\n"
-        
-        # Add current message
-        prompt += f"User asks: {message}\n"
-        prompt += "Assistant responds:"
-        
-        return prompt
-    
-    def _build_openai_messages(self, message: str, context: List[Dict[str, Any]] = None) -> List[Dict[str, str]]:
-        """
-        Build messages for OpenAI API format
-        """
-        messages = [
-            {
-                "role": "system",
-                "content": "You are a professional AI assistant. You are helpful, knowledgeable, and can assist with various tasks including system control, web searches, communication, scheduling, and general conversation. Be helpful, direct, and provide comprehensive information when asked about capabilities."
-            }
-        ]
-        
-        # Add conversation context if available
-        if context:
-            for msg in context[-10:]:  # Last 10 messages
-                role = msg.get('role', 'user')
-                content = msg.get('content', '')
-                if role in ['user', 'assistant']:
-                    messages.append({"role": role, "content": content})
-        
-        # Add current message
-        messages.append({"role": "user", "content": message})
-        
-        return messages
-    
-    def test_connection(self) -> bool:
-        """
-        Test connection to the LLM provider
-        """
-        try:
-            if self.provider == "ollama":
-                response = self.session.get(f"{self.provider_config['base_url']}/api/tags", timeout=5)
-                return response.status_code == 200
-            elif self.provider == "openai":
-                # Test with a simple request
-                response = self.session.get(f"{self.provider_config['base_url']}/models", 
-                                          headers={"Authorization": f"Bearer {self.config.get('api_key', '')}"}, 
-                                          timeout=5)
-                return response.status_code == 200
-            return False
-        except:
-            return False
-    
-    def get_available_models(self) -> List[str]:
-        """
-        Get list of available models for the provider
-        """
-        try:
-            if self.provider == "ollama":
-                response = self.session.get(f"{self.provider_config['base_url']}/api/tags", timeout=5)
-                if response.status_code == 200:
-                    data = response.json()
-                    return [model['name'] for model in data.get('models', [])]
-            elif self.provider == "openai":
-                response = self.session.get(f"{self.provider_config['base_url']}/models",
-                                          headers={"Authorization": f"Bearer {self.config.get('api_key', '')}"}, 
-                                          timeout=5)
-                if response.status_code == 200:
-                    data = response.json()
-                    return [model['id'] for model in data.get('data', [])]
-            return []
-        except:
-            return []
-    
-    def set_model(self, model: str):
-        """
-        Set the model to use
-        """
-        self.provider_config['model'] = model
-    
-    def get_model(self) -> str:
-        """
-        Get the current model
-        """
-        return self.provider_config.get('model', '')
+from Core.llm.base import LLMProviderBase
+from Core.llm.router import LLMRouter
+from Core.llm.providers.tinyllama_provider import TinyLlamaProvider
 
 
-class OllamaProvider(LLMProvider):
-    """Ollama-specific LLM provider"""
-    
-    def __init__(self, config: Dict[str, Any] = None):
-        super().__init__("ollama", config)
+def _build_router(provider: str = "tinyllama", config: Dict[str, Any] = None) -> LLMRouter:
+    providers: Dict[str, LLMProviderBase] = {
+        "tinyllama": TinyLlamaProvider(),
+    }
+    category_map = {"chat": provider}
+    return LLMRouter(primary=provider, providers=providers, category_map=category_map)
 
 
-class OpenAIProvider(LLMProvider):
-    """OpenAI-specific LLM provider"""
-    
-    def __init__(self, config: Dict[str, Any] = None):
-        super().__init__("openai", config)
+def get_llm_router(provider: str = "tinyllama", config: Dict[str, Any] = None) -> LLMRouter:
+    return _build_router(provider, config or {})
 
 
-class AnthropicProvider(LLMProvider):
-    """Anthropic-specific LLM provider"""
-    
-    def __init__(self, config: Dict[str, Any] = None):
-        # Anthropic uses a different base class structure
-        self.provider = "anthropic"
-        self.config = config or {}
-        self.session = requests.Session()
-        
-        self.providers = {
-            "anthropic": {
-                "base_url": "https://api.anthropic.com/v1",
-                "model": "claude-3-sonnet-20240229",
-                "timeout": 30
-            }
-        }
-        
-        self.provider_config = self.providers["anthropic"]
+def generate_response(message: str, provider: str = "tinyllama", config: Dict[str, Any] = None,
+                     max_tokens: int = 150, context: Optional[List[Dict[str, Any]]] = None) -> str:
+    router = get_llm_router(provider, config)
+    return router.generate(message, category="chat", context=context, max_tokens=max_tokens)
 
-
-class LLMProviderRouter:
-    """Router for managing multiple LLM providers"""
-    
-    def __init__(self):
-        self.providers = {}
-        self.default_provider = "ollama"
-    
-    def add_provider(self, name: str, provider: LLMProvider):
-        """Add a provider to the router"""
-        self.providers[name] = provider
-    
-    def get_provider(self, name: str = None) -> LLMProvider:
-        """Get a provider by name or default"""
-        if name and name in self.providers:
-            return self.providers[name]
-        return self.providers.get(self.default_provider)
-    
-    def generate_response(self, message: str, context: List[Dict[str, Any]] = None, 
-                         max_tokens: int = 150, provider: str = None) -> str:
-        """Generate response using specified or default provider"""
-        provider_instance = self.get_provider(provider)
-        if provider_instance:
-            return provider_instance.generate_response(message, context, max_tokens)
-        return "No provider available"
-
-
-# Global instances
-_llm_router = None
-
-def get_llm_router() -> LLMProviderRouter:
-    """Get global LLM router instance"""
-    global _llm_router
-    if _llm_router is None:
-        _llm_router = LLMProviderRouter()
-        # Add default providers
-        _llm_router.add_provider("ollama", OllamaProvider())
-        _llm_router.add_provider("openai", OpenAIProvider())
-        _llm_router.add_provider("anthropic", AnthropicProvider())
-    return _llm_router
-
-def generate_response(message: str, context: List[Dict[str, Any]] = None, 
-                     max_tokens: int = 150, provider: str = None) -> str:
-    """Generate response using the global router"""
-    router = get_llm_router()
-    return router.generate_response(message, context, max_tokens, provider)
 
 def count_tokens(text: str) -> int:
-    """Count tokens in text (approximate)"""
-    # Simple approximation: 1 token ≈ 4 characters
-    return len(text) // 4
+    return int(len(text.split()) * 1.3)
 
-def get_provider_status() -> Dict[str, Any]:
-    """Get status of all providers"""
-    router = get_llm_router()
-    status = {}
-    for name, provider in router.providers.items():
-        status[name] = {
-            "available": provider.test_connection(),
-            "model": provider.get_model()
+
+def get_provider_status(provider: str = "tinyllama") -> Dict[str, Any]:
+    try:
+        router = get_llm_router(provider)
+        is_connected = router.test_connection()
+        return {
+            "provider": provider,
+            "status": "connected" if is_connected else "disconnected",
+            "available": is_connected
         }
-    return status
+    except Exception as e:
+        return {
+            "provider": provider,
+            "status": "error",
+            "available": False,
+            "error": str(e)
+        }
