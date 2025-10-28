@@ -17,11 +17,8 @@ from .config.logging import get_logger
 from .config.exceptions import AgentError
 from .brain import get_llm_router
 from .agents import get_orchestrator, submit_task, AgentPriority
-from .skynet import get_task_scheduler, get_system_monitor, get_auto_healer
-from .jarvis import get_sentiment_analyzer, analyze_user_sentiment
 
 logger = get_logger(__name__)
-
 
 class ReasoningType(str, Enum):
     """Types of reasoning"""
@@ -206,11 +203,7 @@ class AGICore:
             reasoning_context.available_resources = context.get("resources", [])
             reasoning_context.environmental_factors = context.get("environment", {})
         
-        # Get emotional state if user_id provided
-        if user_id:
-            sentiment_analyzer = get_sentiment_analyzer()
-            emotional_summary = sentiment_analyzer.get_emotional_summary(user_id)
-            reasoning_context.emotional_state = emotional_summary
+        # Emotional state removed to decouple from jarvis module
         
         # Store context
         self.reasoning_contexts[reasoning_context.session_id] = reasoning_context
@@ -347,10 +340,6 @@ class AGICore:
     async def _gather_relevant_information(self, analysis: Dict[str, Any], context: ReasoningContext) -> Dict[str, Any]:
         """Gather relevant information for reasoning"""
         try:
-            # Get system information
-            system_monitor = get_system_monitor()
-            system_health = await system_monitor.get_system_health()
-            
             # Get available resources
             available_resources = context.available_resources.copy()
             
@@ -361,7 +350,7 @@ class AGICore:
             emotional_context = context.emotional_state or {}
             
             return {
-                "system_health": system_health,
+                "system_health": {},
                 "available_resources": available_resources,
                 "historical_context": historical_context,
                 "emotional_context": emotional_context,

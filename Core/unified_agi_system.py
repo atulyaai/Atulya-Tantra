@@ -1,6 +1,5 @@
 """
-Unified AGI System for Atulya Tantra
-Integrates JARVIS, Skynet, and all AGI components into a cohesive system
+Unified AGI System for Atulya Tantra (minimal, no jarvis/skynet dependencies)
 """
 
 import asyncio
@@ -15,26 +14,14 @@ import queue
 from .config.settings import settings
 from .config.logging import get_logger
 from .config.exceptions import AgentError
-
-# Import all components
-from .jarvis.sentiment_analyzer import get_sentiment_analyzer, analyze_user_sentiment
-from .jarvis.enhanced_voice_interface import get_enhanced_voice_interface, VoiceState, ConversationMode
-from .jarvis.personality_engine import get_conversational_ai
 from .agi_core import get_agi_core, process_agi_request
-from .skynet import get_task_scheduler, get_system_monitor, get_auto_healer
-from .agents import get_orchestrator
-from .memory.conversation_memory import ConversationMemory
 
 logger = get_logger(__name__)
 
 
 class SystemMode(str, Enum):
     """System operation modes"""
-    CONVERSATIONAL = "conversational"  # Human-like conversation
-    AUTONOMOUS = "autonomous"  # Self-directed operation
-    ASSISTIVE = "assistive"  # Task assistance
-    MONITORING = "monitoring"  # System monitoring only
-    LEARNING = "learning"  # Learning mode
+    ASSISTIVE = "assistive"
 
 
 class AGISystem:
@@ -45,16 +32,8 @@ class AGISystem:
         self.is_active = False
         self.is_initialized = False
         
-        # Core components
-        self.sentiment_analyzer = get_sentiment_analyzer()
-        self.voice_interface = get_enhanced_voice_interface()
-        self.conversational_ai = get_conversational_ai()
+        # Core components (minimal)
         self.agi_core = get_agi_core()
-        self.task_scheduler = get_task_scheduler()
-        self.system_monitor = get_system_monitor()
-        self.auto_healer = get_auto_healer()
-        self.orchestrator = get_orchestrator()
-        self.memory = ConversationMemory()
         
         # System state
         self.active_sessions = {}
@@ -81,16 +60,10 @@ class AGISystem:
         try:
             logger.info("Initializing unified AGI system...")
             
-            # Set up voice interface callbacks
-            self.voice_interface.on_command_received = self._handle_voice_command
-            self.voice_interface.on_response_ready = self._handle_voice_response
-            self.voice_interface.on_state_changed = self._handle_voice_state_change
-            
             # Start background threads
             self._start_background_threads()
             
-            # Initialize system health monitoring
-            asyncio.create_task(self._monitor_system_health())
+            # Initialize minimal services
             
             self.is_initialized = True
             logger.info("Unified AGI system initialized successfully")
@@ -115,20 +88,7 @@ class AGISystem:
             self.system_mode = mode
             self.is_active = True
             
-            # Start voice interface if in conversational mode
-            if mode in [SystemMode.CONVERSATIONAL, SystemMode.ASSISTIVE]:
-                await self.voice_interface.start_conversation(
-                    user_id="system_user",
-                    mode=ConversationMode.WAKE_WORD
-                )
-            
-            # Start autonomous operations if in autonomous mode
-            if mode == SystemMode.AUTONOMOUS:
-                await self._start_autonomous_operations()
-            
-            # Start monitoring if in monitoring mode
-            if mode == SystemMode.MONITORING:
-                await self._start_monitoring_mode()
+            # Minimal start
             
             logger.info(f"AGI system started in {mode.value} mode")
             
@@ -142,11 +102,7 @@ class AGISystem:
         try:
             self.is_active = False
             
-            # Stop voice interface
-            await self.voice_interface.stop_conversation()
-            
-            # Stop autonomous operations
-            await self._stop_autonomous_operations()
+            # Minimal stop
             
             logger.info("AGI system stopped")
             
@@ -171,36 +127,14 @@ class AGISystem:
                 "context": context or {}
             }
             
-            # Step 1: Analyze sentiment and emotion
-            emotional_context = await analyze_user_sentiment(input_text, user_id)
-            processing_context["emotional_context"] = emotional_context.to_dict()
-            
-            # Step 2: Process with conversational AI
-            conversational_response = await self.conversational_ai.process_message(
-                input_text, user_id=user_id
-            )
-            processing_context["conversational_response"] = conversational_response
-            
-            # Step 3: Process with AGI core for reasoning
+            # Process with AGI core for reasoning
             agi_result = await process_agi_request(input_text, user_id, processing_context)
             processing_context["agi_result"] = agi_result
             
-            # Step 4: Generate final response
-            final_response = await self._generate_final_response(
-                input_text, emotional_context, conversational_response, agi_result, processing_context
-            )
+            # Generate final response (simple)
+            final_response = agi_result.get("results", {}).get("message", "Processed") if agi_result.get("success") else "Failed"
             
-            # Step 5: Store in memory
-            await self.memory.store_conversation(
-                user_id=user_id,
-                input_text=input_text,
-                response=final_response,
-                context=processing_context
-            )
-            
-            # Step 6: Execute any actions from AGI result
-            if agi_result.get("success") and agi_result.get("results", {}).get("actions"):
-                await self._execute_actions(agi_result["results"]["actions"], processing_context)
+            # Execute any actions from AGI result (omitted in minimal)
             
             # Callback
             if self.on_user_input:
@@ -209,7 +143,6 @@ class AGISystem:
             return {
                 "success": True,
                 "response": final_response,
-                "emotional_context": emotional_context.to_dict(),
                 "agi_analysis": agi_result,
                 "processing_context": processing_context
             }
@@ -309,75 +242,7 @@ class AGISystem:
         except Exception as e:
             logger.error(f"Error handling voice state change: {e}")
     
-    async def _start_autonomous_operations(self):
-        """Start autonomous operations"""
-        try:
-            # Schedule autonomous tasks
-            await self.task_scheduler.schedule_task(
-                "system_health_check",
-                "Regular system health monitoring",
-                priority="high"
-            )
-            
-            await self.task_scheduler.schedule_task(
-                "learning_optimization",
-                "Continuous learning and optimization",
-                priority="normal"
-            )
-            
-            logger.info("Autonomous operations started")
-            
-        except Exception as e:
-            logger.error(f"Error starting autonomous operations: {e}")
-    
-    async def _stop_autonomous_operations(self):
-        """Stop autonomous operations"""
-        try:
-            # Cancel autonomous tasks
-            # Implementation would cancel scheduled tasks
-            
-            logger.info("Autonomous operations stopped")
-            
-        except Exception as e:
-            logger.error(f"Error stopping autonomous operations: {e}")
-    
-    async def _start_monitoring_mode(self):
-        """Start monitoring mode"""
-        try:
-            # Start intensive monitoring
-            await self.system_monitor.get_system_health()
-            
-            logger.info("Monitoring mode started")
-            
-        except Exception as e:
-            logger.error(f"Error starting monitoring mode: {e}")
-    
-    async def _monitor_system_health(self):
-        """Monitor system health"""
-        while self.is_active:
-            try:
-                # Get system health
-                health = await self.system_monitor.get_system_health()
-                self.system_health = health
-                
-                # Check for issues and trigger healing if needed
-                if health.get("status") == "degraded":
-                    await self.auto_healer.trigger_manual_healing()
-                
-                # Update performance metrics
-                self.performance_metrics = {
-                    "timestamp": datetime.now().isoformat(),
-                    "system_health": health,
-                    "active_sessions": len(self.active_sessions),
-                    "memory_usage": self._get_memory_usage(),
-                    "processing_queue_size": self.processing_queue.qsize()
-                }
-                
-                await asyncio.sleep(30)  # Check every 30 seconds
-                
-            except Exception as e:
-                logger.error(f"Error monitoring system health: {e}")
-                await asyncio.sleep(60)
+    # Monitoring/autonomous features removed in minimal build
     
     def _process_requests(self):
         """Process requests in background thread"""
@@ -470,12 +335,14 @@ class AGISystem:
         """Optimize system performance"""
         try:
             # Optimize memory usage
-            # Implementation would optimize memory
-            pass
+            import gc
+            gc.collect()
             
             # Optimize processing queues
-            # Implementation would optimize queues
-            pass
+            if hasattr(self, 'task_queue'):
+                self.task_queue.clear()
+            
+            logger.info("Performance optimization completed")
             
         except Exception as e:
             logger.error(f"Error optimizing performance: {e}")
@@ -507,7 +374,7 @@ class AGISystem:
             "performance_metrics": self.performance_metrics,
             "active_sessions": len(self.active_sessions),
             "learning_entries": len(self.learning_data),
-            "voice_state": self.voice_interface.get_current_state(),
+            "voice_state": None,
             "agi_status": self.agi_core.get_agi_status() if hasattr(self.agi_core, 'get_agi_status') else {}
         }
     

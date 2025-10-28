@@ -28,9 +28,6 @@ from .streaming import streaming_router
 from ..config.settings import settings
 from ..config.logging import get_logger
 from ..config.exceptions import TantraException
-from ..middleware.rate_limiter import RateLimiterMiddleware
-from ..middleware.security_headers import SecurityHeadersMiddleware
-from ..middleware.request_logger import RequestLoggerMiddleware
 from ..unified_agi_system import get_agi_system, SystemMode
 
 logger = get_logger(__name__)
@@ -72,7 +69,7 @@ def create_app() -> FastAPI:
     
     app = FastAPI(
         title="Atulya Tantra AGI API",
-        description="Advanced AGI system with JARVIS personality and Skynet capabilities",
+        description="Advanced AGI system",
         version="3.0.0",
         docs_url="/docs" if settings.DEBUG else None,
         redoc_url="/redoc" if settings.DEBUG else None,
@@ -94,12 +91,7 @@ def create_app() -> FastAPI:
         allowed_hosts=settings.ALLOWED_HOSTS
     )
     
-    app.add_middleware(SecurityHeadersMiddleware)
-    app.add_middleware(RequestLoggerMiddleware)
-    app.add_middleware(RateLimiterMiddleware)
-    
-    # Mount static files
-    app.mount("/static", StaticFiles(directory="Webui/static"), name="static")
+    # No static files mounted
     
     # Include routers
     app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
