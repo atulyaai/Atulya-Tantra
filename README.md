@@ -14,6 +14,22 @@
 
 ---
 
+## 📌 Table of Contents
+
+- [What is Atulya Tantra AGI?](#-what-is-atulya-tantra-agi)
+- [Comparison: Jarvis vs Skynet vs Atulya Tantra](#-comparison-jarvis-vs-skynet-vs-atulya-tantra)
+- [Quick Start](#-quick-start)
+- [Architecture](#-architecture)
+- [LLM Providers](#-llm-providers)
+- [API Examples](#-api-examples)
+- [Gallery](#-gallery)
+- [Our Roadmap](#-our-roadmap)
+- [Features](#-features)
+- [Running Tests](#-running-tests)
+- [Links](#-links)
+- [Contributing](#-contributing)
+- [License](#-license)
+
 ## 🎯 What is Atulya Tantra AGI?
 
 Atulya Tantra AGI is an advanced artificial general intelligence system that integrates:
@@ -100,6 +116,63 @@ response = generate_response("Hello!", provider="tinyllama")
 # Easy to swap providers
 response = generate_response("Hello!", provider="openai", config={"api_key": "..."})
 ```
+
+## 📡 API Examples
+
+<details>
+<summary><strong>cURL: Chat message</strong></summary>
+
+```bash
+curl -X POST \
+  http://localhost:8000/api/chat/message \
+  -H "Content-Type: application/json" \
+  -d '{
+        "user_id": "demo",
+        "message": "Hello, what can you do?",
+        "context": {}
+      }'
+```
+
+</details>
+
+<details>
+<summary><strong>Python: Chat message</strong></summary>
+
+```python
+import requests
+
+payload = {
+    "user_id": "demo",
+    "message": "Plan my day",
+    "context": {}
+}
+r = requests.post("http://localhost:8000/api/chat/message", json=payload)
+print(r.status_code, r.json())
+```
+
+</details>
+
+<details>
+<summary><strong>Python: Direct LLM call via provider shim</strong></summary>
+
+```python
+from Core.brain.llm_provider import generate_response
+
+print(generate_response("Summarize benefits of AGI in 3 bullets."))
+```
+
+</details>
+
+## 🖼️ Gallery
+
+Place media in `assets/` and it will appear here.
+
+<details open>
+<summary><strong>Overview</strong></summary>
+
+![Overview](assets/overview.png)
+
+</details>
 
 ## 🎯 Our Roadmap
 
