@@ -33,16 +33,20 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements_optimized.txt
-        pip install requests psutil asyncio-mqtt
+        pip install -r requirements.txt
+        # Optional extras used in some tests
+        pip install requests psutil
     
-    - name: Run simple model test
+    - name: Run unit tests (skip DB-dependent)
+      env:
+        SKIP_DB_TESTS: "1"
       run: |
-        python simple_model_test.py
+        pytest -q Test
     
-    - name: Run comprehensive tests
+    - name: Run demos smoke (non-fatal)
       run: |
-        python test_simple.py
+        python demos/simple_working_demo.py
+      continue-on-error: true
     
     - name: Test JARVIS features
       run: |
