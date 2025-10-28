@@ -28,4 +28,17 @@ python demos/simple_working_demo.py
 - Default primary: `tinyllama`
 - Extend with providers by registering them in `Core/llm/router.py` usage sites.
 
+### Switching Providers by Category (example)
+
+```python
+from Core.llm.providers.tinyllama_provider import TinyLlamaProvider
+from Core.llm.router import LLMRouter
+
+providers = {
+    "tinyllama": TinyLlamaProvider(),
+}
+router = LLMRouter(primary="tinyllama", providers=providers, category_map={"chat": "tinyllama"})
+text = router.generate("Hello!", category="chat")
+```
+
 
