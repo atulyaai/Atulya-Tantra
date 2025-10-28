@@ -1,0 +1,146 @@
+{
+  "name": "Atulya Tantra AGI",
+  "description": "The Future of AI Assistance - Where JARVIS meets Skynet. A comprehensive AGI system with emotional intelligence, autonomous operations, and human-like conversation capabilities.",
+  "topics": [
+    "ai",
+    "agi",
+    "jarvis",
+    "skynet",
+    "python",
+    "fastapi",
+    "voice-interface",
+    "emotional-intelligence",
+    "autonomous-operations",
+    "multi-agent-system",
+    "llm",
+    "ollama",
+    "openai",
+    "anthropic",
+    "artificial-intelligence",
+    "machine-learning",
+    "conversational-ai",
+    "voice-assistant",
+    "automation",
+    "self-healing"
+  ],
+  "homepage": "https://github.com/atulyaai/Atulya-Tantra",
+  "has_issues": true,
+  "has_projects": true,
+  "has_wiki": true,
+  "has_downloads": true,
+  "allow_squash_merge": true,
+  "allow_merge_commit": true,
+  "allow_rebase_merge": true,
+  "delete_branch_on_merge": true,
+  "auto_merge": false,
+  "allow_auto_merge": true,
+  "allow_update_branch": true,
+  "use_squash_pr_title_as_default": true,
+  "squash_merge_commit_title": "PR_TITLE",
+  "squash_merge_commit_message": "BLANK",
+  "merge_commit_title": "PR_TITLE",
+  "merge_commit_message": "PR_BODY",
+  "rebase_merge_commit_title": "PR_TITLE",
+  "rebase_merge_commit_message": "PR_BODY",
+  "default_branch": "master",
+  "branches": [
+    {
+      "name": "master",
+      "protection": {
+        "required_status_checks": {
+          "strict": true,
+          "contexts": ["auto-optimize", "auto-deploy"]
+        },
+        "enforce_admins": false,
+        "required_pull_request_reviews": {
+          "required_approving_review_count": 1,
+          "dismiss_stale_reviews": true,
+          "require_code_owner_reviews": false
+        },
+        "restrictions": null
+      }
+    }
+  ],
+  "labels": [
+    {
+      "name": "bug",
+      "color": "d73a4a",
+      "description": "Something isn't working"
+    },
+    {
+      "name": "enhancement",
+      "color": "a2eeef",
+      "description": "New feature or request"
+    },
+    {
+      "name": "documentation",
+      "color": "0075ca",
+      "description": "Improvements to documentation"
+    },
+    {
+      "name": "performance",
+      "color": "ff6b6b",
+      "description": "Performance improvements"
+    },
+    {
+      "name": "good first issue",
+      "color": "7057ff",
+      "description": "Good for newcomers"
+    },
+    {
+      "name": "help wanted",
+      "color": "008672",
+      "description": "Extra attention is needed"
+    },
+    {
+      "name": "priority: high",
+      "color": "e11d21",
+      "description": "High priority issue"
+    },
+    {
+      "name": "priority: low",
+      "color": "0e8a16",
+      "description": "Low priority issue"
+    },
+    {
+      "name": "automated",
+      "color": "1d76db",
+      "description": "Automated process"
+    },
+    {
+      "name": "deployment",
+      "color": "f9d0c4",
+      "description": "Deployment related"
+    }
+  ],
+  "milestones": [
+    {
+      "title": "v3.0.0 - Full AGI System",
+      "description": "Complete AGI system with all features",
+      "state": "open"
+    },
+    {
+      "title": "v3.1.0 - Web Interface",
+      "description": "Modern web interface and mobile support",
+      "state": "open"
+    },
+    {
+      "title": "v3.2.0 - Advanced Features",
+      "description": "Advanced features and optimizations",
+      "state": "open"
+    }
+  ],
+  "webhooks": [
+    {
+      "url": "https://api.github.com/repos/atulyaai/Atulya-Tantra/hooks",
+      "content_type": "json",
+      "secret": "webhook_secret",
+      "events": [
+        "push",
+        "pull_request",
+        "issues",
+        "deployment"
+      ]
+    }
+  ]
+}
