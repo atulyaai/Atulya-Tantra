@@ -17,7 +17,7 @@ class OpenAIClient(LLMProvider):
         self.base_url = self.config.get('base_url', 'https://api.openai.com/v1')
         self.model = self.config.get('model', 'gpt-3.5-turbo')
     
-    async def generate_response(self, prompt: str, **kwargs) -> str:
+    def generate_response(self, prompt: str, **kwargs) -> str:
         """Generate response using OpenAI API"""
         try:
             headers = {
@@ -47,6 +47,6 @@ class OpenAIClient(LLMProvider):
         except Exception as e:
             return f"Error generating response: {str(e)}"
     
-    async def is_available(self) -> bool:
+    def is_available(self) -> bool:
         """Check if OpenAI API is available"""
         return bool(self.api_key)

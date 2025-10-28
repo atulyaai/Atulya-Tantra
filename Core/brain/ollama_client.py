@@ -16,7 +16,7 @@ class OllamaClient(LLMProvider):
         self.base_url = self.config.get('base_url', 'http://localhost:11434')
         self.model = self.config.get('model', 'gemma2:2b')
     
-    async def generate_response(self, prompt: str, **kwargs) -> str:
+    def generate_response(self, prompt: str, **kwargs) -> str:
         """Generate response using Ollama"""
         try:
             data = {
@@ -44,7 +44,7 @@ class OllamaClient(LLMProvider):
         except Exception as e:
             return f"Error generating response: {str(e)}"
     
-    async def is_available(self) -> bool:
+    def is_available(self) -> bool:
         """Check if Ollama is available"""
         try:
             response = requests.get(f'{self.base_url}/api/tags', timeout=5)

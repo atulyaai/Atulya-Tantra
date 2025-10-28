@@ -17,7 +17,7 @@ class AnthropicClient(LLMProvider):
         self.base_url = self.config.get('base_url', 'https://api.anthropic.com/v1')
         self.model = self.config.get('model', 'claude-3-sonnet-20240229')
     
-    async def generate_response(self, prompt: str, **kwargs) -> str:
+    def generate_response(self, prompt: str, **kwargs) -> str:
         """Generate response using Anthropic API"""
         try:
             headers = {
@@ -48,6 +48,6 @@ class AnthropicClient(LLMProvider):
         except Exception as e:
             return f"Error generating response: {str(e)}"
     
-    async def is_available(self) -> bool:
+    def is_available(self) -> bool:
         """Check if Anthropic API is available"""
         return bool(self.api_key)
