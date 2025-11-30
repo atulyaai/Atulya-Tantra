@@ -4,33 +4,31 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "atulya-tantra"
-version = "1.0.0"
-description = "Voice-enabled multimodal AI assistant with vision capabilities"
+version = "2.0.0"
+description = "Advanced Voice AI Assistant - Fast, intelligent responses with Qwen models"
 readme = "README.md"
 authors = [
-    {name = "Atulya Tantra Team"}
+    {name = "Atulya AI", email = "contact@atulya.ai"}
 ]
 license = {text = "MIT"}
 requires-python = ">=3.8"
 classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
 ]
 
 dependencies = [
     "transformers>=4.50.0",
     "torch>=2.0.0",
-    "qwen-vl-utils==0.0.14",
     "accelerate",
-    "torchvision",
-    "pillow",
-    "opencv-python",
     "numpy",
     "faster-whisper>=1.0.0",
     "sounddevice",
@@ -43,15 +41,21 @@ dependencies = [
     "pyyaml",
     "python-dotenv",
     "colorama",
+    "duckduckgo-search",
+    "yfinance",
+    "requests",
+    "chromadb",
+    "sentence-transformers"
 ]
 
 [project.scripts]
 atulya = "main:main"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/atulya-tantra"
-Repository = "https://github.com/yourusername/atulya-tantra"
-Documentation = "https://github.com/yourusername/atulya-tantra#readme"
+Homepage = "https://github.com/atulyaai/Atulya-Tantra"
+Repository = "https://github.com/atulyaai/Atulya-Tantra"
+Documentation = "https://github.com/atulyaai/Atulya-Tantra#readme"
+Issues = "https://github.com/atulyaai/Atulya-Tantra/issues"
 
 [tool.setuptools]
 packages = ["atulya_tantra"]
