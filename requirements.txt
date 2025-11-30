@@ -1,0 +1,37 @@
+# Core dependencies
+pyyaml
+python-dotenv
+colorama
+
+# PyTorch (CPU-only)
+--index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision
+
+# AI and Transformers
+transformers>=4.45.0
+accelerate
+sentencepiece
+qwen-vl-utils
+
+# Vision
+pillow
+opencv-python
+
+# Audio
+numpy
+soundfile
+sounddevice
+piper-tts
+
+# Speech Recognition
+openai-whisper
+
+# Sentiment Analysis
+textblob
+
+# Web Server
+flask
+flask-cors
+gunicorn
+

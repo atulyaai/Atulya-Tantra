@@ -1,0 +1,59 @@
+# Atulya Tantra Configuration
+
+# Model Configuration
+model:
+  name: "Qwen/Qwen2-0.5B-Instruct"  # Ultra-fast 0.5B for mobile speed
+  device: "cpu"  # "cuda" or "cpu"
+  dtype: "auto"
+  max_memory: "60GB"  # Optimized for 64GB RAM system
+
+# Generation Parameters - Optimized for SPEED
+generation:
+  temperature: 0.6  # Lower = faster, more focused
+  max_tokens: 256  # Reduced for faster responses
+  top_p: 0.85
+  top_k: 40  # Reduced for speed
+  repetition_penalty: 1.1
+
+# Voice Input# Speech-to-Text Settings (Voice Input)
+speech_to_text:
+  model_size: "small"  # Better accuracy than base
+  language: "en"
+  device: "cpu"
+  compute_type: "int8"
+  sample_rate: 16000
+  vad_enabled: true
+  vad_threshold: 0.5
+
+# Text-to-Speech Settings
+text_to_speech:
+  engine: "piper"  # High-quality TTS (works with Python 3.12)
+  voice: "en_US-lessac-medium"  # Natural voice
+  speaking_rate: 1.0
+  volume: 0.8
+
+# Wake Word Detection
+wake_word:
+  enabled: true
+  keyword: "hey_atulya"  # Options: hey_atulya, tantra
+  sensitivity: 0.5
+
+# Audio Settings
+audio:
+  sample_rate: 16000
+  channels: 1
+  chunk_size: 1024
+  mic_device_index: null  # null = default
+  speaker_device_index: null  # null = default
+
+# Camera Settings
+camera:
+  device_index: 0
+  resolution: [640, 480]
+  fps: 30
+
+# Conversation Settings
+conversation:
+  max_history: 10
+  max_images_in_context: 5
+  context_window: 8000

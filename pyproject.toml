@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "atulya-tantra"
+version = "1.0.0"
+description = "Voice-enabled multimodal AI assistant with vision capabilities"
+readme = "README.md"
+authors = [
+    {name = "Atulya Tantra Team"}
+]
+license = {text = "MIT"}
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+dependencies = [
+    "transformers>=4.50.0",
+    "torch>=2.0.0",
+    "qwen-vl-utils==0.0.14",
+    "accelerate",
+    "torchvision",
+    "pillow",
+    "opencv-python",
+    "numpy",
+    "faster-whisper>=1.0.0",
+    "sounddevice",
+    "soundfile",
+    "webrtcvad",
+    "piper-tts",
+    "TTS>=0.22.0",
+    "pyaudio",
+    "pvporcupine",
+    "pyyaml",
+    "python-dotenv",
+    "colorama",
+]
+
+[project.scripts]
+atulya = "main:main"
+
+[project.urls]
+Homepage = "https://github.com/yourusername/atulya-tantra"
+Repository = "https://github.com/yourusername/atulya-tantra"
+Documentation = "https://github.com/yourusername/atulya-tantra#readme"
+
+[tool.setuptools]
+packages = ["atulya_tantra"]
