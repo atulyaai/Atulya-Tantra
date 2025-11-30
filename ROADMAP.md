@@ -61,11 +61,11 @@
 - [ ] **Error Tracking** - Sentry integration
 
 ### User Experience
-- [ ] **Response Streaming** - Real-time token streaming
+- [x] **Response Streaming** - Real-time token streaming ✅
 - [ ] **Conversation Export** - Download chat history
 - [ ] **Voice Profiles** - Multiple TTS voices
-- [ ] **Dark/Light Mode** - UI theme toggle
-- [ ] **Mobile Optimization** - Responsive design improvements
+- [x] **Dark/Light Mode** - UI theme toggle ✅
+- [x] **Mobile Optimization** - Responsive design improvements ✅
 
 ### Developer Experience
 - [ ] **API Documentation** - OpenAPI/Swagger docs
