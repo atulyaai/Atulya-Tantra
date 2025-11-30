@@ -1,17 +1,38 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Atulya Tantra</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atulya Tantra - AI Assistant</title>
     <style>
-        :root {
-            --primary: #667eea;
-            --bg: #f5f7fa;
-            --chat-bg: #ffffff;
-            --user-msg: #667eea;
+        :root[data-theme="light"] {
+            --bg-primary: #f8fafc;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f1f5f9;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --accent: #6366f1;
+            --accent-hover: #4f46e5;
+            --user-msg: #6366f1;
             --ai-msg: #e2e8f0;
+            --ai-msg-text: #1e293b;
+            --border: #e2e8f0;
+            --shadow: rgba(0, 0, 0, 0.1);
+        }
+
+        :root[data-theme="dark"] {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #cbd5e1;
+            --accent: #818cf8;
+            --accent-hover: #6366f1;
+            --user-msg: #6366f1;
+            --ai-msg: #334155;
+            --ai-msg-text: #f1f5f9;
+            --border: #334155;
+            --shadow: rgba(0, 0, 0, 0.3);
         }
 
         * {
@@ -21,634 +42,475 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background: var(--bg);
-            height: 100dvh;
-            width: 100%;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
+            transition: background 0.3s, color 0.3s;
         }
 
         .header {
-            background: #fff;
-            padding: 15px 20px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            background: var(--bg-secondary);
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            z-index: 10;
-            flex-shrink: 0;
+            box-shadow: 0 1px 3px var(--shadow);
         }
 
         .brand {
+            font-size: 1.25rem;
             font-weight: 700;
-            font-size: 1.2rem;
-            color: #2d3748;
-            display: flex;
-            align-items: center;
-            gap: 8px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
-        .status {
-            font-size: 0.8rem;
-            color: #48bb78;
+        .header-controls {
             display: flex;
+            gap: 0.75rem;
             align-items: center;
-            gap: 5px;
         }
 
-        .status::before {
-            content: '';
-            display: block;
-            width: 8px;
-            height: 8px;
+        .theme-toggle {
+            background: var(--bg-tertiary);
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            transition: all 0.2s;
+        }
+
+        .theme-toggle:hover {
+            transform: scale(1.1);
+        }
+
+        .status-badge {
+            background: #10b981;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
             background: currentColor;
             border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
 
         .chat-container {
             flex: 1;
             overflow-y: auto;
-            padding: 20px;
+            padding: 1.5rem;
             display: flex;
             flex-direction: column;
-            gap: 15px;
-            scroll-behavior: smooth;
-            -webkit-overflow-scrolling: touch;
+            gap: 1rem;
         }
 
         .message {
-            max-width: 85%;
-            padding: 12px 16px;
-            border-radius: 15px;
-            font-size: 1rem;
-            line-height: 1.5;
-            position: relative;
-            word-wrap: break-word;
+            max-width: 80%;
+            padding: 0.875rem 1.125rem;
+            border-radius: 1rem;
+            line-height: 1.6;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .message.user {
             align-self: flex-end;
             background: var(--user-msg);
             color: white;
-            border-bottom-right-radius: 5px;
+            border-bottom-right-radius: 0.25rem;
         }
 
         .message.assistant {
             align-self: flex-start;
             background: var(--ai-msg);
-            color: #2d3748;
-            border-bottom-left-radius: 5px;
+            color: var(--ai-msg-text);
+            border-bottom-left-radius: 0.25rem;
         }
 
-        .controls-area {
-            background: #fff;
-            padding: 15px;
-            border-top: 1px solid #e2e8f0;
-            flex-shrink: 0;
-            padding-bottom: env(safe-area-inset-bottom, 15px);
+        .message.streaming {
+            position: relative;
         }
 
-        .input-row {
+        .message.streaming::after {
+            content: '▊';
+            animation: blink 1s infinite;
+            margin-left: 2px;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        .input-area {
+            background: var(--bg-secondary);
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .input-wrapper {
             display: flex;
-            gap: 10px;
-            margin-bottom: 10px;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
         }
 
-        input[type="text"] {
+        .text-input {
             flex: 1;
-            padding: 12px;
-            border: 1px solid #e2e8f0;
-            border-radius: 25px;
+            background: var(--bg-tertiary);
+            border: 2px solid transparent;
+            padding: 0.875rem 1.125rem;
+            border-radius: 1.5rem;
+            color: var(--text-primary);
             font-size: 1rem;
             outline: none;
-            transition: border-color 0.2s;
+            transition: all 0.2s;
         }
 
-        input[type="text"]:focus {
-            border-color: var(--primary);
+        .text-input:focus {
+            border-color: var(--accent);
+            background: var(--bg-primary);
         }
 
         .send-btn {
-            background: var(--primary);
+            background: var(--accent);
             color: white;
             border: none;
-            width: 45px;
-            height: 45px;
+            width: 48px;
+            height: 48px;
             border-radius: 50%;
+            cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            cursor: pointer;
+            transition: all 0.2s;
+            flex-shrink: 0;
         }
 
-        .action-row {
+        .send-btn:hover {
+            background: var(--accent-hover);
+            transform: scale(1.05);
+        }
+
+        .send-btn:active {
+            transform: scale(0.95);
+        }
+
+        .action-buttons {
             display: flex;
-            gap: 10px;
-            justify-content: center;
+            gap: 0.5rem;
         }
 
         .action-btn {
             flex: 1;
-            padding: 12px;
+            background: var(--bg-tertiary);
             border: none;
-            border-radius: 12px;
-            background: #edf2f7;
-            color: #4a5568;
+            padding: 0.75rem;
+            border-radius: 0.75rem;
+            color: var(--text-secondary);
             font-weight: 600;
-            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 6px;
-            cursor: pointer;
-            transition: all 0.2s;
+            gap: 0.5rem;
+        }
+
+        .action-btn:hover {
+            background: var(--accent);
+            color: white;
         }
 
         .action-btn.active {
-            background: #fc8181;
-            color: white;
-            animation: pulse 1.5s infinite;
-        }
-
-        .action-btn.voice-active {
-            background: #48bb78;
+            background: #ef4444;
             color: white;
         }
 
-        @keyframes pulse {
-            0% {
-                transform: scale(1);
-            }
-
-            50% {
-                transform: scale(1.02);
-            }
-
-            100% {
-                transform: scale(1);
-            }
-        }
-
-        .preview-area {
-            padding: 10px 20px 0;
-            display: none;
-        }
-
-        .preview-img {
-            max-height: 150px;
-            border-radius: 10px;
-            border: 2px solid #e2e8f0;
-        }
-
-        #status-bar {
+        .status-text {
             text-align: center;
-            font-size: 0.8rem;
-            color: #718096;
-            margin-top: 8px;
-            height: 1.2em;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+            min-height: 1.25rem;
         }
 
-        @media (max-width: 600px) {
+        @media (max-width: 768px) {
             .message {
                 max-width: 90%;
             }
-
             .header {
-                padding: 10px 15px;
+                padding: 0.75rem 1rem;
             }
+            .brand {
+                font-size: 1.125rem;
+            }
+        }
 
-            .controls-area {
-                padding: 10px;
+        /* Loading animation */
+        .typing-indicator {
+            display: inline-flex;
+            gap: 4px;
+        }
+
+        .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            background: var(--text-secondary);
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typing {
+            0%, 60%, 100% {
+                transform: translateY(0);
+                opacity: 0.7;
+            }
+            30% {
+                transform: translateY(-10px);
+                opacity: 1;
             }
         }
     </style>
 </head>
-
 <body>
     <div class="header">
         <div class="brand">⚡ Atulya Tantra</div>
-        <div class="status" id="connection-status">Online</div>
+        <div class="header-controls">
+            <div class="status-badge">
+                <span class="status-dot"></span>
+                <span>Online</span>
+            </div>
+            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+                <span id="theme-icon">🌙</span>
+            </button>
+        </div>
     </div>
 
     <div class="chat-container" id="chat-box">
         <div class="message assistant">
-            Hello! I am Atulya Tantra. You can type or speak to me.
+            👋 Hello! I'm Atulya Tantra, your AI assistant. How can I help you today?
         </div>
     </div>
 
-    <div class="preview-area" id="preview-area">
-        <img id="preview-img" class="preview-img">
-    </div>
-
-    <div class="controls-area">
-        <div id="status-bar"></div>
-
-        <div class="input-row">
-            <input type="text" id="text-input" placeholder="Type a message..." autocomplete="off">
-            <button class="send-btn" onclick="sendText()">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
+    <div class="input-area">
+        <div class="status-text" id="status"></div>
+        <div class="input-wrapper">
+            <input type="text" class="text-input" id="text-input" placeholder="Type your message..." autocomplete="off">
+            <button class="send-btn" onclick="sendMessage()" title="Send">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="22" y1="2" x2="11" y2="13"></line>
                     <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                 </svg>
             </button>
         </div>
-
-        <div class="action-row">
-            <button class="action-btn" id="voice-btn" onclick="toggleVoiceMode()">
-                🎤 Voice Mode
+        <div class="action-buttons">
+            <button class="action-btn" onclick="clearChat()">
+                🗑️ Clear
             </button>
-            <button class="action-btn" onclick="clearChat()" style="flex: 0.5; background: #e2e8f0;">
-                🗑️
+            <button class="action-btn" id="voice-btn" onclick="toggleVoice()">
+                🎤 Voice
             </button>
         </div>
-        <input type="file" id="image-input" accept="image/*" style="display:none" onchange="handleImage(event)">
     </div>
 
     <script>
-        let voiceMode = false;
-        let recognition = null;
-        let currentImage = null;
-
-        const statusEl = document.getElementById('status-bar');
         const chatBox = document.getElementById('chat-box');
+        const textInput = document.getElementById('text-input');
+        const statusEl = document.getElementById('status');
+        let voiceMode = false;
+
+        // Theme toggle
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            document.getElementById('theme-icon').textContent = newTheme === 'dark' ? '🌙' : '☀️';
+            localStorage.setItem('theme', newTheme);
+        }
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        document.getElementById('theme-icon').textContent = savedTheme === 'dark' ? '🌙' : '☀️';
 
         function setStatus(msg) {
             statusEl.textContent = msg;
         }
 
-        function addMessage(text, type) {
+        function addMessage(text, type, isStreaming = false) {
             const div = document.createElement('div');
-            div.className = `message ${type}`;
+            div.className = `message ${type}${isStreaming ? ' streaming' : ''}`;
             div.textContent = text;
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            return div;
+        }
+
+        function addTypingIndicator() {
+            const div = document.createElement('div');
+            div.className = 'message assistant';
+            div.id = 'typing-indicator';
+            div.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
             chatBox.appendChild(div);
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        // --- Text Handling ---
-        async function sendText() {
-            const input = document.getElementById('text-input');
-            const text = input.value.trim();
+        function removeTypingIndicator() {
+            const indicator = document.getElementById('typing-indicator');
+            if (indicator) indicator.remove();
+        }
+
+        async function sendMessage() {
+            const text = textInput.value.trim();
             if (!text) return;
 
-            input.value = '';
+            textInput.value = '';
             addMessage(text, 'user');
+            addTypingIndicator();
             setStatus('Thinking...');
 
             try {
-                const endpoint = currentImage ? '/api/vision' : '/api/chat';
-                const body = currentImage ? { message: text, image: currentImage } : { message: text };
-
-                const res = await fetch(endpoint, {
+                const response = await fetch('/api/chat/stream', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
+                    body: JSON.stringify({ message: text })
                 });
 
-                const data = await res.json();
+                removeTypingIndicator();
 
-                if (currentImage) {
-                    currentImage = null;
-                    document.getElementById('preview-area').style.display = 'none';
+                if (!response.ok) {
+                    throw new Error('Request failed');
                 }
 
-                if (data.error) throw new Error(data.error);
+                // Handle streaming response
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let messageDiv = addMessage('', 'assistant', true);
+                let fullText = '';
 
-                addMessage(data.response, 'assistant');
-                setStatus('');
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
 
-                if (voiceMode) {
-                    await speak(data.response);
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6);
+                            if (data === '[DONE]') {
+                                messageDiv.classList.remove('streaming');
+                                setStatus('');
+                                continue;
+                            }
+                            try {
+                                const json = JSON.parse(data);
+                                if (json.token) {
+                                    fullText += json.token;
+                                    messageDiv.textContent = fullText;
+                                    chatBox.scrollTop = chatBox.scrollHeight;
+                                }
+                            } catch (e) {
+                                // Ignore parse errors
+                            }
+                        }
+                    }
                 }
 
-            } catch (e) {
-                addMessage(`Error: ${e.message}`, 'assistant');
+                if (voiceMode && fullText) {
+                    await speak(fullText);
+                }
+
+            } catch (error) {
+                removeTypingIndicator();
+                addMessage(`Error: ${error.message}`, 'assistant');
                 setStatus('');
             }
         }
 
-        document.getElementById('text-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendText();
+        textInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
         });
 
-        let isProcessing = false;
-
-        // --- Voice Handling (Web Speech API) ---
-        function toggleVoiceMode() {
+        function toggleVoice() {
+            voiceMode = !voiceMode;
             const btn = document.getElementById('voice-btn');
-
-            if (!voiceMode) {
-                // Check if Web Speech API is available
-                if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-                    alert('Voice recognition not supported in this browser. Please use Chrome, Edge, or Safari.');
-                    return;
-                }
-
-                // Initialize recognition
-                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                recognition = new SpeechRecognition();
-                recognition.continuous = false;
-                recognition.interimResults = false;
-                recognition.lang = 'en-US';
-
-                recognition.onstart = () => {
-                    if (!isProcessing) {
-                        btn.classList.add('active');
-                        btn.textContent = '🔴 Listening...';
-                        setStatus('Listening...');
-                    }
-                };
-
-                recognition.onresult = async (event) => {
-                    isProcessing = true; // Flag that we are processing a result
-                    const transcript = event.results[0][0].transcript;
-                    addMessage(transcript, 'user');
-                    setStatus('Thinking...');
-
-                    try {
-                        const endpoint = currentImage ? '/api/vision' : '/api/chat';
-                        const body = currentImage ? { message: transcript, image: currentImage } : { message: transcript };
-
-                        const res = await fetch(endpoint, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(body)
-                        });
-
-                        const data = await res.json();
-
-                        if (currentImage) {
-                            currentImage = null;
-                            document.getElementById('preview-area').style.display = 'none';
-                        }
-
-                        addMessage(data.response, 'assistant');
-
-                        // Wait for speech to complete
-                        await speak(data.response);
-
-                    } catch (e) {
-                        addMessage(`Error: ${e.message}`, 'assistant');
-                        setStatus('');
-                    } finally {
-                        isProcessing = false; // Done processing
-                        if (voiceMode) {
-                            setStatus('Listening...');
-                            setTimeout(startListening, 500);
-                        }
-                    }
-                };
-
-                recognition.onerror = (event) => {
-                    console.error('Speech recognition error:', event.error);
-                    if (event.error === 'no-speech') {
-                        // Silence detected, just restart if not processing
-                        if (!isProcessing && voiceMode) {
-                            startListening();
-                        }
-                    } else {
-                        setStatus('Error: ' + event.error);
-                        if (voiceMode && !isProcessing) setTimeout(startListening, 1000);
-                    }
-                };
-
-                recognition.onend = () => {
-                    btn.classList.remove('active');
-                    // If we are NOT processing a result and voice mode is on, it means we timed out or stopped unexpectedly
-                    // So we should restart.
-                    if (voiceMode && !isProcessing) {
-                        setTimeout(startListening, 500);
-                    }
-                };
-
-                voiceMode = true;
-                isProcessing = false;
-                btn.classList.add('voice-active');
-                btn.textContent = '🔴 Listening...';
-                setStatus('Voice Mode Active');
-                startListening();
-
+            if (voiceMode) {
+                btn.classList.add('active');
+                btn.textContent = '🔴 Voice On';
             } else {
-                // Disable Voice Mode
-                voiceMode = false;
-                isProcessing = false;
-                if (recognition) {
-                    recognition.stop();
-                }
-                btn.classList.remove('voice-active');
                 btn.classList.remove('active');
-                btn.textContent = '🎤 Voice Mode';
-                setStatus('');
+                btn.textContent = '🎤 Voice';
             }
-        }
-
-        function startListening() {
-            if (!voiceMode || !recognition) return;
-            try {
-                recognition.start();
-            } catch (e) {
-                // Already started, ignore
-            }
-        }
-
-        // --- Voice Handling ---
-
-        function getBestVoice() {
-            // Check for manually saved voice first (legacy support)
-            const savedVoiceName = localStorage.getItem('selectedVoice');
-            if (savedVoiceName) {
-                const voicesList = speechSynthesis.getVoices();
-                const saved = voicesList.find(v => v.name === savedVoiceName);
-                if (saved) return saved;
-            }
-
-            const voicesList = speechSynthesis.getVoices();
-            if (voicesList.length === 0) return null;
-
-            // Priority list of known good voices (Human sounding)
-            // Mobile devices often use different names
-            const preferred = [
-                'Google US English',
-                'Google UK English Female',
-                'Samantha', // iOS/Mac
-                'Karen', // iOS
-                'Daniel', // iOS
-                'Moira', // iOS
-                'Rishi', // iOS
-                'Tessa', // iOS
-                'Microsoft Zira', // Windows
-                'Microsoft David', // Windows
-                'Natural', // Edge/Chrome natural voices
-                'English United States', // Android generic high quality
-                'en-us-x-iol-local' // Android local high quality
-            ];
-
-            // 1. Try exact/partial name match from preferred list
-            for (const name of preferred) {
-                const found = voicesList.find(v => v.name.includes(name));
-                if (found) return found;
-            }
-
-            // 2. Try to find any "Google" voice (usually good on Android)
-            const googleVoice = voicesList.find(v => v.name.includes('Google') && v.lang.startsWith('en'));
-            if (googleVoice) return googleVoice;
-
-            // 3. Try to find any "English" voice that is local (often better quality/lower latency)
-            const localEnglish = voicesList.find(v => v.lang.startsWith('en') && v.localService);
-            if (localEnglish) return localEnglish;
-
-            // 4. Fallback: Prefer FEMALE voices if possible (User preference)
-            const femaleVoice = voicesList.find(v =>
-                v.lang.startsWith('en') &&
-                (v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('woman') || v.name.includes('Zira') || v.name.includes('Samantha'))
-            );
-            if (femaleVoice) return femaleVoice;
-
-            // 5. Final Fallback to any English voice
-            return voicesList.find(v => v.lang.startsWith('en')) || voicesList[0];
-        }
-
-        // Force load voices
-        if ('speechSynthesis' in window) {
-            speechSynthesis.onvoiceschanged = () => {
-                voices = speechSynthesis.getVoices(); // Update global list
-                const voice = getBestVoice();
-                if (voice) console.log("Voice loaded:", voice.name);
-            };
         }
 
         async function speak(text) {
+            if (!('speechSynthesis' in window)) return;
+
             setStatus('Speaking...');
+            speechSynthesis.cancel();
 
-            // Try Browser TTS first
-            try {
-                if ('speechSynthesis' in window) {
-                    speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US';
+            utterance.rate = 0.95;
 
-                    const utterance = new SpeechSynthesisUtterance(text);
-                    utterance.lang = 'en-US';
-
-                    // Aggressively find the best voice every time
-                    let voice = getBestVoice();
-
-                    // If voices aren't loaded yet, wait a bit and try again
-                    if (!voice) {
-                        await new Promise(r => setTimeout(r, 100));
-                        voice = getBestVoice();
-                    }
-
-                    if (voice) {
-                        utterance.voice = voice;
-                        // Adjust pitch/rate for more natural sound
-                        if (voice.name.includes('Google')) {
-                            utterance.pitch = 1.0;
-                            utterance.rate = 0.95; // Slightly slower is more natural
-                        }
-                    }
-
-                    await new Promise((resolve, reject) => {
-                        // Define handlers once
-                        const onEnd = () => {
-                            clearTimeout(timeout);
-                            resolve();
-                        };
-
-                        utterance.onend = onEnd;
-                        utterance.onerror = (e) => {
-                            console.warn('Browser TTS error:', e);
-                            // Don't reject, just resolve to allow loop to continue
-                            onEnd();
-                        };
-
-                        // Safety timeout
-                        const timeout = setTimeout(() => {
-                            console.warn('TTS timed out, forcing continue');
-                            onEnd();
-                        }, (text.length * 100) + 5000);
-
-                        speechSynthesis.speak(utterance);
-                    });
-
-                    // Small delay after speaking to let audio fully clear before mic starts
-                    await new Promise(r => setTimeout(r, 500));
-
-                    setStatus('');
-                    return; // Success
-                }
-            } catch (e) {
-                console.warn('Browser TTS failed, trying server TTS:', e);
-            }
-
-            // Fallback to Server TTS (only if browser fails)
-            try {
-                const res = await fetch('/api/voice/synthesize', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text })
-                });
-
-                if (!res.ok) throw new Error('TTS request failed');
-
-                const data = await res.json();
-
-                if (data.audio) {
-                    const audio = new Audio(data.audio);
-
-                    // Handle autoplay policy
-                    try {
-                        await audio.play();
-                        await new Promise((resolve) => {
-                            audio.onended = resolve;
-                            // Safety timeout
-                            setTimeout(resolve, (audio.duration * 1000) + 2000 || 10000);
-                        });
-                    } catch (playError) {
-                        console.warn('Audio playback failed:', playError);
-                    }
-                }
-            } catch (e) {
-                console.error('All TTS methods failed:', e);
-            }
+            await new Promise((resolve) => {
+                utterance.onend = resolve;
+                utterance.onerror = resolve;
+                speechSynthesis.speak(utterance);
+            });
 
             setStatus('');
         }
 
-        // --- Image Handling ---
-        function handleImage(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function (evt) {
-                currentImage = evt.target.result;
-                const img = document.getElementById('preview-img');
-                img.src = currentImage;
-                document.getElementById('preview-area').style.display = 'block';
-                setStatus('Image attached');
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function stopSpeaking() {
-            if ('speechSynthesis' in window) {
-                speechSynthesis.cancel();
-            }
-            setStatus('Stopped');
-            // If in voice mode, restart listening after a short pause
-            if (voiceMode) {
-                setTimeout(startListening, 500);
-            }
-        }
-
         function clearChat() {
-            if (confirm('Clear chat?')) {
-                chatBox.innerHTML = '';
-                fetch('/api/clear', { method: 'POST' });
+            if (confirm('Clear chat history?')) {
+                chatBox.innerHTML = '<div class="message assistant">👋 Hello! I\'m Atulya Tantra, your AI assistant. How can I help you today?</div>';
             }
         }
     </script>
 </body>
-
 </html>

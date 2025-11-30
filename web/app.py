@@ -5,6 +5,7 @@ Thin wrapper around TantraEngine
 
 import os
 import sys
+import json
 import logging
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
@@ -95,6 +96,50 @@ def chat():
 def synthesize_voice():
     """Legacy endpoint - kept for compatibility but mostly unused"""
     return jsonify({'error': 'Use browser TTS'}), 400
+
+@app.route('/api/chat/stream', methods=['POST'])
+def chat_stream():
+    """Streaming chat endpoint for real-time responses"""
+    if not engine:
+        if not initialize_engine():
+            return jsonify({'error': 'AI Engine failed to initialize'}), 500
+    
+    try:
+        data = request.json
+        user_message = data.get('message', '')
+        
+        if not user_message:
+            return jsonify({'error': 'No message provided'}), 400
+        
+        def generate():
+            try:
+                # Get the full response (we'll simulate streaming for now)
+                response_text = engine.process_message(user_message, None)
+                
+                # Stream word by word for better UX
+                words = response_text.split()
+                for i, word in enumerate(words):
+                    token = word + (' ' if i < len(words) - 1 else '')
+                    yield f"data: {json.dumps({'token': token})}\n\n"
+                    
+                yield "data: [DONE]\n\n"
+                
+            except Exception as e:
+                logger.error(f"Streaming error: {e}")
+                yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        
+        return app.response_class(
+            generate(),
+            mimetype='text/event-stream',
+            headers={
+                'Cache-Control': 'no-cache',
+                'X-Accel-Buffering': 'no'
+            }
+        )
+    
+    except Exception as e:
+        logger.error(f"Chat stream error: {e}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
