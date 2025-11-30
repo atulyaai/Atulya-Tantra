@@ -5,10 +5,11 @@
 ![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.8+-green.svg)
 ![License](https://img.shields.io/badge/license-MIT-orange.svg)
+![Status](https://img.shields.io/badge/status-production--ready-success.svg)
 
-**A powerful, fast, and intelligent voice-enabled AI assistant built with state-of-the-art language models**
+**A powerful, fast, and intelligent voice-enabled AI assistant built with state-of-the-art language models.**
 
-[Features](#features) • [Installation](#installation) • [Usage](#usage) • [Configuration](#configuration) • [Architecture](#architecture)
+[Features](#-features) • [Installation](#-quick-start) • [Usage](#-usage) • [About Us](#-about-us) • [Roadmap](#-roadmap)
 
 </div>
 
@@ -17,19 +18,19 @@
 ## 🌟 Features
 
 ### Core Capabilities
-- 🎤 **Voice Interaction** - Natural speech-to-text and text-to-speech
+- 🎤 **Voice Interaction** - Natural speech-to-text and text-to-speech with wake word detection
 - 🧠 **Intelligent Responses** - Powered by Qwen2-0.5B (ultra-fast) or Qwen2.5-1.5B models
-- 💾 **Long-term Memory** - RAG-based memory system with ChromaDB
-- 🔧 **Tool Integration** - Price checking, web search, fact verification
-- ⚡ **Optimized Performance** - 16 vCPU support, sub-second responses
-- 🌐 **Web Interface** - Modern web UI for easy interaction
+- 💾 **Long-term Memory** - RAG-based memory system with ChromaDB to remember facts and preferences
+- 🔧 **Tool Integration** - Real-time price checking, web search, and fact verification
+- ⚡ **Optimized Performance** - 16 vCPU support, sub-second responses on standard hardware
+- 🌐 **Web Interface** - Modern, responsive web UI for easy interaction
 
 ### Advanced Features
 - **Dynamic Configuration** - Environment-based settings, no hardcoded values
-- **Automatic Memory Extraction** - Learns user preferences and facts
+- **Automatic Memory Extraction** - Learns user preferences and facts from conversation
 - **Knowledge Caching** - Smart caching for faster repeated queries
 - **MCP Integration** - Model Context Protocol for enhanced capabilities
-- **Modular Architecture** - Clean, maintainable codebase
+- **Modular Architecture** - Clean, maintainable codebase designed for scalability
 
 ---
 
@@ -94,6 +95,31 @@ sudo journalctl -u atulya-tantra -f  # View logs
 
 ---
 
+## 👥 About Us
+
+**Atulya AI** is dedicated to creating accessible, high-performance AI solutions that respect user privacy and run locally.
+
+**Atulya Tantra** represents our vision of a personal AI assistant that is:
+- **Private:** Runs entirely on your hardware, your data stays with you.
+- **Fast:** Optimized for speed without compromising intelligence.
+- **Capable:** Integrated with real-world tools and long-term memory.
+
+Our team is passionate about pushing the boundaries of local AI inference and creating tools that empower users.
+
+---
+
+## 🗺️ Roadmap
+
+We are constantly improving Atulya Tantra. Here's what's coming next:
+
+- [ ] **Multi-modal Support:** Re-integrating vision capabilities with optimized models
+- [ ] **Home Automation:** Integration with Home Assistant and IoT devices
+- [ ] **Voice Cloning:** Custom voice profiles for text-to-speech
+- [ ] **Mobile App:** Companion app for Android and iOS
+- [ ] **Plugin System:** Easy community-contributed extensions
+
+---
+
 ## ⚙️ Configuration
 
 ### Environment Variables
@@ -125,11 +151,6 @@ generation:
   top_p: 0.85
 ```
 
-### Model Options
-- **Qwen2-0.5B-Instruct** - Ultra-fast, ~0.5-1s response time (default)
-- **Qwen2.5-1.5B-Instruct** - Balanced speed and quality
-- **Custom models** - Any HuggingFace compatible model
-
 ---
 
 ## 🏗️ Architecture
@@ -145,82 +166,14 @@ Atulya-Tantra/
 │   ├── constants.py        # System constants
 │   ├── utils.py            # Utilities
 │   ├── base_model.py       # Base AI model class
-│   ├── conversation_manager.py
-│   ├── memory_extractor.py
-│   ├── mcp_client.py       # MCP integration
-│   ├── price_checker.py    # Price tools
-│   ├── knowledge_cache.py  # Smart caching
-│   ├── intelligent_router.py
+│   ├── tools.py            # Search, Price, Routing
 │   ├── voice_input.py      # Speech-to-text
 │   └── voice_output.py     # Text-to-speech
 ├── web/                    # Web interface
-├── mcp_servers/            # MCP server configs
 ├── config.yaml             # Main configuration
 ├── main.py                 # CLI entry point
-├── install.sh              # Installation script
-└── requirements.txt        # Python dependencies
+└── install.sh              # Installation script
 ```
-
-### Key Components
-
-**TantraEngine** - Central orchestrator
-- Intent detection
-- Tool execution (price, search, facts)
-- Memory retrieval (RAG)
-- Response generation
-- Memory storage
-
-**Memory System** - ChromaDB + Sentence Transformers
-- Conversation history
-- User preferences
-- Facts and knowledge
-- Automatic extraction
-
-**Configuration System** - Dynamic and flexible
-- Environment-based configs
-- No hardcoded values
-- Easy customization
-
----
-
-## 🛠️ Development
-
-### Adding New Features
-```python
-from atulya_tantra import TantraEngine, get_config
-
-# Initialize with custom config
-engine = TantraEngine(config_path="custom_config.yaml")
-
-# Process messages
-response = engine.process_message("Hello!")
-```
-
-### Using Configuration
-```python
-from atulya_tantra import get_config
-from atulya_tantra.constants import DEFAULT_MODELS
-
-config = get_config()
-model_name = config.get_model_name()
-max_tokens = config.get_max_tokens()
-```
-
----
-
-## 📊 Performance
-
-### Benchmarks (16 vCPU, 64GB RAM)
-- **Response Time**: 0.5-1.0s (Qwen2-0.5B)
-- **Throughput**: ~7-10 tokens/second
-- **Memory Usage**: ~3-4GB (0.5B model)
-- **Startup Time**: ~5-10 seconds
-
-### Optimization
-- 16 CPU threads utilized
-- Smart caching for repeated queries
-- Efficient memory management
-- Optimized model loading
 
 ---
 
@@ -255,14 +208,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - HuggingFace for model hosting
 - ChromaDB for vector database
 - All open-source contributors
-
----
-
-## 📞 Support
-
-For issues, questions, or suggestions:
-- Open an [Issue](https://github.com/atulyaai/Atulya-Tantra/issues)
-- Check [Documentation](https://github.com/atulyaai/Atulya-Tantra/wiki)
 
 ---
 
