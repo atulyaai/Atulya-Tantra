@@ -9,7 +9,7 @@ WorkingDirectory=/home/atulya-tantra
 Environment="PATH=/home/atulya-tantra/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="FLASK_APP=web/app.py"
 Environment="FLASK_ENV=production"
-ExecStart=/home/atulya-tantra/venv/bin/gunicorn -w 2 -b 0.0.0.0:5000 --timeout 120 web.app:app
+ExecStart=/home/atulya-tantra/venv/bin/gunicorn -w 9 --threads 4 -b 0.0.0.0:5000 --timeout 120 --worker-class gthread web.app:app
 Restart=always
 RestartSec=5
 
