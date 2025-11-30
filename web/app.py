@@ -8,12 +8,14 @@ import sys
 import logging
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
+from prometheus_flask_exporter import PrometheusMetrics
 from dotenv import load_dotenv
 
 # Add package to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from atulya_tantra import TantraEngine
+from atulya_tantra.config_loader import get_config
 
 # Load environment
 load_dotenv()
@@ -33,6 +35,10 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)
 
+# Add Prometheus metrics
+metrics = PrometheusMetrics(app)
+metrics.info('app_info', 'Atulya Tantra Web Interface', version='2.0.0')
+
 # Global Engine
 engine = None
 
@@ -43,20 +49,19 @@ def initialize_engine():
         return True
         
     try:
+        logger.info("Initializing Tantra Engine...")
         hf_token = os.getenv('HUGGINGFACE_TOKEN')
         cache_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'models', 'cache')
-        device = os.getenv('DEVICE', 'cpu')
-        text_model_name = os.getenv('TEXT_MODEL_NAME', 'Qwen/Qwen2.5-1.5B-Instruct')
         
+        # Use config loader for dynamic configuration
         engine = TantraEngine(
-            text_model_name=text_model_name,
-            device=device,
             hf_token=hf_token,
             cache_dir=cache_dir
         )
+        logger.info("Tantra Engine initialized successfully")
         return True
     except Exception as e:
-        logger.error(f"Failed to initialize engine: {e}")
+        logger.error(f"Failed to initialize engine: {e}", exc_info=True)
         return False
 
 @app.route('/')

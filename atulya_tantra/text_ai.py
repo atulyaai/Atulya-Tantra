@@ -118,7 +118,7 @@ class TextAI(BaseModel):
             # Tokenize
             inputs = self.tokenizer(text, return_tensors="pt").to(self.device)
             
-            # Generate
+            # Generate with optimizations for speed
             with torch.no_grad():
                 outputs = self.model.generate(
                     **inputs,
@@ -126,7 +126,11 @@ class TextAI(BaseModel):
                     temperature=temperature,
                     do_sample=True,
                     top_p=top_p,
-                    pad_token_id=self.tokenizer.eos_token_id
+                    top_k=40,  # Limit vocabulary for speed
+                    repetition_penalty=1.1,  # Reduce repetition
+                    pad_token_id=self.tokenizer.eos_token_id,
+                    num_beams=1,  # Greedy decoding for speed
+                    early_stopping=True
                 )
             
             # Decode only the new tokens
