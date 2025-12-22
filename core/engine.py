@@ -1,10 +1,21 @@
-import logging
-import uuid
-import os
+from core.sensors.manifest import SensorManifest
+from core.sensors.text_sensor import TextSensor
+from core.sensors.orchestrator import SensorOrchestrator
+from core.sensors.system_sensor import SystemSensor
+from core.sensors.voice_sensor import VoiceSensor, LocalTranscriber
+from core.sensors.vision_sensor import VisionSensor
+from core.knowledge.search_gate import SearchGate
 from core.interpreter import Interpreter
 from core.planner import Planner
 from core.executor import Executor
 from core.critic import Critic
+from core.governor import TraceIDAdapter
+from core.evolution.auditor import DriftAuditor
+import logging
+import uuid
+import os
+import sys
+import time
 
 class Engine:
     def __init__(self, memory, governor):
@@ -14,20 +25,51 @@ class Engine:
         self.planner = Planner()
         self.executor = Executor(governor)
         self.critic = Critic()
-        self.logger = logging.getLogger("AtulyaEngine")
-        self.presence_logger = logging.getLogger("PresenceAudit")
+        self.logger = TraceIDAdapter(logging.getLogger("AtulyaEngine"), self.governor)
+        self.presence_logger = TraceIDAdapter(logging.getLogger("PresenceAudit"), self.governor)
         
         # v0.5 Presence Scaffolding
         self.signal_buffer = []
         self.current_task_context = None
+        
+        # Phase 1.0 Embodiment
+        self.manifest = SensorManifest()
+        self.orchestrator = SensorOrchestrator(self.manifest)
+        
+        # Register Sensors
+        self.text_sensor = TextSensor(self.manifest)
+        self.system_sensor = SystemSensor(self.manifest)
+        
+        # Phase 1.0C Voice
+        self.transcriber = LocalTranscriber()
+        self.voice_sensor = VoiceSensor(self.manifest, self.transcriber)
+        
+        # Phase 1.0D Vision
+        self.vision_sensor = VisionSensor(self.manifest, self.governor)
+        
+        # Phase K4 Search
+        self.search_gate = SearchGate(governor)
+        
+        # Phase E1: Drift Auditor
+        self.auditor = DriftAuditor()
+        
+        self.orchestrator.register_sensor("TEXT", self.text_sensor, poll_interval=0.1)
+        self.orchestrator.register_sensor("SYSTEM", self.system_sensor, poll_interval=0.5)
+        self.orchestrator.register_sensor("VOICE", self.voice_sensor, poll_interval=0.5)
+        self.orchestrator.register_sensor("VISION", self.vision_sensor, poll_interval=1.0)
 
     def receive_signal(self, signal):
         """
-        v0.5A Sensor Manifest Entry Point.
-        Signals are buffered and evaluated by the Attention Manager.
+        ADR-006 Sensor Manifest Entry Point.
+        Signals MUST be normalized before buffering.
         """
+        if not signal:
+            return
+            
         self.signal_buffer.append(signal)
         self.presence_logger.info(f"Signal Received: {signal['sensor']} (Priority: {signal['priority']})")
+
+    def _detect_plateau(self):
         stats = self.memory.get_strategy_stats()
         history = stats.get("history", [])
         winners = [h for h in history if h.get("won")]
@@ -116,6 +158,8 @@ class Engine:
             return f"Blocked: Task contains forbidden signatures (Trace: {trace_id})"
         
         intent, confidence = self.interpreter.classify(input_task)
+        self.auditor.record_confidence_event(confidence) # Audit: Baseline Calib
+        
         should_escalate, risk_signals = self._evaluate_effort(input_task, intent, confidence)
         
         guidance, status = self.memory.get_procedural_guidance(intent, input_task)
@@ -178,6 +222,7 @@ class Engine:
 
             winner_name = max(results_map, key=lambda k: results_map[k]["score"]) 
             winner = results_map[winner_name]
+            self.auditor.record_strategy_use(winner_name) # Audit: Strategy Preference
             
             if winner["score"] >= 0.9 or (winner["score"] - last_max_score == 0.0 and total_steps > 5):
                 break
@@ -202,6 +247,9 @@ class Engine:
         success = winner["score"] >= 0.3
         self.memory.add_procedural(intent, input_task, winner["actions"], success, trace_id)
         
+        if success:
+            self.memory.add_episodic(input_task, winner["actions"], winner["results"])
+
         # Check if we should resume a previous context
         if self.current_task_context:
             resumption_context = self.current_task_context
@@ -215,24 +263,71 @@ class Engine:
     def presence_loop(self, simulator=None):
         """
         v0.5 Always-On Loop.
-        Polls for activity, routes to Engine, and idles sustainably.
+        Refactored for Phase 1.0B: Fully Asynchronous Multi-Sensor Sensing.
         """
-        self.presence_logger.info("Presence Loop Started.")
-        print("[ENGINE] Presence Mode: Always-On Activity Buffer initialized.")
+        self.presence_logger.info("Presence Loop Started (Embodiment Phase 1.0D).")
+        print("[ENGINE] Presence Mode: Always-On Async Orchestration active.")
+        print("[ENGINE] Listeners: TEXT, SYSTEM, VOICE (PTT), VISION (Pull).")
+        print("[ENGINE] PTT Controls: 'v' (START), 's' (STOP/SEND).")
+        print("[ENGINE] Vision: 'img' (Trigger Discrete Snapshot).")
+        
+        self.orchestrator.start()
         
         try:
             while True:
-                signals = simulator.get_signals() if simulator else []
+                # 1. ADR-007: Collect and Arbitrate signals from all async channels
+                signals = self.orchestrator.collect()
+                filtered_signals = []
+                
                 for s in signals:
+                    # ADR-008: Intercept PTT tokens from TEXT channel
+                    if s["sensor"] == "TEXT":
+                        cmd = s["stimulus"].lower().strip()
+                        if cmd == "v":
+                            self.voice_sensor.start_ptt()
+                            print("\n[VOICE] Recording... (Type 's' to stop)")
+                            continue
+                        elif cmd == "s":
+                            stimulus = self.voice_sensor.stop_ptt()
+                            if stimulus:
+                                self.receive_signal(stimulus)
+                            print("\n[VOICE] Stopped and Transcribed.")
+                            continue
+                        elif cmd == "img":
+                            # ADR-012: Manual Vision Pull
+                            stimulus = self.vision_sensor.capture_snapshot()
+                            if stimulus:
+                                self.receive_signal(stimulus)
+                            print("\n[VISION] Snapshot captured and analyzed.")
+                            continue
+                        elif self.voice_sensor.is_capturing:
+                            # ADR-008: Capture text as simulated audio during PTT window
+                            self.voice_sensor.record(s["stimulus"])
+                            continue
+                    
+                    filtered_signals.append(s)
+                
+                for s in filtered_signals:
                     self.receive_signal(s)
                 
-                # Evaluation turn
-                interrupt = self.check_interrupts(current_priority=1) # Wake on any valid signal
-                if interrupt:
-                    print(f"\n[ENGINE] Waking for stimulus: {interrupt['sensor']}")
-                    self.run_task(interrupt['stimulus'])
+                # 2. Evaluation turn
+                if self.signal_buffer:
+                    # Sort by priority, high first
+                    self.signal_buffer.sort(key=lambda x: x['priority'], reverse=True)
+                    next_stimulus = self.signal_buffer.pop(0)
+                    print(f"\n[ENGINE] Waking for stimulus: {next_stimulus['sensor']}")
+                    self.run_task(next_stimulus['stimulus'])
                 
-                time.sleep(1) # Simulated Idle
+                # ADR-007: Mandatory cycle reset for fairness/quotas
+                self.manifest.reset_cycle()
+                
+                # Save audit metrics periodically (approx every 10 presence cycles)
+                if int(time.time()) % 10 == 0:
+                    self.auditor.save()
+                    
+                time.sleep(0.5) # Sustainable polling cycle
         except KeyboardInterrupt:
             self.presence_logger.info("Presence Loop Terminated by User.")
             print("\n[ENGINE] Presence Loop Stopped.")
+        finally:
+            self.orchestrator.stop()

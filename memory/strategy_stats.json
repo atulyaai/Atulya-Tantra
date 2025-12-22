@@ -1,17 +1,17 @@
 {
     "SIMPLE": {
         "wins": 1,
-        "runs": 11,
+        "runs": 16,
         "avg_score": 0.2999999999999999
     },
     "ANALYTICAL": {
-        "wins": 10,
-        "runs": 15,
-        "avg_score": 0.9533333333333334
+        "wins": 16,
+        "runs": 21,
+        "avg_score": 0.9666666666666667
     },
     "THOROUGH": {
         "wins": 4,
-        "runs": 4,
+        "runs": 5,
         "avg_score": 1.0
     },
     "history": [
@@ -238,6 +238,210 @@
         },
         {
             "run_at": "2025-12-23T02:44:03.697815",
+            "strategy": "ANALYTICAL",
+            "score": 1.0,
+            "won": true,
+            "report": {
+                "quality": 1.0,
+                "resource": {
+                    "step_count": 3
+                },
+                "details": {
+                    "clarity": 0.4,
+                    "structure": true,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T02:52:55.611236",
+            "strategy": "SIMPLE",
+            "score": 0.3,
+            "won": false,
+            "report": {
+                "quality": 0.3,
+                "resource": {
+                    "step_count": 1
+                },
+                "details": {
+                    "clarity": 0.0,
+                    "structure": false,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T02:52:55.622465",
+            "strategy": "ANALYTICAL",
+            "score": 1.0,
+            "won": true,
+            "report": {
+                "quality": 1.0,
+                "resource": {
+                    "step_count": 3
+                },
+                "details": {
+                    "clarity": 0.4,
+                    "structure": true,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T02:58:14.214886",
+            "strategy": "SIMPLE",
+            "score": 0.3,
+            "won": false,
+            "report": {
+                "quality": 0.3,
+                "resource": {
+                    "step_count": 1
+                },
+                "details": {
+                    "clarity": 0.0,
+                    "structure": false,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T02:58:14.223306",
+            "strategy": "ANALYTICAL",
+            "score": 1.0,
+            "won": true,
+            "report": {
+                "quality": 1.0,
+                "resource": {
+                    "step_count": 3
+                },
+                "details": {
+                    "clarity": 0.4,
+                    "structure": true,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T03:08:35.997372",
+            "strategy": "SIMPLE",
+            "score": 0.3,
+            "won": false,
+            "report": {
+                "quality": 0.3,
+                "resource": {
+                    "step_count": 1
+                },
+                "details": {
+                    "clarity": 0.0,
+                    "structure": false,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T03:08:36.010687",
+            "strategy": "ANALYTICAL",
+            "score": 1.0,
+            "won": true,
+            "report": {
+                "quality": 1.0,
+                "resource": {
+                    "step_count": 3
+                },
+                "details": {
+                    "clarity": 0.4,
+                    "structure": true,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T03:41:55.307445",
+            "strategy": "SIMPLE",
+            "score": 0.3,
+            "won": false,
+            "report": {
+                "quality": 0.3,
+                "resource": {
+                    "step_count": 1
+                },
+                "details": {
+                    "clarity": 0.0,
+                    "structure": false,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T03:41:55.317695",
+            "strategy": "ANALYTICAL",
+            "score": 1.0,
+            "won": true,
+            "report": {
+                "quality": 1.0,
+                "resource": {
+                    "step_count": 3
+                },
+                "details": {
+                    "clarity": 0.4,
+                    "structure": true,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T03:41:56.335646",
+            "strategy": "ANALYTICAL",
+            "score": 1.0,
+            "won": true,
+            "report": {
+                "quality": 1.0,
+                "resource": {
+                    "step_count": 3
+                },
+                "details": {
+                    "clarity": 0.4,
+                    "structure": true,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T03:41:56.345999",
+            "strategy": "THOROUGH",
+            "score": 1.0,
+            "won": false,
+            "report": {
+                "quality": 1.0,
+                "resource": {
+                    "step_count": 4
+                },
+                "details": {
+                    "clarity": 0.4,
+                    "structure": true,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T03:41:57.364671",
+            "strategy": "SIMPLE",
+            "score": 0.3,
+            "won": false,
+            "report": {
+                "quality": 0.3,
+                "resource": {
+                    "step_count": 1
+                },
+                "details": {
+                    "clarity": 0.0,
+                    "structure": false,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T03:41:57.376095",
             "strategy": "ANALYTICAL",
             "score": 1.0,
             "won": true,

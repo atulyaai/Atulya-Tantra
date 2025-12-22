@@ -1,10 +1,24 @@
 import logging
 import os
 
+class TraceIDFilter(logging.Filter):
+    """Filter to ensure trace_id is always present in log records."""
+    def filter(self, record):
+        if not hasattr(record, 'trace_id'):
+            record.trace_id = "GLOBAL"
+        return True
+
+class TraceIDAdapter(logging.LoggerAdapter):
+    """Adapter to ensure trace_id is always present in log records."""
+    def process(self, msg, kwargs):
+        extra = kwargs.get("extra", {})
+        extra["trace_id"] = getattr(self.extra, "trace_id", "GLOBAL")
+        kwargs["extra"] = extra
+        return msg, kwargs
+
 class Governor:
     def __init__(self, memory_manager):
         self.memory = memory_manager
-        # Expanded forbidden signatures for v0.1 hardening
         self.forbidden_ops = [
             "os.system", "rmdir", "del", "shutil.rmtree", 
             "subprocess", "threading", "eval", "exec", "__import__",
@@ -15,6 +29,7 @@ class Governor:
 
     def set_trace_id(self, trace_id):
         self.trace_id = trace_id
+        # Sync adapter trace_id if needed
 
     def setup_logging(self):
         log_dir = "logs"
@@ -22,51 +37,66 @@ class Governor:
             os.makedirs(log_dir)
         
         # Use a more structured format for TraceID continuity
-        logging.basicConfig(
-            filename=os.path.join(log_dir, "system.log"),
-            level=logging.INFO,
-            format='%(asctime)s - [ATULYA] - [%(trace_id)s] - %(levelname)s - %(message)s'
-        )
-        self.logger = logging.getLogger("AtulyaGovernor")
+        formatter = logging.Formatter('%(asctime)s - [ATULYA] - [%(trace_id)s] - %(levelname)s - %(message)s')
+        trace_filter = TraceIDFilter()
+        
+        # System Log
+        fh = logging.FileHandler(os.path.join(log_dir, "system.log"))
+        fh.setFormatter(formatter)
+        fh.addFilter(trace_filter)
+        
+        root_logger = logging.getLogger()
+        if not root_logger.handlers:
+            root_logger.addHandler(fh)
+            root_logger.setLevel(logging.INFO)
+        else:
+            # Ensure filter is on existing handlers
+            for handler in root_logger.handlers:
+                handler.addFilter(trace_filter)
+                handler.setFormatter(formatter)
+            
+        self.logger = TraceIDAdapter(logging.getLogger("AtulyaGovernor"), self)
 
     def log(self, level, msg):
-        # Helper to ensure trace_id is always present in extras
-        extra = {'trace_id': self.trace_id}
-        if level == "INFO": self.logger.info(msg, extra=extra)
-        elif level == "WARNING": self.logger.warning(msg, extra=extra)
-        elif level == "ERROR": self.logger.error(msg, extra=extra)
+        if level == "INFO": self.logger.info(msg)
+        elif level == "WARNING": self.logger.warning(msg)
+        elif level == "ERROR": self.logger.error(msg)
 
     @staticmethod
     def is_safe_path(path):
-        # v0.1 SafePath resolution - Standardized version
         try:
-            # Workspace root (absolute, normalized, lowercase)
             base_dir = os.path.normcase(os.path.normpath(os.getcwd()))
-            # Target path (absolute, normalized, lowercase)
             target_path = os.path.normcase(os.path.normpath(os.path.abspath(path)))
-            
-            # Sub-path verification
             return target_path.startswith(base_dir) and ".." not in path
         except Exception:
             return False
 
     def check_permission(self, action):
         principles = self.memory.get_principles()
-        
-        # Check against principle memory
         for rule in principles:
             if "forbidden" in rule.lower() and action in rule.lower():
                 self.log("WARNING", f"Blocked by principle: {rule} (Action: {action})")
                 return False
-        
-        # Check against hardcoded forbidden ops
         for op in self.forbidden_ops:
             if op in str(action):
                 self.log("WARNING", f"Blocked by governor: {op} in {action}")
                 return False
-                
         self.log("INFO", f"Permission granted: {action}")
         return True
+
+    def authorize(self, action, context=None):
+        """ADR-013: High-level authorization logic for sensitive actions."""
+        # Baseline: All search requires kernel permission (represented by this check)
+        if action == "WEB_SEARCH":
+            # In Phase K4, we allow search if it's explicitly justified.
+            reason = context.get("reason", "") if context else ""
+            if len(reason) > 10:
+                self.log("INFO", f"Auth Granted: {action} ({reason})")
+                return True
+            else:
+                self.log("WARNING", f"Auth Denied: {action} (Insufficient Justification)")
+                return False
+        return self.check_permission(action)
 
     def log_safety_check(self, action, allowed):
         status = "ALLOWED" if allowed else "BLOCKED"

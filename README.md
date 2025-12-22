@@ -2,93 +2,92 @@
   <img src="docs/assets/banner.png" alt="Atulya Tantra Banner" width="100%">
   
   # Atulya Tantra
-  ### *The Competitive Evolution Kernel*
+  ### *The Constrained Knowledge Organ*
   
-  [![Version](https://img.shields.io/badge/version-v0.4-blue.svg?style=flat-square)](docs/architecture/ARCHITECTURE.md)
-  [![Status](https://img.shields.io/badge/status-Jarvis_Mode-green.svg?style=flat-square)](docs/adr/ADR-004-v0.4.md)
+  [![Version](https://img.shields.io/badge/version-v1.0-blue.svg?style=flat-square)](docs/architecture/ARCHITECTURE.md)
+  [![Status](https://img.shields.io/badge/status-CONSTITUTED-brightgreen.svg?style=flat-square)](C:\Users\subli\.gemini\antigravity\brain\2ba10624-d636-4872-b77a-14ad2c5f39f1\walkthrough.md)
   [![License](https://img.shields.io/badge/license-Apache_2.0-orange.svg?style=flat-square)](LICENSE)
 
-  **Core must be boring. Experiments must be disposable. Evidence must be archival.**
+  **Truth is a structure. Authority is a kernel. Learning is a curriculum.**
 </div>
 
 ---
 
-## 🧬 Core Identity
-Atulya Tantra is an experimental, safety-centric autonomous framework designed to solve the "Fragile Agency" problem. It replaces descriptive natural language triggers with a **Competitive Evolution Kernel** and a strictly **Governed Action Schema**.
+## 🧬 System Constitution
+Atulya Tantra is a "Constitutional AI" framework designed for high-stakes agency. Unlike traditional LLM wrappers, it treats the model as a restricted **organ** within a governed **system**. It is designed to be CPU-friendly, stateful, and strictly truth-bound.
 
-### Why Atulya Tantra?
-- **Mechanical Self-Improvement**: Uses structural competition to evolve behaviors.
-- **Attention Management**: Intentionally allocates resources to minimize noise and maximize resolution.
-- **Causal Evidence**: Every action is traceable, every failure is a lesson, and every design is archival.
+### Core Pillars
+- **Strict Embodiment**: All sensory input (Text, Voice, Vision) is normalized and arbitrated by a thread-safe Orchestrator.
+- **Knowledge Brain**: A persistent, versioned fact store that separates *Truth* from *Weights*.
+- **Governed Search**: Web access is confidence-gated and read-only, preventing news-poisoning or auto-belief loops.
+- **Evolutionary Stability**: The system evolves through intentional, law-governed cycles (Phase E) and internal drift auditing.
 
 ---
 
-## 🛰️ System Architecture
+## 🏗️ Technical Architecture (v1.0)
 
 ```mermaid
 graph TD
-    User([User Stimulus]) --> Interpreter
-    subgraph Engine [Attention Manager v0.4]
-        Interpreter{Interpreter} -- Confidence --> Evaluator[Effort Evaluator]
-        Evaluator -- Initial Tier --> Planner[Competitive Planner]
+    subgraph Embodiment [Sensory Manifold]
+        S1[Text] --> ORCH[Sensor Orchestrator]
+        S2[Voice PTT] --> ORCH
+        S3[Vision Pull] --> ORCH
     end
     
-    subgraph Kernel [Evolutionary Loop v0.2+]
-        Planner -- Dual Strategy --> Executor[Governed Executor]
-        Executor -- Parallel Runs --> Critic{Multi-Objective Critic}
-        Critic -- Quality/Resource Signal --> Memory[(Memory Manager)]
-        Memory -- Learning --> Planner
+    ORCH -- Normalized Stimulus --> Engine[Competitive Kernel]
+    
+    subgraph Intelligence [Knowledge Brain]
+        Engine -- Low Confidence --> SG[Search Gate]
+        SG -- Verified Facts --> KB[(Knowledge Brain)]
+        KB -- Grounded Context --> CLM[Atulya-CoreLM]
+        CLM -- Uncertainty Triplet --> Engine
     end
     
-    Kernel -- Winner --> Artifacts[Final Artifacts]
+    subgraph Governance [Constitutional Layer]
+        Engine -- Check Permission --> GOV[Governor]
+        GOV -- Auth/Policy --> Engine
+    end
+    
+    Engine -- Winner --> Outcome[Action/Artifact]
 ```
 
 ---
 
-## 🛠️ Key Capabilities
-
-### v0.4 — Attention Manager (Jarvis Mode)
-The system no longer just executes; it **intends**.
-- **Confidence Escallation**: Vague or low-confidence inputs trigger mandatory tier upgrades (SIMPLE → THOROUGH).
-- **Risk Signaling**: Plans with high file/directory impact are flagged for maximum structural integrity.
-- **The Stop Rule**: Mechanical caps on execution (20-step budget) and zero-delta improvement detection.
-
-### v0.2-E++ — Competitive Evolution
-Atulya Tantra does not wait for failure to improve. 
-- **Dual Execution**: Two structurally distinct plans compete in a sandbox for every task.
-- **Plateau Detection**: If quality improvement stagnates, the kernel forces exploration of novel strategy classes.
+## 📂 Archival Registry
+- [**Architecture Guide**](docs/architecture/ARCHITECTURE.md): The technical truth of the system (Updated for v1.0).
+- [**ADR Registry**](docs/adr/): Log of all architectural commitments (ADR-001 to ADR-013).
+- [**Walkthrough**](C:\Users\subli\.gemini\antigravity\brain\2ba10624-d636-4872-b77a-14ad2c5f39f1\walkthrough.md): Evidence-driven certification of all system phases.
 
 ---
 
-## 📂 Archival Record (`/docs`)
-The system follows a strict archival discipline. All design decisions and evidence are stored in the documentation tree:
-- [**Architecture Guide**](docs/architecture/ARCHITECTURE.md): The technical truth of the system.
-- [**ADR Registry**](docs/adr/): Log of all architectural commitments (v0.1 - v0.4).
-- [**Evaluation Reports**](docs/evaluation/): Evidence-driven benchmarks and validation results.
+## 🛠️ Operational Modes
+
+### 1. Embodied Presence
+The system is "always-on," polling for discrete stimuli.
+- **PTT (Push-To-Talk)**: Intentional voice capture with 'v' and 's'.
+- **Vision (Pull)**: Manual snapshots via 'img'.
+- **Fairness**: Quota-based attention prevents sensor starvation.
+
+### 2. Knowledge Acquisition (Governed)
+- **Atulya-CoreLM**: Local, recurrent, 300M tier model focused on distillation.
+- **Search Gate**: Authorizes web retrieval only when internal knowledge is `UNKNOWN`.
+- **Drift Audit**: Measures confidence calibration and strategy bias to ensure long-term stability.
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Execution
 
 ```powershell
-# Run a task with intentional attention
-python run_atulya_tantra.py "Summarize current system state and save to artifacts/response.md"
+# Enter the Always-On Presence Loop
+python run_atulya_tantra.py --mode presence
 ```
 
-The system will automatically:
-1.  **Perform Maintenance**: Rotate logs and prune historical metrics.
-2.  **Evaluate Effort**: Decide if the task requires SIMPLE or THOROUGH strategies.
-3.  **Execute & Compete**: Select the winning behavioral artifact.
-4.  **Persist Learning**: Update strategy statistics for future runs.
-
 ---
 
-## 📜 Philosophy
-- **Slow is Smooth**: Correctness precedes speed.
-- **Explicit beats Clever**: No hidden heuristics; everything is declarative.
-- **Safety before Scale**: Governance is the first, not last, priority.
-
----
+## 📜 Principles
+1. **Mechanical Integrity**: Structures do not change without an ADR.
+2. **Privacy First**: Local transcription, ephemeral audio/image buffers.
+3. **Defense in Depth**: Grounding, governance, and auditing must all agree.
 
 <div align="center">
   <sub>Built with ❤️ by the Advanced Agentic Coding Team</sub>

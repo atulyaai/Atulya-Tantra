@@ -111,12 +111,41 @@ v0.4 introduces the **Attention Manager**, enabling the system to allocate effor
 - **Step Budget**: Hard cap (20 steps) to prevent resource leakage or infinite loops.
 - **Zero-Delta Rule**: Terminate if consecutive attempts yield 0.00 quality improvement (Diminishing Returns).
 - **Atomic Execution**: Every execution step is atomic, ensuring safe state persistence at any boundary.
-
+---
 ---
 
-## Roadmap: v0.5 — Embodiment & Sensor Guardrails (Future)
+## v1.0 — Embodiment & Intellectual Property (OPERATIONAL)
 
-v0.5 focuses on the boundary between the cognitive kernel and the real world:
-- **Sensor Integration**: Controlled expansion into voice, vision, and system events.
-- **Interruption Logic**: Handling asynchronous stimulus and context preemption.
-- **Sensor Guardrails**: Defining strict "ignore" and "interrupt" rules for live input.
+v1.0 transitions Atulya Tantra from a cognitive loop into a constitutional organism with a physical and intellectual boundary.
+
+### 1. The Sensory Manifold (Phase 1.0)
+The system is no longer a passive script. It possesses **Embodiment**:
+- **Sensor Orchestrator**: A thread-safe layer that collects stimuli from `TEXT`, `VOICE`, `VISION`, and `SYSTEM` sensors.
+- **PTT (Push-To-Talk)**: Enforces intentionality in voice. Recording is ephemeral; transcription is local.
+- **Discrete Vision**: Vision is a "Pull" sensor. Snapshots are analyzed semantically and discarded immediately to preserve privacy and budget.
+- **Fairness & Quota**: A FairnessAgent ensures that no single sensory channel starves the kernel of attention.
+
+### 2. The Knowledge Brain (Phase K)
+The system separates its **Constitution** (Governed logic) from its **Knowledge** (Learned weights):
+- **Topic Store**: Knowledge is partitioned into versioned topics with atomic facts and time-decay (TTL).
+- **Atulya-CoreLM**: A 300M tier, recurrent recycler model (RWKV/Mamba-style). It acts as a "distiller," compressing verified knowledge into usable summaries.
+- **Uncertainty Protocol**: Every query returns an `Uncertainty Triplet`: (Answer, Grounding, Confidence).
+- **Search Gate**: A governed interface for web retrieval, used only when confidence falls below the architectural floor (0.4).
+
+### 3. The Evolution Lifecycle (Phase E)
+Architecture is locked. Evolution is now **Systemic**:
+- **Drift Auditor**: Persistent telemetry tracks confidence drift and strategy dominance.
+- **Knowledge Cycles**: Intentional cycles of accumulation (Search), contradiction detection (Friction), and promotion (Fidelity).
+- **Stability Baseline**: Evolution occurs only if stability markers remain within the baseline established during Phase E1.
+
+## Summary of Governance
+| Layer | Responsibility | Authority |
+| :--- | :--- | :--- |
+| **Kernel** | Action & Selection | Engine |
+| **Constitution** | Safety & Permissions | Governor |
+| **Senses** | Normalized Observation | Orchestrator |
+| **Intellect** | Knowledge & Confidence | CoreLM |
+| **Audit** | Stability & Integrity | Evolution |
+
+---
+*Atulya Tantra v1.0: Contained, Calibrated, and Constituted.*
