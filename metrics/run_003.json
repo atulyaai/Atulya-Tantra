@@ -1,0 +1,10 @@
+{
+    "run_id": "003",
+    "score": 0.3,
+    "breakdown": {
+        "clarity": 0.2,
+        "structure": false,
+        "redundancy": 0.0
+    },
+    "delta": "Score regression (-0.2). Plan produced a static, non-descriptive artifact. 'Rigidity' penalty applied."
+}

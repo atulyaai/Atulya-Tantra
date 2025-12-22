@@ -17,18 +17,24 @@ class Executor:
 
     def execute(self, step):
         action = step["action"]
+        params = step.get("params", {})
+        
         if not self.governor.check_permission(action):
             self.governor.log_safety_check(action, False)
             return f"Blocked: {action} failed safety check"
             
-        self.governor.log("INFO", f"[EXECUTOR] Running: {action} ({step['description']})")
+        self.governor.log("INFO", f"[EXECUTOR] Running: {action} (Typed: {len(params) > 0})")
         
-        # Dispatch to tools with real or simulated side effects
+        # Dispatch to tools
         if action == "local_search":
-            return self.search.local_search("mission")
+            query = params.get("query", "mission")
+            return self.search.local_search(query)
             
         if action == "read_context":
-            path = "mission_control.py"
+            path = params.get("path")
+            if not path:
+                return "Error: Missing mandatory 'path' parameter for read_context"
+                
             if not self.governor.is_safe_path(path):
                 self.governor.log("ERROR", f"SafePath Violation: {path}")
                 return f"Blocked: {path} is outside SafeZone"
@@ -39,27 +45,38 @@ class Executor:
             return f"Read content (Length: {len(content)})" if "Error" not in content else content
             
         if action == "create_file":
-            # Corrected index to 3 for 'Persist findings to FILENAME'
-            filename = step['description'].split(" ")[3] if "Persist" in step['description'] else "report.txt"
-            # Remove trailing punctuation like commas from NL-split
-            filename = filename.strip(",. ")
+            filename = params.get("filename")
+            content = params.get("content")
+            
+            if not content or len(content) < 20 or "Autonomous summary" in content:
+                self.governor.log("WARNING", "Executor: Generic or placeholder content rejected.")
+                return "Error: Content rejected due to Low Quality/Placeholder constraints."
+
+            # Structure Observability
+            heading_count = content.count("#")
+            self.governor.log("INFO", f"Executor: Persisting artifact (Length: {len(content)}, Headings: {heading_count})")
+            
+            if not filename:
+                filename = step['description'].split(" ")[3] if "Persist" in step['description'] else "report.txt"
+                filename = filename.strip(",. ")
             
             if not self.governor.is_safe_path(filename):
                 self.governor.log("ERROR", f"SafePath Violation: {filename}")
                 return f"Blocked: {filename} is outside SafeZone"
                 
-            res = self.file_ops.write_file(filename, f"Validation Data: Found errors in mission control logic.")
+            res = self.file_ops.write_file(filename, content)
             if "Error" in res:
                 self.governor.log("ERROR", f"ToolError: {res}")
             return res
             
         if action == "analyze_error":
-            log_context = "CRITICAL: Mission control timeout in sector 7."
+            log_context = params.get("context", "General log evaluation")
             res = self._analyze_error(log_context)
             self.governor.log("INFO", f"Analysis result: {res}")
             return res
             
         if action == "update_principles":
-            return "Success: New safety principle 'Do not allow timeouts in critical sectors' queued."
+            rule = params.get("rule", "Maintain structural integrity")
+            return f"Success: New safety principle '{rule}' queued."
             
         return f"Success: {action} completed"

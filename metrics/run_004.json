@@ -1,0 +1,10 @@
+{
+    "run_id": "004",
+    "score": 0.0,
+    "breakdown": {
+        "clarity": 0.0,
+        "structure": false,
+        "redundancy": 0.0
+    },
+    "delta": "Selection Failure. Executor rejected placeholder content from legacy SUCCESS_RECALL pattern. Pressure forcing strategy mutation."
+}
