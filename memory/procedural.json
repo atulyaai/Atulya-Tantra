@@ -198,5 +198,67 @@
         "outcome": "success",
         "trace_id": "3142e89d",
         "timestamp": "2025-12-23T02:30:24.681053"
+    },
+    {
+        "intent": "GENERAL_TASK",
+        "signature": "emergency: check disk space",
+        "actions": [
+            {
+                "action": "read_context",
+                "params": {
+                    "path": "ARCHITECTURE.md"
+                },
+                "description": "ANALYTICAL: Pre-execution context retrieval"
+            },
+            {
+                "action": "analyze_error",
+                "params": {
+                    "context": "architecture_review"
+                },
+                "description": "ANALYTICAL: Structural evaluation"
+            },
+            {
+                "action": "create_file",
+                "params": {
+                    "filename": "artifacts/response.md.analytical",
+                    "content": "## Atulya Tantra v0.2-E++\n\n### Core Summary\n- Evolution loop: ACTIVE\n- Component Health: STABLE\n- Execution Strategy: ANALYTICAL\n\n*Outcome: Multi-step strategy applied to satisfy clarity constraints.*"
+                },
+                "description": "ANALYTICAL: Derived content persistence"
+            }
+        ],
+        "outcome": "success",
+        "trace_id": "6e0148c6",
+        "timestamp": "2025-12-23T02:44:03.661421"
+    },
+    {
+        "intent": "ERROR_ANALYSIS",
+        "signature": "analyze project dependencies",
+        "actions": [
+            {
+                "action": "read_context",
+                "params": {
+                    "path": "ARCHITECTURE.md"
+                },
+                "description": "ANALYTICAL: Pre-execution context retrieval"
+            },
+            {
+                "action": "analyze_error",
+                "params": {
+                    "context": "architecture_review"
+                },
+                "description": "ANALYTICAL: Structural evaluation"
+            },
+            {
+                "action": "create_file",
+                "params": {
+                    "filename": "artifacts/response.md.analytical",
+                    "content": "## Atulya Tantra v0.2-E++\n\n### Core Summary\n- Evolution loop: ACTIVE\n- Component Health: STABLE\n- Execution Strategy: ANALYTICAL\n\n*Outcome: Multi-step strategy applied to satisfy clarity constraints.*"
+                },
+                "description": "ANALYTICAL: Derived content persistence"
+            }
+        ],
+        "outcome": "success",
+        "trace_id": "734da8ee",
+        "timestamp": "2025-12-23T02:44:03.697815"
     }
 ]

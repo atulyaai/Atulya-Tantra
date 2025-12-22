@@ -1,13 +1,13 @@
 {
     "SIMPLE": {
         "wins": 1,
-        "runs": 9,
-        "avg_score": 0.29999999999999993
+        "runs": 11,
+        "avg_score": 0.2999999999999999
     },
     "ANALYTICAL": {
-        "wins": 8,
-        "runs": 13,
-        "avg_score": 0.9461538461538462
+        "wins": 10,
+        "runs": 15,
+        "avg_score": 0.9533333333333334
     },
     "THOROUGH": {
         "wins": 4,
@@ -170,6 +170,74 @@
         },
         {
             "run_at": "2025-12-23T02:30:24.680058",
+            "strategy": "ANALYTICAL",
+            "score": 1.0,
+            "won": true,
+            "report": {
+                "quality": 1.0,
+                "resource": {
+                    "step_count": 3
+                },
+                "details": {
+                    "clarity": 0.4,
+                    "structure": true,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T02:44:03.649267",
+            "strategy": "SIMPLE",
+            "score": 0.3,
+            "won": false,
+            "report": {
+                "quality": 0.3,
+                "resource": {
+                    "step_count": 1
+                },
+                "details": {
+                    "clarity": 0.0,
+                    "structure": false,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T02:44:03.659743",
+            "strategy": "ANALYTICAL",
+            "score": 1.0,
+            "won": true,
+            "report": {
+                "quality": 1.0,
+                "resource": {
+                    "step_count": 3
+                },
+                "details": {
+                    "clarity": 0.4,
+                    "structure": true,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T02:44:03.688016",
+            "strategy": "SIMPLE",
+            "score": 0.3,
+            "won": false,
+            "report": {
+                "quality": 0.3,
+                "resource": {
+                    "step_count": 1
+                },
+                "details": {
+                    "clarity": 0.0,
+                    "structure": false,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T02:44:03.697815",
             "strategy": "ANALYTICAL",
             "score": 1.0,
             "won": true,

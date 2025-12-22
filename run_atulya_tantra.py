@@ -1,9 +1,16 @@
-import sys
-import os
+import logging
 from core.memory_manager import MemoryManager
 from core.governor import Governor
 from core.engine import Engine
 from tools.maintenance import MaintenanceTool
+
+# Configure Presence Telemetry
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+presence_handler = logging.FileHandler("logs/presence.log")
+presence_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+presence_logger = logging.getLogger("PresenceAudit")
+presence_logger.addHandler(presence_handler)
+presence_logger.propagate = False
 
 def main():
     # 0. Maintenance & Cleanup
