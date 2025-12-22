@@ -31,6 +31,24 @@ class Engine:
         
         return same_strategy and improvement < 0.05
 
+    def _aggregate_scores(self, eval_report, policy="QUALITY_FIRST"):
+        """
+        v0.3 Modular Aggregator.
+        Calculates a selection score from multi-dimensional evaluation signals.
+        """
+        quality = eval_report.get("quality", 0.0)
+        resource = eval_report.get("resource", {})
+        
+        if policy == "QUALITY_FIRST":
+            # Architecture Rule: Signal expansion but no preference tuning yet.
+            return quality
+        elif policy == "RESOURCE_AWARE":
+            # Implementation for v0.4 (Conceptual)
+            step_count = resource.get("step_count", 1)
+            return quality / (1.0 + (step_count * 0.05))
+        
+        return quality
+
     def run_task(self, input_task):
         trace_id = str(uuid.uuid4())[:8]
         self.governor.set_trace_id(trace_id)
@@ -63,9 +81,11 @@ class Engine:
             
             s_results = []
             final_file = None
+            step_count = 0
             for step in steps:
                 res = self.executor.execute(step)
                 s_results.append(res)
+                step_count += 1
                 if step["action"] == "create_file":
                     final_file = step["params"]["filename"]
             
@@ -75,20 +95,24 @@ class Engine:
                 with open(final_file, 'r') as f:
                     content_to_score = f.read()
 
-            # Critique
-            score, details = self.critic.verify(input_task, content_to_score)
+            # v0.3 Multi-Objective Critique
+            eval_report = self.critic.verify(input_task, content_to_score, metadata={"step_count": step_count})
+            
+            # v0.3 Use the Modular Aggregator (Configured for QUALITY_FIRST by default)
+            selection_score = self._aggregate_scores(eval_report, policy="QUALITY_FIRST")
+            
             results_map[s_name] = {
-                "score": score,
-                "details": details,
+                "score": selection_score, # Used for selection
+                "report": eval_report,
                 "actions": steps,
                 "results": s_results,
                 "file": final_file
             }
-            self.logger.info(f"Strategy {s_name} Score: {score:.2f}", extra=extra)
-            print(f"[ENGINE] Strategy {s_name} Score: {score:.2f}")
+            self.logger.info(f"Strategy {s_name} Selection Score: {selection_score:.2f} (Steps: {step_count})", extra=extra)
+            print(f"[ENGINE] Strategy {s_name} Selection Score: {selection_score:.2f} (Steps: {step_count})")
 
         # 3. Selection & Artifact Management
-        winner_name = max(results_map, key=lambda k: (results_map[k]["score"], k == "THOROUGH")) # Tie-breaker
+        winner_name = max(results_map, key=lambda k: (results_map[k]["score"], k == "THOROUGH")) 
         winner = results_map[winner_name]
         
         print(f"[ENGINE] Selection: {winner_name} WINS.")
@@ -112,7 +136,8 @@ class Engine:
 
         # 4. Learning & Persistence
         for s_name, data in results_map.items():
-            self.memory.update_strategy_stats(s_name, data["score"], s_name == winner_name)
+            # Persist multi-dimensional report to memory
+            self.memory.update_strategy_stats(s_name, data["score"], s_name == winner_name, report=data.get("report"))
 
         if winner["score"] >= 0.3: # Threshold check (>=)
             self.memory.add_procedural(intent, input_task, winner["actions"], True, trace_id)

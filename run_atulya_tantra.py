@@ -3,8 +3,12 @@ import os
 from memory.memory_manager import MemoryManager
 from core.governor import Governor
 from core.engine import Engine
+from tools.maintenance import MaintenanceTool
 
 def main():
+    # 0. Maintenance & Cleanup
+    MaintenanceTool().perform()
+
     if len(sys.argv) < 2:
         print("Usage: python run_atulya_tantra.py \"Your task here\"")
         return

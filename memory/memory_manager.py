@@ -120,23 +120,28 @@ class MemoryManager:
     def get_strategy_stats(self):
         return self.load_json(self.strategy_path)
 
-    def update_strategy_stats(self, strategy_name, score, won):
+    def update_strategy_stats(self, strategy_name, score, won, report=None):
         stats = self.get_strategy_stats()
         if strategy_name in stats:
             s = stats[strategy_name]
             s["runs"] += 1
             if won:
                 s["wins"] += 1
-            # Rolling average
+            # Rolling average based on Quality score (v0.2 legacy)
             s["avg_score"] = (s["avg_score"] * (s["runs"] - 1) + score) / s["runs"]
             
-            # Record run history for plateau detection
-            stats["history"].append({
+            # v0.3 Record multi-dimensional report in history
+            history_entry = {
                 "run_at": datetime.now().isoformat(),
                 "strategy": strategy_name,
                 "score": score,
                 "won": won
-            })
+            }
+            if report:
+                history_entry["report"] = report
+                
+            stats["history"].append(history_entry)
+            
             # Keep history manageable
             if len(stats["history"]) > 50:
                 stats["history"].pop(0)
