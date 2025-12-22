@@ -5,7 +5,7 @@
   ### *The Constrained Knowledge Organ*
   
   [![Version](https://img.shields.io/badge/version-v1.0-blue.svg?style=flat-square)](docs/architecture/ARCHITECTURE.md)
-  [![Status](https://img.shields.io/badge/status-CONSTITUTED-brightgreen.svg?style=flat-square)](C:\Users\subli\.gemini\antigravity\brain\2ba10624-d636-4872-b77a-14ad2c5f39f1\walkthrough.md)
+  [![Status](https://img.shields.io/badge/status-CONSTITUTED-brightgreen.svg?style=flat-square)](docs/archival/walkthrough.md)
   [![License](https://img.shields.io/badge/license-Apache_2.0-orange.svg?style=flat-square)](LICENSE)
 
   **Truth is a structure. Authority is a kernel. Learning is a curriculum.**
@@ -55,8 +55,9 @@ graph TD
 
 ## 📂 Archival Registry
 - [**Architecture Guide**](docs/architecture/ARCHITECTURE.md): The technical truth of the system (Updated for v1.0).
-- [**ADR Registry**](docs/adr/): Log of all architectural commitments (ADR-001 to ADR-013).
-- [**Walkthrough**](C:\Users\subli\.gemini\antigravity\brain\2ba10624-d636-4872-b77a-14ad2c5f39f1\walkthrough.md): Evidence-driven certification of all system phases.
+- [**ADR Registry**](docs/adr/README.md): Log of all architectural commitments (ADR-001 to ADR-013).
+- [**Walkthrough**](docs/archival/walkthrough.md): Evidence-driven certification of all system phases.
+- [**Task History**](docs/archival/task.md): Detailed checklist of project progression.
 
 ---
 
