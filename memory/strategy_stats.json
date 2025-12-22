@@ -16,40 +16,6 @@
     },
     "history": [
         {
-            "run_at": "2025-12-23T02:15:54.218791",
-            "strategy": "SIMPLE",
-            "score": 0.3,
-            "won": false,
-            "report": {
-                "quality": 0.3,
-                "resource": {
-                    "step_count": 1
-                },
-                "details": {
-                    "clarity": 0.0,
-                    "structure": false,
-                    "redundancy": 0.3
-                }
-            }
-        },
-        {
-            "run_at": "2025-12-23T02:15:54.231420",
-            "strategy": "ANALYTICAL",
-            "score": 1.0,
-            "won": true,
-            "report": {
-                "quality": 1.0,
-                "resource": {
-                    "step_count": 3
-                },
-                "details": {
-                    "clarity": 0.4,
-                    "structure": true,
-                    "redundancy": 0.3
-                }
-            }
-        },
-        {
             "run_at": "2025-12-23T02:23:54.025489",
             "strategy": "SIMPLE",
             "score": 0.3,

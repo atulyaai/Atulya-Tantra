@@ -96,9 +96,27 @@ The execution engine SHALL expose **execution metadata** (e.g., step count) to t
 
 ---
 
-## Roadmap: v0.4 — Adaptation & Allocation (Future)
+---
 
-v0.4 is where the system addresses trade-offs and resource budgeting:
-- **Cost-Aware Trade-offs**: Specific weighting between quality and efficiency.
-- **Budgeted Execution**: Constraints on time, steps, and tool actions.
-- **Contextual Optimization**: Dynamically shifting preferences based on task urgency.
+## v0.4 — Adaptation & Allocation (OPERATIONAL)
+
+v0.4 introduces the **Attention Manager**, enabling the system to allocate effort intentionally and spend resources as a first-class trade-off.
+
+### 1. The Attention Manager
+- **Confidence Escalation**: The Interpreter evaluates its own certainty. Low-confidence triggers an early escalation to high-tier strategies.
+- **Risk Signaling**: The Planner reports declarative risk (e.g., file impact). Engine guardrails force structural integrity based on these signals.
+- **Run-Level Escalation**: Strategies are escalated **between** execution attempts to preserve auditability and causal coherence.
+
+### 2. Termination Guardrails
+- **Step Budget**: Hard cap (20 steps) to prevent resource leakage or infinite loops.
+- **Zero-Delta Rule**: Terminate if consecutive attempts yield 0.00 quality improvement (Diminishing Returns).
+- **Atomic Execution**: Every execution step is atomic, ensuring safe state persistence at any boundary.
+
+---
+
+## Roadmap: v0.5 — Embodiment & Sensor Guardrails (Future)
+
+v0.5 focuses on the boundary between the cognitive kernel and the real world:
+- **Sensor Integration**: Controlled expansion into voice, vision, and system events.
+- **Interruption Logic**: Handling asynchronous stimulus and context preemption.
+- **Sensor Guardrails**: Defining strict "ignore" and "interrupt" rules for live input.
