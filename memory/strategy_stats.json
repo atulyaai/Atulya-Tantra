@@ -1,17 +1,17 @@
 {
     "SIMPLE": {
         "wins": 1,
-        "runs": 8,
+        "runs": 9,
         "avg_score": 0.29999999999999993
     },
     "ANALYTICAL": {
-        "wins": 7,
-        "runs": 10,
-        "avg_score": 0.93
+        "wins": 8,
+        "runs": 13,
+        "avg_score": 0.9461538461538462
     },
     "THOROUGH": {
-        "wins": 2,
-        "runs": 2,
+        "wins": 4,
+        "runs": 4,
         "avg_score": 1.0
     },
     "history": [
@@ -102,6 +102,108 @@
         },
         {
             "run_at": "2025-12-23T02:25:49.995973",
+            "strategy": "ANALYTICAL",
+            "score": 1.0,
+            "won": true,
+            "report": {
+                "quality": 1.0,
+                "resource": {
+                    "step_count": 3
+                },
+                "details": {
+                    "clarity": 0.4,
+                    "structure": true,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T02:30:10.922969",
+            "strategy": "ANALYTICAL",
+            "score": 1.0,
+            "won": false,
+            "report": {
+                "quality": 1.0,
+                "resource": {
+                    "step_count": 3
+                },
+                "details": {
+                    "clarity": 0.4,
+                    "structure": true,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T02:30:10.932785",
+            "strategy": "THOROUGH",
+            "score": 1.0,
+            "won": true,
+            "report": {
+                "quality": 1.0,
+                "resource": {
+                    "step_count": 4
+                },
+                "details": {
+                    "clarity": 0.4,
+                    "structure": true,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T02:30:15.527377",
+            "strategy": "ANALYTICAL",
+            "score": 1.0,
+            "won": false,
+            "report": {
+                "quality": 1.0,
+                "resource": {
+                    "step_count": 3
+                },
+                "details": {
+                    "clarity": 0.4,
+                    "structure": true,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T02:30:15.541209",
+            "strategy": "THOROUGH",
+            "score": 1.0,
+            "won": true,
+            "report": {
+                "quality": 1.0,
+                "resource": {
+                    "step_count": 4
+                },
+                "details": {
+                    "clarity": 0.4,
+                    "structure": true,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T02:30:24.666913",
+            "strategy": "SIMPLE",
+            "score": 0.3,
+            "won": false,
+            "report": {
+                "quality": 0.3,
+                "resource": {
+                    "step_count": 1
+                },
+                "details": {
+                    "clarity": 0.0,
+                    "structure": false,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T02:30:24.680058",
             "strategy": "ANALYTICAL",
             "score": 1.0,
             "won": true,

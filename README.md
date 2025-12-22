@@ -1,99 +1,95 @@
-# Atulya Tantra
+<div align="center">
+  <img src="docs/assets/banner.png" alt="Atulya Tantra Banner" width="100%">
+  
+  # Atulya Tantra
+  ### *The Competitive Evolution Kernel*
+  
+  [![Version](https://img.shields.io/badge/version-v0.4-blue.svg?style=flat-square)](docs/architecture/ARCHITECTURE.md)
+  [![Status](https://img.shields.io/badge/status-Jarvis_Mode-green.svg?style=flat-square)](docs/adr/ADR-004-v0.4.md)
+  [![License](https://img.shields.io/badge/license-Apache_2.0-orange.svg?style=flat-square)](LICENSE)
 
-Atulya Tantra is an experimental, safety-first autonomous system focused on
-explicit planning, governed execution, and persistent learning.
-
-This repository contains the core system kernel — not a chatbot, not a UI demo,
-and not an agent zoo. The goal is to build a system that can plan, act, fail,
-recover, and improve without relying on fragile natural language shortcuts.
-
----
-
-## Project Status
-
-Current Version: v1.0.0 (Benchmarked, Stable)  
-Next Phase: v0.2 – Typed Action Schema (Design Complete)
-
-The system is intentionally paused at the architectural boundary between
-planning and execution to formalize contracts before expanding interfaces
-(voice, vision, continuous loops).
+  **Core must be boring. Experiments must be disposable. Evidence must be archival.**
+</div>
 
 ---
 
-## Core Concepts
+## 🧬 Core Identity
+Atulya Tantra is an experimental, safety-centric autonomous framework designed to solve the "Fragile Agency" problem. It replaces descriptive natural language triggers with a **Competitive Evolution Kernel** and a strictly **Governed Action Schema**.
 
-• Planner  
-Generates structured plans from goals.
-
-• Executor  
-Executes only validated, typed actions.
-
-• Governor  
-Enforces safety rules and SafePath constraints.
-
-• Memory  
-Persists procedural knowledge, successes, and failures.
-
-• Benchmarks  
-Evidence-driven evaluation of system behavior.
+### Why Atulya Tantra?
+- **Mechanical Self-Improvement**: Uses structural competition to evolve behaviors.
+- **Attention Management**: Intentionally allocates resources to minimize noise and maximize resolution.
+- **Causal Evidence**: Every action is traceable, every failure is a lesson, and every design is archival.
 
 ---
 
-## Why Typed Actions (v0.2)
+## 🛰️ System Architecture
 
-Earlier versions relied on natural language descriptions leaking into execution.
-v0.2 introduces a Typed Action Schema to:
-
-• eliminate ambiguity  
-• enforce safety at the parameter level  
-• enable reliable failure avoidance  
-• make execution auditable and deterministic  
-
-Natural language remains for observability only.
-
----
-
-## What This Is Not
-
-• Not a general-purpose chatbot  
-• Not an AGI claim  
-• Not a UI-first project  
-• Not a plug-and-play assistant  
-
-This is a systems research project focused on correctness, resilience, and
-long-term extensibility.
+```mermaid
+graph TD
+    User([User Stimulus]) --> Interpreter
+    subgraph Engine [Attention Manager v0.4]
+        Interpreter{Interpreter} -- Confidence --> Evaluator[Effort Evaluator]
+        Evaluator -- Initial Tier --> Planner[Competitive Planner]
+    end
+    
+    subgraph Kernel [Evolutionary Loop v0.2+]
+        Planner -- Dual Strategy --> Executor[Governed Executor]
+        Executor -- Parallel Runs --> Critic{Multi-Objective Critic}
+        Critic -- Quality/Resource Signal --> Memory[(Memory Manager)]
+        Memory -- Learning --> Planner
+    end
+    
+    Kernel -- Winner --> Artifacts[Final Artifacts]
+```
 
 ---
 
-## Roadmap (High-Level)
+## 🛠️ Key Capabilities
 
-✓ v1.0.0 — Benchmarked core loop  
-✓ v0.2 — Typed Action Schema (design)  
-→ Minimal Living Loop (single input → output)  
-→ Continuous execution mode  
-→ Multimodal interfaces (voice, vision)  
-→ Modular agent expansion  
+### v0.4 — Attention Manager (Jarvis Mode)
+The system no longer just executes; it **intends**.
+- **Confidence Escallation**: Vague or low-confidence inputs trigger mandatory tier upgrades (SIMPLE → THOROUGH).
+- **Risk Signaling**: Plans with high file/directory impact are flagged for maximum structural integrity.
+- **The Stop Rule**: Mechanical caps on execution (20-step budget) and zero-delta improvement detection.
 
----
-
-## Project History (Changelog)
-
-### [v1.0.0] - 2025-12-23
-- **Learning Activation**: Procedural Memory for `SUCCESS_RECALL` and `FAILURE_AVOID`.
-- **Improved Governance**: Standardized `SafePath` and expanded forbidden signatures.
-
-### [v0.1.0] - 2025-12-23
-- **System Hardening**: Introduced Governor and SafePath.
-- **TraceID**: Initial support for execution tracking.
-
-### [v0.0.1] - 2022-12-22
-- **Core Loop**: Initial implementation of the 7-stage cognitive loop.
+### v0.2-E++ — Competitive Evolution
+Atulya Tantra does not wait for failure to improve. 
+- **Dual Execution**: Two structurally distinct plans compete in a sandbox for every task.
+- **Plateau Detection**: If quality improvement stagnates, the kernel forces exploration of novel strategy classes.
 
 ---
 
-## Philosophy
+## 📂 Archival Record (`/docs`)
+The system follows a strict archival discipline. All design decisions and evidence are stored in the documentation tree:
+- [**Architecture Guide**](docs/architecture/ARCHITECTURE.md): The technical truth of the system.
+- [**ADR Registry**](docs/adr/): Log of all architectural commitments (v0.1 - v0.4).
+- [**Evaluation Reports**](docs/evaluation/): Evidence-driven benchmarks and validation results.
 
-Slow is smooth.  
-Explicit beats clever.  
-Safety before scale.  
-Evidence before confidence.
+---
+
+## 🚀 Quick Start
+
+```powershell
+# Run a task with intentional attention
+python run_atulya_tantra.py "Summarize current system state and save to artifacts/response.md"
+```
+
+The system will automatically:
+1.  **Perform Maintenance**: Rotate logs and prune historical metrics.
+2.  **Evaluate Effort**: Decide if the task requires SIMPLE or THOROUGH strategies.
+3.  **Execute & Compete**: Select the winning behavioral artifact.
+4.  **Persist Learning**: Update strategy statistics for future runs.
+
+---
+
+## 📜 Philosophy
+- **Slow is Smooth**: Correctness precedes speed.
+- **Explicit beats Clever**: No hidden heuristics; everything is declarative.
+- **Safety before Scale**: Governance is the first, not last, priority.
+
+---
+
+<div align="center">
+  <sub>Built with ❤️ by the Advanced Agentic Coding Team</sub>
+</div>

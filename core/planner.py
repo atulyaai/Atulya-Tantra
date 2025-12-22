@@ -1,4 +1,23 @@
 class Planner:
+    def get_risk_signals(self, task):
+        # v0.4 Declarative Risk Signaling
+        signals = {
+            "file_impact": 0,
+            "directory_depth": 0
+        }
+        task_lower = task.lower()
+        
+        # Simple heuristics for risk signals
+        if any(kw in task_lower for kw in ["all", "every", "multiple", "files"]):
+            signals["file_impact"] = 3
+        elif "create" in task_lower or "write" in task_lower:
+            signals["file_impact"] = 1
+            
+        if "/" in task or "\\" in task:
+            signals["directory_depth"] = task.count("/") + task.count("\\")
+            
+        return signals
+
     def plan(self, intent, task, guidance=None):
         # v0.2-E++ Structural Strategy Definitions
         strategies = {
