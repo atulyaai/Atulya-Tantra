@@ -1,8 +1,10 @@
 import logging
+import sys
 from core.memory_manager import MemoryManager
 from core.governor import Governor
 from core.engine import Engine
 from tools.maintenance import MaintenanceTool
+from internal.simulator import StimulusInjector
 
 # Configure Presence Telemetry
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
@@ -17,17 +19,22 @@ def main():
     MaintenanceTool().perform()
 
     if len(sys.argv) < 2:
-        print("Usage: python run_atulya_tantra.py \"Your task here\"")
+        print("Usage: python run_atulya_tantra.py \"Your task here\" [--presence]")
         return
 
-    task = sys.argv[1]
-    
     # Initialize components
     memory = MemoryManager()
     governor = Governor(memory)
     engine = Engine(memory, governor)
+    simulator = StimulusInjector()
+
+    if sys.argv[1] == "--presence":
+        engine.presence_loop(simulator)
+        return
+
+    task = sys.argv[1]
     
-    # Run the loop
+    # Run the standard task loop
     try:
         status = engine.run_task(task)
         print(f"\n[FINAL OUTPUT] {status}")
