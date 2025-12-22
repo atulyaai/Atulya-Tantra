@@ -1,6 +1,6 @@
 import sys
 import os
-from memory.memory_manager import MemoryManager
+from core.memory_manager import MemoryManager
 from core.governor import Governor
 from core.engine import Engine
 from tools.maintenance import MaintenanceTool

@@ -1,13 +1,13 @@
 {
     "SIMPLE": {
         "wins": 1,
-        "runs": 7,
+        "runs": 8,
         "avg_score": 0.29999999999999993
     },
     "ANALYTICAL": {
-        "wins": 6,
-        "runs": 9,
-        "avg_score": 0.9222222222222223
+        "wins": 7,
+        "runs": 10,
+        "avg_score": 0.93
     },
     "THOROUGH": {
         "wins": 2,
@@ -68,6 +68,40 @@
         },
         {
             "run_at": "2025-12-23T02:23:54.034485",
+            "strategy": "ANALYTICAL",
+            "score": 1.0,
+            "won": true,
+            "report": {
+                "quality": 1.0,
+                "resource": {
+                    "step_count": 3
+                },
+                "details": {
+                    "clarity": 0.4,
+                    "structure": true,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T02:25:49.984403",
+            "strategy": "SIMPLE",
+            "score": 0.3,
+            "won": false,
+            "report": {
+                "quality": 0.3,
+                "resource": {
+                    "step_count": 1
+                },
+                "details": {
+                    "clarity": 0.0,
+                    "structure": false,
+                    "redundancy": 0.3
+                }
+            }
+        },
+        {
+            "run_at": "2025-12-23T02:25:49.995973",
             "strategy": "ANALYTICAL",
             "score": 1.0,
             "won": true,
