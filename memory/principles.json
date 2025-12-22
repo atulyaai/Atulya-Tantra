@@ -1,0 +1,7 @@
+{
+    "rules": [
+        "Do not modify core code",
+        "No unauthorized file deletions",
+        "Verify results before finishing"
+    ]
+}
