@@ -1,151 +1,99 @@
-# Atulya Tantra - Architecture & Design Report (v1)
+# Atulya Tantra: The System Architecture (v1.0)
 
-## Executive Summary
-Atulya Tantra is a cognitive task-execution system designed for high determinism, safety, and observability. It operates on a closed-loop architecture where every action is governed, logged, and evaluated for future learning.
+> "A system without a constitution is just a script waiting to break."
 
-## Core Cognitive Loop
-The system follows a strict sequential cycle:
-`INPUT → INTENT → PLAN → ACT → CHECK → LEARN → OUTPUT`
-
-1.  **INPUT**: Raw task string from the user.
-2.  **INTENT**: Classification into logical categories (Search, File Ops, etc.).
-3.  **PLAN**: Decomposition into a series of actionable steps.
-4.  **ACT**: Execution of steps via specialized tools under Governor oversight.
-5.  **CHECK**: Formal verification of results against initial requirements.
-6.  **LEARN**: Persistence of trace data and procedural patterns for future recall.
-7.  **OUTPUT**: Final status and TraceID reported to user.
-
-## System Components
-
-### 1. Logical Roles
-- **Interpreter**: Classifies task intent using weighted keyword analysis.
-- **Planner**: Generates multi-step execution strategies, consulting Procedural Memory for optimizations.
-- **Executor**: Dispatches actions to tools and handles error routing.
-- **Critic**: Provides a final verdict on task success/failure.
-- **Governor**: Enforces safety constraints (SafePath, Forbidden Signatures).
-
-### 2. Memory Architecture
-- **Working Memory**: In-memory state for the current loop execution.
-- **Episodic Memory**: JSON-based history of all past task traces.
-- **Procedural Memory**: Collection of successful and failed step patterns (`SUCCESS_RECALL` / `FAILURE_AVOID`).
-- **Principles Memory**: Hardcoded and earned safety rules guiding the Governor.
-
-## Safety & Governance
-- **SafePath**: All file operations are confined to the repository root. Path traversal (`..`) is explicitly blocked.
-- **Forbidden Signatures**: Intent-level blocking of dangerous commands (eval, exec, subprocess, etc.).
-- **TraceID**: Every task is assigned a unique 8-character ID for cross-module log correlation.
-
-## Observability
-- **System Log**: Centralized, structured record of every transition, safety check, and cognitive event.
-- **Causal Traceability**: Every log line is tagged with a `TraceID`.
+This document defines the **Technical Truth** of Atulya Tantra. It describes the laws, the organs, and the connections that make up the "Constrained Knowledge Organ."
 
 ---
 
-## v0.2 — The Competitive Evolution Kernel (E++)
+## 🏗️ System Schematics
 
-The v0.2 phase defines the system as a **self-improving control system** governed by structural competition and mechanical stagnation refusal.
+The system is not a stack; it is a **Loop**.
 
-### 1. The Competitive Loop
-Atulya Tantra does not wait for failure to improve. Every run follows the **Competitive Execution** pattern:
-1. **DUAL PLAN**: Planner selects two structurally distinct strategy classes (e.g., SIMPLE vs. ANALYTICAL).
-2. **DUAL ACT**: Both plans are executed independently in a collision-safe sandbox.
-3. **CRITIQUE**: Results are scored numerically (0.0 - 1.0) based on Clarity, Structure, and Redundancy.
-4. **SELECT**: The higher-scoring strategy wins. Its artifact persists; the loser is discarded.
-5. **LEARN**: Strategy statistics and causal lessons are recorded in `memory/strategy_stats.json` and `evolution.log`.
+```ascii
+      [ REALITY ] 
+           ↓
+    ( Sensory Manifold ) 
+      [ TEXT | VOICE | VISION ]
+           ↓
+    +-----------------------+
+    |  Sensor Orchestrator  |  (Thread-Safe Buffer)
+    +-----------+-----------+
+                ↓
+          [ Normalized Stimulus ]
+                ↓
+    +-----------v-----------+         +------------------+
+    |   COMPETITIVE KERNEL   | <-----> |  Knowledge Brain |
+    |  (Engine + Governor)   |         | (Facts + CoreLM) |
+    +-----------+-----------+         +------------------+
+                ↓
+           [ ACTION ]
+                ↓
+      ( Artifacts & Outcomes )
+```
 
-### 2. Structural Strategy Classes
-Evolution is driven by **Plan Shape**, not prose:
-- **SIMPLE**: `[ create_file ]`
-- **ANALYTICAL**: `[ read_context → analyze → create_file ]`
-- **THOROUGH**: `[ read_context → analyze → outline → create_file ]`
+---
 
-### 3. Plateau Detection (The Law of Non-Stagnation)
-The system is mechanically forbidden from resting on a plateau. A stalemate is detected if:
-- The same strategy wins **3 consecutive runs**.
-- Average score improvement is **< 0.05**.
-In this state, the Engine **forces exploration** of higher-tier strategy classes, regardless of previous success.
+## 🏛️ The Three Organs
 
-### 4. Selection Criteria
-| Metric | Method | Threshold |
+### 1. The Kernel (The Will)
+The **Competitive Kernel** is the decision-making engine. It does not "think" in a stream of consciousness; it **competes**.
+- **Dual Execution**: Every intent is processed by two strategies (`SIMPLE` vs `ANALYTICAL`) in parallel.
+- **Auditor**: A critic scores the results of both strategies based on quality and resource cost.
+- **Adoption**: Only the winner is executed and persisted. The loser is discarded.
+- **Why?**: This prevents "strategy lock-in." The system forces itself to prove that a complex thought is necessary before adopting it.
+
+### 2. The Manifold (The Body)
+The **Sensory Manifold** is the interface to reality. It is designed to be **Passive** and **Discrete**.
+- **Passive**: It never "wires" itself to a stream. It waits for an explicit buffer fill (PTT or Image Capture).
+- **Orchestration**: A `FairnessAgent` ensures that a flood of text inputs doesn't silence a voice command.
+- **Privacy Wire**: All sensory data is processed locally (Local Whisper, Local Vision) and ephemeral buffers are wiped immediately after normalization.
+
+### 3. The Brain (The Intellect)
+The **Knowledge Brain** is the seat of memory. It is **Not the Model**.
+- **Model != Brain**: The LLM (CoreLM) is just a muscle. It processes text.
+- **Brain = Facts**: The actual knowledge is stored in a JSON-based `TopicStore`.
+- **Governed Search**: The brain is "gated." It cannot access the web unless:
+    1. Confidence is `< 0.4`.
+    2. The topic is `UNKNOWN`.
+    3. The Governor authorizes the "Justification".
+
+---
+
+## 📜 The Governance Layer
+
+The **Governor** is the immune system. It intercepts every call the Kernel makes.
+
+### The "No" List
+The Governor has absolute authority to block:
+- **Shell Access**: `os.system`, `subprocess` (unless strictly whitelisted).
+- **File Destruction**: `rm`, `del` outside of temp.
+- **Infinite Loops**: The `PresenceLoop` has a hard `watchdog` timer.
+
+### The TraceID Law
+**Law**: *"No atom moves without a TraceID."*
+- Every log, every memory entry, every search result must rely on a unique 8-char `TraceID`.
+- This ensures that if the system fails, we can replay the *exact* cognitive sequence that led to the fault.
+
+---
+
+## 🧬 Evolution Lifecycle (Phase E)
+
+Atulya Tantra is finished building. It is now growing.
+
+| Phase | State | Description |
 | :--- | :--- | :--- |
-| **Clarity** | Heading count analysis | Max 0.4 |
-| **Structure** | Binary marker detection (Summary/Outcome) | 0.3 |
-| **Integrity** | Word-frequency redundancy check | 0.3 |
+| **E1** | **Audit** | The system establishes a baseline of "Sanity" (Calibration & Bias). |
+| **E2** | **Exposure** | The system resolves `UNKNOWN` gaps via governed search cycles. |
+| **E3** | **Refinement** | (Future) The CoreLM is retrained on the *verified* Knowledge Brain facts. |
 
 ---
 
-## Roadmap: v0.3 — Granular Selection & Resource Awareness (Architecture)
+## 📚 Deep Links
 
-v0.3 increases the **discrimination power** of the competitive evolution kernel by treating resource usage as a first-class evaluation signal. This phase improves the **lens**, not the preference.
-
-### 1. Multi-Objective Evaluation Model
-The Critic SHALL support multiple independent evaluation dimensions, including:
-- **Quality**: Structural clarity and constraint satisfaction (v0.2 legacy).
-- **Resource Usage**: Execution metadata such as step count and tool invocations.
-
-Each dimension is computed and persisted independently, enabling multi-dimensional selection without hard-coding specific efficiency preferences at the architecture level.
-
-### 2. Resource Awareness Signal
-The execution engine SHALL expose **execution metadata** (e.g., step count) to the evaluation layer. This signal:
-- Does not block execution or alter planning.
-- Exists solely to influence selection resolution in the competitive loop.
-
-### 3. The Boundary Rule
-- **v0.3 (Selection Resolution)**: "How do we choose better?" (Signal Expansion)
-- **v0.4 (Adaptation & Allocation)**: "What do we prefer?" (Policy & Preference)
+- **[ADR Registry](../adr/README.md)**: The 13 Commandments.
+- **[Walkthrough](../archival/walkthrough.md)**: Proof of Life.
+- **[Codebase](../core/)**: The Source.
 
 ---
-
----
-
-## v0.4 — Adaptation & Allocation (OPERATIONAL)
-
-v0.4 introduces the **Attention Manager**, enabling the system to allocate effort intentionally and spend resources as a first-class trade-off.
-
-### 1. The Attention Manager
-- **Confidence Escalation**: The Interpreter evaluates its own certainty. Low-confidence triggers an early escalation to high-tier strategies.
-- **Risk Signaling**: The Planner reports declarative risk (e.g., file impact). Engine guardrails force structural integrity based on these signals.
-- **Run-Level Escalation**: Strategies are escalated **between** execution attempts to preserve auditability and causal coherence.
-
-### 2. Termination Guardrails
-- **Step Budget**: Hard cap (20 steps) to prevent resource leakage or infinite loops.
-- **Zero-Delta Rule**: Terminate if consecutive attempts yield 0.00 quality improvement (Diminishing Returns).
-- **Atomic Execution**: Every execution step is atomic, ensuring safe state persistence at any boundary.
----
----
-
-## v1.0 — Embodiment & Intellectual Property (OPERATIONAL)
-
-v1.0 transitions Atulya Tantra from a cognitive loop into a constitutional organism with a physical and intellectual boundary.
-
-### 1. The Sensory Manifold (Phase 1.0)
-The system is no longer a passive script. It possesses **Embodiment**:
-- **Sensor Orchestrator**: A thread-safe layer that collects stimuli from `TEXT`, `VOICE`, `VISION`, and `SYSTEM` sensors.
-- **PTT (Push-To-Talk)**: Enforces intentionality in voice. Recording is ephemeral; transcription is local.
-- **Discrete Vision**: Vision is a "Pull" sensor. Snapshots are analyzed semantically and discarded immediately to preserve privacy and budget.
-- **Fairness & Quota**: A FairnessAgent ensures that no single sensory channel starves the kernel of attention.
-
-### 2. The Knowledge Brain (Phase K)
-The system separates its **Constitution** (Governed logic) from its **Knowledge** (Learned weights):
-- **Topic Store**: Knowledge is partitioned into versioned topics with atomic facts and time-decay (TTL).
-- **Atulya-CoreLM**: A 300M tier, recurrent recycler model (RWKV/Mamba-style). It acts as a "distiller," compressing verified knowledge into usable summaries.
-- **Uncertainty Protocol**: Every query returns an `Uncertainty Triplet`: (Answer, Grounding, Confidence).
-- **Search Gate**: A governed interface for web retrieval, used only when confidence falls below the architectural floor (0.4).
-
-### 3. The Evolution Lifecycle (Phase E)
-Architecture is locked. Evolution is now **Systemic**:
-- **Drift Auditor**: Persistent telemetry tracks confidence drift and strategy dominance.
-- **Knowledge Cycles**: Intentional cycles of accumulation (Search), contradiction detection (Friction), and promotion (Fidelity).
-- **Stability Baseline**: Evolution occurs only if stability markers remain within the baseline established during Phase E1.
-
-## Summary of Governance
-| Layer | Responsibility | Authority |
-| :--- | :--- | :--- |
-| **Kernel** | Action & Selection | Engine |
-| **Constitution** | Safety & Permissions | Governor |
-| **Senses** | Normalized Observation | Orchestrator |
-| **Intellect** | Knowledge & Confidence | CoreLM |
-| **Audit** | Stability & Integrity | Evolution |
-
----
-*Atulya Tantra v1.0: Contained, Calibrated, and Constituted.*
+*Architecture Locked: 2025-12-23*
