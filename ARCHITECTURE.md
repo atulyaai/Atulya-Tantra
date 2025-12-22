@@ -57,3 +57,28 @@ Actions are no longer parsed from natural language descriptions. Instead, they f
 
 ### 3. Immediate Implementation Goal: The Minimal Living Loop
 Following schema formalization, the system will implement a single-cycle loop where a user input produces a visible, governed output, proving the engine "breathes" before further expansion.
+
+---
+
+## v0.2-E — Observable Evolution Specification
+
+The system operates on a single-cycle repeatable loop designed to show causal improvement over time.
+
+### 1. The Living Loop
+1. **READ**: Load `input/goal.txt`.
+2. **PLAN**: Generate a typed plan to satisfy the goal.
+3. **ACT**: Execute plan and produce `artifacts/response.md`.
+4. **EVALUATE**: Run the Evaluator and save results to `metrics/run_[ID].json`.
+5. **LEARN**: Update `procedural.json` and `memory/evolution.log`.
+6. **REPEAT**: Next run uses memory of the previous score to improve.
+
+### 2. Evaluation Criteria
+| Metric | Threshold | Method |
+| :--- | :--- | :--- |
+| **Clarity** | 0.0 - 1.0 | Check for headings, lists, and short sentences. |
+| **Structure** | Binary | Presence of Intro, Body, Conclusion. |
+| **Redundancy** | < 20% | Repeated phrases or word count inflation. |
+| **Integrity** | Binary | Matches `ARCHITECTURE.md` facts. |
+
+### 3. Goal
+Every run **must** change at least one file in `artifacts/` or `metrics/`.

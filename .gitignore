@@ -49,6 +49,7 @@ models/*.pth
 models/*.safetensors
 logs/
 *.log
+!memory/evolution.log
 
 # Testing
 .pytest_cache/

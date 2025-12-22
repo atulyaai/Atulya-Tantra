@@ -1,0 +1,10 @@
+{
+  "run_id": "001",
+  "score": 0.5,
+  "breakdown": {
+    "clarity": 0.4,
+    "structure": true,
+    "redundancy": 0.5
+  },
+  "delta": "Baseline run. Initial structure established but clarity and redundancy require optimization."
+}
