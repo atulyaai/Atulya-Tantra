@@ -1,0 +1,91 @@
+{
+    "SIMPLE": {
+        "wins": 1,
+        "runs": 4,
+        "avg_score": 0.3
+    },
+    "ANALYTICAL": {
+        "wins": 3,
+        "runs": 6,
+        "avg_score": 0.8833333333333333
+    },
+    "THOROUGH": {
+        "wins": 2,
+        "runs": 2,
+        "avg_score": 1.0
+    },
+    "history": [
+        {
+            "run_at": "2025-12-23T02:05:37.108204",
+            "strategy": "SIMPLE",
+            "score": 0.3,
+            "won": true
+        },
+        {
+            "run_at": "2025-12-23T02:05:37.127327",
+            "strategy": "ANALYTICAL",
+            "score": 0.3,
+            "won": false
+        },
+        {
+            "run_at": "2025-12-23T02:08:45.564882",
+            "strategy": "ANALYTICAL",
+            "score": 1.0,
+            "won": false
+        },
+        {
+            "run_at": "2025-12-23T02:08:45.573631",
+            "strategy": "THOROUGH",
+            "score": 1.0,
+            "won": true
+        },
+        {
+            "run_at": "2025-12-23T02:09:14.205421",
+            "strategy": "SIMPLE",
+            "score": 0.3,
+            "won": false
+        },
+        {
+            "run_at": "2025-12-23T02:09:14.215540",
+            "strategy": "ANALYTICAL",
+            "score": 1.0,
+            "won": true
+        },
+        {
+            "run_at": "2025-12-23T02:09:14.582221",
+            "strategy": "SIMPLE",
+            "score": 0.3,
+            "won": false
+        },
+        {
+            "run_at": "2025-12-23T02:09:14.588991",
+            "strategy": "ANALYTICAL",
+            "score": 1.0,
+            "won": true
+        },
+        {
+            "run_at": "2025-12-23T02:09:19.857672",
+            "strategy": "SIMPLE",
+            "score": 0.3,
+            "won": false
+        },
+        {
+            "run_at": "2025-12-23T02:09:19.872433",
+            "strategy": "ANALYTICAL",
+            "score": 1.0,
+            "won": true
+        },
+        {
+            "run_at": "2025-12-23T02:09:25.287941",
+            "strategy": "ANALYTICAL",
+            "score": 1.0,
+            "won": false
+        },
+        {
+            "run_at": "2025-12-23T02:09:25.296940",
+            "strategy": "THOROUGH",
+            "score": 1.0,
+            "won": true
+        }
+    ]
+}

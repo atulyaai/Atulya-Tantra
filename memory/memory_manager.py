@@ -11,13 +11,20 @@ class MemoryManager:
         self.episodic_path = os.path.join(base_path, "episodic.json")
         self.procedural_path = os.path.join(base_path, "procedural.json")
         self.principle_path = os.path.join(base_path, "principles.json")
+        self.strategy_path = os.path.join(base_path, "strategy_stats.json")
         self.trace_id = "INIT"
         self.logger = logging.getLogger("AtulyaMemory")
         
         # Initialize file-based memory if not exists
-        for path in [self.episodic_path, self.procedural_path]:
+        for path in [self.episodic_path, self.procedural_path, self.strategy_path]:
             if not os.path.exists(path):
-                self.save_json(path, [])
+                default_data = [] if "stats" not in path else {
+                    "SIMPLE": {"wins": 0, "runs": 0, "avg_score": 0.0},
+                    "ANALYTICAL": {"wins": 0, "runs": 0, "avg_score": 0.0},
+                    "THOROUGH": {"wins": 0, "runs": 0, "avg_score": 0.0},
+                    "history": []
+                }
+                self.save_json(path, default_data)
         
         if not os.path.exists(self.principle_path):
             self.save_json(self.principle_path, {
@@ -109,3 +116,30 @@ class MemoryManager:
 
     def get_principles(self):
         return self.load_json(self.principle_path).get("rules", [])
+
+    def get_strategy_stats(self):
+        return self.load_json(self.strategy_path)
+
+    def update_strategy_stats(self, strategy_name, score, won):
+        stats = self.get_strategy_stats()
+        if strategy_name in stats:
+            s = stats[strategy_name]
+            s["runs"] += 1
+            if won:
+                s["wins"] += 1
+            # Rolling average
+            s["avg_score"] = (s["avg_score"] * (s["runs"] - 1) + score) / s["runs"]
+            
+            # Record run history for plateau detection
+            stats["history"].append({
+                "run_at": datetime.now().isoformat(),
+                "strategy": strategy_name,
+                "score": score,
+                "won": won
+            })
+            # Keep history manageable
+            if len(stats["history"]) > 50:
+                stats["history"].pop(0)
+                
+            self.save_json(self.strategy_path, stats)
+            self.log_transition("STRATEGY", "UPDATE", f"{strategy_name} score={score:.2f} won={won}")
