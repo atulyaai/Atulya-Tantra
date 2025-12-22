@@ -5,6 +5,8 @@ from core.sensors.system_sensor import SystemSensor
 from core.sensors.voice_sensor import VoiceSensor, LocalTranscriber
 from core.sensors.vision_sensor import VisionSensor
 from core.knowledge.search_gate import SearchGate
+from core.knowledge.knowledge_brain import KnowledgeBrain
+from core.knowledge.llm_interface import CoreLMInterface
 from core.interpreter import Interpreter
 from core.planner import Planner
 from core.executor import Executor
@@ -47,7 +49,9 @@ class Engine:
         # Phase 1.0D Vision
         self.vision_sensor = VisionSensor(self.manifest, self.governor)
         
-        # Phase K4 Search
+        # Phase K4 Search & Knowledge
+        self.knowledge_brain = KnowledgeBrain()
+        self.core_lm = CoreLMInterface()
         self.search_gate = SearchGate(governor)
         
         # Phase E1: Drift Auditor
@@ -159,6 +163,27 @@ class Engine:
         
         intent, confidence = self.interpreter.classify(input_task)
         self.auditor.record_confidence_event(confidence) # Audit: Baseline Calib
+        
+        # Phase E2/K: Grounded Knowledge Retrieval
+        facts, topic = self.knowledge_brain.query_knowledge(input_task)
+        lm_result = self.core_lm.query(input_task, facts)
+        uncertainty = lm_result["metadata"]["perceived_uncertainty"]
+        
+        # ADR-013: Confidence-Gated Search Trigger
+        if uncertainty > 0.4 or topic == "UNKNOWN":
+            print(f"[ENGINE] Low Confidence / Unknown Topic: Triggering SearchGate...")
+            search_data = self.search_gate.search(input_task, "Knowledge Gap Resolution")
+            if search_data:
+                # Accumulate new facts (E2 Exposure)
+                # Normalize topic: strip leading "Research ", "What is ", etc.
+                target_topic = topic if topic != "UNKNOWN" else input_task
+                for prefix in ["Research ", "What is ", "Verify ", "Search "]:
+                    if target_topic.startswith(prefix):
+                        target_topic = target_topic[len(prefix):]
+                
+                for f_content in search_data["facts"]:
+                    self.knowledge_brain.add_fact(target_topic, 
+                                                f_content, search_data["source"])
         
         should_escalate, risk_signals = self._evaluate_effort(input_task, intent, confidence)
         

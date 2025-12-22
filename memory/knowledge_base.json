@@ -1,0 +1,16 @@
+{
+    "topics": {
+        "Latest RWKV Performance Benchmarks": {
+            "facts": [
+                {
+                    "id": "fact_1766442032_0",
+                    "content": "Information regarding Research Latest RWKV Performance Benchmarks retrieved from official source.",
+                    "source": "https://official-docs.example",
+                    "confidence": 1.0,
+                    "timestamp": 1766442032.4845624,
+                    "ttl": 2592000
+                }
+            ]
+        }
+    }
+}
