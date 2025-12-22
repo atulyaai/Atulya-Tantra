@@ -38,3 +38,22 @@ The system follows a strict sequential cycle:
 ## Observability
 - **System Log**: Centralized, structured record of every transition, safety check, and cognitive event.
 - **Causal Traceability**: Every log line is tagged with a `TraceID`.
+
+---
+
+## Future Roadmap: v0.2 — Typed Action Schema
+
+The v0.2 phase formalizes the interface between the **Planner** and the **Executor** to eliminate ambiguity and enforce safety at the parameter level.
+
+### 1. Typed Action Schema
+Actions are no longer parsed from natural language descriptions. Instead, they follow a structured JSON schema:
+- **`action`**: Verb (e.g., `create_file`).
+- **`params`**: Explicit fields (e.g., `filename`, `content`, `path`).
+- **`description`**: Human-readable intent (Observability only).
+
+### 2. Planner → Executor Contract
+- **Contract Rule**: The Executor rejects any action with missing mandatory parameters.
+- **Resilient Fallback**: When `FAILURE_AVOID` triggers, the Planner must vary the `params` (e.g., different search query) rather than repeating the exact failed configuration.
+
+### 3. Immediate Implementation Goal: The Minimal Living Loop
+Following schema formalization, the system will implement a single-cycle loop where a user input produces a visible, governed output, proving the engine "breathes" before further expansion.
