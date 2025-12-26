@@ -1,11 +1,35 @@
-from tools.file_ops import FileOps
-from tools.search_ops import SearchTool
+import os
 
 class Executor:
     def __init__(self, governor):
         self.governor = governor
-        self.file_ops = FileOps()
-        self.search = SearchTool()
+
+    def _read_file(self, path):
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                return f.read()
+        return "Error: File not found"
+
+    def _write_file(self, path, content):
+        try:
+            with open(path, 'w') as f:
+                f.write(content)
+            return f"Success: File written to {path}"
+        except Exception as e:
+            return f"Error: {str(e)}"
+
+    def _local_search(self, query, path="."):
+        results = []
+        for root, dirs, files in os.walk(path):
+            if "memory" in root or "logs" in root or "__pycache__" in root:
+                continue
+            for file in files:
+                if query.lower() in file.lower():
+                    results.append(os.path.join(root, file))
+        
+        if results:
+            return f"Found relevant files: {', '.join(results)}"
+        return "No local results found. (Web search disabled in v0)"
 
     def _analyze_error(self, log_content):
         # Internalized from legacy Analyzer tool
@@ -28,7 +52,7 @@ class Executor:
         # Dispatch to tools
         if action == "local_search":
             query = params.get("query", "mission")
-            return self.search.local_search(query)
+            return self._local_search(query)
             
         if action == "read_context":
             path = params.get("path")
@@ -39,7 +63,7 @@ class Executor:
                 self.governor.log("ERROR", f"SafePath Violation: {path}")
                 return f"Blocked: {path} is outside SafeZone"
             
-            content = self.file_ops.read_file(path)
+            content = self._read_file(path)
             if "Error" in content:
                 self.governor.log("ERROR", f"ToolError: {content}")
             return f"Read content (Length: {len(content)})" if "Error" not in content else content
@@ -64,7 +88,7 @@ class Executor:
                 self.governor.log("ERROR", f"SafePath Violation: {filename}")
                 return f"Blocked: {filename} is outside SafeZone"
                 
-            res = self.file_ops.write_file(filename, content)
+            res = self._write_file(filename, content)
             if "Error" in res:
                 self.governor.log("ERROR", f"ToolError: {res}")
             return res

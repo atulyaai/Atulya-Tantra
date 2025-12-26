@@ -34,6 +34,19 @@ class TextSensor:
         raw_text = self.input_queue.get()
         if not raw_text:
             return None
+        
+        # F-003 FIX: Input validation and sanitization
+        # Remove null bytes
+        raw_text = raw_text.replace('\x00', '')
+        
+        # Truncate very long inputs (10k char limit)
+        max_length = 10000
+        if len(raw_text) > max_length:
+            raw_text = raw_text[:max_length]
+        
+        # Handle empty after sanitization
+        if not raw_text.strip():
+            return None
             
         is_interrupt = raw_text.startswith("!")
         if is_interrupt:

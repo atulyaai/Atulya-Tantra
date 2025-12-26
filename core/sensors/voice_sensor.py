@@ -16,14 +16,23 @@ class LocalTranscriber:
         Returns (text, confidence).
         In 1.0C-PTT deployment, this calls Whisper-v3-Turbo locally.
         """
+        # F-001 FIX: Silence must be first-class input
         if not audio_data:
-            return None, 0.0
+            return "", 0.0  # Empty string, not None
+        
+        # Check for empty list (silent buffer)
+        if isinstance(audio_data, list) and len(audio_data) == 0:
+            return "", 0.0
             
         # Simulation: Join fragments if it's a list (simulating stream assembly)
         if isinstance(audio_data, list):
-            text = " ".join(audio_data)
+            text = " ".join(str(d) for d in audio_data)
         else:
             text = str(audio_data)
+        
+        # Empty after processing
+        if not text.strip():
+            return "", 0.0
             
         return text, 1.0 
 

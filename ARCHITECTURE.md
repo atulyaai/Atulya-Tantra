@@ -91,9 +91,9 @@ Atulya Tantra is finished building. It is now growing.
 
 ## 📚 Deep Links
 
-- **[ADR Registry](../adr/README.md)**: The 13 Commandments.
-- **[Walkthrough](../archival/walkthrough.md)**: Proof of Life.
-- **[Codebase](../core/)**: The Source.
+- **[ADR Registry](docs/adr/README.md)**: The 13 Commandments.
+- **[Walkthrough](docs/walkthrough.md)**: Proof of Life.
+- **[Codebase](core/)**: The Source.
 
 ---
 *Architecture Locked: 2025-12-23*

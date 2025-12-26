@@ -1,0 +1,104 @@
+{
+  "goals": [
+    {
+      "goal_id": "db9f704a-fbb7-4c68-8d2c-1526cd17272c",
+      "description": "Verify Speech Module",
+      "status": "pending",
+      "created_at": 1766781560.4793472,
+      "last_updated": 1766781560.4793472,
+      "last_action": null,
+      "blocker": null
+    },
+    {
+      "goal_id": "c8b22065-058a-469a-a6f0-97e678d49d1c",
+      "description": "Verify Speech Module",
+      "status": "active",
+      "created_at": 1766781603.8562727,
+      "last_updated": 1766781603.8582795,
+      "last_action": null,
+      "blocker": null
+    },
+    {
+      "goal_id": "810975c6-076d-4a6d-9ab5-9799b632b77c",
+      "description": "Find info about phase h",
+      "status": "pending",
+      "created_at": 1766782734.0152,
+      "last_updated": 1766782734.0152,
+      "last_action": null,
+      "blocker": null
+    },
+    {
+      "goal_id": "7c41e0c6-6468-4e77-9161-2e38751be092",
+      "description": "Find info about phase h",
+      "status": "pending",
+      "created_at": 1766782751.9602683,
+      "last_updated": 1766782751.9602683,
+      "last_action": null,
+      "blocker": null
+    },
+    {
+      "goal_id": "975dffa0-c726-454a-aa72-dc29074a2faf",
+      "description": "Locate the engine source code",
+      "status": "pending",
+      "created_at": 1766782766.4960015,
+      "last_updated": 1766782766.4960015,
+      "last_action": null,
+      "blocker": null
+    },
+    {
+      "goal_id": "46f60d36-2414-4058-aeff-7ef54adb515c",
+      "description": "Locate the engine source code",
+      "status": "pending",
+      "created_at": 1766782779.7203205,
+      "last_updated": 1766782779.7203205,
+      "last_action": null,
+      "blocker": null
+    },
+    {
+      "goal_id": "79f19fc6-8d8a-4007-9e03-b9c0cacb83e5",
+      "description": "Read file test",
+      "status": "pending",
+      "created_at": 1766782797.0910318,
+      "last_updated": 1766782797.0910318,
+      "last_action": null,
+      "blocker": null
+    },
+    {
+      "goal_id": "05c042e1-515f-45de-a892-c7e157d1d37d",
+      "description": "Read file test",
+      "status": "pending",
+      "created_at": 1766782816.438414,
+      "last_updated": 1766782816.438414,
+      "last_action": null,
+      "blocker": null
+    },
+    {
+      "goal_id": "880889a5-22fd-467c-83af-ce76814403e3",
+      "description": "Read file test",
+      "status": "pending",
+      "created_at": 1766782835.902389,
+      "last_updated": 1766782835.902389,
+      "last_action": null,
+      "blocker": null
+    },
+    {
+      "goal_id": "b067314b-383a-46ce-9b6a-51f639ea75e7",
+      "description": "Verify Dashboard Visualization",
+      "status": "pending",
+      "created_at": 1766784023.6419125,
+      "last_updated": 1766784023.6419125,
+      "last_action": null,
+      "blocker": null
+    },
+    {
+      "goal_id": "9cb19036-57ed-48e9-8a63-8a3ff59312f1",
+      "description": "Verify Dashboard Visualization",
+      "status": "pending",
+      "created_at": 1766784040.9136004,
+      "last_updated": 1766784040.9136004,
+      "last_action": null,
+      "blocker": null
+    }
+  ],
+  "version": "1.0"
+}

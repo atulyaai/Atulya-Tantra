@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atulya Tantra - Mission Control</title>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --panel-bg: #161b22;
+            --border-color: #30363d;
+            --text-color: #c9d1d9;
+            --accent-green: #238636;
+            --accent-red: #da3633;
+            --accent-blue: #58a6ff;
+            --font-mono: 'Courier New', Courier, monospace;
+        }
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-mono);
+            margin: 0;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto 1fr auto;
+            gap: 20px;
+            height: 95vh;
+        }
+        header {
+            grid-column: 1 / -1;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        h1 { margin: 0; font-size: 1.5rem; color: var(--accent-blue); }
+        .uptime { font-size: 0.9rem; color: #8b949e; }
+        
+        .panel {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 15px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .panel-header {
+            font-weight: bold;
+            margin-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 5px;
+            color: #8b949e;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+        }
+        
+        #status-indicator {
+            font-size: 2rem;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px 0;
+            color: var(--accent-green);
+        }
+        
+        #active-goal {
+            font-size: 1.1rem;
+            color: var(--text-color);
+            background: #21262d;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .stat-box {
+            background: #21262d;
+            padding: 10px;
+            text-align: center;
+            border-radius: 4px;
+        }
+        .stat-val { font-size: 1.5rem; font-weight: bold; }
+        .stat-label { font-size: 0.7rem; color: #8b949e; }
+        .success { color: var(--accent-green); }
+        .fail { color: var(--accent-red); }
+        
+        #event-feed {
+            flex-grow: 1;
+            overflow-y: auto;
+            font-size: 0.85rem;
+        }
+        .event-item {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-bottom: 1px solid #21262d;
+            display: flex;
+            gap: 10px;
+        }
+        .timestamp { color: #8b949e; width: 70px; flex-shrink: 0; }
+        .type { color: var(--accent-blue); width: 60px; flex-shrink: 0; font-weight: bold; }
+        .payload { white-space: pre-wrap; word-break: break-all; }
+        
+        footer {
+            grid-column: 1 / -1;
+            border-top: 2px solid var(--border-color);
+            padding-top: 10px;
+            text-align: center;
+        }
+        #last-speech {
+            font-size: 1.2rem;
+            color: var(--accent-blue);
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>ATULYA TANTRA // OBSERVABILITY</h1>
+        <div class="uptime" id="clock">00:00:00</div>
+    </header>
+
+    <div class="panel">
+        <div class="panel-header">System Status</div>
+        <div id="status-indicator">OFFLINE</div>
+        <div class="panel-header">Active Goal</div>
+        <div id="active-goal">--</div>
+        
+        <div class="panel-header">Action Ledger</div>
+        <div class="stat-grid">
+            <div class="stat-box">
+                <div class="stat-val success" id="ledger-success">0</div>
+                <div class="stat-label">SUCCESS</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-val fail" id="ledger-fail">0</div>
+                <div class="stat-label">FAILURE</div>
+            </div>
+        </div>
+        
+        <div class="panel-header" style="margin-top: 10px;">Pulse / Idle</div>
+        <div id="pulse-msg" style="color: #8b949e; text-align: center;">Waiting...</div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-header">Live Event Feed</div>
+        <div id="event-feed">
+            <!-- Events populated via JS -->
+        </div>
+    </div>
+
+    <footer>
+        <div class="panel-header">Last Speech</div>
+        <div id="last-speech">...</div>
+    </footer>
+
+    <script>
+        const API_BASE = '/api';
+        
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock').innerText = now.toLocaleTimeString();
+        }
+        setInterval(updateClock, 1000);
+
+        async function fetchStatus() {
+            try {
+                const res = await fetch(`${API_BASE}/status`);
+                const data = await res.json();
+                
+                const ind = document.getElementById('status-indicator');
+                ind.innerText = data.state;
+                ind.style.color = data.state === 'IDLE' ? '#58a6ff' : (data.state === 'THINKING' ? '#e3b341' : '#238636');
+                
+                document.getElementById('active-goal').innerText = data.active_goal || "No Active Goal";
+                document.getElementById('ledger-success').innerText = data.ledger.success;
+                document.getElementById('ledger-fail').innerText = data.ledger.failure;
+                document.getElementById('last-speech').innerText = data.last_speech || "...";
+                document.getElementById('pulse-msg').innerText = data.pulse || "Waiting...";
+                
+            } catch (e) {
+                document.getElementById('status-indicator').innerText = "DISCONNECTED";
+                document.getElementById('status-indicator').style.color = '#da3633';
+            }
+        }
+
+        let lastEventTime = 0;
+        async function fetchEvents() {
+            try {
+                const res = await fetch(`${API_BASE}/events`);
+                const events = await res.json();
+                
+                const container = document.getElementById('event-feed');
+                // Only prepend new events
+                // Simple version: clear and redraw top 20? 
+                // Better: check redundancy. For now, simple render.
+                
+                const html = events.map(e => `
+                    <div class="event-item">
+                        <span class="timestamp">${new Date(e.timestamp * 1000).toLocaleTimeString().split(' ')[0]}</span>
+                        <span class="type">[${e.type.toUpperCase()}]</span>
+                        <span class="payload">${JSON.stringify(e.payload)}</span>
+                    </div>
+                `).join('');
+                
+                if (container.innerHTML !== html) {
+                     container.innerHTML = html;
+                }
+            } catch (e) {}
+        }
+
+        setInterval(fetchStatus, 500);
+        setInterval(fetchEvents, 1000);
+        
+        fetchStatus();
+        fetchEvents();
+    </script>
+</body>
+</html>

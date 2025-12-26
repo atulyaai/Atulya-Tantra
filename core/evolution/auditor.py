@@ -92,3 +92,22 @@ class DriftAuditor:
         if not self.metrics["confidence_history"]:
             return 1.0
         return 1.0 # Baseline for now
+    
+    def audit_knowledge_staleness(self, knowledge_brain=None):
+        """
+        Phase E: Audit knowledge staleness and log metrics.
+        Can be called with or without knowledge_brain reference.
+        """
+        if knowledge_brain:
+            self.audit_knowledge_base(knowledge_brain)
+        
+        staleness_ratio = self.metrics["knowledge_staleness"]["stale_facts"] / (self.metrics["knowledge_staleness"]["total_facts"] or 1)
+        
+        self.logger.info(
+            f"[Staleness Audit] Total: {self.metrics['knowledge_staleness']['total_facts']}, "
+            f"Stale: {self.metrics['knowledge_staleness']['stale_facts']}, "
+            f"Ratio: {staleness_ratio:.2%}"
+        )
+        
+        self.save()
+        return staleness_ratio
