@@ -206,5 +206,5 @@ Atulya Tantra is open-source under the **Apache 2.0 License**.
 We accept **Architectural Proposals (RFCs)** that respect the Constitution.
 
 <div align="center">
-  <sub>Built with ❤️, Discipline, and Rigor by the Advanced Agentic Coding Team</sub>
+  <sub>Built with ❤️, Discipline, and Rigor by the Atulya Tantra Team</sub>
 </div>
