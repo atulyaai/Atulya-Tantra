@@ -13,7 +13,7 @@
   
   *Truth is a structure. Authority is a kernel. Learning is a slow, governed curriculum.*
 
-  [**Explore Architecture**](ARCHITECTURE.md) • [**Read Constitution**](docs/adr/README.md) • [**Verify History**](docs/task_history.md)
+  [**Explore Architecture**](ARCHITECTURE.md) • [**Read Constitution**](docs/adr/README.md) • [**View Roadmap**](ROADMAP.md) • [**Verify History**](docs/task_history.md)
 </div>
 
 ---
