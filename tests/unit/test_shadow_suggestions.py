@@ -28,9 +28,10 @@ class TestShadowSuggestions(unittest.TestCase):
         # Setup mock ledger
         self.mock_ledger.get_success_rate.return_value = 0.9
         
-        msg = self.suggester.generate_suggestion()
+        msg, proposal = self.suggester.generate_suggestion()
         
         self.assertIn("One possible next step is", msg)
+        self.assertIn("foo", msg)
         self.assertIn("search for 'foo'", msg)
         self.assertIn("Confidence: High", msg)
         self.assertIn("Would you like me to do it", msg)
@@ -42,7 +43,7 @@ class TestShadowSuggestions(unittest.TestCase):
         ]
         self.mock_ledger.get_success_rate.return_value = 0.0
         
-        msg = self.suggester.generate_suggestion()
+        msg, proposal = self.suggester.generate_suggestion()
         
         self.assertIn("perform unknown_action", msg)
         self.assertIn("Confidence: Low/Unknown", msg)

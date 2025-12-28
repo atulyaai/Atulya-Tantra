@@ -1,4 +1,12 @@
 {
   "version": "1.0",
-  "activities": []
+  "activities": [
+    {
+      "timestamp": "2025-12-28T21:49:52.826713",
+      "trace_id": "1766938792",
+      "input": "test context engine",
+      "intent": "GENERAL_TASK",
+      "duration_ms": 0
+    }
+  ]
 }

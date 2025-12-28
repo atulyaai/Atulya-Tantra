@@ -16,6 +16,7 @@ from core.goals import GoalManager  # NEW: Persistent goals
 from core.action_ledger import ActionLedger # NEW: Trust Anchor
 from core.shadow_suggestions import ShadowSuggester # NEW: Intuition
 from core.event_bus import bus as event_bus # NEW: Observability
+from core.context_engine import ContextEngine # NEW: Context Awareness (Phase J1)
 import logging
 import uuid
 import os
@@ -75,6 +76,9 @@ class Engine:
         
         # NEW: Shadow Suggester (The Intuition)
         self.shadow_suggester = ShadowSuggester(self.goal_manager, self.planner, self.action_ledger)
+        
+        # NEW: Context Engine (Phase J1 - Proactive Agency)
+        self.context_engine = ContextEngine()
         
         goals = self.goal_manager.load_goals()
         if goals:
@@ -212,7 +216,13 @@ class Engine:
         trace_id = context.get('trace_id', str(int(time.time()))) if context else str(int(time.time()))
         
         # 1. INTENT CLASSIFICATION
+        start_time = time.time()
         intent, confidence = self._classify_intent(input_task)
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        # Log activity for context awareness (Phase J1)
+        self.context_engine.log_activity(input_task, trace_id, intent, duration_ms)
+        
         self.event_bus.emit("status", {"state": "THINKING", "task": input_task, "intent": intent})
         print(f"\n[ENGINE] [{trace_id}] Active: {input_task}")
         
@@ -275,7 +285,9 @@ class Engine:
         is_suggestion_request = any(trigger in normalized_task for trigger in suggestion_triggers)
         
         if is_suggestion_request:
-            msg, proposal = self.shadow_suggester.generate_suggestion()
+            # Get current context for smart suggestions
+            context = self.context_engine.get_context()
+            msg, proposal = self.shadow_suggester.generate_suggestion(context)
             
             # Store Proposal if valid
             if proposal:

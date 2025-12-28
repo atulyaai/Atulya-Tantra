@@ -1501,17 +1501,13 @@
                     "confidence": 1.0,
                     "timestamp": 1766784139.20496,
                     "ttl": 2592000
-                }
-            ]
-        },
-        "Cleanup Verification": {
-            "facts": [
+                },
                 {
-                    "id": "fact_1766785207_0",
-                    "content": "Information regarding Cleanup Verification retrieved from official source.",
+                    "id": "fact_1766786263_1",
+                    "content": "Information regarding System check retrieved from official source.",
                     "source": "https://official-docs.example",
                     "confidence": 1.0,
-                    "timestamp": 1766785207.2569442,
+                    "timestamp": 1766786263.5630152,
                     "ttl": 2592000
                 }
             ]
