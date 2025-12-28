@@ -146,6 +146,12 @@ The system is embodied, but never overwhelmed.
 - **📈 Drift Auditor**: Watches for entropy and strategy bias.
 - **⚔️ Competitive Execution**: Strategies (`SIMPLE`, `ANALYTICAL`) fight for every task.
 
+### 4. Context Awareness (Phase J1 - NEW)
+- **📝 Activity Logging**: Tracks all user inputs with timestamps
+- **⏱️ Idle Detection**: Detects when user is inactive (>30s)
+- **🧠 Pattern Learning**: Identifies frequent commands and topics
+- **💡 Proactive Suggestions**: Context-aware help based on behavior
+
 ---
 
 ## 🏗️ Architecture
