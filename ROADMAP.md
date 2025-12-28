@@ -8,18 +8,29 @@
 
 We have built the **Constitutional Foundation**. The system is stable, observable, and governed. But it's not yet autonomous.
 
-| Capability | Status | Progress |
-| :--- | :--- | :--- |
-| **Constitutional Governance** | ✅ Complete | 100% |
-| **Sensory Embodiment** | ✅ Complete | 100% |
-| **Knowledge Brain** | ✅ Complete | 100% |
-| **Observability** | ✅ Complete | 100% |
-| **Reliability (24h)** | ✅ Verified | 100% |
-| **Proactive Agency** | 🟡 Partial | 40% |
-| **Multi-Modal Reasoning** | 🟡 Partial | 30% |
-| **Long-Term Memory** | 🟡 Basic | 25% |
-| **Self-Improvement** | 🔴 Planned | 10% |
-| **Full Autonomy** | 🔴 Planned | 5% |
+### Progress Overview
+
+```
+Foundation & Reliability:    ████████████████████████████░░ 100% ✅
+Proactive Intelligence:       ████████░░░░░░░░░░░░░░░░░░░░░░  28% 🟡
+Full Autonomy:                ██░░░░░░░░░░░░░░░░░░░░░░░░░░░░   7% 🔴
+                              ────────────────────────────────
+Overall AGI Progress:         ████████████░░░░░░░░░░░░░░░░░░  35%
+```
+
+| Capability | Status | Progress | Blockers |
+| :--- | :--- | :--- | :--- |
+| **Constitutional Governance** | ✅ Complete | 100% | None |
+| **Sensory Embodiment** | ✅ Complete | 100% | None |
+| **Knowledge Brain** | ✅ Complete | 100% | None |
+| **Observability** | ✅ Complete | 100% | None |
+| **Reliability (24h)** | ✅ Verified | 100% | None |
+| **Context Awareness** | 🔴 Not Started | 0% | **← NEXT** |
+| **Proactive Suggestions** | 🟡 Basic | 40% | Needs context |
+| **Multi-Modal Reasoning** | 🟡 Partial | 30% | Fusion layer |
+| **Long-Term Memory** | 🟡 Basic | 25% | Semantic search |
+| **Self-Improvement** | 🔴 Planned | 10% | Retraining pipeline |
+| **Full Autonomy** | 🔴 Planned | 5% | Planning engine |
 
 **Overall Progress**: ~35% toward JARVIS-level AGI
 
@@ -111,27 +122,15 @@ A system that:
 
 ---
 
-### Phase G: Optimization
-**Goal**: Clean and streamline codebase.
+### Phase G-I: Optimization & Documentation
+**Goal**: Clean and document the system.
 
-| Feature | Status | Evidence |
-| :--- | :--- | :--- |
-| Inline redundant modules | ✅ | 3 files removed |
-| Consolidate tests | ✅ | `tests/performance/` |
-| Fix regressions | ✅ | Engine startup verified |
-
-**Completion**: 100%
-
----
-
-### Phase H: Documentation
-**Goal**: Make the system understandable.
-
-| Feature | Status | Evidence |
-| :--- | :--- | :--- |
-| README with examples | ✅ | 3 interaction traces |
-| ARCHITECTURE with metrics | ✅ | Performance benchmarks |
-| Comparison table | ✅ | vs Traditional Agents |
+| Feature | Status |
+| :--- | :--- |
+| Code optimization | ✅ |
+| Documentation overhaul | ✅ |
+| README with examples | ✅ |
+| ARCHITECTURE with metrics | ✅ |
 
 **Completion**: 100%
 
@@ -141,158 +140,175 @@ A system that:
 
 To reach JARVIS-level autonomy, we need:
 
-### Phase J: Proactive Agency (Next Priority)
+### 🎯 **Phase J: Proactive Agency** (NEXT - Target: v1.1)
 **Goal**: System initiates helpful actions without being asked.
 
-| Feature | Status | Target |
-| :--- | :--- | :--- |
-| Context awareness | 🔴 | Detect user state/needs |
-| Proactive suggestions | 🟡 | Shadow suggester (basic) |
-| Task prediction | 🔴 | Learn user patterns |
-| Scheduled actions | 🔴 | Calendar/reminder integration |
+**Current State**: 40% (basic Shadow Suggester exists but lacks context)
 
-**Current**: 40% (basic suggestions only)
-**Needed**: Full context engine, pattern learning
+**What's Missing**:
+
+| Feature | Priority | Complexity | Impact |
+| :--- | :--- | :--- | :--- |
+| **J1: Context Engine** | 🔴 Critical | Medium | High |
+| J2: Activity Tracker | 🟡 High | Low | Medium |
+| J3: Pattern Learner | 🟡 High | High | High |
+| J4: Scheduled Actions | 🟢 Medium | Low | Medium |
+
+**Phase J1 Breakdown** (Immediate Next):
+- [ ] User activity logger (track commands, timestamps)
+- [ ] Idle detection (no input for N seconds)
+- [ ] Focus shift detection (topic changes)
+- [ ] User preference model (JSON store)
+- [ ] Context-aware suggestions (use activity history)
+
+**Success Criteria**:
+- System detects when user is idle (>30s)
+- System suggests relevant actions based on recent activity
+- Suggestions improve over time (learning from approvals)
+
+**Estimated Time**: 2-3 weeks
 
 ---
 
 ### Phase M: Multi-Modal Reasoning
 **Goal**: Combine vision, voice, and text seamlessly.
 
-| Feature | Status | Target |
-| :--- | :--- | :--- |
-| Cross-modal fusion | 🔴 | Unified representation |
-| Visual question answering | 🔴 | "What's in this image?" |
-| Voice-driven workflows | 🔴 | "Show me X and explain Y" |
-| Spatial reasoning | 🔴 | "Where is the button?" |
+**Current State**: 30% (sensors exist but don't collaborate)
 
-**Current**: 30% (sensors exist but don't collaborate)
-**Needed**: Fusion layer, cross-modal attention
+| Feature | Status | Blocker |
+| :--- | :--- | :--- |
+| Cross-modal fusion | 🔴 | Needs fusion layer |
+| Visual question answering | 🔴 | Vision + CoreLM integration |
+| Voice-driven workflows | 🔴 | Multi-turn dialogue |
+| Spatial reasoning | 🔴 | Vision understanding |
+
+**Target**: v1.2 (after J1 complete)
 
 ---
 
 ### Phase L: Long-Term Memory
 **Goal**: Remember conversations, preferences, and history.
 
-| Feature | Status | Target |
+**Current State**: 25% (basic episodic only)
+
+| Feature | Status | Blocker |
 | :--- | :--- | :--- |
 | Conversation history | 🔴 | Persistent dialogue log |
-| User preferences | 🔴 | "I prefer X over Y" |
-| Episodic recall | 🟡 | Basic (no semantic search) |
-| Memory consolidation | 🔴 | Compress old memories |
+| User preferences | 🔴 | Preference engine |
+| Episodic recall | 🟡 | No semantic search |
+| Memory consolidation | 🔴 | Compression algorithm |
 
-**Current**: 25% (basic episodic only)
-**Needed**: Semantic search, preference engine
+**Target**: v1.3 (parallel with M)
 
 ---
 
 ### Phase S: Self-Improvement
 **Goal**: System improves itself autonomously.
 
-| Feature | Status | Target |
-| :--- | :--- | :--- |
-| E3: Model retraining | 🔴 | Fine-tune on verified facts |
-| Strategy mutation | 🔴 | Generate new strategies |
-| Hyperparameter tuning | 🔴 | Auto-optimize thresholds |
-| Code generation | 🔴 | Write new tools |
+**Current State**: 10% (drift detection only)
 
-**Current**: 10% (drift detection only)
-**Needed**: Retraining pipeline, code synthesis
+| Feature | Status | Blocker |
+| :--- | :--- | :--- |
+| E3: Model retraining | 🔴 | Retraining pipeline |
+| Strategy mutation | 🔴 | Code generation |
+| Hyperparameter tuning | 🔴 | Auto-optimization |
+| Code synthesis | 🔴 | LLM-based generation |
+
+**Target**: v1.4-v2.0
 
 ---
 
 ### Phase A: Full Autonomy
 **Goal**: System operates independently for days/weeks.
 
-| Feature | Status | Target |
-| :--- | :--- | :--- |
-| Goal decomposition | 🔴 | Break tasks into subtasks |
-| Multi-day planning | 🔴 | "Finish this by Friday" |
-| Error recovery | 🟡 | Basic (no retry logic) |
-| Resource management | 🔴 | Budget compute/search |
+**Current State**: 5% (basic goal tracking)
 
-**Current**: 5% (basic goal tracking)
-**Needed**: Planning engine, retry logic, budgets
+| Feature | Status | Blocker |
+| :--- | :--- | :--- |
+| Goal decomposition | 🔴 | Planning engine |
+| Multi-day planning | 🔴 | Scheduler |
+| Error recovery | 🟡 | No retry logic |
+| Resource management | 🔴 | Budget system |
+
+**Target**: v2.0+
 
 ---
 
 ## 🎯 The Path to 100% (JARVIS)
 
-### Immediate Next Steps (v1.1 - v1.3)
-**Target**: 50% completion (6 months)
+### **Immediate Next Steps (v1.1) - Phase J1: Context Engine**
+**Target**: 40% → 50% completion (2-3 weeks)
 
-1. **Phase J1: Context Engine** (2 months)
-   - Track user activity patterns
-   - Detect idle time, focus shifts
-   - Build user preference model
+**Week 1: Foundation**
+- [ ] Create `core/context_engine.py`
+- [ ] Implement activity logger (track all user inputs)
+- [ ] Store activity in `memory/activity_log.json`
+- [ ] Add idle timer (detect no input for 30s+)
 
-2. **Phase L1: Conversation Memory** (2 months)
-   - Persistent dialogue history
-   - Semantic search over past conversations
-   - "Remember when we talked about X?"
+**Week 2: Intelligence**
+- [ ] Implement pattern detection (frequent commands)
+- [ ] Build user preference model
+- [ ] Integrate with Shadow Suggester
+- [ ] Context-aware suggestion generation
 
-3. **Phase M1: Visual QA** (2 months)
-   - Vision + CoreLM integration
-   - "What's in this screenshot?"
-   - Basic spatial reasoning
+**Week 3: Verification**
+- [ ] Unit tests for context engine
+- [ ] Integration test: idle → suggestion
+- [ ] Verify learning (suggestions improve)
+- [ ] Update documentation
 
-**Deliverable**: System that remembers you and sees what you see.
-
----
-
-### Mid-Term Goals (v1.4 - v2.0)
-**Target**: 75% completion (12 months)
-
-4. **Phase S1: Model Retraining** (3 months)
-   - Fine-tune CoreLM on Knowledge Brain
-   - Measure quality improvement
-   - Automate retraining pipeline
-
-5. **Phase A1: Multi-Day Planning** (3 months)
-   - Goal decomposition engine
-   - Subtask scheduling
-   - Progress tracking
-
-6. **Phase J2: Proactive Actions** (3 months)
-   - Scheduled reminders
-   - Predictive suggestions
-   - "You usually do X at this time"
-
-**Deliverable**: System that plans ahead and learns from experience.
+**Deliverable**: System that understands user context and suggests relevant actions.
 
 ---
 
-### Long-Term Vision (v2.0+)
-**Target**: 100% completion (24 months)
+### Mid-Term Goals (v1.2-v1.3)
+**Target**: 50% → 65% completion (3-4 months)
 
-7. **Phase S2: Code Synthesis**
-   - Generate new tools on demand
-   - Self-extend capabilities
-   - "I need a tool to do X" → system writes it
+**v1.2: Multi-Modal Reasoning (Phase M1)**
+- Visual QA integration
+- Vision + CoreLM fusion
+- "What's in this image?" capability
 
-8. **Phase A2: Full Autonomy**
-   - Operate independently for weeks
-   - Handle errors gracefully
-   - Manage resources intelligently
+**v1.3: Conversation Memory (Phase L1)**
+- Persistent dialogue history
+- Semantic search over conversations
+- "Remember when we talked about X?"
 
-9. **Phase E3: Continuous Evolution**
-   - Autonomous strategy mutation
-   - Hyperparameter optimization
-   - Self-directed learning
-
-**Deliverable**: True AGI assistant (JARVIS-level).
+**Deliverable**: System that sees, remembers, and understands context.
 
 ---
 
-## 📊 Progress Breakdown
+### Long-Term Vision (v1.4-v2.0)
+**Target**: 65% → 100% completion (12-18 months)
+
+**v1.4: Model Retraining (Phase S1)**
+- Fine-tune CoreLM on Knowledge Brain
+- Automated retraining pipeline
+
+**v1.5: Multi-Day Planning (Phase A1)**
+- Goal decomposition
+- Subtask scheduling
+
+**v2.0: Full Autonomy**
+- Code synthesis
+- Self-directed learning
+- True AGI assistant
+
+---
+
+## 📊 Detailed Progress Breakdown
 
 ```
-Constitutional Foundation (v1.0):     ████████████████████░░░░░░░░░ 35%
-Proactive Agency (v1.1-v1.3):         ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  0% → 15%
-Long-Term Memory (v1.4-v2.0):         ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  0% → 25%
-Self-Improvement (v2.0+):             ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  0% → 25%
-                                      ─────────────────────────────
-Total Progress to JARVIS:             35% → 100%
+v1.0 - Constitutional Foundation:  ████████████████████░░░░░░░░░ 35% ✅
+v1.1 - Context Engine (J1):        ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  0% → 10%
+v1.2 - Visual QA (M1):             ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  0% → 5%
+v1.3 - Memory (L1):                ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  0% → 10%
+v1.4 - Retraining (S1):            ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  0% → 15%
+v1.5 - Planning (A1):              ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  0% → 10%
+v2.0 - Code Synthesis (S2):        ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  0% → 10%
+v2.0+ - Full Autonomy (A2):        ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  0% → 5%
+                                   ─────────────────────────────
+Total Progress to JARVIS:          35% → 100%
 ```
 
 ---
@@ -305,27 +321,56 @@ Total Progress to JARVIS:             35% → 100%
 06:00 - System wakes up, checks calendar
         "You have a meeting at 9 AM. Preparing briefing..."
 
-07:30 - Proactive reminder
+07:30 - Proactive reminder (Context Engine)
         "You usually review emails now. 3 important ones today."
 
-09:00 - Meeting support
+09:00 - Meeting support (Multi-Modal)
         "Detected screen share. Transcribing discussion..."
         "Action item detected: 'Send report by Friday'"
 
-12:00 - Autonomous research
+12:00 - Autonomous research (Knowledge Cycles)
         "You mentioned quantum computing. I researched it.
          Added 12 verified facts to Knowledge Brain."
 
-15:00 - Proactive suggestion
+15:00 - Proactive suggestion (Planning)
         "Your report is due Friday. I can draft an outline
          based on our previous discussions. Approve?"
 
-18:00 - End-of-day summary
+18:00 - End-of-day summary (Memory)
         "Completed 4 tasks. 2 pending. Memory updated.
          Tomorrow: Focus on project X."
 ```
 
 **This is the goal.**
+
+---
+
+## 🚀 How to Start Phase J1 (Context Engine)
+
+### Prerequisites
+- v1.0 system running
+- Basic understanding of event bus
+- Familiarity with Shadow Suggester
+
+### Quick Start
+```bash
+# 1. Create context engine module
+touch core/context_engine.py
+
+# 2. Create activity log storage
+touch memory/activity_log.json
+
+# 3. Run tests
+python -m pytest tests/unit/test_context_engine.py
+
+# 4. Verify integration
+python run_atulya_tantra.py
+```
+
+### Success Metrics
+- Activity log captures 100% of user inputs
+- Idle detection triggers within 1s of threshold
+- Suggestions are contextually relevant (>70% approval rate)
 
 ---
 
@@ -341,8 +386,8 @@ We're at 35%. To reach 100%, we need:
 ---
 
 **Current Status**: Foundation Complete ✅  
-**Next Milestone**: Context Engine (Phase J1)  
+**Next Milestone**: Context Engine (Phase J1) 🎯  
 **Ultimate Goal**: JARVIS-level AGI  
 
-*Roadmap Last Updated: 2025-12-27*  
+*Roadmap Last Updated: 2025-12-28*  
 *Built by the Atulya Tantra Team*
