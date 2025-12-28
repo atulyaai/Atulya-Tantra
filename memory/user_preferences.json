@@ -1,0 +1,9 @@
+{
+    "version": "1.0",
+    "preferences": {
+        "frequent_topics": [],
+        "preferred_actions": {},
+        "idle_threshold": 30,
+        "active_hours": []
+    }
+}
