@@ -221,11 +221,24 @@ We value rigorous honesty. This system has known constraints.
 2.  **Respect the Ledger**: New tools **MUST** return a success/failure boolean. Tools that fail silently are banned.
 3.  **Maintain Silence**: `print()` is forbidden in `core/`. Use `logging` or return strings to the `Engine`.
 
-### How to Add a Tool
-1.  Define a function in `core/logic.py`.
-2.  Register it in the `Executor.tools` dictionary.
-3.  **CRITICAL**: Add it to the `Governor` whitelist in `core/governance.py`.
-4.  Write a test case in `tests/integration/`.
+### The "No-Go" List (Instant Rejection)
+*   ❌ **No `print()` statements**: This destroys the "Silence" axiom.
+*   ❌ **No new pip dependencies**: Unless absolutely critical. We optimize for portability.
+*   ❌ **No "Prompt Hacking"**: Do not try to fix bugs by adding "Please be nice" to the prompt. Fix the logic code instead.
+*   ❌ **No Async without Await**: The 20Hz loop depends on non-blocking I/O.
+
+### Pull Request Policy (The Gate)
+We do not accept "Cleanup" PRs. We accept **Capability** PRs.
+*   **Title**: Must match `[Component] Description`. (e.g., `[Logic] Add grep tool`)
+*   **Trace ID**: You must provide a verified Trace ID in the PR description proving your new code works.
+    *   *Bad*: "Added a tool."
+    *   *Good*: "Added `grep`. Verified in Trace T-173998: `Grep -> Found Match -> Return`."
+
+### How to Add a Tool (The Right Way)
+1.  **Define**: Create the function in `core/logic.py`.
+2.  **Register**: Add to `Executor.tools` dictionary.
+3.  **Allow**: Add to `Governor.whitelist` in `core/governance.py`.
+4.  **Test**: Verified with a `Ritual` run in `main.py`.
 
 ---
 
