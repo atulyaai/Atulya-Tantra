@@ -19,7 +19,7 @@
   •
   <b><a href="#-proof-verified-behaviors">Proofs</a></b>
   •
-  <b><a href="#-canonical-scenarios-rituals">Rituals</a></b>
+  <b><a href="#-agentic-loop">The Loop</a></b>
   •
   <b><a href="#-roadmap-to-wisdom">Roadmap</a></b>
   <br>
@@ -38,10 +38,6 @@ This system is defined by three axioms:
 3.  **Silence over Noise**: An intelligent system does not chatter. It executes.
 
 **JARVIS** is the Agent. **Atulya Tantra** is the Discipline.
-
-<div align="center">
-  <img src="docs/assets/comparison.png" width="100%" alt="Chatbots vs Atulya Tantra">
-</div>
 
 ---
 
@@ -108,6 +104,28 @@ Trace ID: T-BLOCK-991
 
 ---
 
+## 🔄 The Agentic Loop (20Hz)
+
+The system runs on a continuous **Observe-Plan-Govern-Act** cycle, operating at a 20Hz heartbeat.
+
+<div align="center">
+  <img src="docs/assets/agentic_loop.png" width="90%" alt="Agentic Loop">
+</div>
+
+### Cycle Mechanics
+*   **0-5ms (Observe)**: The `SensorOrgan` aggregates signals from File Watchers, Log Streamers, and Input Buffers.
+*   **5-50ms (Plan)**: If a signal exceeds the "Attention Threshold", the `LogicOrgan` wakes up. It asks: *Does this require Action?*
+*   **50-100ms (Govern)**: The `Governor` intercepts the proposed plan. It checks against the Forbidden List and Risk Tier.
+*   **100ms+ (Act)**: If approved, the `Executor` runs the tool chain.
+*   **Post-Act (Reflect)**: The outcome is written to the `ActionLedger`.
+
+**Signal Types:**
+1.  **User Pulse**: Explicit command via CLI or Voice.
+2.  **System Pulse**: Unhandled Exception detected in logs.
+3.  **Evolution Pulse**: Periodic self-check (once per hour).
+
+---
+
 ## 🧪 Canonical Scenarios (The Rituals)
 
 To verify the "Aliveness" of the system, run these rituals.
@@ -129,58 +147,19 @@ To verify the "Aliveness" of the system, run these rituals.
 
 ---
 
-## 🔄 The Agentic Loop (20Hz)
-
-<div align="center">
-  <img src="docs/assets/dashboard.png" width="100%" alt="Cognitive Dashboard">
-</div>
-
-The system runs on a continuous **Observe-Plan-Govern-Act** cycle.
-1.  **Observe**: Sensors capture state changes.
-2.  **Plan**: Logic Organ formulates a strategy.
-3.  **Govern**: Governor vets the strategy.
-4.  **Act**: Executor modifies reality.
-5.  **Reflect**: Brain updates the ledger.
-
----
-
 ## 🚫 Failure Modes & Anti-Goals
 
 We value rigorous honesty. This system has known constraints.
 
 ### Anti-Goals (What We Will Not Do)
-*   We will not prioritize "Personality" over **Utility**.
-*   We will not allow "Silent" file deletions (Traceability is mandatory).
-*   We will not use Cloud APIs for local reflexes (Privacy/Speed).
+*   **No Chatbot UI**: We will not build a React frontend. The terminal is the interface.
+*   **No "Personality" Tuning**: We will not optimize for "friendly" or "sassy". We optimize for "concise".
+*   **No Silent Mods**: The system will never edit a file without leaving a Trace ID in the logs.
 
 ### Known Failure Modes
-*   **Decoder Loop**: Rarely, the local RWKV model may loop on specific tokens. We mitigate this with "Hard Stop" monitoring.
-*   **Context Window**: Extremely large files may be truncated during reading.
-*   **Ambiguity**: Vague commands ("Do something") result in paralysis/questioning, not guessing.
-
----
-
-## 🚀 Getting Started
-
-### 1. Installation
-```bash
-git clone https://github.com/atulyaai/Atulya-Tantra.git
-cd Atulya-Tantra
-pip install -r requirements.txt
-python tools/bootstrap.py
-```
-
-### 2. "Wake" Command (One-Shot)
-Execute a complex task instantly.
-```bash
-python main.py "Scan the core directory and summarize the logic structure"
-```
-
-### 3. "Presence" Mode (Daemon)
-Run as a background service.
-```bash
-python main.py --presence
-```
+*   **Decoder Loop (The "Yapping" Bug)**: Rarely, the local RWKV model may get stuck repeating a token. We mitigate this with a "Hard Stop" circuit that kills the generation after 100 tokens if no stop token is found.
+*   **Gemini Latency**: Complex reasoning trips to the cloud can take 1-2 seconds. The system "freezes" during this thought process.
+*   **Ambiguity Paralysis**: If you say "Do the thing", it will ask "What thing?". It does not guess.
 
 ---
 
@@ -190,19 +169,42 @@ python main.py --presence
   <img src="docs/assets/timeline.png" width="100%" alt="Roadmap">
 </div>
 
-*   **Phase 1: Consolidation** (✅ Complete)
-*   **Phase 2: Autonomy** (✅ Complete)
-*   **Phase 3: Wisdom** (🚧 In Progress) - Reflection & Cost Awareness
-*   **Phase 4: Skynet** (🔮 Future) - Swarm Intelligence & Embodiment
+### ✅ Phase 1: Consolidation (Completed)
+*   Merged 60+ scattered scripts into 5 Organs.
+*   Established standard `main.py` entry point.
+*   Implemented "Decoder Discipline" for local models.
+
+### ✅ Phase 2: Autonomy (Completed)
+*   Closed the Observe-Plan-Act loop.
+*   Implemented `Governor.authorize()` for safety.
+*   Added `TraceID` system for accountability.
+
+### 🚧 Phase 3: Wisdom (In Progress)
+*   **Cost Awareness**: Calculate token cost ($) before executing Cloud queries.
+*   **Reflection**: If Plan A fails, remember it. Don't try Plan A again for the same task.
+*   **Self-Repair**: Ability to parse a Python stacktrace and auto-patch the offending line.
+
+### 🔮 Phase 4: Skynet (Future)
+*   **Swarm Intelligence**: Multiple JARVIS instances sharing a memory pool.
+*   **Docker Embodiment**: Ability to spin up containers for risky tasks.
+*   **Peripheral Control**: Full keyboard/mouse injection for GUI tasks.
 
 ---
 
 ## 🧬 Contributing (The Filter)
 
 **Warning**: This is not a standard Python project. It is an Organism.
-1.  **Do not break the Laws**. Any PR that weakens Governance will be rejected.
-2.  **Respect the Ledger**. New tools must report success/failure.
-3.  **Maintain Silence**. Debug logs go to files, not stdout.
+
+### The 3 Commandments
+1.  **Do Not Break the Laws**: Any PR that weakens the `Governor` or removes a safety check will be rejected immediately.
+2.  **Respect the Ledger**: New tools **MUST** return a success/failure boolean. Tools that fail silently are banned.
+3.  **Maintain Silence**: `print()` is forbidden in `core/`. Use `logging` or return strings to the `Engine`.
+
+### How to Add a Tool
+1.  Define a function in `core/logic.py`.
+2.  Register it in the `Executor.tools` dictionary.
+3.  **CRITICAL**: Add it to the `Governor` whitelist in `core/governance.py`.
+4.  Write a test case in `tests/integration/`.
 
 ---
 
