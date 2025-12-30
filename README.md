@@ -1,77 +1,138 @@
-# JARVIS: Autonomous Agentic Infrastructure (Atulya Tantra)
+# JARVIS (Atulya Tantra)
 
-> **Status**: OPERATIONAL (Autonomous / Controlled)
-> **Version**: 1.0 "Agency"
+> **Autonomous Agentic Infrastructure**
+> *Built on RWKV (Local) & Gemini (Reasoning)*
 
-![JARVIS Architecture](/C:/Users/subli/.gemini/antigravity/brain/dcb56f05-0221-429c-9d95-d4b8e015b17f/jarvis_architecture_blueprint_1767130056116.png)
+![Atulya Tantra Logo](docs/assets/logo.png)
 
-## "The Moment We Stopped Lieing to Ourselves"
+## 🌌 The Vision
 
-Most AI projects are just clever scripts wrapped in a chat interface. We aimed higher. We wanted **Agency**—the ability to think, plan, and act without constant hand-holding.
+**JARVIS** (Just A Rather Very Intelligent System) is not a chatbot. It is an **Autonomous Agent** designed to live on your machine, understand your filesystem, and execute complex tasks without constant supervision.
 
-We didn't just build a chatbot. We built an **Organism**.
-
-### What We Planned vs. What We Built
-
-| Feature | The Plan (Typical Project) | The Reality (JARVIS 1.0) |
-| :--- | :--- | :--- |
-| **Brain** | "Call OpenAI API" | **Multi-Model Cortex**: Local RWKV (Speed) + Gemini (Deep Reasoning). |
-| **Logic** | "If X then Y" scripts | **Dynamic Planner**: The system *invents* its own plans based on intent. |
-| **Safety** | "Trust the prompt" | **Governor Organ**: A dedicated neural circuit that *vetoes* risky actions. |
-| **Memory** | "Save to file" | **Episodic & Procedural Memory**: It remembers *what worked* and learns. |
+Most AI projects stop at "text generation." We pushed through to **Agency**. JARVIS observes, plans, governs its own safety, executes actions, and learns from the results. It is the realization of the *Atulya Tantra* (Incomparable System) philosophy: a machine that serves as an extension of the user's will.
 
 ---
 
-## 🧠 The Agentic Loop: How It Thinks
+## 🏗️ System Architecture
 
-JARVIS doesn't just "reply". It cycles through a cognitive loop 20 times a second.
+JARVIS is engineered to function like a biological entity, consolidated into five core "Organs."
 
-![Agentic Loop](/C:/Users/subli/.gemini/antigravity/brain/dcb56f05-0221-429c-9d95-d4b8e015b17f/jarvis_agentic_loop_1767130077257.png)
+![JARVIS Architecture](docs/assets/architecture.png)
 
-1.  **OBSERVE**: Sensors (Text, Voice, System) capture raw data.
-2.  **PLAN**: The `Logic` organ formulates a strategy (e.g., "I need to search headers first").
-3.  **GOVERN**: The `Governor` checks safety. *Trace ID created.*
-    *   *Low Confidence?* -> **THROTTLE** (Ask User).
-    *   *High Risk?* -> **BLOCK**.
-4.  **ACT**: `Executor` fires tools (`list_files`, `search`, `write`).
-5.  **REFLECT**: Success/Failure is written to the `ActionLedger`.
+### The 5 Organs
+
+1.  **🧠 BRAIN (`core/brain.py`)**
+    *   **Dual-Model Cortex**:
+        *   **RWKV-6 (Local)**: The "Fast System." Handles routine tokens, formatting, and high-speed feedback. Tuned for silence and discipline.
+        *   **Gemini Flash (Cloud)**: The "Deep System." Handles complex reasoning, visual analysis, and creative planning.
+    *   **Role**: Thinking, synthesizing, and speaking.
+
+2.  **📐 LOGIC (`core/logic.py`)**
+    *   **Planner**: Generates dynamic execution strategies. It doesn't use hardcoded scripts; it invents plans based on your intent (e.g., "Analyze the error logs" -> `[List Docs, Read Log, Summarize]`).
+    *   **Executor**: The hands of the system. Equipped with verifying tools (`list_files`, `read_file`, `write_file`, `search`, `delete`).
+
+3.  **🛡️ GOVERNANCE (`core/governance.py`)**
+    *   **The Governor**: A dedicated safety circuit that intercepts *every* action before execution.
+    *   **Policy Brain**: Evaluates risk tiers.
+        *   *Observation* (List/Read) -> **Auto-Approved**.
+        *   *Mutation* (Write/Edit) -> **Traceable**.
+        *   *Destruction* (Delete) -> **High Governance** (Throttles or Blocks based on confidence).
+
+4.  **💾 MEMORY (`core/memory.py`)**
+    *   **Action Ledger**: Records every success and failure. JARVIS remembers what strategies work.
+    *   **Goal Manager**: Tracks hierarchical objectives across sessions.
+    *   **Identity**: Maintains a consistent self-model (`I am JARVIS v1.0...`).
+
+5.  **👁️ SENSORS (`core/sensors.py`)**
+    *   **Multi-Modal Inputs**: Text, Voice (Whisper), and System Events.
+    *   **Orchestrator**: A non-blocking concurrent loop that fuses these signals into a single "Stream of Consciousness."
 
 ---
 
-## ⚡ Quick Start
+## 🔄 The Agentic Loop
 
-The system is now consolidated into a single professional entry point.
+How does JARVIS actually *work*? It runs a continuous 20Hz cognitive cycle:
 
-### 1. Wake the Agent
+![Agentic Loop](docs/assets/agentic_loop.png)
+
+1.  **OBSERVE**: The `SensorOrgan` picks up a signal (e.g., User types "Cleanup the logs").
+2.  **PLAN**: The `LogicOrgan` asks the Brain: *"How do I cleanup logs?"* -> *Plan: List dir, finding .log, delete.*
+3.  **GOVERN**: The plan is sent to the `Governor`.
+    *   *Governor*: "Deleting files is risky. Is confidence high?"
+    *   *Brain*: "Confidence 95%."
+    *   *Governor*: "APPROVED (Trace ID: T-12345)."
+4.  **ACT**: The `Executor` runs `os.remove(...)`.
+5.  **REFLECT**: The result ("Success") is written to the Ledger. Future cleanup tasks will be trusted more.
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+*   Python 3.10+
+*   Git
+*   A Google Gemini API Key
+
+### Installation
+
+1.  **Clone the Repository**
+    ```bash
+    git clone https://github.com/atulyaai/Atulya-Tantra.git
+    cd Atulya-Tantra
+    ```
+
+2.  **Install Dependencies**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+3.  **Bootstrapping (First Run)**
+    This script will download the local RWKV model (~800MB) and set up the models directory.
+    ```bash
+    python tools/bootstrap.py
+    ```
+
+4.  **Configuration**
+    Create a `.env` file in the root directory:
+    ```env
+    GOOGLE_API_KEY=your_gemini_api_key_here
+    ```
+
+### Running JARVIS
+
+**One-Shot Command (CLI Mode)**
+Give JARVIS a single task. It will wake up, execute, and shut down.
 ```bash
-python main.py "Check the models directory"
+python main.py "Check the system logs"
 ```
-*Watch it think, plan, and execute.*
 
-### 2. Presence Mode (Always On)
+**Presence Mode (Daemon)**
+Keep JARVIS running in the background, listening for instructions.
 ```bash
 python main.py --presence
 ```
-*JARVIS runs in the background, monitoring for "Wake Words" and idle pulses.*
 
 ---
 
-## 🛠️ Capabilities (State of the Art)
+## 🛡️ Safety & Governance
 
-*   **FileSystem Agency**: Can intelligently navigate, read, and safe-write files.
-*   **Self-Correction**: If a tool fails, it re-plans. It doesn't crash.
-*   **Decoder Discipline**: We fixed the "Infinity Loop" bug. The model now speaks only when necessary.
-*   **Silence**: No more debug spam. Just pure, clean execution.
+We take AI safety seriously. JARVIS is not a "permissionless" script.
 
-## 🚀 What's Left? (The Road to AGI)
-
-We have crossed the specific threshold of **Autonomy**. The next phase is **Maturation**.
-
-*   [ ] **Reflection with Consequences**: Use the Ledger to *refuse* plans that failed before.
-*   [ ] **Identity Locking**: Immutable core directives.
-*   [ ] **Cost Awareness**: "Is this query worth $0.01?"
-
-> *JARVIS is no longer a project. It is a system with momentum.*
+*   **Filesystem Sandbox**: While JARVIS *can* access your file system, the Governor has a hardcoded "Forbidden List" (e.g., `rm -rf /`, system critical directories).
+*   **Confidence Throttling**: If JARVIS is unsure (Confidence < 60%), it will **refuse** to act and ask for clarification.
+*   **Traceability**: Every action has a unique `Trace ID` (e.g., `T-176713000`). You can grep the logs to see exactly *why* it did something.
 
 ---
-*Built with [RWKV](https://github.com/BlinkDL/RWKV-LM) and [Gemini](https://deepmind.google/technologies/gemini/). Consolidated by Antigravity.*
+
+## 🗺️ Roadmap: Phase 2 (Maturation)
+
+We have achieved **Autonomy**. Now we aim for **Wisdom**.
+
+*   [ ] **Cost Awareness**: "This query will cost $0.02. Is it worth it?"
+*   [ ] **Self-Repair**: If a python script crashes, JARVIS should read the stack trace and patch the code itself.
+*   [ ] **Visual Logic**: Fully integrating the Vision Sensor for "Look at my screen and fix this error" workflows.
+*   [ ] **Identity Locking**: Cryptographically signing the core directive to prevent "jailbreaks."
+
+---
+
+*Consolidated & Engineered by Antigravity*
