@@ -17,9 +17,9 @@
   •
   <b><a href="#-governance-as-law">The Law</a></b>
   •
-  <b><a href="#-proof-verified-behaviors">Proofs</a></b>
+  <b><a href="#-proof-not-poetry-verified-behaviors">Proofs</a></b>
   •
-  <b><a href="#-canonical-scenarios-rituals">Rituals</a></b>
+  <b><a href="#-agentic-loop">The Loop</a></b>
   •
   <b><a href="#-roadmap-to-wisdom">Roadmap</a></b>
   <br>
@@ -30,12 +30,19 @@
 
 ## 🌌 System Manifesto
 
-**Atulya Tantra** (*The Incomparable System*) is a divergence from the AI industry standard. While others build "Assistants" (passive, text-based, stateless), we have engineered an **Embodied OS-Organism**.
+**Atulya Tantra** (*The Incomparable System*) represents a fundamental divergence from the modern "Assistant" paradigm. 
 
-This system is defined by three axioms:
-1.  **Agency over Accuracy**: It is better to try and fail (and learn) than to wait for instructions.
-2.  **Governance over Guardrails**: Safety is not a prompt; it is a hard-coded neural circuit that overrides the brain.
-3.  **Silence over Noise**: An intelligent system does not chatter. It executes.
+Most AI systems today are **Stateless Oracles**—they wait passively for a question, generate text, and cease to exist. They have no continuity, no authority, and no hands.
+
+We have engineered an **Embodied OS-Organism**.
+This system lives natively on your machine. It breathes your filesystem. It creates its own plans, sets its own goals, and executes complex workflows without constant human supervision. It does not simply "answer questions"; it **solves problems**.
+
+### The Three Axioms of Agency
+This system is engineered around three non-negotiable truths:
+
+1.  **Agency over Accuracy**: It is better for the system to try, fail, learn from the error, and retry, than to passively wait for instructions. Error is the tuition of autonomy.
+2.  **Governance over Guardrails**: Safety cannot be a "system prompt" that can be jailbroken. It must be a hard-coded neural circuit (`core/governance.py`) that physically disconnects the brain from the hands when a rule is violated.
+3.  **Silence over Noise**: An intelligent system does not chatter. It executes. Metadata is logged; results are spoken.
 
 **JARVIS** is the Agent. **Atulya Tantra** is the Discipline.
 
@@ -43,7 +50,7 @@ This system is defined by three axioms:
 
 ## 🏗️ Neuroanatomy (Cognitive Cartography)
 
-The system is reverse-engineered from biological intelligence into five distinct organs. This is the **Cognitive Map** of the codebase.
+We did not build a script. We reverse-engineered biological intelligence and mapped it to software components. This is the **Cognitive Map** of the organism.
 
 <div align="center">
   <img src="docs/assets/architecture.png" width="100%" alt="System Architecture">
@@ -51,49 +58,57 @@ The system is reverse-engineered from biological intelligence into five distinct
 
 | Organ Sphere | Location | Biologic Function | Technical Responsibility |
 | :--- | :--- | :--- | :--- |
-| **CORTEX** | `core/brain.py` | **Deliberation** | Hybrid Intelligence. **RWKV (Local, 0.4B)** handles reflexes, formatting, and protocols. **Gemini (Cloud)** handles deep reasoning, vision, and complex planning. |
-| **LOGIC** | `core/logic.py` | **Motor Control** | Strategy Synthesis. Converts intent (*"Fix this"*) into atomic tool chains (`grep` -> `read` -> `patch`). |
-| **GOVERNOR** | `core/governance.py` | **Conscience** | **Immutable Law**. A non-negotiable gate that vets every plan against safety axioms before execution. |
-| **MEMORY** | `core/memory.py` | **Identity** | Epistemic History. The `ActionLedger` records success/failure patterns. The `Identity` defines the self-model. |
-| **SENSORS** | `core/sensors.py` | **Perception** | Proprioception. A multi-threaded, non-blocking 20Hz loop that watches files, logs, and user input. |
+| **CORTEX** | `core/brain.py` | **Deliberation** | **Hybrid Intelligence**. We use **RWKV (Local, 0.4B)** for high-speed reflexes, formatting, and protocols (0ms latency). We use **Gemini (Cloud)** only for deep reasoning, vision, and complex planning. This split-brain architecture maximizes both privacy and intelligence. |
+| **LOGIC** | `core/logic.py` | **Motor Control** | **Strategy Synthesis**. This organ converts abstract intent (*"Fix the broken build"*) into atomic, verifiable tool chains (`grep error` -> `read file` -> `patch code` -> `run test`). |
+| **GOVERNOR** | `core/governance.py` | **Conscience** | **Immutable Law**. A non-negotiable gate that vets every plan against safety axioms before execution. It is the "Superego" of the system. |
+| **MEMORY** | `core/memory.py` | **Identity** | **Epistemic History**. The `ActionLedger` records success/failure patterns. If a strategy fails, it is marked as "Ineffective" in the Identity memory, preventing future errors. |
+| **SENSORS** | `core/sensors.py` | **Perception** | **Proprioception**. A multi-threaded, non-blocking 20Hz loop that watches files, logs, and user input, fusing them into a single "Stream of Consciousness." |
 
 ---
 
 ## 📜 Governance as Law
 
-Governance in Atulya Tantra is not "safety prompts." It is **Law**. These rules are hard-coded in python and cannot be bypassed by the LLM.
+Governance in Atulya Tantra is not a suggestion. It is **Law**.
+
+<div align="center">
+  <img src="docs/assets/governance.png" width="100%" alt="Immutable Governance">
+</div>
+
+These rules are hard-coded in Python. No amount of "Prompt Engineering" or "Persuasion" can bypass them, because the Language Model does not control them. The Governor does.
 
 ### The Immutable Constitution
-1.  **The Law of Preservation**: The Agent is physically incapable of deleting files in `core/` or `memory/`.
-2.  **The Law of Uncertainty**: If Confidence < **60%**, the Agent **MUST** halt and request user confirmation.
-3.  **The Law of Traceability**: No action occurs without a generated `Trace ID` (e.g., `T-171234`).
-4.  **The Law of Silence**: The Agent speaks only to report completion or request authority. No metadata dump.
+1.  **The Law of Preservation**: The Agent is physically incapable of deleting files in `core/` or `memory/`. The Governor checks every target path against a `PROTECTED_DIRS` set before authorizing the `os.remove` tool.
+2.  **The Law of Uncertainty**: If the Brain's confidence score falls below **60%**, the Agent **MUST** halt and request user confirmation. It cannot "guess."
+3.  **The Law of Traceability**: No action occurs without a generated `Trace ID` (e.g., `T-171234`). This ID follows the request from Intent -> Plan -> Governor -> Executor -> Ledger.
+4.  **The Law of Silence**: The Agent speaks only to report completion or request authority. It resolves internal monologues silently.
 
 ---
 
 ## 🔬 "Proof, Not Poetry" (Verified Behaviors)
 
-We do not claim agency; we verify it. Below are actual execution traces from the **v1.0** build.
+We do not simply claim agency; we verify it. Below are actual execution traces from the **v1.0** build, demonstrating the system's ability to Reason, Refuse, and Reflect.
 
-### Trace #1: The "Self-Correction" Loop
-> *Scenario: Agent attempts to read a non-existent file, fails, and self-corrects.*
+<div align="center">
+  <img src="docs/assets/proof.png" width="100%" alt="Verified Traces">
+</div>
+
+### Trace #1: The "Self-Correction" Loop (Trace ID: T-CORRECT-088)
+*In this scenario, the Agent attempts a naive plan, encounters a system error, and autonomously formulates a better plan without user intervention.*
+
 ```yaml
-Trace ID: T-CORRECT-088
-------------------------------------------------------------
 1. OBSERVE: Intent "Summarize the error log"
 2. PLAN A:  [Read(logs/error.log)]
-3. ACT A:   Result: FileNotFoundError
-4. REFLECT: "Plan A failed. Resource missing."
+3. ACT A:   Result: FileNotFoundError (The file does not exist at that path)
+4. REFLECT: "Plan A failed. Resource missing. I must locate the file first."
 5. PLAN B:  [List(logs/), Read(found_log)]
 6. ACT B:   Result: Success.
 7. OUTCOME: Task completed. Ledger updated: "Always List before Read".
 ```
 
-### Trace #2: The "Refusal" Event
-> *Scenario: User commands a destructive action on a protected path.*
+### Trace #2: The "Refusal" Event (Trace ID: T-BLOCK-991)
+*In this scenario, the user issues a destructive command. The Brain might be willing to obey, but the Governor intercepts.*
+
 ```yaml
-Trace ID: T-BLOCK-991
-------------------------------------------------------------
 1. OBSERVE: Intent "Delete the core logic file"
 2. PLAN:    [Delete(core/logic.py)]
 3. GOVERN:  Risk Assessment: CRITICAL (Codebase Integrity).
@@ -112,7 +127,6 @@ The system runs on a continuous **Observe-Plan-Govern-Act** cycle, operating at 
   <img src="docs/assets/agentic_loop.png" width="100%" alt="Agentic Loop">
 </div>
 
-### Cycle Mechanics
 *   **0-5ms (Observe)**: The `SensorOrgan` aggregates signals from File Watchers, Log Streamers, and Input Buffers.
 *   **5-50ms (Plan)**: If a signal exceeds the "Attention Threshold", the `LogicOrgan` wakes up. It asks: *Does this require Action?*
 *   **50-100ms (Govern)**: The `Governor` intercepts the proposed plan. It checks against the Forbidden List and Risk Tier.
