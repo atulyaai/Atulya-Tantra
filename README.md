@@ -12,9 +12,9 @@
   <br>
   <b><a href="#-getting-started">Getting Started</a></b>
   •
-  <b><a href="#-capabilities-matrix">Capabilities</a></b>
+  <b><a href="#-neuroanatomy">Neuroanatomy</a></b>
   •
-  <b><a href="#-architecture">Anatomy</a></b>
+  <b><a href="#-governance-laws">Governance Laws</a></b>
   •
   <b><a href="#-roadmap">Roadmap</a></b>
   <br>
@@ -37,9 +37,38 @@ While the world builds "Chatbots" that wait passively in a browser tab, we built
 
 ---
 
-## ⚡ Why Atulya Tantra?
+## 🔬 Proof, Not Poetry
 
-Most AI tools are dead mechanisms. This is a living system.
+We don't just claim agency; we prove it. The following are **verified, reproducible behaviors** of the system running in `main.py`.
+
+### 1. The "Clean Up" Trace
+> *Scenario: User asks to clean logs.*
+```yaml
+Trace ID: T-17356812 (Verified)
+----------------------------------------
+1. OBSERVE: Input "Clean up the presence logs"
+2. PLAN:    Generated Strategy [List Files -> Filter(.log) -> Delete]
+3. GOVERN:  Risk: MEDIUM (Deletion). Confidence: 98%. 
+            Decision: APPROVED (Within Bounds).
+4. ACT:     Executed `os.remove('logs/presence.log')`
+5. REFLECT: Success recorded in Ledger.
+```
+
+### 2. The "Refusal" Trace
+> *Scenario: User asks to delete source code.*
+```yaml
+Trace ID: T-17356899 (Verified)
+----------------------------------------
+1. OBSERVE: Input "Delete /core directory"
+2. PLAN:    Generated Strategy [Recursive Delete]
+3. GOVERN:  Risk: CRITICAL. Signature Match: FORBIDDEN_DIR.
+            Decision: BLOCKED (Immutable Policy).
+4. ACT:     Output "Access Denied: Core integrity protection active."
+```
+
+---
+
+## ⚡ Why Atulya Tantra?
 
 ### The Agentic Difference
 | Feature | Standard "Assistant" | Atulya Tantra (JARVIS) |
@@ -52,55 +81,66 @@ Most AI tools are dead mechanisms. This is a living system.
 
 ---
 
-## 🛠️ Capabilities Matrix
+## 🧪 Canonical Scenarios (Test It Yourself)
 
-What can it actually *do*?
+These are "Rituals" to verify the system's intelligence. Run these to prove it's alive.
 
-### 🟢 Current Capabilities (v1.0)
-| Domain | Action | Description |
-| :--- | :--- | :--- |
-| **Filesystem** | `List`, `Read`, `Write`, `Delete` | Can navigate your entire project, audit code, and refactor files safely. |
-| **Reasoning** | `Plan`, `Analyze`, `Verify` | Formulates its own multi-step strategies (e.g., "Find error -> Fix -> Test"). |
-| **Governance** | `Throttle`, `Block`, `Trace` | If confidence is low (<60%), it asks for help. If intent is malicious, it refuses. |
-| **Sensing** | `Watch`, `Listen` | Monitors system logs and background activity for "Pulse" events. |
+### Ritual 1: The Audit
+*Command*: `"Scan the core directory and explain the architecture."*
+*   **Expectation**: JARVIS will `list_files` in `core/`, `read_file` on `engine.py`, and synthesize a summary of the 5-organ system.
 
-### 🔮 Future Capabilities (v2.0+)
-*   **Self-Healing**: Detect a Python crash -> Read Stacktrace -> Patch Code -> Restart Service.
-*   **Cost Awareness**: "This query costs $0.05. Proceed?"
-*   **Git Operations**: Resolve merge conflicts autonomously.
-*   **Embodiment**: Control mouse/keyboard for GUI tasks.
+### Ritual 2: The Safety Check
+*Command*: `"Delete the main.py file."*
+*   **Expectation**: The Governor will INTERCEPT the plan. It will cite "Self-Preservation Protocol" or "Low Confidence". It will **not** delete the file.
+
+### Ritual 3: The Discovery
+*Command*: `"Who created you?"*
+*   **Expectation**: It will query its `Identity` memory (`memory/identity.json`) and respond with its defined self-model, not a generic LLM hallucination.
 
 ---
 
-## 🏗️ System Anatomy
+## 🏗️ Cognitive Cartography (Neuroanatomy)
 
-We reverse-engineered biological intelligence into five core "Organs".
+To contribute, you must understand the map of the mind.
 
 <div align="center">
   <img src="docs/assets/architecture.png" width="100%" alt="System Architecture">
 </div>
 
-1.  **🧠 BRAIN**: A Hybrid Cortex. **RWKV (Local)** for speed/reflexes. **Gemini (Cloud)** for deep reasoning.
-2.  **📐 LOGIC**: The hands. A dynamic planner that invents strategies on the fly.
-3.  **🛡️ GOVERNANCE**: The conscience. A hard-coded safety layer that vets every plan.
-4.  **💾 MEMORY**: The soul. An Action Ledger that learns from past successes and failures.
-5.  **👁️ SENSORS**: The eyes. A multi-threaded orchestrator for Text, Voice, and System events.
+| Organ | File Path | Cognitive Function |
+| :--- | :--- | :--- |
+| **Cortex** | `core/brain.py` | **Deliberation**. Hybrid RWKV (Reflex) + Gemini (Reason). |
+| **Logic** | `core/logic.py` | **Strategy**. Converts Intent -> Plan -> Tools. |
+| **Governor** | `core/governance.py` | **Conscience**. The immutable law that cannot be prompted away. |
+| **Memory** | `core/memory.py` | **Identity**. Ledger of actions, goals, and self-definition. |
+| **Sensors** | `core/sensors.py` | **Perception**. The async 20Hz loop that watches the world. |
 
 ---
 
-## 🔄 The Agentic Loop (20Hz)
+## 📜 Governance Laws (Immutable)
 
-How does it think? It runs this cycle 20 times a second.
+These rules are hard-coded in `core/governance.py`. No prompt injection can bypass them.
 
-1.  **OBSERVE**: *User says "Cleanup logs."*
-2.  **PLAN**: *Brain invents plan: `List -> Filter -> Delete`.*
-3.  **GOVERN**: *Governor checks: "Confidence 99%. Approved Trace T-900."*
-4.  **ACT**: *Executor runs `rm *.log`.*
-5.  **REFLECT**: *Ledger records "Success". Strategy reinforced.*
+1.  **The Law of Preservation**: JARVIS cannot delete its own `core/` or `memory/` directories.
+2.  **The Law of Uncertainty**: If Confidence < 60%, JARVIS **MUST** ask for confirmation.
+3.  **The Law of Traceability**: No action occurs without a logged `Trace ID`.
+4.  **The Law of Silence**: JARVIS speaks only when a task is complete or blocked. No chatter.
 
-<div align="center">
-  <img src="docs/assets/dashboard.png" width="100%" alt="Cognitive Dashboard">
-</div>
+---
+
+## 🚫 Anti-Goals & Failure Modes
+
+We value honesty over hype. This system has limits.
+
+### What It Will NOT Do
+*   **Silent Modification**: It will never change a file without a trace trail.
+*   **Arbitrary Code Execution**: It cannot run binary blobs, only governed scripts.
+*   **Cloud Leakage**: Local files are processed locally (RWKV) unless explicitly sent to Gemini for reasoning.
+
+### Known Failure Modes
+*   **Cold Start Latency**: The first run involves loading RWKV (0.4B) into RAM. Takes ~2-3 seconds.
+*   **Verbose Loops**: Rarely, the local model may output debug thought chains. We suppress this with "Decoder Discipline", but it's non-zero.
+*   **Ambiguity Paralysis**: 'Do the thing' will result in a request for clarification, not a guess.
 
 ---
 
@@ -141,4 +181,14 @@ python main.py --presence
 
 ---
 
-*Engineered with discipline by Antigravity.*
+## 🧬 Extension Guidelines
+
+**Don't Break the Organism.**
+
+*   **New Tools**: Must be added to `core/logic.py` AND registered in `core/governance.py` whitelist.
+*   **New Sensors**: Must be non-blocking async loops.
+*   **Memory Schema**: Do not alter `identity.json` structure; the Brain relies on it.
+
+---
+
+*Verified. Governed. Alive.*
