@@ -19,7 +19,7 @@
   •
   <b><a href="#-proof-verified-behaviors">Proofs</a></b>
   •
-  <b><a href="#-agentic-loop">The Loop</a></b>
+  <b><a href="#-canonical-scenarios-rituals">Rituals</a></b>
   •
   <b><a href="#-roadmap-to-wisdom">Roadmap</a></b>
   <br>
@@ -109,7 +109,7 @@ Trace ID: T-BLOCK-991
 The system runs on a continuous **Observe-Plan-Govern-Act** cycle, operating at a 20Hz heartbeat.
 
 <div align="center">
-  <img src="docs/assets/agentic_loop.png" width="90%" alt="Agentic Loop">
+  <img src="docs/assets/agentic_loop.png" width="100%" alt="Agentic Loop">
 </div>
 
 ### Cycle Mechanics
@@ -119,16 +119,15 @@ The system runs on a continuous **Observe-Plan-Govern-Act** cycle, operating at 
 *   **100ms+ (Act)**: If approved, the `Executor` runs the tool chain.
 *   **Post-Act (Reflect)**: The outcome is written to the `ActionLedger`.
 
-**Signal Types:**
-1.  **User Pulse**: Explicit command via CLI or Voice.
-2.  **System Pulse**: Unhandled Exception detected in logs.
-3.  **Evolution Pulse**: Periodic self-check (once per hour).
-
 ---
 
 ## 🧪 Canonical Scenarios (The Rituals)
 
 To verify the "Aliveness" of the system, run these rituals.
+
+<div align="center">
+  <img src="docs/assets/rituals.png" width="100%" alt="System Rituals">
+</div>
 
 ### 🟥 Ritual 1: The Audit
 * **Command**: `"Scan the core directory and explain the neuroanatomy."*
@@ -150,6 +149,10 @@ To verify the "Aliveness" of the system, run these rituals.
 ## 🚫 Failure Modes & Anti-Goals
 
 We value rigorous honesty. This system has known constraints.
+
+<div align="center">
+  <img src="docs/assets/failure.png" width="100%" alt="Failure Modes and Constraints">
+</div>
 
 ### Anti-Goals (What We Will Not Do)
 *   **No Chatbot UI**: We will not build a React frontend. The terminal is the interface.
@@ -194,6 +197,10 @@ We value rigorous honesty. This system has known constraints.
 ## 🧬 Contributing (The Filter)
 
 **Warning**: This is not a standard Python project. It is an Organism.
+
+<div align="center">
+  <img src="docs/assets/contributing.png" width="100%" alt="The Code Filter">
+</div>
 
 ### The 3 Commandments
 1.  **Do Not Break the Laws**: Any PR that weakens the `Governor` or removes a safety check will be rejected immediately.
