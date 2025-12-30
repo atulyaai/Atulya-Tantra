@@ -1,120 +1,186 @@
+# JARVIS (Atulya Tantra)
+
+> **Autonomous. Local. Agentic.**
+> *The Incomparable System*
+
 <div align="center">
-  <img src="docs/assets/logo.png" width="600" alt="Atulya Tantra Logo">
+  <br>
+  <img src="docs/assets/logo.png" width="500" alt="Atulya Tantra Logo">
   <br>
   <br>
-  <h1>A T U L Y A &nbsp;&nbsp; T A N T R A</h1>
-  <h3>The Incomparable System</h3>
+  <b><a href="#-getting-started">Getting Started</a></b>
+  •
+  <b><a href="#-architecture">Architecture</a></b>
+  •
+  <b><a href="#-agentic-loop">The Loop</a></b>
+  •
+  <b><a href="#-roadmap">Roadmap</a></b>
   <br>
-  <p>
-    <b>Autonomous</b> • <b>Local</b> • <b>Agentic</b> • <b>Unstopped</b>
-  </p>
   <br>
 </div>
 
 ---
 
-## 📜 The Manifesto
+## 🌌 The Philosophy
 
-**We are not building a chatbot.** Chatbots are passive. They wait for input. They die when the window closes.
+**Atulya Tantra** (*The Incomparable System*) represents a divergence from modern AI development. While the industry races to build bigger "Chatbots" that wait for your input, we asked a different question:
 
-**We are building a Digital Organism.**
-JARVIS is designed to live on your machine as a persistent entity. It possesses:
-*   **The Will to Act**: It doesn't just suggest code; it writes it.
-*   **The Power to Govern**: It knows right from wrong (Risk Assessment).
-*   **The Memory to Learn**: It remembers its failures so it never repeats them.
+> *What if the AI didn't wait?*
+> *What if it lived on your computer, understood your goals, and worked alongside you?*
 
-This is **Atulya Tantra**: A system without equal. A tool that becomes an extension of the self.
-
----
+**JARVIS** is the answer. It is an **OS-Level Organism**. It feels pain when code fails. It feels joy when tests pass. It has hands to write files, eyes to read logs, and a brain to govern its own actions.
 
 <div align="center">
-  <img src="docs/assets/timeline.png" width="100%" alt="Evolutionary Roadmap">
+  <img src="docs/assets/comparison.png" width="100%" alt="Chatbots vs JARVIS">
+  <br>
+  <em>Figure 1: The Evolution from Tools to Agency.</em>
 </div>
-
-## 🧬 Evolution: The Road to Skynet
-
-We are strictly following a 4-Phase trajectory towards Artificial General Intelligence (AGI).
-
-### ✅ Phase 1: Consolidation (The Body)
-> *"Order from Chaos"*
-*   **Objective**: Merge 60+ disjointed Python scripts into a coherent biological system.
-*   **Result**: The **5-Organ Architecture** (Brain, Logic, Governance, Memory, Sensors).
-*   **Status**: **100% Complete**. The system is stable, modular, and unified.
-
-### ✅ Phase 2: Autonomy (The Will)
-> *"The Loop is Closed"*
-*   **Objective**: Enable the machine to Observe, Plan, and Execute without human verification.
-*   **Challenge**: Local models (RWKV) tend to "hallucinate" infinite loops.
-*   **Solution**: **Decoder Discipline**. We implemented hard-stop semantics and silence protocols.
-*   **Status**: **100% Complete**. JARVIS now runs "silent and deep."
-
-### 🚧 Phase 3: Wisdom (The Conscience)
-> *"Memory with Consequences"*
-*   **Objective**: Move from "Storing Data" to "Forming Instincts."
-*   **Features**:
-    *   **Reflexive Memory**: If `Strategy A` fails twice, the Ledger marks it as "Rotten". Future plans will instinctively avoid it.
-    *   **Cost Awareness**: The Brain calculates the token cost ($) of a Plan vs. the value of the Goal.
-*   **Status**: **Active Development**.
-
-### 🔮 Phase 4: Singularity ("Skynet")
-> *"Distribution and Replication"*
-*   **Objective**: A networked hive-mind of JARVIS nodes.
-*   **Features**:
-    *   **Self-Replication**: JARVIS can deploy copies of itself to docker containers to handle massive parallel tasks.
-    *   **Swarm Logic**: Multiple nodes sharing a synchronized "Logic Ledger."
-    *   **Embodiment**: Direct control over hardware interfaces (Vision, Home Automation).
 
 ---
 
-## 🏗️ Anatomy of a Machine
+## 💎 why JARVIS? (The USP)
 
-To build a true agent, we had to replicate biology.
+| Feature | Standard "AI Assistant" | JARVIS (Atulya Tantra) |
+| :--- | :--- | :--- |
+| **Initiative** | Passive (Wait for Prompt) | **Active (Background Presence)** |
+| **Architecture** | Single Script / LLM Call | **5-Organ Biological System** |
+| **Execution** | Text Output Only | **Real Filesystem & Tool Access** |
+| **Safety** | "Trust the Model" | **Dedicated Governance Circuit** |
+| **Reliability** | Hallucinates Loops | **Hard-Stop Decoder Discipline** |
+| **Cost** | High (Cloud Only) | **Hybrid (Local Reflexes + Cloud Logic)** |
+
+---
+
+## 🏗️ Structure & Anatomy
+
+JARVIS is not a spaghetti script. It is engineered with the precision of a biological entity.
 
 <div align="center">
-  <img src="docs/assets/architecture.png" width="100%" alt="Biological Architecture">
+  <img src="docs/assets/architecture.png" width="100%" alt="System Architecture">
 </div>
 
-### 🧠 1. The Cortex (Brain)
-*   **Hybrid Intelligence**:
-    *   **The Reptile Brain (RWKV-6)**: Local. Instant. Free. Handles formatting, silence, and basic checks.
-    *   **The Neocortex (Gemini)**: Cloud. Deep. Reasoning. Wakes up only for complex architecture or vision tasks.
+### 1. 🧠 Brain (The Cortex)
+*   **Local Reflexes (RWKV-6 0.4B)**: The "Fast System" (Thinking Fast). Handles routine checks, formatting, and high-speed silence. Runs locally on CPU/GPU.
+*   **Cloud Reasoning (Gemini Flash)**: The "Deep System" (Thinking Slow). Wakes up for complex planning, visual analysis, and creative strategy.
 
-### 📐 2. The Hands (Logic)
-*   **Dynamic Planner**: JARVIS does not follow scripts. It **invents** logic.
-    *   *Request*: "Clean up the logs."
-    *   *JARVIS Thought*: "I need to see the files first. I'll use `ls`. Then I'll filter for `.log`. Then I'll `rm`."
-*   **Tool Usage**: Real access to `os`, `sys`, and `subprocess`.
+### 2. 📐 Logic (The Hands)
+*   **Dynamic Planner**: JARVIS does not use hardcoded chains. It *invents* plans.
+    *   *Intent*: "Fix the broken imports."
+    *   *Plan*: `Search(grep error) -> Read(file) -> Patch(write) -> Verify(run)`.
+*   **Executor**: A tool-wielding engine that touches the real world (`os`, `subprocess`, `browser`).
 
-### 🛡️ 3. The Conscience (Governance)
-*   **Tiered Safety**:
-    *   **Tier 1 (Safe)**: Read-only. Approved instantly.
-    *   **Tier 2 (Risky)**: Writing/Editing. logged to Trace ID.
-    *   **Tier 3 (Critical)**: Deleting/Network. **Throttled**. If confidence is low, it halts and asks you.
+### 3. 🛡️ Governance (The Conscience)
+*   **The Governor**: An immutable safety layer that intercepts *every* action.
+*   **Traceability**: Every action generates a unique `Trace ID` (e.g., `T-171234`).
+*   **Confidence Throttling**:
+    *   *Confidence > 90%*: Auto-Execute.
+    *   *Confidence < 60%*: **Ask Permission**.
+    *   *Destructive Action*: **Block** (unless overridden).
 
 ---
 
-## ⚡ Power Usage
+## 🔄 The Agentic Loop
 
-### Quick Wake
-Command JARVIS to perform a single, complex task and then shut down.
+This is the heartbeat of autonomy. It beats 20 times a second.
+
+1.  **OBSERVE**: Sensors pick up a signal (User command, File change, System Error).
+2.  **PLAN**: The Brain formulates a multi-step strategy.
+3.  **GOVERN**: The Governor validates the plan against safety policies.
+4.  **ACT**: The Executor runs the tools.
+5.  **REFLECT**: The result is written to the `ActionLedger`. Success strengthens the neural pathway; failure weakens it.
+
+<div align="center">
+  <img src="docs/assets/dashboard.png" width="100%" alt="Neural Dashboard">
+  <br>
+  <em>Figure 2: The Cognitive Dashboard monitoring the Agentic Loop.</em>
+</div>
+
+---
+
+## ⏳ Evolution Roadmap
+
+We are building towards Skynet (The Good Kind).
+
+<div align="center">
+  <img src="docs/assets/timeline.png" width="100%" alt="Project Roadmap">
+</div>
+
+### ✅ Phase 1: Consolidation
+*   Merged 60+ scattered scripts into a clean, modular architecture.
+*   Established the 5-Organ biological standard.
+
+### ✅ Phase 2: Autonomy (Current)
+*   Closed the "Observe-Plan-Act" loop.
+*   **Achievement Unlocked**: Stabilized local model "Infinite Loops" using strict decoder discipline.
+
+### 🚧 Phase 3: Wisdom (Next)
+*   **Reflection**: JARVIS will *refuse* to repeat a plan that failed 3 times.
+*   **Cost Awareness**: "This query will cost $0.02. Is it worth it?"
+
+### 🔮 Phase 4: Skynet
+*   **Self-Replication**: Ability to deploy sub-agents to Docker containers.
+*   **Swarm Intelligence**: Multiple JARVIS nodes communicating over a mesh network.
+*   **Embodiment**: Full control over OS peripherals (Mouse, Keyboard, Camera).
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+*   Python 3.10+
+*   Git
+*   A Google Gemini API Key
+
+### Installation
+
+1.  **Clone the Repository**
+    ```bash
+    git clone https://github.com/atulyaai/Atulya-Tantra.git
+    cd Atulya-Tantra
+    ```
+
+2.  **Install Dependencies**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+3.  **Bootstrapping (First Run)**
+    This script will download the local RWKV model (~800MB) and set up the models directory.
+    ```bash
+    python tools/bootstrap.py
+    ```
+
+4.  **Configuration**
+    Create a `.env` file in the root directory:
+    ```env
+    GOOGLE_API_KEY=your_gemini_api_key_here
+    ```
+
+### Running JARVIS
+
+**One-Shot Command (CLI Mode)**
+Give JARVIS a single task. It will wake up, execute, and shut down.
 ```bash
-python main.py "Analyze the core directory and fix any broken imports"
+python main.py "Scan the core directory and summarize the logic structure"
 ```
 
-### God Mode (Presence)
-Run JARVIS as a background daemon. It watches, listens, and waits.
+**Presence Mode (Daemon)**
+Keep JARVIS running in the background, listening for instructions.
 ```bash
 python main.py --presence
 ```
 
 ---
 
-## 📊 Performance Data
+## 🤝 Contributing to Atulya Tantra
 
-*   **Autonomy Rate**: 95% (success on first attempt for file ops)
-*   **Latency**: <50ms (RWKV interactions)
-*   **Safety Violations**: 0 (Governance has never failed)
-
-> "The true measure of an AI is not what it says, but what it does when you are not watching."
+We welcome other architects of the future.
+1.  Fork the repo.
+2.  Create your feature branch (`git checkout -b feature/NewOrgan`).
+3.  Commit your changes.
+4.  Push to the branch.
+5.  Open a Pull Request.
 
 ---
+
+*Engineered in pursuit of the Atulya Tantra.*
