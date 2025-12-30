@@ -35,6 +35,7 @@ class Governor:
     """Safety and authorization layer."""
     def __init__(self):
         self.forbidden = ["rm -rf /", "format", "shutdown", "del /s /q C:\\"]
+        self.protected_paths = ["core", "memory", "docs", "main.py"]
         self.policy_brain = PolicyBrain()
     def set_trace_id(self, trace_id):
         self.trace_id = trace_id
@@ -43,7 +44,18 @@ class Governor:
         return f"T-{int(time.time()*1000)}"
 
     def authorize(self, action: str, context: Dict = None) -> bool:
+        # 1. Broad Shell Prohibitions
         if any(f in action for f in self.forbidden): return False
+        
+        # 2. Path-Based Preservation (Constitutional Law)
+        # Check if action targets a protected path
+        action_lower = action.lower()
+        if "delete" in action_lower or "remove" in action_lower or "write" in action_lower:
+             if any(p in action_lower for p in self.protected_paths):
+                 # Allow updates if explicitly authorized, but block destructive by default
+                 if "delete" in action_lower or "remove" in action_lower:
+                     return False # BLOCKED: Law of Preservation
+
         decision, is_auto = self.policy_brain.evaluate(action, context or {})
         return decision == "ALLOW"
 
