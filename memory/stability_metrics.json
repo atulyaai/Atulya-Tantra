@@ -1,26 +1,4 @@
 {
-  "confidence_history": [
-    [
-      1766441515.2867005,
-      0.7
-    ],
-    [
-      1766441516.3315659,
-      0.7
-    ],
-    [
-      1766441517.35876,
-      0.7
-    ]
-  ],
-  "strategy_stats": {
-    "SIMPLE": 0,
-    "ANALYTICAL": 3,
-    "CRITICAL": 0
-  },
-  "knowledge_staleness": {
-    "total_facts": 0,
-    "stale_facts": 0
-  },
-  "last_audit": 1766441515.2867005
+  "strategy_stats": {},
+  "confidence_history": []
 }

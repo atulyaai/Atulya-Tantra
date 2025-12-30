@@ -1,12 +1,56 @@
-{
-  "version": "1.0",
-  "activities": [
-    {
-      "timestamp": "2025-12-28T21:49:52.826713",
-      "trace_id": "1766938792",
-      "input": "test context engine",
-      "intent": "GENERAL_TASK",
-      "duration_ms": 0
-    }
-  ]
-}
+[
+  {
+    "timestamp": "2025-12-31T02:35:15.316515",
+    "trace": "1767128715",
+    "input": "List the files in models directory",
+    "intent": "GENERAL_TASK"
+  },
+  {
+    "timestamp": "2025-12-31T02:35:55.790253",
+    "trace": "1767128755",
+    "input": "List the files in models directory",
+    "intent": "GENERAL_TASK"
+  },
+  {
+    "timestamp": "2025-12-31T02:37:04.857750",
+    "trace": "1767128824",
+    "input": "List the files in models directory",
+    "intent": "GENERAL_TASK"
+  },
+  {
+    "timestamp": "2025-12-31T02:37:29.698483",
+    "trace": "1767128849",
+    "input": "List the files in models directory",
+    "intent": "GENERAL_TASK"
+  },
+  {
+    "timestamp": "2025-12-31T02:38:12.234404",
+    "trace": "1767128892",
+    "input": "List the files in models directory",
+    "intent": "GENERAL_TASK"
+  },
+  {
+    "timestamp": "2025-12-31T02:42:53.206392",
+    "trace": "1767129173",
+    "input": "Check the presence logs",
+    "intent": "GENERAL_TASK"
+  },
+  {
+    "timestamp": "2025-12-31T02:45:09.202494",
+    "trace": "1767129309",
+    "input": "List the files in models directory",
+    "intent": "GENERAL_TASK"
+  },
+  {
+    "timestamp": "2025-12-31T02:46:54.129277",
+    "trace": "1767129414",
+    "input": "Check the models directory",
+    "intent": "GENERAL_TASK"
+  },
+  {
+    "timestamp": "2025-12-31T02:52:50.964737",
+    "trace": "1767129770",
+    "input": "List files in core directory",
+    "intent": "GENERAL_TASK"
+  }
+]

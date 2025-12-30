@@ -6,116 +6,139 @@
     <title>Atulya Tantra - Mission Control</title>
     <style>
         :root {
-            --bg-color: #0d1117;
-            --panel-bg: #161b22;
+            --bg-color: #010409;
+            --panel-bg: rgba(22, 27, 34, 0.8);
             --border-color: #30363d;
             --text-color: #c9d1d9;
             --accent-green: #238636;
             --accent-red: #da3633;
             --accent-blue: #58a6ff;
-            --font-mono: 'Courier New', Courier, monospace;
+            --accent-cyan: #00f2ff;
+            --font-mono: 'Outfit', 'Inter', sans-serif;
         }
         body {
-            background-color: var(--bg-color);
+            background: radial-gradient(circle at center, #0d1117 0%, #010409 100%);
             color: var(--text-color);
             font-family: var(--font-mono);
             margin: 0;
             padding: 20px;
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 350px 1fr;
             grid-template-rows: auto 1fr auto;
             gap: 20px;
             height: 95vh;
+            overflow: hidden;
         }
         header {
             grid-column: 1 / -1;
-            border-bottom: 2px solid var(--border-color);
+            border-bottom: 2px solid var(--accent-blue);
             padding-bottom: 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            box-shadow: 0 4px 15px rgba(88, 166, 255, 0.2);
         }
-        h1 { margin: 0; font-size: 1.5rem; color: var(--accent-blue); }
-        .uptime { font-size: 0.9rem; color: #8b949e; }
+        h1 { margin: 0; font-size: 1.5rem; letter-spacing: 2px; color: var(--accent-cyan); text-shadow: 0 0 10px var(--accent-cyan); }
+        .uptime { font-size: 0.9rem; color: #8b949e; font-family: 'Courier New', monospace; }
         
         .panel {
-            background-color: var(--panel-bg);
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px);
             border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 15px;
-            overflow: hidden;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
             display: flex;
             flex-direction: column;
+            transition: all 0.3s ease;
         }
+        .panel:hover { border-color: var(--accent-blue); box-shadow: 0 0 20px rgba(88, 166, 255, 0.1); }
+        
         .panel-header {
             font-weight: bold;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
             border-bottom: 1px solid var(--border-color);
-            padding-bottom: 5px;
+            padding-bottom: 8px;
             color: #8b949e;
             text-transform: uppercase;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
+            letter-spacing: 1.5px;
         }
         
         #status-indicator {
-            font-size: 2rem;
-            font-weight: bold;
+            font-size: 1.8rem;
+            font-weight: 800;
             text-align: center;
-            margin: 20px 0;
-            color: var(--accent-green);
+            margin: 15px 0;
+            letter-spacing: 4px;
+            text-shadow: 0 0 15px currentColor;
         }
         
         #active-goal {
-            font-size: 1.1rem;
+            font-size: 1rem;
             color: var(--text-color);
-            background: #21262d;
-            padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 10px;
+            background: rgba(48, 54, 61, 0.4);
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid var(--accent-blue);
         }
         
         .stat-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 10px;
+            gap: 15px;
         }
         .stat-box {
-            background: #21262d;
-            padding: 10px;
+            background: rgba(13, 17, 23, 0.6);
+            padding: 15px;
             text-align: center;
-            border-radius: 4px;
+            border-radius: 8px;
+            border: 1px solid #30363d;
         }
-        .stat-val { font-size: 1.5rem; font-weight: bold; }
-        .stat-label { font-size: 0.7rem; color: #8b949e; }
-        .success { color: var(--accent-green); }
-        .fail { color: var(--accent-red); }
+        .stat-val { font-size: 1.8rem; font-weight: bold; }
+        .stat-label { font-size: 0.65rem; color: #8b949e; margin-top: 5px; }
         
         #event-feed {
             flex-grow: 1;
             overflow-y: auto;
-            font-size: 0.85rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            padding-right: 5px;
         }
+        #event-feed::-webkit-scrollbar { width: 4px; }
+        #event-feed::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 10px; }
+        
         .event-item {
-            margin-bottom: 5px;
-            padding: 5px;
-            border-bottom: 1px solid #21262d;
+            margin-bottom: 8px;
+            padding: 8px;
+            background: rgba(22, 27, 34, 0.4);
+            border-radius: 4px;
             display: flex;
             gap: 10px;
+            border-left: 2px solid transparent;
         }
-        .timestamp { color: #8b949e; width: 70px; flex-shrink: 0; }
-        .type { color: var(--accent-blue); width: 60px; flex-shrink: 0; font-weight: bold; }
-        .payload { white-space: pre-wrap; word-break: break-all; }
+        .event-item:nth-child(even) { background: transparent; }
+        .timestamp { color: #58a6ff; width: 65px; flex-shrink: 0; }
+        .type { color: var(--accent-cyan); width: 80px; flex-shrink: 0; font-weight: bold; }
         
         footer {
             grid-column: 1 / -1;
-            border-top: 2px solid var(--border-color);
-            padding-top: 10px;
-            text-align: center;
+            background: rgba(35, 41, 47, 0.4);
+            border-radius: 12px;
+            padding: 15px 25px;
+            margin-top: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            border: 1px solid var(--border-color);
         }
         #last-speech {
-            font-size: 1.2rem;
-            color: var(--accent-blue);
+            font-size: 1.1rem;
+            color: var(--accent-cyan);
             font-style: italic;
+            text-shadow: 0 0 8px rgba(0, 242, 255, 0.3);
         }
     </style>
 </head>

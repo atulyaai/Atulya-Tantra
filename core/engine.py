@@ -1,22 +1,10 @@
-from core.sensors.manifest import SensorManifest
-from core.sensors.text_sensor import TextSensor
-from core.sensors.orchestrator import SensorOrchestrator
-from core.sensors.system_sensor import SystemSensor
-from core.sensors.voice_sensor import VoiceSensor, LocalTranscriber
-from core.sensors.vision_sensor import VisionSensor
-from core.knowledge.search_gate import SearchGate
-from core.knowledge.knowledge_brain import KnowledgeBrain
-from core.knowledge.llm_interface import CoreLMInterface
-from core.planner import Planner
-from core.executor import Executor
-from core.critic import Critic
-from core.governor import TraceIDAdapter
-from core.evolution.auditor import DriftAuditor
-from core.goals import GoalManager  # NEW: Persistent goals
-from core.action_ledger import ActionLedger # NEW: Trust Anchor
-from core.shadow_suggestions import ShadowSuggester # NEW: Intuition
-from core.event_bus import bus as event_bus # NEW: Observability
-from core.context_engine import ContextEngine # NEW: Context Awareness (Phase J1)
+from core.sensors import SensorManifest, SensorOrchestrator, TextSensor, SystemSensor, VoiceSensor, LocalTranscriber, VisionSensor
+from core.brain import KnowledgeBrain, CoreLMInterface, JARVISAdvisor
+from core.logic import Planner, Executor, Critic
+from core.memory import GoalManager, ContextEngine, ConversationManager, Identity
+from core.governance import ActionLedger, Governor
+from core.finetuner import OfflineEvolution
+from core.event_bus import bus as event_bus
 import logging
 import uuid
 import os
@@ -29,15 +17,15 @@ class Engine:
         self.governor = governor
         self.planner = Planner()
         self.executor = Executor(self.governor)
-        self.planner = Planner()
-        self.executor = Executor(self.governor)
         self.critic = Critic()
         self.event_bus = event_bus
-        self.logger = TraceIDAdapter(logging.getLogger("AtulyaEngine"), self.governor)
-        self.presence_logger = TraceIDAdapter(logging.getLogger("PresenceAudit"), self.governor)
+        self.logger = logging.getLogger("AtulyaEngine")
+        self.presence_logger = logging.getLogger("PresenceAudit")
         
         # v0.5 Presence Scaffolding
         self.signal_buffer = []
+        
+        # self.evolution initialized later (after core_lm)
         
         # Phase H: Controlled Agency State
         self.pending_suggestion = None  # Stores {action, params, reason} awaiting approval
@@ -61,24 +49,17 @@ class Engine:
         # Phase K4 Search & Knowledge
         self.knowledge_brain = KnowledgeBrain()
         self.core_lm = CoreLMInterface()
-        self.search_gate = SearchGate(governor)
         
-        # Phase E1: Drift Auditor
-        self.auditor = DriftAuditor()
+        # Phase E1/4: System Evolution
+        self.evolution = OfflineEvolution(self.core_lm)
         
-        # NEW: Persistent Goals (Memory Continuity)
-        # IMPORTANT: GoalManager is the sole writer of goals.
-        # Other components may read but must not modify goal state.
-        self.goal_manager = GoalManager()
-        
-        # NEW: Action Confidence Ledger (The Trust Anchor)
-        self.action_ledger = ActionLedger()
-        
-        # NEW: Shadow Suggester (The Intuition)
-        self.shadow_suggester = ShadowSuggester(self.goal_manager, self.planner, self.action_ledger)
-        
-        # NEW: Context Engine (Phase J1 - Proactive Agency)
+        # New Contextual Layers
         self.context_engine = ContextEngine()
+        self.goal_manager = GoalManager()
+        self.action_ledger = ActionLedger()
+        self.advisor = JARVISAdvisor(self.goal_manager, self.planner, self.action_ledger, self.context_engine)
+        self.conversation_manager = ConversationManager()
+        self.identity = Identity()
         
         goals = self.goal_manager.load_goals()
         if goals:
@@ -215,27 +196,59 @@ class Engine:
         self.current_task_context = input_task
         trace_id = context.get('trace_id', str(int(time.time()))) if context else str(int(time.time()))
         
+        # Update Identity
+        self.identity.set_mode("TASK_EXECUTION")
+        self.identity.set_responsibility(input_task)
+        
         # 1. INTENT CLASSIFICATION
         start_time = time.time()
         intent, confidence = self._classify_intent(input_task)
         duration_ms = int((time.time() - start_time) * 1000)
         
         # Log activity for context awareness (Phase J1)
-        self.context_engine.log_activity(input_task, trace_id, intent, duration_ms)
+        self.context_engine.log_activity(input_task, trace_id, intent)
         
         self.event_bus.emit("status", {"state": "THINKING", "task": input_task, "intent": intent})
         print(f"\n[ENGINE] [{trace_id}] Active: {input_task}")
         
         self.governor.set_trace_id(trace_id)
-        self.memory.set_trace_id(trace_id)
+        
+        # 1.1 GOVERNANCE CHECK (Autonomy Throttle)
+        # Check against forbidden patterns first
+        if not self.governor.check_permission(input_task):
+             return f"Blocked: Forbidden action detected via Signatures."
+
+        # Check against Policy Brain (Risk vs Confidence)
+        decision, is_auto = self.governor.policy_brain.evaluate(input_task, {"confidence": confidence})
+        if decision == "ASK":
+             msg = f"Throttle: Low confidence ({confidence:.2f}) or High Risk. User approval required."
+             self._speak(msg, trace_id)
+             # In a real agent, we'd loop for input. For now, we block.
+             # We can use the 'pending_suggestion' mechanism if we want to allow user to say 'yes' later.
+             # But for strict safety:
+             return f"Blocked: {msg}"
         self.logger.info(f"Starting run for task: {input_task}")
-        
-        if not self.governor.check_permission(input_task):
-            return f"Blocked: Task contains forbidden signatures (Trace: {trace_id})"
-        
-        if not self.governor.check_permission(input_task):
-            return f"Blocked: Task contains forbidden signatures (Trace: {trace_id})"
-        
+
+        # 1.5 VISUAL REASONING TRIGGER (Phase M1)
+        # Note: Non-blocking is handled by the 800ms timeout in the adapter
+        if any(kw in input_task.lower() for kw in ["see", "screen", "looking at", "active window", "visible"]):
+            self.event_bus.emit("status", {"state": "LOOKING", "task": "Analyzing Screen"})
+            visual_data = self.vision_reasoning.describe_screen()
+            
+            desc = visual_data.get('description', 'Unknown')
+            self._speak(f"Exploring visual context: {desc[:100]}...", trace_id)
+            
+            # Inject structured visual context
+            visual_str = f"\n[VISUAL_CONTEXT]: {desc}\n[VISIBLE_OBJECTS]: {', '.join(visual_data.get('objects', []))}"
+            input_task = f"{input_task}\n{visual_str}"
+            self.logger.info(f"[Vision] Context injected: {desc[:50]}...")
+
+        # 1.6 CONVERSATION CONTEXT INJECTION (Phase L1)
+        recent_history = self.conversation_manager.get_recent_context()
+        if recent_history:
+            input_task = f"[HISTORY]:\n{recent_history}\n\n[NEW_TASK]: {input_task}"
+            self.logger.info("[Memory] Context injected from history")
+
         # 1. CHECK FOR PENDING APPROVAL (Phase H)
         if self.pending_suggestion:
             normalized = input_task.lower().strip()
@@ -285,24 +298,17 @@ class Engine:
         is_suggestion_request = any(trigger in normalized_task for trigger in suggestion_triggers)
         
         if is_suggestion_request:
-            # Get current context for smart suggestions
-            context = self.context_engine.get_context()
-            msg, proposal = self.shadow_suggester.generate_suggestion(context)
-            
-            # Store Proposal if valid
-            if proposal:
-                self.pending_suggestion = proposal
-                
+            msg, proposal = self.advisor.generate_suggestion(self.core_lm)
+            self.pending_suggestion = proposal
             self._speak(msg, trace_id)
-            return f"Shadow Suggestion Provided ({'Actionable' if proposal else 'Info'})"
+            return msg
 
         event_bus.emit("status", {"state": "THINKING", "task": input_task})
-        # intent already calculated at start of run_task
-        self.auditor.record_confidence_event(confidence) # Audit: Baseline Calib
+        self.evolution.record_confidence(confidence) 
         
         # Phase E2/K: Grounded Knowledge Retrieval
         facts, topic = self.knowledge_brain.query_knowledge(input_task)
-        lm_result = self.core_lm.query(input_task, facts)
+        lm_result = self.core_lm.query(input_task, facts, identity_info=self.identity.get_self_description())
         uncertainty = lm_result["metadata"]["perceived_uncertainty"]
         
         # VISIBILITY: Speak the CoreLM thought (The Brain)
@@ -349,7 +355,7 @@ class Engine:
                 # Immediately process the interrupt stimulus
                 return self.run_task(interrupt['stimulus'])
 
-            strategy_pairs = self.planner.plan(intent, input_task, (guidance, status) if status != "NO_PATTERN" else None)
+            strategy_pairs = self.planner.plan(intent, input_task, self.core_lm)
             
             for s_name, steps in strategy_pairs:
                 s_results = []
@@ -389,7 +395,7 @@ class Engine:
 
             winner_name = max(results_map, key=lambda k: results_map[k]["score"]) 
             winner = results_map[winner_name]
-            self.auditor.record_strategy_use(winner_name) # Audit: Strategy Preference
+            self.evolution.record_strategy(winner_name) 
             
             if winner["score"] >= 0.9 or (winner["score"] - last_max_score == 0.0 and total_steps > 5):
                 break
@@ -441,6 +447,13 @@ class Engine:
         # Final Status Vocalization
         final_msg = f"Done. Winner: {winner_name}, Score: {winner['score']:.2f}"
         self._speak(final_msg, trace_id)
+        
+        # Reset Identity
+        self.identity.set_mode("STANDBY")
+        self.identity.set_responsibility("Waiting for user input")
+        
+        # 4. SAVE TO CONVERSATION HISTORY (Phase L1)
+        self.conversation_manager.add_turn(input_task, final_msg, llm_ref=self.core_lm)
 
         return f"Done (Winner: {winner_name}, Score: {winner['score']:.2f}, Steps: {total_steps})"
 
@@ -453,7 +466,9 @@ class Engine:
         
         last_input_time = time.time()
         has_spoken_idle = False
-        IDLE_THRESHOLD = 10.0
+        
+        # Get threshold from context engine (Phase J1)
+        IDLE_THRESHOLD = 30.0
         
         # Track goal state to detect external changes
         last_known_active_goals = len(self.goal_manager.get_active_goals())
@@ -496,26 +511,27 @@ class Engine:
 
                 else:
                     # IDLE PULSE LOGIC (The Pulse)
-                    idle_time = time.time() - last_input_time
+                    idle_time = (time.time() - self.context_engine.last_activity)
                     
-                if idle_time > IDLE_THRESHOLD and not has_spoken_idle:
-                    # TIGHTENING #2: Check for ACTIVE goals first
-                    active_goals = self.goal_manager.get_active_goals()
-                    if active_goals:
-                        # Speak Safe Idle Prompt
-                        goal = active_goals[0]
-                        msg = f"We were working on '{goal['description']}'. Want to continue?"
-                        event_bus.emit("pulse", {"action": "reminder", "goal": goal['description']})
-                        self._speak(msg, "IDLE_PULSE")
+                if self.context_engine.check_idle() and not has_spoken_idle:
+                    # Phase 4: Data-Driven Evolution Pulse
+                    self.evolution.pulse(self.action_ledger.entries)
+                    
+                    # JARVIS Proactive Initiative (Phase 2)
+                    self.event_bus.emit("status", {"state": "THINKING", "task": "Generating Suggestion"})
+                    
+                    msg, proposal = self.advisor.generate_suggestion(self.core_lm)
+                    
+                    if msg:
+                        self._speak(msg, "PROACTIVE_INITIATIVE")
+                        self.pending_suggestion = proposal
                         has_spoken_idle = True
-                    else:
-                         pass # No goals, stay silent (Passive)
                 # ADR-007: Mandatory cycle reset for fairness/quotas
                 self.manifest.reset_cycle()
                 
-                # Save audit metrics periodically (approx every 10 presence cycles)
-                if int(time.time()) % 10 == 0:
-                    self.auditor.save()
+                # Save audit metrics periodically 
+                if int(time.time()) % 15 == 0:
+                     self.evolution._save() # Atomic background save
 
                 # Simulation Hook (for testing)
                 if simulator:

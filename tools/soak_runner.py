@@ -12,8 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.engine import Engine
-from core.memory_manager import MemoryManager
-from core.governor import Governor
+from core.governance import Governor
 from core.event_bus import bus
 
 # CONFIG
@@ -28,9 +27,8 @@ class SoakMonitor:
         self.metrics_history = []
         
         # System Components
-        self.memory = MemoryManager()
-        self.governor = Governor(self.memory)
-        self.engine = Engine(self.memory, self.governor)
+        self.governor = Governor()
+        self.engine = Engine(None, self.governor)
         
         # Internal Stats
         self.stat_pulses = 0

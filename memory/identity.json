@@ -1,0 +1,14 @@
+{
+  "name": "JARVIS (Atulya Tantra)",
+  "version": "1.2.0",
+  "capabilities": [
+    "text_sensing",
+    "voice_sensing",
+    "vision_sensing",
+    "governed_web_search",
+    "persistent_memory",
+    "safety_governance"
+  ],
+  "mode": "TASK_EXECUTION",
+  "task": "List files in core directory"
+}
