@@ -8,9 +8,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # Import modular adapters
-from core.adapters.rwkv import RWKVLoader
-from core.adapters.openai import OpenAICompatibleAdapter
-from core.adapters.gemini import GeminiAdapter
+from core.rwkv import RWKVLoader
+from core.openai import OpenAICompatibleAdapter
+from core.gemini import GeminiAdapter
 
 logger = logging.getLogger("BrainOrgan")
 
