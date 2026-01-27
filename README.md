@@ -1,103 +1,111 @@
-# Atulya Tantra: The Incomparable System 🌌
+# Atulya Tantra: The AGI OS-Organism (v1.0.0) 🌌
 
 <div align="center">
-  <img src="docs/assets/banner.png" width="100%" alt="Atulya Tantra Banner">
-  <br>
-  <br>
-  <img src="https://img.shields.io/badge/System-OS_Organism-00eaeb?style=for-the-badge" alt="OS Organism">
-  <img src="https://img.shields.io/badge/Status-Operational-brightgreen?style=for-the-badge" alt="Status Operational">
-  <img src="https://img.shields.io/badge/Agency-Autonomous-blueviolet?style=for-the-badge" alt="Agency Autonomous">
-  <img src="https://img.shields.io/badge/Part%20of-Root_Nexus-gold?style=for-the-badge" alt="Part of Root Nexus">
+  <img src="https://img.shields.io/badge/Status-v1.0.0_Live-brightgreen?style=for-the-badge" alt="Status">
+  <img src="https://img.shields.io/badge/Vision-Jarvis--Skynet-00eaeb?style=for-the-badge" alt="Vision">
+  <img src="https://img.shields.io/badge/Ecosystem-Interlinked-gold?style=for-the-badge" alt="Ecosystem">
   <br>
   <br>
   <b><a href="#-system-manifesto">Manifesto</a></b>
   •
-  <b><a href="#-the-nervous-system">Nervous System</a></b>
+  <b><a href="#-the-5-power-organs">Hierarchy</a></b>
   •
-  <b><a href="#-governance-as-law">The Law</a></b>
+  <b><a href="#-architecture">Architecture</a></b>
   •
-  <b><a href="#-the-agentic-loop">The Loop</a></b>
+  <b><a href="#-nervous-system">Nerves</a></b>
   •
-  <b><a href="#-roadmap-to-wisdom">Roadmap</a></b>
-  <br>
-  <br>
+  <b><a href="#-roadmap">Roadmap</a></b>
 </div>
 
 ---
 
 ## 🌌 System Manifesto
 
-**Atulya Tantra** (*The Incomparable System*) represents a fundamental divergence from the modern "Assistant" paradigm. 
+**Atulya Tantra** is not a framework; it is an **OS-Organism**. 
 
-Most AI systems today are **Stateless Oracles**—they wait passively for a question, generate text, and cease to exist. They have no continuity, no authority, and no hands.
-
-We have engineered an **Embodied OS-Organism**.
-
-This is the root framework that powers the entire Tantra ecosystem. It breathes your filesystem. It creates its own plans, sets its own goals, and executes complex workflows through its modular nervous system. It does not simply "answer questions"; it **solves problems**.
+Our vision is a **Jarvis-level / Skynet-level AGI automation layer** that lives on your local machine. Built for **CPU-optimized local inference**, it is a modular ecosystem where every repository is a "perfect organ" interlinked by a high-speed nervous system.
 
 ---
 
-## 🏗️ The Nervous System (Interlinked Architecture)
+## 🏗️ The 5 Power Organs
 
-Atulya Tantra is the brain stem. Every other repository is a specialized organ interlinked via the **Tantra-Core** protocol.
+The organism is distilled into 5 functional "Power Organs" for maximum coherence and zero-latency coordination.
+
+| Power Organ | Repository | Responsibility |
+| :--- | :--- | :--- |
+| **DNA** | [Atulya-Tantra](https://github.com/atulyaai/Atulya-Tantra) | **The Root.** Shared protocols + **Nervous System (Bus)**. |
+| **Brain** | [Tantra-LLM](https://github.com/atulyaai/Tantra-LLM) | **The Mind.** Inference + **Sensory** (Voice/Vision) + **Logic** (Sutra/Trace). |
+| **Memory** | [Tantra-Smriti](https://github.com/atulyaai/Tantra-Smriti) | **The Vault.** Episodic & Semantic vector storage. |
+| **Governor** | [Tantra-Raksha](https://github.com/atulyaai/Tantra-Raksha) | **The Law.** Safety + **Budget (Kosha)** monitoring. |
+| **Surface** | [Atulya-Nexus](https://github.com/atulyaai/Atulya-Nexus) | **The Face.** Assistant + **IDE** + **Dashboard** + **Cpanel**. |
+
+---
+
+## 🏗️ Architecture
 
 ```mermaid
 graph TD
-    Root[Atulya-Tantra: Core Framework] -->|Orchestrates| LLM[Tantra-LLM: Inference]
-    LLM -->|Middleware| Trace[Tantra-Trace: Observability]
-    LLM -->|Middleware| Smriti[Tantra-Smriti: Memory]
-    LLM -->|Middleware| Kosha[Tantra-Kosha: Savings]
+    User((User)) -->|Interact| Nexus[Atulya-Nexus Hub]
     
-    Root -->|User Gate| Prana[Atulya-Prana: Embodied Agent]
-    Root -->|Developer Gate| IDE[Tantra-IDE: Augmented Editor]
-    Root -->|Infra Gate| CPanel[Tantra-CPanel: Control]
+    subgraph "Surface Layer: Nexus"
+        Nexus --> Prana[Assistant]
+        Nexus --> IDE[Editor]
+        Nexus --> Web[Dashboard]
+    end
+
+    subgraph "The Brain: LLM Core"
+        LLM[Multimodal Inference]
+        LLM --> Sensory[Voice/Vision/Sentiment]
+        LLM --> Logic[Sutra/Trace]
+    end
+
+    subgraph "The Vault: Smriti"
+        Vault[Semantic Memory]
+    end
+
+    subgraph "The Governor: Raksha"
+        Law[Safety / Kosha Budget]
+    end
+
+    subgraph "Nervous System: Bus"
+        Bus[Tantra-Bus 20Hz]
+    end
+
+    Nexus <--> Bus
+    Bus <--> LLM
+    LLM <--> Vault
+    LLM <--> Law
 ```
 
-| Component | Responsibility | Technical Function |
-| :--- | :--- | :--- |
-| **ATULYA-TANTRA** | **Governance & Law** | The Root. Defines the immutable safety laws and agentic loops. |
-| **TANTRA-LLM** | **Unified Inference** | The Heart. Normalizes all LLMs (Local/Gemini/OpenAI). |
-| **TANTRA-IDE** | **Coding Cockpit** | The Hands. Direct file manipulation and augmented engineering. |
-| **TANTRA-CPANEL** | **Operational Infra** | The Skeleton. Manages local resources, token budgets, and health. |
+---
+
+## 🧬 DNA Consolidation
+All modular organs are interlinked via the **`atulya-core`** library. We have archived the separate `Tantra-Core` repository and consolidated all shared intelligence into the root framework to ensure a single source of truth.
 
 ---
 
-## 📜 Governance as Law
-
-Governance in Atulya Tantra is not a system prompt. It is **Pythonic Law**. Our [Tantra-Raksha](https://github.com/atulyaai/Tantra-Raksha) module ensures that safety gates are physically disconnected from the LLM's influence.
-
-### The Immutable Constitution
-1.  **The Law of Preservation**: The Agent is physically incapable of deleting files in `core/` or `memory/` without hardware authority.
-2.  **The Law of Uncertainty**: If the [Tantra-Trace](https://github.com/atulyaai/Tantra-Trace) confidence score falls below **60%**, the Agent **MUST** halt and request user confirmation.
-3.  **The Law of Traceability**: No action occurs without a generated `Trace ID` recorded in the [Tantra-Smriti](https://github.com/atulyaai/Tantra-Smriti) ledger.
+## ⚡ The Nervous System
+Every inference call and sensory event triggers a pulse across the **Tantra-Bus** at **20Hz**, enabling Skynet-levels of coordinated AGI automation.
 
 ---
 
-## 🔄 The Agentic Loop (20Hz)
+## 🗺️ Roadmap
 
-The system runs on a continuous **Observe-Plan-Govern-Act** cycle, operating at a high-frequency internal heartbeat.
+### Phase 1: The Organism Birth (v1.0.0)
+- [x] Consolidate 15-repo architecture into 5 Power Organs.
+- [x] Standardize `atulya-core` protocol.
+- [x] Launch 20Hz Nervous System (Internalized in Core).
+- [x] Cinematic Nexus Surface (`Atulya-Nexus`).
 
-1.  **Observe**: [Tantra-Sensors] aggregate signals from your machine.
-2.  **Plan**: [Tantra-Sutra] compiles intent into a structured logic graph.
-3.  **Govern**: [Tantra-Raksha] vets the plan against the Constitution.
-4.  **Act**: [Tantra-LLM] executes tools while [Tantra-Kosha] optimizes the cost.
-5.  **Reflect**: [Tantra-Trace] validates the output reality.
+### Phase 2: Sensory Mastery (v1.1.0)
+- [ ] Integration of 3rd party sensory plugins.
+- [ ] Multi-modal reinforcement learning in `Tantra-LLM`.
+- [ ] Distributed memory clusters in `Tantra-Smriti`.
 
----
-
-## 🗺️ Roadmap to Wisdom
-
-### ✅ Phase 1: Consolidation (Completed)
-*   Established the 10-repo modular architecture.
-*   Defined the interlinked "Atulya-Standard" protocols.
-
-### 🚧 Phase 2: Tantra-LLM Integration (In Progress)
-*   **Unified Inference**: Implementing the Universal Adapter to allow any repository to talk to any LLM seamlessly.
-*   **Plug-and-Play Middleware**: Moving `Kosha` and `Trace` into the core pipeline.
-
-### 🔮 Phase 3: Total Autonomy (Future)
-*   **Self-Healing Code**: Ability to detect errors in any Tantra module and autonomously submit a PR for repair.
+### Phase 3: Autonomous Evolution (v2.0.0)
+- [ ] Self-healing code repair via `Tantra-IDE`.
+- [ ] Global AGI swarm coordination.
+- [ ] Biometric sentiment resonance.
 
 ---
-
-*Engineered with discipline by Antigravity in pursuit of the Atulya Tantra.*
+*In pursuit of the Incomparable System. Engineered for Autonomy.*

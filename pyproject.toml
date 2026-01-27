@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "atulya-core"
+version = "0.1.0"
+description = "The shared DNA of the Atulya Tantra AGI Ecosystem."
+authors = [{ name = "Atulya Tantra Team" }]
+dependencies = [
+    "pydantic>=2.0.0",
+    "asyncio"
+]
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["atulya_core*"]
