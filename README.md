@@ -29,6 +29,13 @@
 
 ---
 
+## ✨ Jan 2026 Modernization
+- **Unified Adapter Architecture**: Core brain logic split into modular, pluggable adapters (`RWKV`, `OpenAI`, `Gemini`).
+- **Gemini 2.0 Flash**: Native integration with the latest multimodal reasoning engine for complex spatial tasks.
+- **Dependency Refresh**: Full sync with 2026-standard libraries (`langgraph`, `langchain-core` v0.3).
+
+---
+
 ## 🌌 System Manifesto
 
 **Atulya Tantra** (*The Incomparable System*) represents a fundamental divergence from the modern "Assistant" paradigm. 
