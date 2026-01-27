@@ -13,7 +13,7 @@ presence_logger.propagate = False
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python run_atulya_tantra.py \"Your task here\" [--presence]")
+        print("Usage: python main.py \"Your task here\" [--presence]")
         return
 
     # Initialize components

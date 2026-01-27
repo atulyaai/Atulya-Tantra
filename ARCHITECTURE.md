@@ -1,4 +1,4 @@
-# Atulya Tantra: The System Architecture (v1.0)
+# Atulya Tantra: The System Architecture (v1.2)
 
 > "A system without a constitution is just a script waiting to break."
 
@@ -196,5 +196,5 @@ Real measurements from production runs:
 - **[Codebase](core/)**: The Source.
 
 ---
-*Architecture Locked: 2025-12-23*
+*Architecture Locked: 2026-01-27*
 *Built by the Atulya Tantra Team*
