@@ -37,7 +37,7 @@ The organism is distilled into 5 functional "Power Organs" for maximum coherence
 | **Brain** | [Tantra-LLM](https://github.com/atulyaai/Tantra-LLM) | **The Mind.** Inference + **Sensory** (Voice/Vision) + **Logic** (Sutra/Trace). |
 | **Memory** | [Tantra-Smriti](https://github.com/atulyaai/Tantra-Smriti) | **The Vault.** Episodic & Semantic vector storage. |
 | **Governor** | [Tantra-Raksha](https://github.com/atulyaai/Tantra-Raksha) | **The Law.** Safety + **Budget (Kosha)** monitoring. |
-| **Surface** | [Atulya-Nexus](https://github.com/atulyaai/Atulya-Nexus) | **The Face.** Assistant + **IDE** + **Dashboard** + **Cpanel**. |
+| **Surface** | [Tantra-Prana](https://github.com/atulyaai/Tantra-Prana) | **The Face.** Assistant + **IDE** + **Dashboard** + **Cpanel**. |
 
 ---
 
@@ -45,7 +45,7 @@ The organism is distilled into 5 functional "Power Organs" for maximum coherence
 
 ```mermaid
 graph TD
-    User((User)) -->|Interact| Nexus[Atulya-Nexus Hub]
+    User((User)) -->|Interact| Nexus[Tantra-Prana Hub]
     
     subgraph "Surface Layer: Nexus"
         Nexus --> Prana[Assistant]
@@ -95,7 +95,7 @@ Every inference call and sensory event triggers a pulse across the **Tantra-Bus*
 - [x] Consolidate 15-repo architecture into 5 Power Organs.
 - [x] Standardize `atulya-core` protocol.
 - [x] Launch 20Hz Nervous System (Internalized in Core).
-- [x] Cinematic Nexus Surface (`Atulya-Nexus`).
+- [x] Cinematic Nexus Surface (`Tantra-Prana`).
 
 ### Phase 2: Sensory Mastery (v1.1.0)
 - [ ] Integration of 3rd party sensory plugins.
