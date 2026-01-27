@@ -37,7 +37,16 @@ The organism is distilled into 5 functional "Power Organs" for maximum coherence
 | **Brain** | [Tantra-LLM](https://github.com/atulyaai/Tantra-LLM) | **The Mind.** Inference + **Sensory** (Voice/Vision) + **Logic** (Sutra/Trace). |
 | **Memory** | [Tantra-Smriti](https://github.com/atulyaai/Tantra-Smriti) | **The Vault.** Episodic & Semantic vector storage. |
 | **Governor** | [Tantra-Raksha](https://github.com/atulyaai/Tantra-Raksha) | **The Law.** Safety + **Budget (Kosha)** monitoring. |
-| **Surface** | [Tantra-Prana](https://github.com/atulyaai/Tantra-Prana) | **The Face.** Assistant + **IDE** + **Dashboard** + **Cpanel**. |
+| **Surface** | [Tantra-Prana](https://github.com/atulyaai/Tantra-Prana) | **The Face.** Assistant + Unified Command Hub. |
+
+---
+
+## 🛠️ Supplemental Utilities
+
+These projects are independent tools that integrate with the organism but are maintained as separate entities:
+
+- **[Tantra-IDE](https://github.com/atulyaai/Tantra-IDE)**: An AI-native development environment for agentic coding.
+- **[Atulya-Cpanel](https://github.com/atulyaai/Atulya-Cpanel)**: A multi-server infrastructure management dashboard.
 
 ---
 
