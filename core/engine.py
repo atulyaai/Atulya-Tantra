@@ -1,3 +1,5 @@
+from core.perception import PerceptionManager
+from core.interpreter import IntentInterpreter
 from core.sensors import SensorManifest, SensorOrchestrator, TextSensor, SystemSensor, VoiceSensor, LocalTranscriber, VisionSensor
 from core.brain import KnowledgeBrain, CoreLMInterface, JARVISAdvisor
 from core.logic import Planner, Executor, Critic
@@ -25,26 +27,13 @@ class Engine:
         # v0.5 Presence Scaffolding
         self.signal_buffer = []
         
-        # self.evolution initialized later (after core_lm)
+        # Modularized Perception & Interpretation
+        self.perception = PerceptionManager(self.governor)
+        self.interpreter = IntentInterpreter()
         
         # Phase H: Controlled Agency State
         self.pending_suggestion = None  # Stores {action, params, reason} awaiting approval
         self.SAFE_WHITELIST = ["local_search", "read_file", "list_dir", "web_search", "read_context", "ask_user"]
-        
-        # Phase 1.0 Embodiment
-        self.manifest = SensorManifest()
-        self.orchestrator = SensorOrchestrator(self.manifest)
-        
-        # Register Sensors
-        self.text_sensor = TextSensor(self.manifest)
-        self.system_sensor = SystemSensor(self.manifest)
-        
-        # Phase 1.0C Voice
-        self.transcriber = LocalTranscriber()
-        self.voice_sensor = VoiceSensor(self.manifest, self.transcriber)
-        
-        # Phase 1.0D Vision
-        self.vision_sensor = VisionSensor(self.manifest, self.governor)
         
         # Phase K4 Search & Knowledge
         self.knowledge_brain = KnowledgeBrain()
@@ -64,11 +53,6 @@ class Engine:
         goals = self.goal_manager.load_goals()
         if goals:
             self.logger.info(f"[Engine] Restored {len(goals)} goals from memory")
-        
-        self.orchestrator.register_sensor("TEXT", self.text_sensor, poll_interval=0.1)
-        self.orchestrator.register_sensor("SYSTEM", self.system_sensor, poll_interval=0.5)
-        self.orchestrator.register_sensor("VOICE", self.voice_sensor, poll_interval=0.5)
-        self.orchestrator.register_sensor("VISION", self.vision_sensor, poll_interval=1.0)
 
     def receive_signal(self, signal):
         """
@@ -173,25 +157,6 @@ class Engine:
         }
         self.presence_logger.warning(f"Task Preempted: {task} (Steps: {total_steps})")
 
-    def _classify_intent(self, task):
-        # Internal intent classification (formerly Interpreter)
-        task_lower = task.lower()
-        confidence = 0.7 
-        
-        # High-confidence matches
-        if any(kw in task_lower for kw in ["search", "find", "look for", "query"]):
-            return "INFORMATION_SEARCH", 1.0
-        if any(kw in task_lower for kw in ["create", "write", "make", "generate"]):
-            return "FILE_CREATION", 1.0
-        if any(kw in task_lower for kw in ["analyze", "fix", "error", "debug", "failure"]):
-            return "ERROR_ANALYSIS", 1.0
-        
-        # Low confidence/Vague detection
-        if len(task_lower.split()) < 3:
-            confidence = 0.5
-            
-        return "GENERAL_TASK", confidence
-
     def run_task(self, input_task, context=None):
         self.current_task_context = input_task
         trace_id = context.get('trace_id', str(int(time.time()))) if context else str(int(time.time()))
@@ -202,7 +167,7 @@ class Engine:
         
         # 1. INTENT CLASSIFICATION
         start_time = time.time()
-        intent, confidence = self._classify_intent(input_task)
+        intent, confidence = self.interpreter.classify(input_task)
         duration_ms = int((time.time() - start_time) * 1000)
         
         # Log activity for context awareness (Phase J1)
@@ -473,13 +438,13 @@ class Engine:
         # Track goal state to detect external changes
         last_known_active_goals = len(self.goal_manager.get_active_goals())
 
-        self.orchestrator.start()
+        self.perception.start()
         
         try:
             while True:
                 # 1. Non-blocking Poll
                 # ADR-007: Collect and Arbitrate signals from all async channels
-                signals = self.orchestrator.collect()
+                signals = self.perception.collect()
                 
                 # Check for goal changes to reset idle pulse (Tightening #2)
                 current_active_goals = self.goal_manager.get_active_goals()
@@ -527,7 +492,7 @@ class Engine:
                         self.pending_suggestion = proposal
                         has_spoken_idle = True
                 # ADR-007: Mandatory cycle reset for fairness/quotas
-                self.manifest.reset_cycle()
+                self.perception.reset_cycle()
                 
                 # Save audit metrics periodically 
                 if int(time.time()) % 15 == 0:
@@ -547,4 +512,4 @@ class Engine:
             time.sleep(1)
             print("\n[ENGINE] Presence Loop Stopped.")
         finally:
-            self.orchestrator.stop()
+            self.perception.stop()
