@@ -8,6 +8,7 @@
   <img src="https://img.shields.io/badge/System-OS_Organism-00eaeb?style=for-the-badge&logo=linux&logoColor=black" alt="OS Organism">
   <img src="https://img.shields.io/badge/Status-Operational-brightgreen?style=for-the-badge" alt="Status Operational">
   <img src="https://img.shields.io/badge/Agency-Autonomous-blueviolet?style=for-the-badge" alt="Agency Autonomous">
+  <img src="https://img.shields.io/badge/Modernized-2026-gold?style=for-the-badge" alt="Modernized 2026">
   <img src="https://img.shields.io/badge/Governance-Immutable-red?style=for-the-badge" alt="Governance Immutable">
   <br>
   <br>
@@ -58,7 +59,7 @@ We did not build a script. We reverse-engineered biological intelligence and map
 
 | Organ Sphere | Location | Biologic Function | Technical Responsibility |
 | :--- | :--- | :--- | :--- |
-| **CORTEX** | `core/brain.py` | **Deliberation** | **Hybrid Intelligence**. We use **RWKV (Local, 0.4B)** for high-speed reflexes, formatting, and protocols (0ms latency). We use **Gemini (Cloud)** only for deep reasoning, vision, and complex planning. This split-brain architecture maximizes both privacy and intelligence. |
+| **CORTEX** | `core/brain.py` | **Deliberation** | **Hybrid Intelligence**. We use **RWKV-7 (Local)** for high-speed reflexes, formatting, and protocols. We use **Gemini 2.0 Flash (Global)** for deep reasoning, vision, and complex planning. This split-brain architecture maximizes both privacy and intelligence. |
 | **LOGIC** | `core/logic.py` | **Motor Control** | **Strategy Synthesis**. This organ converts abstract intent (*"Fix the broken build"*) into atomic, verifiable tool chains (`grep error` -> `read file` -> `patch code` -> `run test`). |
 | **GOVERNOR** | `core/governance.py` | **Conscience** | **Immutable Law**. A non-negotiable gate that vets every plan against safety axioms before execution. It is the "Superego" of the system. |
 | **MEMORY** | `core/memory.py` | **Identity** | **Epistemic History**. The `ActionLedger` records success/failure patterns. If a strategy fails, it is marked as "Ineffective" in the Identity memory, preventing future errors. |
