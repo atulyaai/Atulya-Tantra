@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  atulya:
+    build: .
+    container_name: atulya-ai
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ATULYA_ENV=production
+    volumes:
+      - ./logs:/app/logs
+      - ./config:/app/config
+      - ./data:/app/data
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    networks:
+      - atulya-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: atulya-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - atulya-network
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: atulya-db
+    environment:
+      POSTGRES_DB: atulya
+      POSTGRES_USER: atulya
+      POSTGRES_PASSWORD: secure_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - atulya-network
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  postgres_data:
+
+networks:
+  atulya-network:
+    driver: bridge

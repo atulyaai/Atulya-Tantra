@@ -1,0 +1,82 @@
+# Build and Deployment Configuration
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "atulya"
+version = "0.1.0"
+description = "Advanced AGI-Evolving AI Assistant System"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Atulya Team", email = "team@atulya.ai"}
+]
+keywords = ["ai", "assistant", "automation", "agi", "evolution"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Artificial Intelligence"
+]
+
+dependencies = [
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0",
+    "requests>=2.31.0",
+    "numpy>=1.24.3",
+    "pandas>=2.1.0"
+]
+
+[project.optional-dependencies]
+ml = [
+    "torch>=2.1.0",
+    "transformers>=4.35.0",
+    "scikit-learn>=1.3.2"
+]
+nlp = [
+    "spacy>=3.7.2",
+    "nltk>=3.8.1"
+]
+api = [
+    "openai>=1.3.0",
+    "anthropic>=0.7.0",
+    "langchain>=0.1.0"
+]
+database = [
+    "sqlalchemy>=2.0.23",
+    "redis>=5.0.0",
+    "psycopg2-binary>=2.9.9",
+    "pymongo>=4.6.0"
+]
+server = [
+    "fastapi>=0.104.1",
+    "uvicorn>=0.24.0"
+]
+dev = [
+    "pytest>=7.4.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/atulyaai/Atulya-Tantra"
+Documentation = "https://atulya.readthedocs.io"
+Repository = "https://github.com/atulyaai/Atulya-Tantra.git"
+"Bug Tracker" = "https://github.com/atulyaai/Atulya-Tantra/issues"
+
+[tool.setuptools]
+packages = ["atulya"]
+
+[tool.black]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

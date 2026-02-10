@@ -1,0 +1,81 @@
+# Atulya Configuration File
+
+### Core Engine Configuration
+core:
+  model_name: "atulya-1.0"
+  max_workers: 4
+  timeout: 30
+  debug_mode: false
+
+### Memory Settings
+memory:
+  short_term_max: 1000
+  long_term_enabled: true
+  consolidation_interval: 3600
+  vector_embedding_dim: 256
+  similarity_threshold: 0.7
+
+### Evolution Settings
+evolution:
+  initial_learning_rate: 0.001
+  exploration_factor: 0.1
+  mutation_rate: 0.05
+  fitness_update_interval: 10
+  generation_boost: 0.05
+
+### Task Execution
+task_execution:
+  max_retries: 3
+  parallel_execution: true
+  caching_enabled: true
+  cache_ttl: 3600
+
+### NLP Settings
+nlp:
+  tokenizer_type: "spacy"
+  language_model: "en_core_web_sm"
+  sentiment_analysis: true
+  entity_recognition: true
+
+### Automation
+automation:
+  enable_scheduling: true
+  enable_rules: true
+  concurrent_tasks: 5
+  rule_evaluation_interval: 60
+  # Dynamic automation definitions
+  # Example: startup_tasks will be executed once on assistant initialization
+  startup_tasks:
+    - description: "Say hello"
+      task: "What is the status of the system?"
+
+  # automation_rules defines simple named rules. Currently supported "type": "on_start" and "type": "interval_seconds"
+  rules:
+    - id: "demo_start"
+      type: "on_start"
+      action_task: "Execute the demo action"
+    - id: "demo_interval"
+      type: "interval_seconds"
+      every: 3600
+      action_task: "Perform hourly check"
+
+### Integrations
+integrations:
+  enable_api_integration: true
+  enable_database: true
+  enable_web_services: true
+  connection_timeout: 10
+
+### Logging
+logging:
+  level: "INFO"
+  log_file: "logs/atulya.log"
+  max_log_size: 10485760
+  backup_count: 5
+
+### Performance Optimization
+optimization:
+  enable_caching: true
+  enable_compression: true
+  batch_processing: true
+  batch_size: 32
