@@ -18,6 +18,43 @@ from atulya.core.nlp_engine import NLPEngine
 from atulya.automation.task_scheduler import TaskScheduler
 from atulya.integrations.integration_manager import IntegrationManager
 
+# JARVIS Enhancement Modules
+try:
+    from atulya.voice.voice_interface import VoiceInterface
+    VOICE_AVAILABLE = True
+except ImportError:
+    VOICE_AVAILABLE = False
+
+try:
+    from atulya.conversation import ConversationalAI
+    CONVERSATION_AVAILABLE = True
+except ImportError:
+    CONVERSATION_AVAILABLE = False
+
+try:
+    from atulya.realtime import RealTimeDataManager
+    REALTIME_AVAILABLE = True
+except ImportError:
+    REALTIME_AVAILABLE = False
+
+try:
+    from atulya.notifications import NotificationManager
+    NOTIFICATIONS_AVAILABLE = True
+except ImportError:
+    NOTIFICATIONS_AVAILABLE = False
+
+try:
+    from atulya.iot import IoTManager
+    IOT_AVAILABLE = True
+except ImportError:
+    IOT_AVAILABLE = False
+
+try:
+    from atulya.personality import JarvisPersonality
+    PERSONALITY_AVAILABLE = True
+except ImportError:
+    PERSONALITY_AVAILABLE = False
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -52,6 +89,28 @@ class Atulya:
         self.nlp_engine = NLPEngine()
         self.automation = TaskScheduler()
         self.integrations = IntegrationManager()
+
+        # JARVIS Enhancement Modules (optional - graceful degradation)
+        self.voice = VoiceInterface() if VOICE_AVAILABLE else None
+        self.conversation = ConversationalAI(user_name="Sir") if CONVERSATION_AVAILABLE else None
+        self.realtime_data = RealTimeDataManager() if REALTIME_AVAILABLE else None
+        self.notifications = NotificationManager() if NOTIFICATIONS_AVAILABLE else None
+        self.iot = IoTManager() if IOT_AVAILABLE else None
+        self.personality = JarvisPersonality(user_name=name) if PERSONALITY_AVAILABLE else None
+
+        # Log available modules
+        if VOICE_AVAILABLE:
+            logger.info("✓ Voice Interface enabled")
+        if CONVERSATION_AVAILABLE:
+            logger.info("✓ Conversational AI enabled")
+        if REALTIME_AVAILABLE:
+            logger.info("✓ Real-time Data Integration enabled")
+        if NOTIFICATIONS_AVAILABLE:
+            logger.info("✓ Notification System enabled")
+        if IOT_AVAILABLE:
+            logger.info("✓ IoT/Smart Home enabled")
+        if PERSONALITY_AVAILABLE:
+            logger.info("✓ JARVIS Personality enabled")
 
         # Apply config parameters to subsystems
         self._apply_config()
@@ -261,5 +320,148 @@ class Atulya:
         logger.info("System optimization completed")
         return optimizations
 
+    # ============================================================================
+    # JARVIS ENHANCEMENT FEATURES
+    # ============================================================================
+
+    def get_morning_briefing(self, user_name: str = "Sir", location: str = None) -> str:
+        """Generate JARVIS-style morning briefing"""
+        briefing_lines = []
+        
+        briefing_lines.append(f"Good morning, {user_name}.")
+        
+        # Add personality greeting
+        if self.personality:
+            briefing_lines.append(self.personality.greet())
+        
+        # Add weather if real-time enabled
+        if self.realtime_data and location:
+            briefing_lines.append(self.realtime_data.get_daily_briefing(location))
+        
+        # Add notifications
+        if self.notifications:
+            briefing_lines.append(self.notifications.get_briefing(user_name))
+        
+        briefing_lines.append("\nStanding by for your instructions, Sir.")
+        return "\n".join(briefing_lines)
+    
+    def voice_interact(self, timeout: int = 5) -> Optional[str]:
+        """Voice-based interaction (listen, process, respond)"""
+        if not self.voice:
+            logger.warning("Voice interface not available")
+            return None
+        
+        # Listen
+        user_input = self.voice.listen(timeout)
+        if not user_input:
+            return None
+        
+        # Process through conversation AI
+        if self.conversation:
+            response = self.conversation.process_input(user_input)
+        else:
+            response = self.execute_task(user_input)
+        
+        # Speak response
+        self.voice.speak(response)
+        return response
+    
+    def jarvis_command(self, command: str) -> str:
+        """Execute command with full JARVIS personality and features"""
+        response = ""
+        
+        # JARVIS-style confirmation
+        if self.personality:
+            response += self.personality.confirm_action(command) + "\n"
+        
+        # Execute task
+        task_result = self.execute_task(command)
+        
+        # Add personality touch
+        if self.personality and task_result.get("success"):
+            response += self.personality.respond_to_gratitude()
+        
+        return response
+    
+    def add_smart_device(self, device_id: str, device_type: str, name: str, location: str) -> bool:
+        """Add smart home device"""
+        if not self.iot:
+            logger.warning("IoT module not available")
+            return False
+        
+        device = self.iot.smart_home.register_device(device_id, device_type, name, location)
+        return device is not None
+    
+    def control_home(self, command: str) -> str:
+        """Voice command for smart home control"""
+        if not self.iot:
+            return "IoT module not available"
+        
+        return self.iot.execute_voice_command(command)
+    
+    def add_reminder(self, title: str, description: str, remind_at) -> bool:
+        """Add reminder/notification"""
+        if not self.notifications:
+            logger.warning("Notifications module not available")
+            return False
+        
+        self.notifications.add_reminder(title, title, description, remind_at)
+        return True
+    
+    def get_real_time_update(self, category: str = "weather", location: str = None) -> str:
+        """Get real-time data update"""
+        if not self.realtime_data:
+            return "Real-time data module not available"
+        
+        if category == "weather" and location:
+            weather = self.realtime_data.weather.get_weather(location)
+            return f"Weather in {weather['city']}: {weather['temperature']}°C, {weather['description']}"
+        elif category == "news":
+            headlines = self.realtime_data.news.get_headlines()
+            return f"Latest: {headlines[0]['title'] if headlines else 'No news'}"
+        elif category == "status":
+            return self.realtime_data.get_status_report()
+        
+        return f"Unknown category: {category}"
+    
+    def learn_personality_preference(self, pref_key: str, value: any) -> str:
+        """Learn and remember user personality preference"""
+        if not self.personality:
+            return "Personality module not available"
+        
+        return self.personality.learn_preference(pref_key, value)
+    
+    def get_jarvis_status(self) -> str:
+        """Get complete JARVIS system status"""
+        status = f"""
+╔══════════════════════════════════════════════════════════════════╗
+║               JARVIS SYSTEM STATUS                               ║
+╚══════════════════════════════════════════════════════════════════╝
+
+Core Systems:
+  ✓ Memory Manager: Online
+  ✓ Evolution Engine: Online
+  ✓ Skill Manager: Online ({self.stats['skills_learned']} skills)
+  ✓ Task Agent: Online
+  ✓ NLP Engine: Online
+
+JARVIS Enhancement Modules:
+  {'✓' if self.voice else '✗'} Voice Interface
+  {'✓' if self.conversation else '✗'} Conversational AI
+  {'✓' if self.realtime_data else '✗'} Real-time Data Integration
+  {'✓' if self.notifications else '✗'} Notification System
+  {'✓' if self.iot else '✗'} IoT/Smart Home Control
+  {'✓' if self.personality else '✗'} JARVIS Personality
+
+Statistics:
+  - Tasks Executed: {self.stats['tasks_executed']}
+  - Learning Iterations: {self.stats['learning_iterations']}
+  - Skills Learned: {self.stats['skills_learned']}
+  - Evolution Score: {self.stats['evolution_score']:.4f}
+
+Standing by, Sir.
+"""
+        return status
+
     def __repr__(self):
-        return f"<Atulya name='{self.name}' version='{self.version}'>"
+        return f"<Atulya name='{self.name}' version='{self.version}' with_jarvis_features=True>"
