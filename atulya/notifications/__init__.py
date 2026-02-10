@@ -20,7 +20,7 @@ class Notification:
         self.notify_time = notify_time or datetime.now()
         self.created_at = datetime.now()
         self.read = False
-        self.id = hash((title, created_at))
+        self.id = hash((title, self.created_at))
     
     def __lt__(self, other):
         """Enable heap priority sorting"""
