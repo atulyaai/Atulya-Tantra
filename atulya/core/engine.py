@@ -92,7 +92,8 @@ class Atulya:
 
         # JARVIS Enhancement Modules (optional - graceful degradation)
         self.voice = VoiceInterface() if VOICE_AVAILABLE else None
-        self.conversation = ConversationalAI(user_name="Sir") if CONVERSATION_AVAILABLE else None
+        # Initialize conversation with hybrid LLM mode
+        self.conversation = ConversationalAI(user_name="Sir", mode="hybrid") if CONVERSATION_AVAILABLE else None
         self.realtime_data = RealTimeDataManager() if REALTIME_AVAILABLE else None
         self.notifications = NotificationManager() if NOTIFICATIONS_AVAILABLE else None
         self.iot = IoTManager() if IOT_AVAILABLE else None

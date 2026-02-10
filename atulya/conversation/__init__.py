@@ -1,10 +1,20 @@
-"""Conversational AI Module - JARVIS-like natural conversation engine"""
+"""Conversational AI Module - JARVIS-like natural conversation engine with LLM support"""
 
 import logging
 from typing import Dict, List, Optional
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+# Try to import LLM modules
+try:
+    from atulya.llm import HybridLLMEngine
+    from atulya.llm.conversation_model import LocalConversationModel
+    LLM_AVAILABLE = True
+except ImportError:
+    LLM_AVAILABLE = False
+    HybridLLMEngine = None
+    LocalConversationModel = None
 
 
 class ConversationContext:
@@ -44,11 +54,37 @@ class ConversationContext:
 
 
 class ConversationalAI:
-    """JARVIS-like conversational AI engine"""
+    """JARVIS-like conversational AI engine with optional LLM support"""
     
-    def __init__(self, user_name: str = "Sir"):
+    def __init__(self, user_name: str = "Sir", mode: str = "hybrid", llm_provider: Optional[str] = None):
+        """
+        Initialize conversational AI
+        
+        Args:
+            user_name: User name for personalization
+            mode: "template" (fast), "llm" (smart), "hybrid" (best of both)
+            llm_provider: "openai", "anthropic", "ollama", "local", or None (auto-select)
+        """
         self.context = ConversationContext(user_name=user_name)
         self.user_name = user_name
+        self.mode = mode
+        
+        # Initialize LLM engine if available
+        self.llm_engine = None
+        self.local_model = None
+        
+        if LLM_AVAILABLE:
+            try:
+                self.llm_engine = HybridLLMEngine(mode=mode, primary_provider=llm_provider)
+                logger.info(f"LLM Engine initialized: {self.llm_engine.active_provider.name if self.llm_engine.active_provider else 'None'}")
+            except Exception as e:
+                logger.warning(f"LLM Engine initialization failed: {e}")
+            
+            try:
+                self.local_model = LocalConversationModel()
+                logger.info("Local Conversation Model initialized")
+            except Exception as e:
+                logger.warning(f"Local model initialization failed: {e}")
         
         # JARVIS personality traits
         self.personality = {
@@ -76,20 +112,47 @@ class ConversationalAI:
             ]
         }
         
-        logger.info(f"ConversationalAI initialized for {user_name}")
+        logger.info(f"ConversationalAI initialized for {user_name} in {mode} mode")
     
-    def process_input(self, user_input: str) -> str:
-        """Process user input and generate JARVIS-like response"""
+    def process_input(self, user_input: str, use_llm: bool = None) -> str:
+        """
+        Process user input and generate JARVIS-like response
         
-        # Understand intent
-        intent = self._classify_intent(user_input)
-        logger.info(f"Intent detected: {intent}")
+        Args:
+            user_input: User's input text
+            use_llm: Override mode (True=use LLM, False=use template). None=use mode setting
         
-        # Generate contextual response
-        response = self._generate_response(user_input, intent)
+        Returns:
+            Generated response
+        """
+        
+        # Try LLM first in hybrid/llm mode
+        response = None
+        if use_llm is None:
+            use_llm = self.mode in ["llm", "hybrid"]
+        
+        if use_llm:
+            # Try LLM generation
+            if self.llm_engine and self.llm_engine.active_provider:
+                try:
+                    response = self.llm_engine.generate(user_input)
+                except Exception as e:
+                    logger.warning(f"LLM generation failed: {e}")
+            
+            # Fall back to local model if LLM failed
+            if not response and self.local_model:
+                try:
+                    response = self.local_model.process_input(user_input)
+                except Exception as e:
+                    logger.warning(f"Local model failed: {e}")
+        
+        # Fall back to template-based response
+        if not response:
+            intent = self._classify_intent(user_input)
+            response = self._generate_response(user_input, intent)
         
         # Learn from interaction
-        self.context.add_exchange(user_input, response, intent)
+        self.context.add_exchange(user_input, response)
         
         return response
     
