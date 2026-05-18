@@ -202,6 +202,8 @@ values, scores = cortex.retrieve(query=embed("what is quantum?"), top_k=8)
   <img src="docs/images/scaling_comparison.png" alt="NP-DNA vs GPT-4, Claude, Gemini, Grok" width="750"/>
 </p>
 
+> **Note:** Comparison uses publicly reported and estimated parameter counts. Exact architectures of proprietary models are not disclosed by their companies. NP-DNA's "effective intelligence" is a theoretical estimate based on DNA compression ratios — real-world benchmarks will follow.
+
 NP-DNA auto-scales from a 500K seed to billions. Nothing is fixed — vocab, strands, layers all grow automatically:
 
 | Config | Actual Params | RAM | Disk | Effective Intelligence | CPU Train Time |
