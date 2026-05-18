@@ -19,11 +19,10 @@ from pathlib import Path
 import torch
 from torch import nn
 
-# Add project root to path for src layout
+# Add project root to path
 _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
-    sys.path.insert(0, str(_ROOT / "src"))
 
 from atulya.core.npdna import NpDnaCore, PlasticityEngine
 from training.dataset.build_dataset import build_seed_dataset, load_dataset

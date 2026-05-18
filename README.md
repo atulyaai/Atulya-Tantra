@@ -41,6 +41,10 @@ Traditional:  100M params → 100M stored numbers → 400MB
 NP-DNA:       5M params  → 100M generated numbers → 20MB  (20x smaller, same intelligence)
 ```
 
+<p align="center">
+  <img src="docs/images/dna_compression.png" alt="DNA Compression — 20x smaller, same intelligence" width="750"/>
+</p>
+
 ---
 
 ## 🏗️ Architecture
@@ -98,6 +102,10 @@ graph TB
 ```
 
 ### The Four Pillars
+
+<p align="center">
+  <img src="docs/images/four_pillars.png" alt="Four Pillars of NP-DNA" width="750"/>
+</p>
 
 | Component | What It Does | Why It Matters |
 |---|---|---|
@@ -189,6 +197,10 @@ values, scores = cortex.retrieve(query=embed("what is quantum?"), top_k=8)
 ---
 
 ## 📊 Scaling
+
+<p align="center">
+  <img src="docs/images/scaling_comparison.png" alt="NP-DNA vs GPT-4, Claude, Gemini, Grok" width="750"/>
+</p>
 
 NP-DNA auto-scales from a 500K seed to billions. Nothing is fixed — vocab, strands, layers all grow automatically:
 
@@ -342,30 +354,30 @@ The dashboard shows:
 
 ```
 Atulya-Tantra/
-├── src/atulya/                    # Core package
+├── atulya/                        # Core Python package
 │   ├── core/npdna/                # NP-DNA architecture
 │   │   ├── config.py              #   Scaling configs (seed → medium)
-│   │   ├── genome.py              #   DNA weight generator
+│   │   ├── genome.py              #   🧬 DNA weight generator
 │   │   ├── strand.py              #   Causal gated SSM unit
-│   │   ├── mesh.py                #   Sparse top-k routing
-│   │   ├── cortex.py              #   External memory store
+│   │   ├── mesh.py                #   🕸️ Sparse top-k routing
+│   │   ├── cortex.py              #   🗃️ External memory store
 │   │   ├── model.py               #   Full model + NpDnaCore wrapper
-│   │   ├── plasticity.py          #   Self-improvement engine
+│   │   ├── plasticity.py          #   ⚡ Self-improvement engine
 │   │   └── tokenizer.py           #   Auto-scaling Hindi/Sanskrit/English
-│   ├── identity.py                # Personality & privacy (config-driven)
-│   ├── dashboard.py               # Interactive training dashboard
-│   └── cli.py                     # CLI entry point
+│   ├── identity.py                # 🔒 Personality & privacy (config-driven)
+│   ├── dashboard.py               # 📊 Interactive training dashboard
+│   └── cli.py                     # CLI: atulya info / train / generate
 ├── training/                      # Training pipeline
 │   ├── dataset/
-│   │   └── build_dataset.py       #   Seed dataset + identity samples
+│   │   └── build_dataset.py       #   Seed data + identity samples
 │   └── npdna_train.py             #   Training loop + chunk training
 ├── data/
 │   └── identity.json              # Personality config (edit to customize)
 ├── tests/
-│   └── test_npdna.py              # 30 unit tests (all passing)
+│   └── test_npdna.py              # 30 unit tests (all passing ✅)
 ├── docs/images/                   # Architecture diagrams
 ├── pyproject.toml                 # Package config
-└── requirements.txt               # Minimal dependencies
+└── requirements.txt               # torch, numpy, psutil
 ```
 
 ---
