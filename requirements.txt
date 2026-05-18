@@ -1,0 +1,4 @@
+# Atulya Tantra — NP-DNA core dependencies
+torch>=2.0
+numpy>=1.24
+psutil>=5.9

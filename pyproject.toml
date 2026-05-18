@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "atulya-tantra"
+version = "0.1.0"
+description = "NP-DNA: NeuroPlastic DNA Network — a novel neural architecture with DNA weight generation, sparse mesh routing, external memory cortex, and self-improvement"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Atulya AI"}]
+dependencies = [
+    "torch>=2.0",
+    "numpy>=1.24",
+    "psutil>=5.9",
+]
+
+[project.optional-dependencies]
+serve = ["fastapi", "uvicorn", "jinja2", "python-multipart"]
+dev = ["pytest>=7.0", "ruff"]
+
+[project.scripts]
+atulya = "atulya.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["atulya*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

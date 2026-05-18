@@ -1,0 +1,47 @@
+# Outputs & checkpoints
+outputs/
+*.pt
+*.safetensors
+
+# Generated data (keep identity.json)
+data/seed_dataset.jsonl
+data/*.bin
+
+# Cache
+.pytest_cache/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Environment
+.env
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Old repos (kept locally for reference)
+Atulya/
+Tantra/
+Atulya-Web/
+
+# Misc
+*.log
+.coverage
+htmlcov/
