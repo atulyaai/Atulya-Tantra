@@ -51,54 +51,30 @@ NP-DNA:       5M params  → 100M generated numbers → 20MB  (20x smaller, same
 
 NP-DNA combines **four novel components** that no existing system uses together:
 
-```mermaid
-graph TB
-    subgraph INPUT["📥 Input"]
-        T["Text (EN/HI/SA)"]
-        V["Voice"]
-        I["Image"]
-    end
+<p align="center">
+  <img src="docs/images/architecture.png" alt="NP-DNA Architecture" width="800"/>
+</p>
 
-    subgraph CORE["🧠 ATULYA CORE"]
-        EMB["Embedding Layer"]
-        
-        subgraph MESH["Neural Mesh (per layer)"]
-            S1["Strand 0"]
-            S2["Strand 1"]
-            S3["Strand 2"]
-            S4["Strand ...N"]
-            ROUTER["Top-k Router"]
-        end
-        
-        GENOME["🧬 DNA Genome\n(Weight Generator)"]
-        CORTEX["🗃️ Memory Cortex\n(External Knowledge)"]
-        NORM["Layer Norm"]
-        HEAD["LM Head → Logits"]
-    end
-
-    subgraph ADAPT["⚡ Self-Improvement"]
-        PLAST["Plasticity Engine"]
-    end
-
-    T --> EMB
-    V -.-> EMB
-    I -.-> EMB
-    EMB --> ROUTER
-    ROUTER -->|"top-k"| S1 & S2
-    ROUTER -.->|"skip"| S3 & S4
-    GENOME -->|"generates weights"| S1 & S2 & S3 & S4
-    S1 & S2 --> NORM
-    NORM --> CORTEX
-    CORTEX --> HEAD
-    HEAD --> OUTPUT["📤 Output"]
-    PLAST -->|"grow/prune"| MESH
-    PLAST -->|"monitor"| HEAD
-
-    style GENOME fill:#7c3aed,color:#fff
-    style CORTEX fill:#0891b2,color:#fff
-    style ROUTER fill:#059669,color:#fff
-    style PLAST fill:#d97706,color:#fff
-    style CORE fill:#111827,color:#e2e8f0
+```
+  ┌──────────────────────────────────────────────────────────────┐
+  │                     ATULYA CORE                              │
+  │                                                              │
+  │  Text/Voice/Image ──▶ Embedding ──▶ ┌─────────────────┐     │
+  │                                     │  Neural Mesh     │     │
+  │                    ┌────────────────▶│  (Sparse Router) │     │
+  │                    │                │  top-k Strands   │     │
+  │               DNA Genome            └────────┬────────┘     │
+  │            (generates weights                │              │
+  │             for ALL Strands)                  ▼              │
+  │                                         Layer Norm          │
+  │                                              │              │
+  │                                         Memory Cortex       │
+  │                                       (external knowledge)  │
+  │                                              │              │
+  │                                         LM Head ──▶ Output  │
+  │                                                              │
+  │  Plasticity Engine monitors everything, auto-scales          │
+  └──────────────────────────────────────────────────────────────┘
 ```
 
 ### The Four Pillars
