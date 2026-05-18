@@ -36,10 +36,8 @@ env/
 Thumbs.db
 desktop.ini
 
-# Old repos (kept locally for reference)
-Atulya/
-Tantra/
-Atulya-Web/
+# Old repos (archived locally)
+_archive/
 
 # Misc
 *.log
