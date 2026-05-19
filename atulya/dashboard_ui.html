@@ -507,10 +507,24 @@ Select a dataset above and click [Scan Dataset] to view the raw data pipeline he
           <label>Admin Token (X-Atulya-Token)</label>
           <input type="password" value="********" disabled style="opacity:0.5">
         </div>
-        <button class="btn full" disabled style="opacity:0.5">Manage Users (WIP)</button>
+        <button class="btn stop full" onclick="logout()" style="font-weight:bold;">LOGOUT SECURE SESSION</button>
       </div>
     </div>
   </div>
+</div>
+
+<!-- LOGIN OVERLAY -->
+<div id="login-overlay" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(15,23,42,0.9); z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; backdrop-filter:blur(10px); text-align:center; display:none;">
+    <div style="background:var(--bg-card); padding:40px; border-radius:12px; border:1px solid rgba(255,255,255,0.1); width:400px; max-width:90%;">
+        <h2 style="margin:0 0 8px 0; font-size:1.5rem; letter-spacing:1px; background:linear-gradient(90deg, #f472b6, #38bdf8); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">NP-DNA COMMAND CENTER</h2>
+        <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:24px;">Authentication Required</p>
+        <div style="margin-bottom:16px; text-align:left;">
+            <label style="display:block; margin-bottom:8px; font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px;">Admin Token</label>
+            <input type="password" id="inp-login-token" placeholder="Enter master password..." style="width:100%; padding:10px 12px; font-size:1rem; text-align:center; background:var(--bg-dark); color:white; border:1px solid rgba(255,255,255,0.2); border-radius:4px; outline:none;">
+        </div>
+        <button id="btn-login" class="btn full" style="font-weight:bold; font-size:1rem; padding:12px; margin-top:16px;">AUTHORIZE</button>
+        <div id="login-error" style="color:var(--color-pink); font-size:0.85rem; margin-top:16px; min-height:16px;"></div>
+    </div>
 </div>
 
 <script>
@@ -519,12 +533,45 @@ let datasets=[], configs=[], checkpoints=[], models=[], points=[], ws=null;
 let totalParams = 0, activeParams = 0;
 const MAX_POINTS = 500;
 let DASH_TOKEN = localStorage.getItem('atulyaDashboardToken')||'';
-if(!DASH_TOKEN){
-  const entered = prompt('Dashboard token');
-  if(entered && entered.trim()){
-    DASH_TOKEN = entered.trim();
-    localStorage.setItem('atulyaDashboardToken', DASH_TOKEN);
-  }
+
+async function checkAuth(token) {
+    const res = await fetch('/api/auth/verify', { method: 'POST', headers: { 'X-Atulya-Token': token } });
+    if(res.ok) {
+        DASH_TOKEN = token;
+        localStorage.setItem('atulyaDashboardToken', token);
+        $('login-overlay').style.display = 'none';
+        init();
+        return true;
+    }
+    return false;
+}
+
+window.addEventListener('load', async () => {
+    if(DASH_TOKEN) {
+        const ok = await checkAuth(DASH_TOKEN);
+        if(!ok) {
+            $('login-overlay').style.display = 'flex';
+            $('login-error').textContent = 'Session expired. Please log in again.';
+        }
+    } else {
+        $('login-overlay').style.display = 'flex';
+    }
+});
+
+$('btn-login').onclick = async () => {
+    const t = $('inp-login-token').value.trim();
+    if(!t) return;
+    const btn = $('btn-login'); btn.disabled = true; btn.textContent = 'VERIFYING...';
+    const ok = await checkAuth(t);
+    if(!ok) {
+        $('login-error').textContent = 'Invalid token. Access denied.';
+        btn.disabled = false; btn.textContent = 'AUTHORIZE';
+    }
+};
+
+function logout() {
+    localStorage.removeItem('atulyaDashboardToken');
+    location.reload();
 }
 const $ = id => document.getElementById(id);
 const text = (id,v) => { if($(id)) $(id).textContent=v };
@@ -1084,7 +1131,7 @@ function connectWS(){
     else if(msg.type==='log')addLog(msg.data);
   }
 }
-init();
+// Removed bare init() as it is now called by checkAuth() upon success
 </script>
 </body>
 </html>

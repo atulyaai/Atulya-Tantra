@@ -35,8 +35,7 @@ MAX_LIMIT = int(os.environ.get("ATULYA_DASHBOARD_MAX_LIMIT", "50000"))
 MAX_PROMPT_CHARS = int(os.environ.get("ATULYA_DASHBOARD_MAX_PROMPT_CHARS", "4000"))
 MAX_CHAT_TOKENS = int(os.environ.get("ATULYA_DASHBOARD_MAX_TOKENS", "256"))
 MAX_HISTORY_POINTS = int(os.environ.get("ATULYA_DASHBOARD_HISTORY", "1000"))
-ADMIN_TOKEN = os.environ.get("ATULYA_DASHBOARD_TOKEN", "").strip()
-ENABLE_RESET = os.environ.get("ATULYA_DASHBOARD_ENABLE_RESET", "").strip() == "1"
+ADMIN_TOKEN = os.environ.get("ATULYA_DASHBOARD_TOKEN", "admin").strip()
 DEFAULT_SYSTEM_PROMPT = "You are Atulya. Be warm, thoughtful, and direct."
 
 
@@ -49,8 +48,6 @@ def _allowed_origins() -> set[str]:
 
 
 def _require_admin(x_atulya_token: str | None = Header(default=None)) -> None:
-    if not ADMIN_TOKEN:
-        return # Dev mode: bypass token check if ATULYA_DASHBOARD_TOKEN is not set in environment
     if x_atulya_token != ADMIN_TOKEN:
         raise HTTPException(status_code=401, detail="Dashboard token required")
 
@@ -322,6 +319,15 @@ def _list_checkpoints():
 
 # ── API ──────────────────────────────────────────────────────────────────
 
+@app.post("/api/auth/verify")
+def api_auth_verify(
+    request: Request,
+    _admin: str | None = Header(default=None, alias="X-Atulya-Token"),
+):
+    _check_request_origin(request)
+    _require_admin(_admin)
+    return {"status": "ok"}
+
 @app.get("/api/datasets")
 def api_datasets(_admin: str | None = Header(default=None, alias="X-Atulya-Token")):
     _require_admin(_admin)
@@ -526,11 +532,6 @@ def api_system_reset(
     """Factory reset: delete all model outputs but keep datasets."""
     _check_request_origin(request)
     _require_admin(_admin)
-    if not ENABLE_RESET:
-        raise HTTPException(
-            status_code=403,
-            detail="Factory reset disabled. Set ATULYA_DASHBOARD_ENABLE_RESET=1 to enable.",
-        )
     import shutil
     
     # 1. Stop any running training

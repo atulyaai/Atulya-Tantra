@@ -420,19 +420,25 @@ def train_topic(
     # We'll mask gradients to only update the target seed
 
     texts = load_dataset(data_path)
-    encoded = [core.encode(t)[:128] for t in texts if len(core.encode(t)) >= 2]
+    encoded = []
+    for t in texts:
+        ids = core.encode(t)[:128]
+        if len(ids) >= 2:
+            encoded.append(ids)
 
     optimizer = torch.optim.AdamW([model.genome.seeds], lr=lr)
     loss_fn = nn.CrossEntropyLoss()
 
     model.train()
     for step in range(1, steps + 1):
+        loss = None
         for ids in encoded:
             input_ids = torch.tensor([ids[:-1]], dtype=torch.long)
             labels = torch.tensor([ids[1:]], dtype=torch.long)
 
             logits, _ = model(input_ids)
-            loss = loss_fn(logits.reshape(-1, logits.shape[-1]), labels.reshape(-1))
+            ce_loss = loss_fn(logits.reshape(-1, logits.shape[-1]), labels.reshape(-1))
+            loss = ce_loss # assign ce_loss to loss for compatibility with below
 
             optimizer.zero_grad()
             loss.backward()
@@ -446,7 +452,8 @@ def train_topic(
             optimizer.step()
 
         if step % 10 == 0:
-            logger.info("  topic=%s step=%d loss=%.4f", topic, step, float(loss))
+            loss_val = float(loss) if loss is not None else float("nan")
+            logger.info("  topic=%s step=%d loss=%.4f", topic, step, loss_val)
 
     # Unfreeze all
     for param in model.parameters():

@@ -109,8 +109,7 @@ def measure_strand_utilization(core: NpDnaCore, test_texts: list[str]) -> dict:
 
     # Reset usage stats
     for mesh in model.mesh_layers:
-        for key in mesh.usage_stats:
-            mesh.usage_stats[key] = 0
+        mesh.reset_usage()
 
     with torch.no_grad():
         for text in test_texts[:50]:
