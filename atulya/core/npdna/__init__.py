@@ -17,6 +17,8 @@ from .model import NpDnaCore, NpDnaModel
 from .plasticity import PlasticityEngine
 from .strand import Strand
 from .tokenizer import AtulyaTokenizer
+from .multimodal import VoiceEncoder, VisionEncoder
+from .autonomy import NpDnaAgent
 
 __all__ = [
     "CONFIGS",
@@ -30,4 +32,7 @@ __all__ = [
     "NpDnaCore",
     "PlasticityEngine",
     "AtulyaTokenizer",
+    "VoiceEncoder",
+    "VisionEncoder",
+    "NpDnaAgent",
 ]

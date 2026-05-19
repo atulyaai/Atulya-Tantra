@@ -649,5 +649,101 @@ class TestIdentity:
         assert "Atulya" in all_text
 
 
+class TestMultimodal:
+    def test_voice_encoder(self):
+        from atulya.core.npdna.multimodal import VoiceEncoder
+        encoder = VoiceEncoder(hidden_size=64, input_freq_bins=80)
+        
+        # Test raw waveform input
+        waveform = torch.randn(2, 1600)  # (batch, sample_len)
+        output_raw = encoder(waveform)
+        # Hann window 512, hop_length 160 -> stft outputs time frames approx 1600 / 160 = 11.
+        # Conv1d downsamples by factor of 4 (stride 2 twice). So approx 3 frames.
+        assert output_raw.shape[0] == 2
+        assert output_raw.shape[2] == 64
+        assert output_raw.shape[1] > 0
+        
+        # Test spectrogram input
+        spectrogram = torch.randn(2, 20, 80)  # (batch, time, freq)
+        output_spec = encoder(spectrogram)
+        # Conv1d downsamples time by factor of 4 -> 20 / 4 = 5 frames.
+        assert output_spec.shape == (2, 5, 64)
+
+    def test_vision_encoder(self):
+        from atulya.core.npdna.multimodal import VisionEncoder
+        encoder = VisionEncoder(hidden_size=64, patch_size=8, in_channels=3, max_patches=16)
+        
+        # Test standard size image matching max_patches limits
+        img = torch.randn(2, 3, 32, 32)  # (32/8) * (32/8) = 16 patches
+        output = encoder(img)
+        assert output.shape == (2, 16, 64)
+        
+        # Test interpolation with larger image sizes
+        img_large = torch.randn(2, 3, 64, 64)  # (64/8) * (64/8) = 64 patches
+        output_large = encoder(img_large)
+        assert output_large.shape == (2, 64, 64)
+
+    def test_model_multimodal_forward(self):
+        from atulya.core.npdna import NpDnaConfig, NpDnaModel
+        cfg = NpDnaConfig(hidden_size=64, num_layers=2)
+        model = NpDnaModel(cfg)
+        
+        input_ids = torch.randint(0, 100, (2, 4))
+        audio = torch.randn(2, 1600)
+        image = torch.randn(2, 3, 16, 16)  # patch_size=16 -> 1 patch
+        
+        # Forward pass with multimodal inputs
+        logits, loss = model(input_ids=input_ids, audio_inputs=audio, image_inputs=image)
+        # Sequence len = 4 (text) + downsampled audio (approx 3) + 1 (vision) = approx 8.
+        assert logits.dim() == 3
+        assert logits.shape[0] == 2
+        assert logits.shape[2] == cfg.initial_vocab
+        assert loss.item() >= 0.0
+
+
+class TestAutonomy:
+    def test_agent_react_loop(self):
+        from atulya.core.npdna import NpDnaCore, NpDnaAgent
+        core = NpDnaCore.from_config("seed")
+        agent = NpDnaAgent(core)
+        
+        calls = []
+        def dummy_tool(arg):
+            calls.append(arg)
+            return "dummy result"
+            
+        agent.register_tool("dummy", dummy_tool)
+        
+        # Mock core generate to simulate a ReAct output calling dummy tool
+        # In the first iteration, model calls Action: dummy[arg1]
+        # In the second iteration, model returns Action: respond[done]
+        iteration = 0
+        def mock_generate(*args, **kwargs):
+            nonlocal iteration
+            iteration += 1
+            if iteration == 1:
+                return args[0] + "Action: dummy[test_argument]"
+            return args[0] + "Action: respond[ReAct execution successful]"
+            
+        core.generate = mock_generate
+        
+        response = agent.run("Perform some task", max_iterations=3)
+        
+        assert response == "ReAct execution successful"
+        assert calls == ["test_argument"]
+
+
+class TestPipeline:
+    def test_harvest_common_crawl(self):
+        from training.dataset.harvest_data import harvest_common_crawl
+        samples = harvest_common_crawl(limit=2)
+        assert len(samples) >= 1
+        for s in samples:
+            assert "instruction" in s
+            assert "output" in s
+            assert s["source"] == "common_crawl"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+

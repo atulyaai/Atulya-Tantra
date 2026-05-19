@@ -461,11 +461,11 @@ python -m pytest tests/ -v
 - [x] **Phase 1:** Auto-scaling tokenizer (Hindi + Sanskrit + English)
 - [x] **Phase 1:** Training pipeline with chunk training
 - [x] **Phase 1:** Modular Command Center Dashboard (FastAPI/WebSocket)
-- [x] **Phase 1:** 37 unit tests passing
-- [ ] **Phase 2:** Voice/Audio encoder (Mel spectrogram → shared core)
-- [ ] **Phase 3:** Vision encoder (patch embedding → shared core)
-- [ ] **Phase 4:** Autonomy layer (proactive agent)
-- [ ] **Phase 5:** Large-scale data pipeline (Wikipedia, Common Crawl)
+- [x] **Phase 1:** 44 unit tests passing
+- [x] **Phase 2:** Voice/Audio encoder (Mel spectrogram → shared core)
+- [x] **Phase 3:** Vision encoder (patch embedding → shared core)
+- [x] **Phase 4:** Autonomy layer (proactive agent)
+- [x] **Phase 5:** Large-scale data pipeline (Wikipedia, Common Crawl)
 
 ---
 

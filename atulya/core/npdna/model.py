@@ -23,6 +23,7 @@ from .cortex import MemoryCortex
 from .genome import Genome
 from .mesh import NeuralMesh
 from .tokenizer import SPECIAL_TOKENS, AtulyaTokenizer
+from .multimodal import VoiceEncoder, VisionEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,10 @@ class NpDnaModel(nn.Module):
 
         # External Knowledge Memory Cortex
         self.cortex = MemoryCortex(config.cortex)
+
+        # Multimodal Encoders
+        self.voice_encoder = VoiceEncoder(H)
+        self.vision_encoder = VisionEncoder(H)
 
     @property
     def vocab_size(self) -> int:
@@ -142,17 +147,42 @@ class NpDnaModel(nn.Module):
 
         logger.info("Embeddings resized: %d → %d", old_n, new_vocab)
 
-    def forward(self, input_ids: Tensor) -> tuple[Tensor, Tensor]:
+    def forward(
+        self,
+        input_ids: Tensor | None = None,
+        audio_inputs: Tensor | None = None,
+        image_inputs: Tensor | None = None,
+    ) -> tuple[Tensor, Tensor]:
         """Forward pass.
 
         Args:
             input_ids: Token IDs (batch, seq_len).
+            audio_inputs: Raw waveforms (B, sample_len) or spectrograms (B, T, freq).
+            image_inputs: Image tensor (B, C, H, W).
 
         Returns:
             (logits, balance_loss) — logits for next-token prediction,
             and aggregate load-balancing loss from all Mesh layers.
         """
-        x = self.embedding(input_ids)  # (B, T, H)
+        embeddings = []
+        
+        if input_ids is not None:
+            embeddings.append(self.embedding(input_ids))
+            
+        if audio_inputs is not None:
+            embeddings.append(self.voice_encoder(audio_inputs))
+            
+        if image_inputs is not None:
+            embeddings.append(self.vision_encoder(image_inputs))
+            
+        if not embeddings:
+            raise ValueError("Must provide at least one of input_ids, audio_inputs, or image_inputs.")
+            
+        # Concatenate features along sequence dimension (dim=1)
+        if len(embeddings) > 1:
+            x = torch.cat(embeddings, dim=1)
+        else:
+            x = embeddings[0]
 
         total_balance_loss = torch.tensor(0.0, device=x.device)
 
@@ -573,7 +603,7 @@ class NpDnaCore:
                     ids.extend(base_n * meta["num_layers"] + g * meta["num_layers"] + layer_i for g in range(growth))
                 model.restore_strand_id_map(inferred)
         try:
-            model.load_state_dict(state)
+            model.load_state_dict(state, strict=False)
         except RuntimeError as e:
             err_msg = str(e)
             if "size mismatch" in err_msg or "Missing key" in err_msg or "Unexpected key" in err_msg:
