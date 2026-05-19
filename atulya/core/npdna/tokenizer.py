@@ -12,7 +12,7 @@ import math
 import re
 from collections import Counter
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +174,19 @@ class AtulyaTokenizer:
     def encode(self, text: str, allow_growth: bool = True) -> list[int]:
         """Encode text to token IDs. Falls back to byte encoding for unknowns."""
         ids: list[int] = []
+        special_pattern = "|".join(re.escape(tok) for tok in sorted(SPECIAL_TOKENS, key=len, reverse=True))
+        parts = re.split(f"({special_pattern})", text) if special_pattern else [text]
+        for part in parts:
+            if not part:
+                continue
+            if part in SPECIAL_TOKENS:
+                ids.append(SPECIAL_TOKENS[part])
+                continue
+            ids.extend(self._encode_plain(part, allow_growth=allow_growth))
+        return ids
+
+    def _encode_plain(self, text: str, allow_growth: bool = True) -> list[int]:
+        ids: list[int] = []
         for chunk in _SPLIT_RE.findall(text):
             subwords = self._bpe_encode(chunk)
             for sw in subwords:
@@ -252,17 +265,40 @@ class AtulyaTokenizer:
             symbols = new_symbols
         return symbols
 
-    def train_bpe(self, texts: Iterable[str], target_merges: int = 4000) -> None:
-        """Train BPE merges on a text corpus."""
+    def train_bpe(
+        self,
+        texts: Iterable[str],
+        target_merges: int = 4000,
+        max_words: int | None = 0,
+        min_pair_freq: int = 2,
+        progress_callback: Callable[["AtulyaTokenizer"], None] | None = None,
+    ) -> None:
+        """Train or extend BPE merges on a text corpus.
+
+        ``target_merges`` is the desired total merge count. Existing merges and
+        token IDs are preserved so resumed training can safely improve the
+        tokenizer without invalidating checkpoint weights.
+        """
+        if target_merges <= len(self.merges):
+            logger.info("BPE already has %d/%d merges", len(self.merges), target_merges)
+            return
+
         word_freqs: Counter[str] = Counter()
         for text in texts:
             for chunk in _SPLIT_RE.findall(text):
                 word_freqs[chunk] += 1
+        if max_words and max_words > 0 and len(word_freqs) > max_words:
+            word_freqs = Counter(dict(word_freqs.most_common(max_words)))
 
-        splits: dict[str, list[str]] = {w: list(w) for w in word_freqs}
-        logger.info("Training BPE: %d unique words, target %d merges", len(word_freqs), target_merges)
+        splits: dict[str, list[str]] = {w: self._bpe_encode(w) for w in word_freqs}
+        logger.info(
+            "Training BPE: %d unique words, extending %d -> %d merges",
+            len(word_freqs),
+            len(self.merges),
+            target_merges,
+        )
 
-        for merge_i in range(target_merges):
+        while len(self.merges) < target_merges:
             pair_freqs: Counter[tuple[str, str]] = Counter()
             for word, freq in word_freqs.items():
                 syms = splits[word]
@@ -271,7 +307,16 @@ class AtulyaTokenizer:
             if not pair_freqs:
                 break
 
-            best_pair, _ = pair_freqs.most_common(1)[0]
+            best_pair = None
+            for pair, freq in pair_freqs.most_common():
+                if freq < min_pair_freq:
+                    best_pair = None
+                    break
+                if pair not in self.merge_ranks:
+                    best_pair = pair
+                    break
+            if best_pair is None:
+                break
             a, b = best_pair
             merged = a + b
 
@@ -292,10 +337,14 @@ class AtulyaTokenizer:
                         i += 1
                 splits[word] = new_syms
 
-            if merge_i > 0 and merge_i % 1000 == 0:
-                logger.info("  BPE merge %d/%d, vocab=%d", merge_i, target_merges, self.size)
+            if len(self.merges) % 1000 == 0:
+                logger.info("  BPE merge %d/%d, vocab=%d", len(self.merges), target_merges, self.size)
+                if progress_callback is not None:
+                    progress_callback(self)
 
         logger.info("BPE training done: %d merges, vocab=%d", len(self.merges), self.size)
+        if progress_callback is not None:
+            progress_callback(self)
 
     # ------------------------------------------------------------------
     # Save / Load

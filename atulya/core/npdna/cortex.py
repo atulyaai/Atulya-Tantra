@@ -36,7 +36,7 @@ class CortexEntry:
     access_count: int = 0
 
 
-class MemoryCortex:
+class MemoryCortex(torch.nn.Module):
     """External vector memory.  Store and retrieve knowledge without retraining.
 
     Args:
@@ -44,12 +44,15 @@ class MemoryCortex:
     """
 
     def __init__(self, config: CortexConfig):
+        super().__init__()
         self.config = config
         self.entries: list[CortexEntry] = []
 
         # Projection layer: hidden_state → query vector
         self.query_proj = torch.nn.Linear(config.dim, config.dim, bias=False)
         self.value_proj = torch.nn.Linear(config.dim, config.dim, bias=False)
+        self._last_top_indices = None
+        self._last_top_scores = None
 
     @property
     def size(self) -> int:
@@ -88,6 +91,9 @@ class MemoryCortex:
             (values, scores) — retrieved value vectors and similarity scores.
         """
         if self.size == 0:
+            if not self.training:
+                self._last_top_indices = None
+                self._last_top_scores = None
             dim = self.config.dim
             k = top_k or self.config.top_k
             if query.dim() == 1:
@@ -123,6 +129,13 @@ class MemoryCortex:
         for idx_row in top_indices:
             for idx in idx_row:
                 self.entries[idx.item()].access_count += 1
+
+        if not self.training:
+            self._last_top_indices = top_indices.detach().cpu()
+            self._last_top_scores = top_scores.detach().cpu()
+        else:
+            self._last_top_indices = None
+            self._last_top_scores = None
 
         return top_values.squeeze(0), top_scores.squeeze(0)
 
@@ -181,6 +194,110 @@ class MemoryCortex:
         with torch.no_grad():
             vec = encoder_fn(text)
         return self.store(vec, topic=topic, source=text[:200])
+
+    def sleep_cycle(
+        self,
+        similarity_threshold: float = 0.90,
+        max_capacity: int | None = None,
+    ) -> dict[str, int]:
+        """Perform a consolidation pass to merge duplicate facts and enforce capacity.
+
+        Uses pure PyTorch operations to compute cosine similarities and greedily group entries.
+        """
+        if self.size == 0:
+            return {"before": 0, "after": 0, "merged": 0, "evicted": 0}
+
+        max_capacity = max_capacity or self.config.max_entries
+        old_size = self.size
+
+        # 1. Compute cosine similarity matrix
+        with torch.no_grad():
+            keys = torch.stack([e.key for e in self.entries])  # (N, dim)
+            keys_norm = torch.nn.functional.normalize(keys, dim=-1)  # (N, dim)
+            similarity = keys_norm @ keys_norm.T  # (N, N)
+
+        # 2. Greedy grouping of unvisited elements
+        visited = set()
+        consolidated_entries: list[CortexEntry] = []
+
+        for i in range(old_size):
+            if i in visited:
+                continue
+
+            # Find all entries similar to i
+            cluster_indices = []
+            for j in range(i, old_size):
+                if j not in visited and similarity[i, j].item() >= similarity_threshold:
+                    cluster_indices.append(j)
+                    visited.add(j)
+
+            if not cluster_indices:
+                continue
+
+            if len(cluster_indices) == 1:
+                consolidated_entries.append(self.entries[i])
+                continue
+
+            # Merge cluster
+            clustered_entries = [self.entries[idx] for idx in cluster_indices]
+            
+            # Key/Value is average
+            merged_key = torch.stack([e.key for e in clustered_entries]).mean(dim=0)
+            merged_value = torch.stack([e.value for e in clustered_entries]).mean(dim=0)
+            
+            # Topic is the most common non-generic topic
+            topics = [e.topic for e in clustered_entries if e.topic and e.topic.lower() != "general"]
+            if topics:
+                merged_topic = max(set(topics), key=topics.count)
+            else:
+                merged_topic = clustered_entries[0].topic or "General"
+                
+            # Source: Concatenate unique text snippets or pick the longest one
+            sources = []
+            for e in clustered_entries:
+                if e.source and e.source not in sources:
+                    sources.append(e.source)
+            if sources:
+                # Pick the longest source snippet to retain detail
+                merged_source = max(sources, key=len)
+            else:
+                merged_source = ""
+                
+            merged_created = min(e.created_at for e in clustered_entries)
+            merged_access = sum(e.access_count for e in clustered_entries)
+
+            merged_entry = CortexEntry(
+                key=merged_key,
+                value=merged_value,
+                topic=merged_topic,
+                source=merged_source,
+                created_at=merged_created,
+                access_count=merged_access,
+            )
+            consolidated_entries.append(merged_entry)
+
+        after_merge_size = len(consolidated_entries)
+        merged_count = old_size - after_merge_size
+
+        # 3. Enforce max capacity (evict LFU if size exceeds capacity)
+        evicted_count = 0
+        if after_merge_size > max_capacity:
+            # Sort by access_count descending, keep top max_capacity
+            consolidated_entries.sort(key=lambda e: e.access_count, reverse=True)
+            evicted_count = after_merge_size - max_capacity
+            consolidated_entries = consolidated_entries[:max_capacity]
+
+        self.entries = consolidated_entries
+        logger.info(
+            "Cortex sleep consolidation complete: before=%d, after=%d, merged=%d, evicted=%d",
+            old_size, self.size, merged_count, evicted_count
+        )
+        return {
+            "before": old_size,
+            "after": self.size,
+            "merged": merged_count,
+            "evicted": evicted_count,
+        }
 
     def save(self, path: str | Path) -> None:
         """Save Cortex to disk."""

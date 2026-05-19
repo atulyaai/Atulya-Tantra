@@ -41,7 +41,7 @@ class MeshConfig:
 
     num_strands: int = 8
     top_k: int = 2
-    balance_weight: float = 0.01
+    balance_weight: float = 0.05
     strand: StrandConfig = field(default_factory=StrandConfig)
 
 
@@ -97,7 +97,7 @@ class NpDnaConfig:
 
 CONFIGS: dict[str, NpDnaConfig] = {
     "seed": NpDnaConfig(
-        initial_vocab=2048,
+        initial_vocab=4096,
         hidden_size=64,
         state_size=32,
         num_layers=2,
@@ -108,28 +108,28 @@ CONFIGS: dict[str, NpDnaConfig] = {
         hidden_size=128,
         state_size=64,
         num_layers=2,
-        mesh=MeshConfig(num_strands=8, top_k=2),
+        mesh=MeshConfig(num_strands=6, top_k=3),
     ),
     "micro": NpDnaConfig(
-        initial_vocab=8192,
+        initial_vocab=16384,
         hidden_size=256,
         state_size=128,
         num_layers=3,
-        mesh=MeshConfig(num_strands=16, top_k=2),
+        mesh=MeshConfig(num_strands=12, top_k=3),
     ),
     "small": NpDnaConfig(
-        initial_vocab=16384,
-        hidden_size=512,
-        state_size=256,
+        initial_vocab=32000,
+        hidden_size=256,
+        state_size=128,
         num_layers=4,
-        mesh=MeshConfig(num_strands=32, top_k=4),
+        mesh=MeshConfig(num_strands=8, top_k=3),
     ),
     "medium": NpDnaConfig(
-        initial_vocab=32768,
-        hidden_size=768,
-        state_size=384,
+        initial_vocab=50000,
+        hidden_size=512,
+        state_size=256,
         num_layers=6,
-        mesh=MeshConfig(num_strands=64, top_k=4),
+        mesh=MeshConfig(num_strands=12, top_k=4),
     ),
 }
 

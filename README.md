@@ -120,6 +120,8 @@ Compression:       16,384 / 256 = 64x per Strand
 
 ### 2. Causal Gated SSM (The Processing Engine)
 
+NP-DNA is not an RWKV implementation. Its Strands have recurrent/state-space behavior, but the block structure is a DNA-generated gated SSM routed through a sparse mesh, not RWKV time-mix/channel-mix blocks.
+
 Each Strand processes tokens left-to-right using gated state recurrence — **O(T) linear time**, no attention matrices:
 
 ```
@@ -141,12 +143,13 @@ For each token t:
 Not all Strands compute for every token. The Mesh routes each token to only the top-k most relevant Strands:
 
 ```
-8 Strands, top-2 routing:
-  Token "hello"   → Strand 1 (grammar) + Strand 3 (semantics)
-  Token "print()" → Strand 2 (code) + Strand 5 (syntax)
-  Token "नमस्ते"   → Strand 1 (grammar) + Strand 7 (Hindi)
+Nano config: 6 Strands, top-3 routing:
+  Token "hello"   -> Strand 1 (grammar) + Strand 3 (semantics) + Strand 5 (style)
+  Token "print()" -> Strand 2 (code) + Strand 4 (syntax) + Strand 5 (semantics)
+  Token "namaste" -> Strand 1 (grammar) + Strand 3 (Hindi) + Strand 4 (meaning)
 
-6 out of 8 Strands skipped per token = 75% compute savings
+3 out of 6 Strands skipped per token = 50% strand compute savings.
+Micro config uses 16 Strands, top-3 routing = 81.25% strand compute savings.
 ```
 
 ### 4. Memory Cortex (The Knowledge Engine)
@@ -185,10 +188,10 @@ NP-DNA auto-scales from a 500K seed to billions. Nothing is fixed — vocab, str
 | Config | Actual Params | RAM | Disk | Effective Intelligence | CPU Train Time |
 |---|---|---|---|---|---|
 | `seed` | 500K | 20MB | 2MB | ~5M | 30 seconds |
-| `nano` | 2M | 50MB | 8MB | ~50M | 2 minutes |
-| `micro` | 10M | 100MB | 40MB | ~500M | 20 minutes |
-| `small` | 50M | 400MB | 200MB | ~5B | 2 hours |
-| `medium` | 200M | 1.5GB | 800MB | ~50B | 8 hours |
+| `nano` | 6.7M | 50MB | 8MB | ~50M | 2 minutes |
+| `micro` | 14.2M | 100MB | 40MB | ~500M | 20 minutes |
+| `small` | 32.4M | 400MB | 200MB | ~5B | 2 hours |
+| `medium` | 61.7M | 1.5GB | 800MB | ~50B | 8 hours |
 
 **+ Memory Cortex adds unlimited factual knowledge on top:**
 
@@ -243,10 +246,10 @@ python -m atulya.cli info
   Name            Total       Active  Layers  Strands  Top-k    Vocab
   --------------------------------------------------------------------------
   seed        1,739,680      296,064       2        4      2     2048
-  nano        5,645,568    1,069,184       2        8      2     4096
-  micro      21,725,440    4,128,000       3       16      2     8192
-  small      89,867,776   16,808,960       4       32      4    16384
-  medium    349,897,728   58,726,400       6       64      4    32768
+  nano        6,668,096      986,368       2        6      3     4096
+  micro      14,155,648    3,551,744       3       16      3     8192
+  small      32,374,272   17,073,152       4       32      4    16384
+  medium     61,654,656   53,839,360       6       64      4    32768
 ```
 
 ### Generate Text
@@ -258,8 +261,8 @@ python -m atulya.cli generate --model outputs/npdna --prompt "Hello" --tokens 30
 ### Open Dashboard
 
 ```bash
-python -c "from atulya.dashboard import generate_dashboard; generate_dashboard()"
-# Open outputs/npdna/dashboard.html in your browser
+python atulya/dashboard.py
+# Open http://localhost:8501
 ```
 
 ---
@@ -269,15 +272,17 @@ python -c "from atulya.dashboard import generate_dashboard; generate_dashboard()
 ### Full Training
 
 ```bash
-# Nano config (2M params, ~2 minutes)
+# Nano config (6.7M stored params, ~2 minutes)
 python training/npdna_train.py --config nano --steps 200 --lr 1e-3
 
-# Small config (50M params, ~2 hours)
+# Small config (32.4M stored params, ~2 hours)
 python training/npdna_train.py --config small --steps 2000 --lr 5e-4
 
 # With checkpoints
 python training/npdna_train.py --config micro --steps 500 --checkpoint-every 100
 ```
+
+Use `--bf16` to enable bfloat16 autocast where supported. Without `--bf16`, training uses the default PyTorch float32 path.
 
 ### Chunk Training (Topic-Specific)
 
@@ -312,10 +317,10 @@ python training/npdna_train.py --data my_dataset.jsonl --config nano --steps 200
 
 ## 📊 Dashboard
 
-After training, generate an interactive dashboard:
+Start the interactive dashboard:
 
 ```bash
-python -c "from atulya.dashboard import generate_dashboard; generate_dashboard()"
+python atulya/dashboard.py
 ```
 
 The dashboard shows:

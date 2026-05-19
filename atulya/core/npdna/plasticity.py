@@ -47,9 +47,12 @@ class PlasticityEngine:
         core: NpDnaCore,
         check_interval: int = 100,
         dead_threshold: float = 0.01,
-        overload_threshold: float = 0.5,
+        overload_threshold: float = 0.18,
         plateau_window: int = 50,
         plateau_threshold: float = 0.01,
+        reinit_dead_strands: bool = True,
+        grow_overloaded_strands: bool = True,
+        grow_cooldown_checks: int = 3,
     ):
         self.core = core
         self.check_interval = check_interval
@@ -57,9 +60,14 @@ class PlasticityEngine:
         self.overload_threshold = overload_threshold
         self.plateau_window = plateau_window
         self.plateau_threshold = plateau_threshold
+        self.reinit_dead_strands = reinit_dead_strands
+        self.grow_overloaded_strands = grow_overloaded_strands
+        self.grow_cooldown_checks = grow_cooldown_checks
 
         self.events: list[PlasticityEvent] = []
         self.loss_history: list[float] = []
+        self._last_dead_reinit: set[tuple[int, int]] = set()
+        self._checks_since_growth = grow_cooldown_checks
 
     def record_loss(self, loss: float) -> None:
         """Record a training loss value."""
@@ -74,6 +82,7 @@ class PlasticityEngine:
 
         # 1. Check strand usage across all mesh layers
         events.extend(self._check_strand_usage(step))
+        self._checks_since_growth += 1
 
         # 2. Check vocabulary pressure
         events.extend(self._check_vocab_pressure(step))
@@ -87,6 +96,7 @@ class PlasticityEngine:
     def _check_strand_usage(self, step: int) -> list[PlasticityEvent]:
         """Detect dead and overloaded Strands."""
         events = []
+        grew_this_check = False
 
         for layer_i, mesh in enumerate(self.core.model.mesh_layers):
             stats = mesh.usage_stats
@@ -99,16 +109,62 @@ class PlasticityEngine:
                 msg = f"Layer {layer_i}: {len(dead)} dead strands {dead}"
                 logger.warning("Plasticity: %s", msg)
                 events.append(PlasticityEvent(step, "dead_strands", msg))
+                if self.reinit_dead_strands:
+                    reinitialized = self._reinit_dead_strands(layer_i, mesh, dead)
+                    if reinitialized:
+                        reset_msg = f"Layer {layer_i}: reinitialized dead strands {reinitialized}"
+                        logger.info("Plasticity: %s", reset_msg)
+                        events.append(PlasticityEvent(step, "reinit_strands", reset_msg))
 
             if overloaded:
                 msg = f"Layer {layer_i}: {len(overloaded)} overloaded strands {overloaded}"
                 logger.warning("Plasticity: %s", msg)
                 events.append(PlasticityEvent(step, "overloaded_strands", msg))
+                if self.grow_overloaded_strands and not grew_this_check:
+                    growth = self._grow_for_overload(step, msg)
+                    if growth:
+                        events.append(growth)
+                        self._checks_since_growth = 0
+                        grew_this_check = True
+                        overloaded = []
 
             # Reset counters for next check interval
             mesh.reset_usage()
 
         return events
+
+    def _grow_for_overload(self, step: int, reason: str) -> PlasticityEvent | None:
+        model = self.core.model
+        current = model.config.mesh.num_strands
+        max_per_layer = 64
+        if current >= max_per_layer:
+            return None
+        if self._checks_since_growth < self.grow_cooldown_checks:
+            return None
+
+        model.grow_strands(1)
+        msg = f"grew strands per layer {current} -> {model.config.mesh.num_strands}; reason: {reason}"
+        logger.info("Plasticity: %s", msg)
+        return PlasticityEvent(step, "grow_strands", msg)
+
+    def _reinit_dead_strands(self, layer_i: int, mesh, dead: list[int]) -> list[int]:
+        """Reset dead strand seeds and router columns in place."""
+        reinitialized: list[int] = []
+        genome = self.core.model.genome
+        with torch.no_grad():
+            for s_id in dead:
+                key = (layer_i, s_id)
+                if key in self._last_dead_reinit:
+                    continue
+                global_id = layer_i * mesh.config.num_strands + s_id
+                if 0 <= global_id < genome.seeds.shape[0]:
+                    genome.seeds[global_id].normal_(mean=0.0, std=0.02)
+                if 0 <= s_id < mesh.router.weight.shape[0]:
+                    nn_init_std = 1.0 / max(1, mesh.router.weight.shape[1]) ** 0.5
+                    mesh.router.weight[s_id].normal_(mean=0.0, std=nn_init_std)
+                reinitialized.append(s_id)
+                self._last_dead_reinit.add(key)
+        return reinitialized
 
     def _check_vocab_pressure(self, step: int) -> list[PlasticityEvent]:
         """Detect when tokenizer is running out of capacity."""

@@ -110,7 +110,7 @@ def build_seed_dataset(output_path: str | Path = "data/seed_dataset.jsonl") -> P
     return path
 
 
-def load_dataset(path: str | Path, limit: int | None = None) -> list[str]:
+def load_dataset(path: str | Path, limit: int | None = None, append_eos: bool = False) -> list[str]:
     """Load dataset as formatted training texts."""
     path = Path(path)
     if not path.exists():
@@ -124,7 +124,7 @@ def load_dataset(path: str | Path, limit: int | None = None) -> list[str]:
             if not line:
                 continue
             record = json.loads(line)
-            texts.append(_format_record(record))
+            texts.append(_format_record(record, append_eos=append_eos))
             if limit and len(texts) >= limit:
                 break
 
@@ -132,7 +132,7 @@ def load_dataset(path: str | Path, limit: int | None = None) -> list[str]:
     return texts
 
 
-def _format_record(record: dict) -> str:
+def _format_record(record: dict, append_eos: bool = False) -> str:
     """Convert a dataset record to training text."""
     if "text" in record and "instruction" not in record:
         return str(record["text"])
@@ -147,6 +147,8 @@ def _format_record(record: dict) -> str:
         parts.append(f"Context: {context}")
     parts.append(f"User: {instruction}")
     parts.append(f"Assistant: {output}")
+    if append_eos:
+        parts.append("<eos>")
     return "\n".join(parts)
 
 

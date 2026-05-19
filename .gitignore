@@ -43,3 +43,4 @@ _archive/
 *.log
 .coverage
 htmlcov/
+outputs/

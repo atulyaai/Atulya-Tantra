@@ -170,9 +170,10 @@ for i, strand in selected_strands:
 
 **Balance loss:** Prevents routing collapse (all tokens going to same Strand):
 ```python
-# Fraction of tokens routed to each strand should be uniform
-usage = torch.bincount(top_k_idx.flatten(), minlength=num_strands)
-balance_loss = (usage.float().var() / usage.float().mean()) * 0.01
+# Mean router probability per strand should stay close to uniform.
+routing_probs = torch.softmax(scores, dim=-1).mean(dim=(0, 1))
+balance_loss = num_strands * (routing_probs * routing_probs).sum()
+loss = ce_loss + balance_weight * balance_loss
 ```
 
 **Usage tracking:** `mesh.usage_stats` tracks how often each Strand is selected. Plasticity Engine uses this to detect dead Strands.
@@ -305,8 +306,8 @@ class VisionEncoder(nn.Module):
 
 | Metric | seed | nano | micro | small |
 |---|---|---|---|---|
-| Total params | 1.7M | 6.7M | 21.7M | 89.9M |
-| Active params | 296K | 922K | 4.1M | 16.8M |
+| Total params | 1.7M | 6.7M | 14.2M | 32.4M |
+| Active params | 296K | 986K | 3.6M | 17.1M |
 | Compression | 5.9x | 7.2x | 5.3x | 5.4x |
 | Forward (CPU) | ~2ms | ~8ms | ~30ms | ~120ms |
 | Training step | ~40ms | ~150ms | ~600ms | ~2.5s |

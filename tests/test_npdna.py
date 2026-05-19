@@ -185,6 +185,20 @@ class TestMesh:
         stats = mesh.usage_stats
         assert sum(stats.values()) > 0
 
+    def test_scaled_router_initialization(self):
+        strand_cfg = StrandConfig(hidden_size=64, state_size=32)
+        mesh_cfg = MeshConfig(num_strands=4, top_k=2, strand=strand_cfg)
+        genome_cfg = GenomeConfig(latent_dim=128, rank=16, max_strands=8)
+        genome = Genome(genome_cfg, strand_cfg)
+        mesh = NeuralMesh(genome, mesh_cfg)
+
+        with torch.no_grad():
+            mesh.router.weight.fill_(1e-5)
+
+        mesh.add_strand(strand_id=4)
+        new_weight = mesh.router.weight[4]
+        assert new_weight.abs().max().item() < 1e-4
+
 
 # ---------------------------------------------------------------------------
 # Cortex
@@ -222,6 +236,48 @@ class TestCortex:
         cortex2 = MemoryCortex.load(tmp_path / "cortex", config)
         assert cortex2.size == 2
 
+    def test_sleep_cycle(self):
+        config = CortexConfig(dim=16, max_entries=100, top_k=2)
+        cortex = MemoryCortex(config)
+
+        # Create base vector and highly similar versions (cosine similarity > 0.95)
+        base_vector = torch.zeros(16)
+        base_vector[0] = 1.0
+
+        v1 = base_vector.clone()
+        v2 = base_vector.clone()
+        v2[1] = 0.05  # cosine similarity ≈ 0.998
+
+        v3 = base_vector.clone()
+        v3[1] = 0.08  # cosine similarity ≈ 0.996
+
+        cortex.store(v1, topic="Paris Info", source="Paris is the capital of France.")
+        cortex.store(v2, topic="Paris", source="Paris is beautiful, the capital city of France.")
+        cortex.store(v3, topic="General Info", source="France capital.")
+
+        # Set access counts
+        cortex.entries[0].access_count = 5
+        cortex.entries[1].access_count = 10
+        cortex.entries[2].access_count = 2
+
+        assert cortex.size == 3
+
+        # Run sleep cycle with threshold 0.90
+        stats = cortex.sleep_cycle(similarity_threshold=0.90)
+
+        assert stats["before"] == 3
+        assert stats["after"] == 1
+        assert stats["merged"] == 2
+        assert cortex.size == 1
+
+        entry = cortex.entries[0]
+        # Topic should be the most common non-generic non-empty topic ("Paris Info" or "Paris")
+        assert entry.topic in ["Paris Info", "Paris"]
+        # Source should be the longest snippet to retain maximum details
+        assert entry.source == "Paris is beautiful, the capital city of France."
+        # Access counts should be aggregated
+        assert entry.access_count == 17
+
 
 # ---------------------------------------------------------------------------
 # Full Model
@@ -250,6 +306,19 @@ class TestNpDnaModel:
         old_vocab = model.vocab_size
         model.resize_embeddings(old_vocab * 2)
         assert model.vocab_size == old_vocab * 2
+
+    def test_cortex_forward_integration(self):
+        config = CONFIGS["seed"]
+        model = NpDnaModel(config)
+        input_ids = torch.tensor([[1, 2, 3, 4, 5]])
+        logits_empty, _ = model(input_ids)
+
+        model.cortex.store(torch.randn(config.hidden_size), topic="test_topic")
+        assert model.cortex.size == 1
+
+        logits_full, _ = model(input_ids)
+        assert logits_full.shape == logits_empty.shape
+        assert not torch.allclose(logits_full, logits_empty)
 
 
 # ---------------------------------------------------------------------------
@@ -297,6 +366,209 @@ class TestNpDnaCore:
         total_loss = loss + balance_loss
         total_loss.backward()
         # Should not crash
+
+    def test_train_topic_device_routing(self, tmp_path):
+        import json
+        from training.npdna_train import train_topic
+
+        # Create a tiny mock model and save it
+        core = NpDnaCore.from_config("seed")
+        model_dir = tmp_path / "mock_model"
+        core.save(model_dir)
+
+        # Create a tiny mock dataset
+        data_file = tmp_path / "topic_data.jsonl"
+        data_file.write_text(
+            json.dumps({"text": "Hello topic world"}) + "\n" +
+            json.dumps({"text": "Another topic sentence"}) + "\n"
+        )
+
+        # Run train_topic with explicit CPU device
+        updated_core = train_topic(
+            model_path=str(model_dir),
+            topic="test",
+            data_path=str(data_file),
+            strand_id=0,
+            steps=2,
+            lr=1e-3,
+            device="cpu"
+        )
+        assert updated_core is not None
+        assert updated_core.model.genome.seeds.requires_grad is True
+
+    def test_optimizer_state_recovery(self):
+        from training.npdna_train import restore_optimizer_state
+        import torch
+
+        # 1. Create a model
+        core = NpDnaCore.from_config("seed")
+        model = core.model
+
+        # 2. Build optimizer
+        optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
+
+        # 3. Perform a mock training step to populate optimizer state
+        input_ids = torch.tensor([[1, 2, 3, 4, 5]])
+        logits, balance_loss = model(input_ids)
+        loss = logits.sum() + balance_loss
+        loss.backward()
+        optimizer.step()
+
+        # Check that seeds and router have state in the optimizer
+        assert model.genome.seeds in optimizer.state
+        seeds_state = optimizer.state[model.genome.seeds]
+        assert "exp_avg" in seeds_state
+        assert "exp_avg_sq" in seeds_state
+
+        # Record shapes and mock values of old states
+        old_seeds_shape = model.genome.seeds.shape
+        old_router_shape = model.mesh_layers[0].router.weight.shape
+
+        # We manually set some distinct values in the optimizer state to verify they carry over
+        seeds_exp_avg_val = torch.ones_like(seeds_state["exp_avg"]) * 7.5
+        seeds_state["exp_avg"].copy_(seeds_exp_avg_val)
+
+        # 4. Mock the capture process before growth
+        old_named_params = dict(model.named_parameters())
+        old_named_states = {}
+        for name, param in old_named_params.items():
+            if param in optimizer.state:
+                state = optimizer.state[param]
+                old_named_states[name] = {
+                    k: (v.clone() if isinstance(v, torch.Tensor) else v)
+                    for k, v in state.items()
+                }
+
+        # 5. Grow the strands by 1
+        model.grow_strands(1)
+
+        # Confirm parameter shapes grew
+        assert model.genome.seeds.shape[0] == old_seeds_shape[0] + model.config.num_layers
+        assert model.mesh_layers[0].router.weight.shape[0] == old_router_shape[0] + 1
+
+        # 6. Rebuild optimizer
+        new_optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
+        assert model.genome.seeds not in new_optimizer.state
+
+        # 7. Restore optimizer state
+        restore_optimizer_state(new_optimizer, old_named_states, model)
+
+        # 8. Assertions
+        assert model.genome.seeds in new_optimizer.state
+        new_seeds_state = new_optimizer.state[model.genome.seeds]
+        assert new_seeds_state["exp_avg"].shape == model.genome.seeds.shape
+
+        # Verify old rows are preserved exactly
+        assert torch.allclose(
+            new_seeds_state["exp_avg"][:old_seeds_shape[0]],
+            seeds_exp_avg_val
+        )
+        # Verify new rows are zero-padded
+        assert torch.all(new_seeds_state["exp_avg"][old_seeds_shape[0]:] == 0)
+
+        # Test reinit_strands momentum clearing
+        layer_i = 0
+        dead_ids = [0]
+        mesh = model.mesh_layers[layer_i]
+
+        # 1. Clear momentum for router.weight
+        if mesh.router.weight in new_optimizer.state:
+            router_state = new_optimizer.state[mesh.router.weight]
+            for k in ["exp_avg", "exp_avg_sq"]:
+                if k in router_state and isinstance(router_state[k], torch.Tensor):
+                    for s_id in dead_ids:
+                        if s_id < router_state[k].shape[0]:
+                            router_state[k][s_id].zero_()
+
+        # 2. Clear momentum for genome.seeds
+        if model.genome.seeds in new_optimizer.state:
+            seeds_state = new_optimizer.state[model.genome.seeds]
+            for k in ["exp_avg", "exp_avg_sq"]:
+                if k in seeds_state and isinstance(seeds_state[k], torch.Tensor):
+                    for s_id in dead_ids:
+                        global_id = layer_i * mesh.config.num_strands + s_id
+                        if global_id < seeds_state[k].shape[0]:
+                            seeds_state[k][global_id].zero_()
+
+        # Verify that row 0 of router.weight's exp_avg is cleared
+        new_router_state = new_optimizer.state[mesh.router.weight]
+        assert torch.all(new_router_state["exp_avg"][0] == 0)
+
+        # Verify that global seed 0 is cleared
+        assert torch.all(new_seeds_state["exp_avg"][0] == 0)
+
+    def test_active_write_back(self):
+        core = NpDnaCore.from_config("seed")
+        
+        # Patch the decode method to return a string containing memory tags
+        original_decode = core.decode
+        core.decode = lambda ids: "This is a fact: <memory_start>The moon orbits the Earth.<memory_end>"
+        
+        # Ensure active_path is tracked
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmpdir:
+            core.active_path = Path(tmpdir)
+            # Create a mock metadata.json to verify it updates
+            meta_file = core.active_path / "metadata.json"
+            import json
+            meta_file.write_text(json.dumps({"cortex_entries": 0}), encoding="utf-8")
+            
+            # This will trigger generate, which calls our patched decode
+            # and extracts the fact.
+            res = core.generate("Give me a fact", max_tokens=5)
+            
+            assert "The moon orbits the Earth." in res
+            assert core.cortex.size == 1
+            assert core.cortex.entries[0].source == "The moon orbits the Earth."
+            
+            # Check metadata.json updated size
+            meta = json.loads(meta_file.read_text(encoding="utf-8"))
+            assert meta["cortex_entries"] == 1
+            
+            # Verify file exists on disk
+            assert (core.active_path / "cortex" / "cortex_meta.json").exists()
+
+    def test_routing_telemetry(self):
+        core = NpDnaCore.from_config("seed")
+        
+        # Add a mock entry to cortex so we have retrieval candidates
+        core.cortex.store(
+            torch.randn(core.config.hidden_size),
+            topic="geography",
+            source="Paris is the capital of France."
+        )
+        
+        # Run generate to populate last_generated_ids and last_prompt_len
+        core.generate("Paris is", max_tokens=3)
+        
+        # Retrieve telemetry
+        telemetry = core.get_routing_telemetry()
+        
+        # Verify correctness
+        assert len(telemetry) > 0
+        for item in telemetry:
+            assert "token_id" in item
+            assert "token_raw" in item
+            assert "token_clean" in item
+            assert "is_prompt" in item
+            assert "layers" in item
+            assert "cortex" in item
+            
+            # Verify structure of layers
+            assert len(item["layers"]) == core.config.num_layers
+            for layer in item["layers"]:
+                for strand in layer:
+                    assert "local_index" in strand
+                    assert "strand_id" in strand
+                    assert "weight" in strand
+                    
+            # Verify cortex structure if populated
+            for hit in item["cortex"]:
+                assert "entry_index" in hit
+                assert "topic" in hit
+                assert "source" in hit
+                assert "score" in hit
 
 
 # ---------------------------------------------------------------------------

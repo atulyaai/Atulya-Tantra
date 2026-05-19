@@ -32,6 +32,7 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from atulya.core.npdna import CONFIGS, NpDnaCore, NpDnaModel
+from training.dataset.build_dataset import load_dataset
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,7 @@ def measure_perplexity(
     """
     model = core.model
     model.eval()
+    device = next(model.parameters()).device
     loss_fn = nn.CrossEntropyLoss(reduction="sum")
 
     total_loss = 0.0
@@ -55,12 +57,15 @@ def measure_perplexity(
 
     with torch.no_grad():
         for text in test_texts:
-            ids = core.encode(text)[:max_seq]
+            # Evaluation must not grow the tokenizer. New vocabulary rows are
+            # randomly initialized, so adding them during benchmark makes
+            # perplexity meaningless and can explode the score.
+            ids = core.encode(text, allow_growth=False)[:max_seq]
             if len(ids) < 2:
                 continue
 
-            input_ids = torch.tensor([ids[:-1]], dtype=torch.long)
-            labels = torch.tensor([ids[1:]], dtype=torch.long)
+            input_ids = torch.tensor([ids[:-1]], dtype=torch.long, device=device)
+            labels = torch.tensor([ids[1:]], dtype=torch.long, device=device)
 
             logits, _ = model(input_ids)
             loss = loss_fn(logits.reshape(-1, logits.shape[-1]), labels.reshape(-1))
@@ -106,6 +111,7 @@ def measure_strand_utilization(core: NpDnaCore, test_texts: list[str]) -> dict:
     """Measure how evenly Strands are utilized."""
     model = core.model
     model.eval()
+    device = next(model.parameters()).device
 
     # Reset usage stats
     for mesh in model.mesh_layers:
@@ -113,10 +119,10 @@ def measure_strand_utilization(core: NpDnaCore, test_texts: list[str]) -> dict:
 
     with torch.no_grad():
         for text in test_texts[:50]:
-            ids = core.encode(text)[:64]
+            ids = core.encode(text, allow_growth=False)[:64]
             if len(ids) < 2:
                 continue
-            input_ids = torch.tensor([ids[:-1]], dtype=torch.long)
+            input_ids = torch.tensor([ids[:-1]], dtype=torch.long, device=device)
             model(input_ids)
 
     # Collect stats per layer
@@ -153,7 +159,7 @@ def measure_generation_speed(core: NpDnaCore, num_tokens: int = 100) -> dict:
     result = core.generate("Hello world", max_tokens=num_tokens)
     elapsed = time.perf_counter() - start
 
-    tokens_generated = len(core.encode(result))
+    tokens_generated = len(core.encode(result, allow_growth=False))
     tok_per_sec = tokens_generated / max(0.001, elapsed)
 
     return {
@@ -181,6 +187,8 @@ def measure_memory(core: NpDnaCore) -> dict:
 def run_full_benchmark(
     model_path: str | None = None,
     config_name: str = "seed",
+    data_path: str | None = None,
+    max_samples: int = 256,
 ) -> dict:
     """Run the complete benchmark suite.
 
@@ -201,21 +209,53 @@ def run_full_benchmark(
         logger.info("Creating model from config: %s", config_name)
         core = NpDnaCore.from_config(config_name)
 
-    # Prepare test data
-    test_texts = [
-        "The quick brown fox jumps over the lazy dog.",
-        "Machine learning is a subset of artificial intelligence.",
-        "Python is a versatile programming language used for web development.",
-        "The Earth orbits the Sun at an average distance of 93 million miles.",
-        "Gravity is the force that attracts objects toward each other.",
-        "Water freezes at 0 degrees Celsius and boils at 100 degrees.",
-        "The Pythagorean theorem states that a squared plus b squared equals c squared.",
-        "Photosynthesis converts sunlight into chemical energy in plants.",
-        "DNA carries genetic information in all living organisms.",
-        "The speed of light is approximately 300,000 kilometers per second.",
-    ]
+    # Prepare test data. Prefer a held-out slice from the training dataset when
+    # available so the loss/perplexity relationship is interpretable.
+    if data_path and Path(data_path).exists():
+        loaded = load_dataset(data_path, limit=max(1, max_samples * 2))
+        test_texts = loaded[-max_samples:] if len(loaded) > max_samples else loaded
+        benchmark_data = str(Path(data_path).resolve())
+    else:
+        test_texts = [
+            "The quick brown fox jumps over the lazy dog.",
+            "Machine learning is a subset of artificial intelligence.",
+            "Python is a versatile programming language used for web development.",
+            "The Earth orbits the Sun at an average distance of 93 million miles.",
+            "Gravity is the force that attracts objects toward each other.",
+            "Water freezes at 0 degrees Celsius and boils at 100 degrees.",
+            "The Pythagorean theorem states that a squared plus b squared equals c squared.",
+            "Photosynthesis converts sunlight into chemical energy in plants.",
+            "DNA carries genetic information in all living organisms.",
+            "The speed of light is approximately 300,000 kilometers per second.",
+        ]
+        benchmark_data = "built_in_smoke_set"
 
-    results = {}
+    model_meta = {}
+    if model_path and (Path(model_path) / "metadata.json").exists():
+        model_meta = json.loads((Path(model_path) / "metadata.json").read_text(encoding="utf-8"))
+
+    effective_config_name = model_meta.get("train_config_name") or model_meta.get("config_name") or config_name
+
+    results = {
+        "benchmark_meta": {
+            "model_path": str(Path(model_path).resolve()) if model_path else None,
+            "model_mtime": (Path(model_path) / "model.pt").stat().st_mtime
+            if model_path and (Path(model_path) / "model.pt").exists()
+            else None,
+            "metadata_mtime": (Path(model_path) / "metadata.json").stat().st_mtime
+            if model_path and (Path(model_path) / "metadata.json").exists()
+            else None,
+            "config_name": effective_config_name,
+            "train_step": model_meta.get("train_step") or model_meta.get("loss_count"),
+            "train_final_loss": model_meta.get("train_final_loss") or model_meta.get("final_loss"),
+            "train_best_loss": model_meta.get("train_best_loss") or model_meta.get("best_loss"),
+            "vocab_size": core.tokenizer.size,
+            "vocab_capacity": core.tokenizer.capacity,
+            "eval_data": benchmark_data,
+            "eval_samples": len(test_texts),
+            "tokenizer_growth_allowed": False,
+        }
+    }
 
     # 1. Perplexity
     logger.info("Measuring perplexity...")
@@ -256,7 +296,7 @@ def run_full_benchmark(
     print("\n" + "=" * 60)
     print("  NP-DNA BENCHMARK RESULTS")
     print("=" * 60)
-    print(f"  Config:            {config_name}")
+    print(f"  Config:            {effective_config_name}")
     print(f"  Total params:      {comp['npdna_total']:,}")
     print(f"  Active params:     {comp['npdna_active']:,}")
     print(f"  Dense equivalent:  {comp['dense_equivalent']:,}")
@@ -289,7 +329,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="NP-DNA Benchmarks")
     parser.add_argument("--model", default="outputs/npdna", help="Model path")
     parser.add_argument("--config", default="seed", help="Config name")
+    parser.add_argument("--data", default=None, help="Optional JSONL dataset for held-out evaluation")
+    parser.add_argument("--max-samples", type=int, default=256, help="Max held-out texts to evaluate")
 
     args = parser.parse_args()
     model_path = args.model if Path(args.model).exists() else None
-    run_full_benchmark(model_path, args.config)
+    run_full_benchmark(model_path, args.config, data_path=args.data, max_samples=args.max_samples)

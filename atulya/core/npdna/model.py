@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
+from copy import deepcopy
 from pathlib import Path
 
 import torch
@@ -50,7 +52,7 @@ class NpDnaModel(nn.Module):
         self.mesh_layers = nn.ModuleList()
         for layer_i in range(config.num_layers):
             offset = layer_i * config.mesh.num_strands
-            mesh = NeuralMesh(self.genome, config.mesh, layer_offset=offset)
+            mesh = NeuralMesh(self.genome, deepcopy(config.mesh), layer_offset=offset)
             self.mesh_layers.append(mesh)
 
         # Layer norms (one per mesh layer + final)
@@ -65,6 +67,9 @@ class NpDnaModel(nn.Module):
         # Tie embeddings
         if config.tie_embeddings:
             self.lm_head.weight = self.embedding.weight
+
+        # External Knowledge Memory Cortex
+        self.cortex = MemoryCortex(config.cortex)
 
     @property
     def vocab_size(self) -> int:
@@ -86,6 +91,34 @@ class NpDnaModel(nn.Module):
         # Genome is always fully active
         total += self.genome.config.param_estimate
         return total
+
+    def grow_strands(self, count: int = 1) -> None:
+        """Grow every mesh layer by ``count`` strands.
+
+        Uniform growth keeps checkpoint metadata simple while letting the router
+        spread load when any layer is overloaded.
+        """
+        if count <= 0:
+            return
+        old_n = self.mesh_layers[0].config.num_strands if self.mesh_layers else self.config.mesh.num_strands
+        self.genome.add_strand_capacity(self.config.num_layers * count)
+        for grow_i in range(count):
+            for layer_i, mesh in enumerate(self.mesh_layers):
+                strand_id = old_n * self.config.num_layers + grow_i * self.config.num_layers + layer_i
+                mesh.add_strand(strand_id=strand_id)
+        self.config.mesh.num_strands = old_n + count
+        self.config.genome.max_strands = self.config.mesh.num_strands * self.config.num_layers
+        logger.info("NpDnaModel: grew strands per layer %d -> %d", old_n, self.config.mesh.num_strands)
+
+    def strand_id_map(self) -> list[list[int]]:
+        return [[int(strand.strand_id) for strand in mesh.strands] for mesh in self.mesh_layers]
+
+    def restore_strand_id_map(self, strand_ids: list[list[int]]) -> None:
+        for mesh, ids in zip(self.mesh_layers, strand_ids):
+            if len(ids) != len(mesh.strands):
+                continue
+            for strand, strand_id in zip(mesh.strands, ids):
+                strand.strand_id = int(strand_id)
 
     def resize_embeddings(self, new_vocab: int) -> None:
         """Grow embedding + LM head to fit larger vocabulary."""
@@ -132,6 +165,9 @@ class NpDnaModel(nn.Module):
             x = norm(residual + mesh_out)
             total_balance_loss = total_balance_loss + balance_loss
 
+        # Augment with Memory Cortex knowledge
+        x = self.cortex.augment(x)
+
         x = self.final_norm(x)
         logits = self.lm_head(x)  # (B, T, vocab)
 
@@ -163,8 +199,12 @@ class NpDnaCore:
     ):
         self.model = model
         self.tokenizer = tokenizer
-        self.cortex = cortex or MemoryCortex(config.cortex if config else CONFIGS["seed"].cortex)
+        # Ensure model holds the correct cortex instance
+        if cortex is not None:
+            self.model.cortex = cortex
+        self.cortex = self.model.cortex
         self.config = config or CONFIGS["seed"]
+        self.active_path: Path | None = None
 
     @classmethod
     def from_config(cls, name: str = "seed") -> "NpDnaCore":
@@ -222,7 +262,16 @@ class NpDnaCore:
         context_window: int = 128,
     ) -> str:
         """Generate text from a prompt."""
+        if "Assistant:" not in prompt and "User:" not in prompt:
+            try:
+                from atulya.identity import Identity
+
+                system = Identity().get_system_prompt()
+            except Exception:
+                system = "You are Atulya. Be warm, thoughtful, and direct."
+            prompt = f"System: {system}\nUser: {prompt.strip()}\nAssistant:"
         prompt_ids = self.encode(prompt, allow_growth=False)
+        self.last_prompt_len = len(prompt_ids)
         ids = list(prompt_ids)
         if not ids:
             ids = [self.tokenizer.token_to_id.get("<bos>", 2)]
@@ -286,15 +335,140 @@ class NpDnaCore:
                 if next_id == eos_id:
                     break
 
-        return self.decode(ids[len(prompt_ids):])
+        generated_text = self.decode(ids[len(prompt_ids):])
+        
+        # 1. Parse active memory tags: <memory_start>...<memory_end>
+        matches = re.findall(r'<memory_start>(.*?)<memory_end>', generated_text, re.DOTALL)
+        for match in matches:
+            fact = match.strip()
+            if not fact:
+                continue
+            # 2. Encode and average embeddings to create a query-key vector
+            fact_ids = self.encode(fact, allow_growth=False)
+            if fact_ids:
+                with torch.no_grad():
+                    fact_t = torch.tensor(fact_ids, dtype=torch.long, device=self.model.embedding.weight.device)
+                    embs = self.model.embedding(fact_t)  # (seq_len, dim)
+                    vector = embs.mean(dim=0).cpu()      # (dim,)
+                # 3. Store fact directly into Cortex
+                self.cortex.store(key=vector, value=vector, topic="Active Write-Back", source=fact)
+        
+        # 4. Auto-save cortex if path tracking is active
+        if matches and self.active_path:
+            self.cortex.save(self.active_path / "cortex")
+            meta_file = self.active_path / "metadata.json"
+            if meta_file.exists():
+                try:
+                    meta = json.loads(meta_file.read_text(encoding="utf-8"))
+                    meta["cortex_entries"] = self.cortex.size
+                    meta_file.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+                except Exception as e:
+                    logger.error("Failed to update metadata during active write-back: %s", e)
+                    
+        self.last_generated_ids = ids
+        return generated_text
+
+    def get_routing_telemetry(self) -> list[dict]:
+        """Constructs a unified trace of routing paths and cortex hits for the last generated sequence."""
+        if not hasattr(self, "last_generated_ids") or not self.last_generated_ids:
+            return []
+
+        # Run a parallel forward pass under eval and no_grad to populate buffers
+        self.model.eval()
+        with torch.no_grad():
+            input_ids = torch.tensor([self.last_generated_ids], dtype=torch.long, device=self.model.embedding.weight.device)
+            # This triggers mesh forward passes and cortex retrievals in eval mode
+            self.model(input_ids)
+
+        telemetry = []
+        seq_len = len(self.last_generated_ids)
+        prompt_len = getattr(self, "last_prompt_len", 0)
+
+        # Retrieve cortex telemetry buffers
+        cortex_indices = getattr(self.cortex, "_last_top_indices", None)
+        cortex_scores = getattr(self.cortex, "_last_top_scores", None)
+
+        for t in range(seq_len):
+            tok_id = self.last_generated_ids[t]
+            try:
+                tok_raw = self.tokenizer.id_to_token[tok_id]
+            except Exception:
+                tok_raw = f"<unk_{tok_id}>"
+            
+            tok_clean = self.decode([tok_id])
+            is_prompt = t < prompt_len
+
+            # Build mesh layer routing information
+            layers_info = []
+            for layer_idx, mesh in enumerate(self.model.mesh_layers):
+                mesh_indices = getattr(mesh, "_last_top_indices", None)
+                mesh_weights = getattr(mesh, "_last_top_weights", None)
+                
+                layer_routing = []
+                if mesh_indices is not None and mesh_weights is not None:
+                    # shapes are (1, seq_len, top_k)
+                    # For token index t
+                    t_indices = mesh_indices[0, t] # shape (top_k,)
+                    t_weights = mesh_weights[0, t] # shape (top_k,)
+                    
+                    for k in range(len(t_indices)):
+                        local_idx = int(t_indices[k].item())
+                        weight = float(t_weights[k].item())
+                        try:
+                            strand = mesh.strands[local_idx]
+                            global_id = int(strand.strand_id)
+                        except Exception:
+                            global_id = -1
+                        layer_routing.append({
+                            "local_index": local_idx,
+                            "strand_id": global_id,
+                            "weight": weight
+                        })
+                layers_info.append(layer_routing)
+
+            # Build cortex retrieval information for token t
+            cortex_hits = []
+            if cortex_indices is not None and cortex_scores is not None:
+                # cortex_indices shape is (seq_len, k)
+                if t < len(cortex_indices):
+                    t_cortex_indices = cortex_indices[t] # (k,)
+                    t_cortex_scores = cortex_scores[t] # (k,)
+                    for k in range(len(t_cortex_indices)):
+                        entry_idx = int(t_cortex_indices[k].item())
+                        score = float(t_cortex_scores[k].item())
+                        if 0 <= entry_idx < len(self.cortex.entries):
+                            entry = self.cortex.entries[entry_idx]
+                            cortex_hits.append({
+                                "entry_index": entry_idx,
+                                "topic": entry.topic,
+                                "source": entry.source,
+                                "score": score
+                            })
+
+            telemetry.append({
+                "token_id": int(tok_id),
+                "token_raw": tok_raw,
+                "token_clean": tok_clean,
+                "is_prompt": is_prompt,
+                "layers": layers_info,
+                "cortex": cortex_hits
+            })
+
+        return telemetry
 
     # ------------------------------------------------------------------
     # Save / Load
     # ------------------------------------------------------------------
 
-    def save(self, path: str | Path, losses: list[float] | None = None) -> None:
+    def save(
+        self,
+        path: str | Path,
+        losses: list[float] | None = None,
+        metadata_extra: dict[str, object] | None = None,
+    ) -> None:
         """Save model, tokenizer, cortex, and metadata."""
         path = Path(path)
+        self.active_path = path
         path.mkdir(parents=True, exist_ok=True)
 
         # Model weights
@@ -316,6 +490,7 @@ class NpDnaCore:
             "num_layers": self.config.num_layers,
             "num_strands": self.config.mesh.num_strands,
             "top_k": self.config.mesh.top_k,
+            "strand_ids": self.model.strand_id_map(),
             "vocab_capacity": self.tokenizer.capacity,
             "vocab_size": self.tokenizer.size,
             "parameter_count": self.model.parameter_count(),
@@ -324,6 +499,12 @@ class NpDnaCore:
             "losses": (losses or [])[-500:],
             "saved_at": time.time(),
         }
+        if losses:
+            meta["best_loss"] = min(losses)
+            meta["final_loss"] = losses[-1]
+            meta["loss_count"] = len(losses)
+        if metadata_extra:
+            meta.update(metadata_extra)
         (path / "metadata.json").write_text(
             json.dumps(meta, indent=2), encoding="utf-8"
         )
@@ -360,6 +541,24 @@ class NpDnaCore:
 
         # Model
         model = NpDnaModel(config)
+        strand_ids = meta.get("strand_ids")
+        if strand_ids:
+            model.restore_strand_id_map(strand_ids)
+        else:
+            # Backward compatibility for checkpoints made by the first
+            # strand-growth implementation. Initial strands used block offsets;
+            # grown strands were appended as layer-interleaved ids.
+            train_config_name = meta.get("train_config_name") or meta.get("config_name")
+            base_cfg = CONFIGS.get(str(train_config_name))
+            base_n = base_cfg.mesh.num_strands if base_cfg else meta["num_strands"]
+            if meta["num_strands"] > base_n:
+                inferred = []
+                growth = meta["num_strands"] - base_n
+                for layer_i in range(meta["num_layers"]):
+                    ids = list(range(layer_i * base_n, layer_i * base_n + base_n))
+                    ids.extend(base_n * meta["num_layers"] + g * meta["num_layers"] + layer_i for g in range(growth))
+                    inferred.append(ids)
+                model.restore_strand_id_map(inferred)
         state = torch.load(path / "model.pt", map_location="cpu", weights_only=True)
         model.load_state_dict(state)
 
@@ -374,4 +573,6 @@ class NpDnaCore:
             "NpDnaCore loaded from %s (%s params, %d cortex entries)",
             path, f"{model.parameter_count():,}", cortex.size,
         )
-        return cls(model=model, tokenizer=tokenizer, cortex=cortex, config=config)
+        core = cls(model=model, tokenizer=tokenizer, cortex=cortex, config=config)
+        core.active_path = path
+        return core
