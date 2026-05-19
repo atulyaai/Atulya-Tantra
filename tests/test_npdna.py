@@ -278,6 +278,30 @@ class TestCortex:
         # Access counts should be aggregated
         assert entry.access_count == 17
 
+    def test_sleep_cycle_active_writeback(self):
+        core = NpDnaCore.from_config("seed")
+        cortex = core.cortex
+        
+        # Inject fact
+        v1 = torch.zeros(core.model.config.hidden_size)
+        v1[0] = 1.0
+        
+        cortex.store(v1, topic="Paris", source="Paris is beautiful.")
+        cortex.entries[0].access_count = 10
+        
+        # Save model weights before sleep
+        original_weights = core.model.embedding.weight.clone()
+        
+        # Run sleep cycle with active write back
+        stats = cortex.sleep_cycle(similarity_threshold=0.90, core=core)
+        
+        assert stats["active_writeback"] == 1
+        assert cortex.entries[0].access_count == 5  # decayed by 5
+        
+        # Verify model weights changed due to SGD update
+        new_weights = core.model.embedding.weight
+        assert not torch.equal(original_weights, new_weights)
+
 
 # ---------------------------------------------------------------------------
 # Full Model
@@ -345,6 +369,24 @@ class TestNpDnaCore:
 
         core2 = NpDnaCore.load(tmp_path / "model")
         assert core2.model.parameter_count() == core.model.parameter_count()
+
+    def test_load_mismatched_architecture(self, tmp_path):
+        core = NpDnaCore.from_config("seed")
+        model_path = tmp_path / "mismatched_model"
+        core.save(model_path)
+        
+        # Modify metadata.json to change hidden_size
+        meta_file = model_path / "metadata.json"
+        import json
+        meta = json.loads(meta_file.read_text(encoding="utf-8"))
+        meta["hidden_size"] = 128  # Inconsistent with the 64-dim model.pt saved
+        meta_file.write_text(json.dumps(meta), encoding="utf-8")
+        
+        import pytest
+        with pytest.raises(RuntimeError) as exc_info:
+            NpDnaCore.load(model_path)
+            
+        assert "has mismatched architecture dimensions between metadata.json and model.pt" in str(exc_info.value)
 
     def test_generate(self):
         core = NpDnaCore.from_config("seed")

@@ -523,8 +523,22 @@ class NpDnaCore:
             hidden_size=meta["hidden_size"],
             state_size=meta["state_size"],
         )
+
+        # Infer actual strand count from state_dict keys — metadata may be stale
+        # after plasticity growth or config overrides.
+        state = torch.load(path / "model.pt", map_location="cpu", weights_only=True)
+        inferred_strands = 0
+        for key in state:
+            m = re.match(r"mesh_layers\.\d+\.strands\.(\d+)\.", key)
+            if m:
+                strand_idx = int(m.group(1)) + 1
+                if strand_idx > inferred_strands:
+                    inferred_strands = strand_idx
+        if inferred_strands == 0:
+            inferred_strands = meta.get("num_strands", 4)
+
         mesh_cfg = MeshConfig(
-            num_strands=meta["num_strands"],
+            num_strands=inferred_strands,
             top_k=meta["top_k"],
             strand=strand_cfg,
         )
@@ -557,10 +571,19 @@ class NpDnaCore:
                 for layer_i in range(meta["num_layers"]):
                     ids = list(range(layer_i * base_n, layer_i * base_n + base_n))
                     ids.extend(base_n * meta["num_layers"] + g * meta["num_layers"] + layer_i for g in range(growth))
-                    inferred.append(ids)
                 model.restore_strand_id_map(inferred)
-        state = torch.load(path / "model.pt", map_location="cpu", weights_only=True)
-        model.load_state_dict(state)
+        try:
+            model.load_state_dict(state)
+        except RuntimeError as e:
+            err_msg = str(e)
+            if "size mismatch" in err_msg or "Missing key" in err_msg or "Unexpected key" in err_msg:
+                raise RuntimeError(
+                    f"Model checkpoint at {path} has mismatched architecture dimensions between metadata.json and model.pt. "
+                    f"Metadata specifies hidden_size={config.hidden_size}, num_layers={config.num_layers}, num_strands={mesh_cfg.num_strands}. "
+                    f"Please check if metadata.json was modified/reverted or is inconsistent with the saved weights. "
+                    f"Original error: {err_msg}"
+                ) from e
+            raise
 
         # Cortex
         cortex_path = path / "cortex"

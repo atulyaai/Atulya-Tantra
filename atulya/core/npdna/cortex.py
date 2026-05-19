@@ -126,9 +126,10 @@ class MemoryCortex(torch.nn.Module):
         )  # (B, k, dim)
 
         # Update access counts
-        for idx_row in top_indices:
-            for idx in idx_row:
-                self.entries[idx.item()].access_count += 1
+        if not getattr(self, "_is_sleeping", False):
+            for idx_row in top_indices:
+                for idx in idx_row:
+                    self.entries[idx.item()].access_count += 1
 
         if not self.training:
             self._last_top_indices = top_indices.detach().cpu()
@@ -199,13 +200,14 @@ class MemoryCortex(torch.nn.Module):
         self,
         similarity_threshold: float = 0.90,
         max_capacity: int | None = None,
+        core: Any | None = None,
     ) -> dict[str, int]:
         """Perform a consolidation pass to merge duplicate facts and enforce capacity.
 
         Uses pure PyTorch operations to compute cosine similarities and greedily group entries.
         """
         if self.size == 0:
-            return {"before": 0, "after": 0, "merged": 0, "evicted": 0}
+            return {"before": 0, "after": 0, "merged": 0, "evicted": 0, "active_writeback": 0}
 
         max_capacity = max_capacity or self.config.max_entries
         old_size = self.size
@@ -290,16 +292,54 @@ class MemoryCortex(torch.nn.Module):
             evicted_count = after_merge_size - max_capacity
             consolidated_entries = consolidated_entries[:max_capacity]
 
+        # 4. Active Write-Back (Fact consolidation into model weights)
+        consolidated_to_weights = 0
+        if core is not None and hasattr(core, "model"):
+            high_freq_entries = [e for e in consolidated_entries if e.access_count >= 5 and e.source]
+            if high_freq_entries:
+                model = core.model
+                # Temporary optimizer for local fine-tuning
+                opt = torch.optim.SGD(model.parameters(), lr=1e-3)
+                loss_fn = torch.nn.CrossEntropyLoss()
+                
+                self._is_sleeping = True
+                try:
+                    model.train()
+                    for entry in high_freq_entries:
+                        try:
+                            token_ids = core.encode(entry.source, allow_growth=False)
+                            if len(token_ids) > 1:
+                                input_ids = torch.tensor([token_ids[:-1]], dtype=torch.long, device=model.embedding.weight.device)
+                                target_ids = torch.tensor([token_ids[1:]], dtype=torch.long, device=model.embedding.weight.device)
+                                
+                                # 3 steps of local weight updates
+                                for _ in range(3):
+                                    opt.zero_grad()
+                                    logits, balance_loss = model(input_ids)
+                                    loss = loss_fn(logits.view(-1, logits.size(-1)), target_ids.view(-1))
+                                    total_loss = loss + balance_loss * 0.05
+                                    total_loss.backward()
+                                    opt.step()
+                                    
+                                # Decay access count since it's consolidated
+                                entry.access_count = max(0, entry.access_count - 5)
+                                consolidated_to_weights += 1
+                        except Exception as ex:
+                            logger.warning("Failed to consolidate fact '%s' to weights: %s", entry.source[:30], ex)
+                finally:
+                    self._is_sleeping = False
+
         self.entries = consolidated_entries
         logger.info(
-            "Cortex sleep consolidation complete: before=%d, after=%d, merged=%d, evicted=%d",
-            old_size, self.size, merged_count, evicted_count
+            "Cortex sleep consolidation complete: before=%d, after=%d, merged=%d, evicted=%d, active_writeback=%d",
+            old_size, self.size, merged_count, evicted_count, consolidated_to_weights
         )
         return {
             "before": old_size,
             "after": self.size,
             "merged": merged_count,
             "evicted": evicted_count,
+            "active_writeback": consolidated_to_weights,
         }
 
     def save(self, path: str | Path) -> None:

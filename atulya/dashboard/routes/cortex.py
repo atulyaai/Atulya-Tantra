@@ -40,9 +40,12 @@ def api_cortex_entries(
     source: str | None = None,
     limit: int = 50,
     offset: int = 0,
+    page: int | None = None,
     _admin: str | None = Header(default=None, alias="X-Atulya-Token"),
 ):
     _require_admin(_admin)
+    if page is not None and offset == 0:
+        offset = page * limit
     res = _get_active_cortex(model_id)
     if not res:
         return {"exists": False, "total": 0, "entries": []}
@@ -297,7 +300,7 @@ def api_cortex_sleep_cycle(
     cortex, model_path, core = res
     
     try:
-        stats = cortex.sleep_cycle(similarity_threshold=similarity_threshold)
+        stats = cortex.sleep_cycle(similarity_threshold=similarity_threshold, core=core)
         cortex.save(model_path / "cortex")
         
         meta_file = model_path / "metadata.json"

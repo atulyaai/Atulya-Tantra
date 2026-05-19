@@ -1141,6 +1141,7 @@ canvas{display:block;width:100%;}
               <div>After: <span id="sleep-stat-after">0</span></div>
               <div>Merged: <span id="sleep-stat-merged">0</span></div>
               <div>Evicted: <span id="sleep-stat-evicted">0</span></div>
+              <div style="grid-column: span 2;">Write-Back: <span id="sleep-stat-writeback" style="color:var(--mesh); font-weight:700;">0</span> entries</div>
             </div>
           </div>
         </div>
@@ -3662,6 +3663,7 @@ async function triggerSleepCycle() {
     $('sleep-stat-after').textContent = stats.after || 0;
     $('sleep-stat-merged').textContent = stats.merged || 0;
     $('sleep-stat-evicted').textContent = stats.evicted || 0;
+    $('sleep-stat-writeback').textContent = stats.active_writeback || 0;
     
     resultsDiv.style.display = 'block';
     toast(`Sleep Cycle complete! Merged ${stats.merged || 0} redundant entries.`, 'ok');

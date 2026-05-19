@@ -296,6 +296,21 @@ def train_npdna(
         logger.info("Resuming from %s", resume_from)
         _write_train_status(output_dir, "loading_checkpoint", resume_from=resume_from)
         core = NpDnaCore.load(resume_from)
+        
+        # Prevent metadata config name mismatch by detecting configuration
+        from atulya.core.npdna.config import CONFIGS
+        loaded_config_name = next(
+            (n for n, c in CONFIGS.items() if c.hidden_size == core.config.hidden_size and c.num_layers == core.config.num_layers),
+            "custom"
+        )
+        if loaded_config_name != "custom" and loaded_config_name != config_name:
+            logger.warning(
+                "Resumed model configuration (%s) has hidden_size=%d, num_layers=%d, "
+                "which differs from requested configuration %s. Adjusting active training configuration name to '%s'.",
+                loaded_config_name, core.config.hidden_size, core.config.num_layers, config_name, loaded_config_name
+            )
+            config_name = loaded_config_name
+
         resume_meta_path = Path(resume_from) / "metadata.json"
         if resume_meta_path.exists():
             try:

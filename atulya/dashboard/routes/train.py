@@ -170,8 +170,12 @@ def api_train_start(
     resume_id = body.get("resume_id")
     if resume_id is None:
         resume_id = body.get("resume_from")
-    if resume_id is None and (OUTPUTS_DIR / "metadata.json").exists():
+        
+    if resume_id in ("", "fresh", "none"):
+        resume_id = None
+    elif resume_id is None and (OUTPUTS_DIR / "metadata.json").exists():
         resume_id = "latest"
+        
     if resume_id:
         resume = _checkpoint_index().get(str(resume_id))
         if not resume:
