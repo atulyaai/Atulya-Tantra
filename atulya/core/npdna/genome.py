@@ -83,6 +83,11 @@ class Genome(nn.Module):
         Returns:
             (weight, bias) where weight = U @ V  (low-rank approximation).
         """
+        if strand_id < 0 or strand_id >= self.seeds.shape[0]:
+            raise IndexError(
+                f"Strand {strand_id} out of range (genome has {self.seeds.shape[0]} seeds). "
+                f"Call add_strand_capacity() before routing to new strands."
+            )
         seed = self.seeds[strand_id]
         latent = self.encoder(seed)
 

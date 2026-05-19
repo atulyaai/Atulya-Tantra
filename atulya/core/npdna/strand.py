@@ -5,7 +5,7 @@ by the Genome (DNA).  It processes sequences causally (left-to-right) using
 gated state recurrence — O(T) linear time, no attention matrices, CPU-fast.
 
 The state update at each position t:
-    gate_t = σ(x_t @ W_gate + s_{t-1} @ W_recurrent + b_gate)
+    gate_t = σ(x_t @ W_gate + s_{t-1} @ W_recurrent + b_gate + b_rec)
     s_t    = gate_t * s_{t-1} + (1 - gate_t) * tanh(x_t @ W_state + b_state)
     y_t    = s_t @ W_output + b_output
 
@@ -86,15 +86,3 @@ class Strand(nn.Module):
 
         self.usage_count += B * T
         return torch.stack(outputs, dim=1)  # (B, T, H)
-
-    def forward_fast(self, x: Tensor) -> Tensor:
-        """Vectorized forward for training (slightly less memory-efficient
-        but faster because it avoids Python loops for short sequences)."""
-        B, T, H = x.shape
-
-        if T <= 64:
-            # For short sequences, the loop is fast enough
-            return self.forward(x)
-
-        # For longer sequences, use the loop (recurrence can't be parallelized)
-        return self.forward(x)

@@ -83,7 +83,7 @@ class NpDnaConfig:
         self.mesh.strand.hidden_size = self.hidden_size
         self.mesh.strand.state_size = self.state_size
         self.cortex.dim = self.hidden_size
-        self.genome.latent_dim = min(256, self.hidden_size * 2)
+        self.genome.latent_dim = min(512, self.hidden_size * 2)
         self.genome.max_strands = self.mesh.num_strands * self.num_layers
 
     @property

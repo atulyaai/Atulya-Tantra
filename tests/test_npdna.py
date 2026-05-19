@@ -528,7 +528,7 @@ class TestNpDnaCore:
             for k in ["exp_avg", "exp_avg_sq"]:
                 if k in seeds_state and isinstance(seeds_state[k], torch.Tensor):
                     for s_id in dead_ids:
-                        global_id = layer_i * mesh.config.num_strands + s_id
+                        global_id = int(mesh.strands[s_id].strand_id)
                         if global_id < seeds_state[k].shape[0]:
                             seeds_state[k][global_id].zero_()
 

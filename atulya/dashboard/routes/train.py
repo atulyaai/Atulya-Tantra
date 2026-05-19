@@ -106,9 +106,9 @@ def api_train_start(
         
     steps = _clamp_int(body.get("steps"), 1000, 1, MAX_STEPS)
     limit = _clamp_int(body.get("limit"), 10000, 1, MAX_LIMIT)
-    checkpoint_every = _clamp_int(body.get("checkpoint_every"), 100, 0, max(1000, MAX_STEPS))
+    checkpoint_every = _clamp_int(body.get("checkpoint_every"), 0, 0, max(1000, MAX_STEPS))
     lr = _clamp_float(body.get("lr"), 5e-4, 1e-6, 1.0)
-    seq_limit = _clamp_int(body.get("seq_limit"), 256, 32, MAX_SEQ_LIMIT)
+    seq_limit = _clamp_int(body.get("seq_limit"), 128, 32, MAX_SEQ_LIMIT)
     
     # Clear old live metrics
     mf = OUTPUTS_DIR / "live_metrics.jsonl"

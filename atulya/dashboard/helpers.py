@@ -50,7 +50,8 @@ def _allowed_origins() -> set[str]:
 
 
 def _require_admin(x_atulya_token: str | None = Header(default=None)) -> None:
-    if x_atulya_token != ADMIN_TOKEN:
+    import secrets
+    if not x_atulya_token or not secrets.compare_digest(x_atulya_token, ADMIN_TOKEN):
         raise HTTPException(status_code=401, detail="Dashboard token required")
 
 

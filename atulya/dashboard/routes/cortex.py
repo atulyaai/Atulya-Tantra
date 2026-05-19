@@ -44,6 +44,8 @@ def api_cortex_entries(
     _admin: str | None = Header(default=None, alias="X-Atulya-Token"),
 ):
     _require_admin(_admin)
+    limit = max(1, min(limit, 500))
+    offset = max(0, offset)
     if page is not None and offset == 0:
         offset = page * limit
     res = _get_active_cortex(model_id)
@@ -96,7 +98,7 @@ def api_cortex_search(
     
     model_id = str(body.get("model_id", "latest"))
     query_text = str(body.get("query", "")).strip()
-    top_k = int(body.get("top_k", 10))
+    top_k = max(1, min(int(body.get("top_k", 10)), 100))
     
     if not query_text:
         return {"error": "Empty query text"}
@@ -173,6 +175,8 @@ def api_cortex_store(
     
     if not text:
         return {"error": "Empty text fact"}
+    if len(text) > 4000:
+        return {"error": "Text fact too long. Max 4000 characters."}
         
     res = _get_active_cortex(model_id)
     if not res:
@@ -291,7 +295,11 @@ def api_cortex_sleep_cycle(
     _require_admin(_admin)
     
     model_id = str(body.get("model_id", "latest"))
-    similarity_threshold = float(body.get("similarity_threshold", 0.90))
+    try:
+        similarity_threshold = float(body.get("similarity_threshold", 0.90))
+    except (ValueError, TypeError):
+        similarity_threshold = 0.90
+    similarity_threshold = max(0.0, min(similarity_threshold, 1.0))
     
     res = _get_active_cortex(model_id)
     if not res:

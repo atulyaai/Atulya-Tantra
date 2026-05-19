@@ -73,6 +73,8 @@ def api_chat(
         # 1. Decode Audio base64
         audio_b64 = body.get("audio")
         if audio_b64:
+            if len(audio_b64) > 10 * 1024 * 1024:
+                return {"error": "Audio payload too large. Max 10MB."}
             try:
                 if "," in audio_b64:
                     audio_b64 = audio_b64.split(",", 1)[1]
@@ -97,6 +99,8 @@ def api_chat(
         # 2. Decode Image base64
         image_b64 = body.get("image")
         if image_b64:
+            if len(image_b64) > 10 * 1024 * 1024:
+                return {"error": "Image payload too large. Max 10MB."}
             try:
                 if "," in image_b64:
                     image_b64 = image_b64.split(",", 1)[1]
