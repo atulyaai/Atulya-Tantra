@@ -61,13 +61,77 @@ def api_chat(
         temperature = _clamp_float(body.get("temperature"), 0.15, 0.0, 2.0)
         top_k = _clamp_int(body.get("top_k"), 5, 0, 100)
         chat_prompt = _format_mode_prompt(prompt, str(body.get("mode") or "chat"), body.get("system"))
+        
+        import base64
+        import torch
+        import io
+        
+        audio_inputs = None
+        image_inputs = None
+        device = core.model.embedding.weight.device
+        
+        # 1. Decode Audio base64
+        audio_b64 = body.get("audio")
+        if audio_b64:
+            try:
+                if "," in audio_b64:
+                    audio_b64 = audio_b64.split(",", 1)[1]
+                decoded_audio = base64.b64decode(audio_b64)
+                
+                import wave
+                import array
+                try:
+                    with wave.open(io.BytesIO(decoded_audio), "rb") as wav:
+                        raw_data = wav.readframes(wav.getnframes())
+                        if wav.getsampwidth() == 2:
+                            arr = array.array("h", raw_data)
+                            audio_tensor = torch.tensor(arr, dtype=torch.float32) / 32768.0
+                        else:
+                            audio_tensor = torch.tensor(list(raw_data), dtype=torch.float32) / 255.0
+                        audio_inputs = audio_tensor.unsqueeze(0).to(device)
+                except Exception:
+                    audio_inputs = torch.zeros(1, 1600, device=device)
+            except Exception as ae:
+                logger.warning("Failed decoding audio input: %s", ae)
+                
+        # 2. Decode Image base64
+        image_b64 = body.get("image")
+        if image_b64:
+            try:
+                if "," in image_b64:
+                    image_b64 = image_b64.split(",", 1)[1]
+                decoded_image = base64.b64decode(image_b64)
+                
+                try:
+                    from PIL import Image
+                    img = Image.open(io.BytesIO(decoded_image)).convert("RGB")
+                    img = img.resize((32, 32))
+                    img_data = list(img.getdata())
+                    t = torch.tensor(img_data, dtype=torch.float32).view(32, 32, 3).permute(2, 0, 1).unsqueeze(0)
+                    image_inputs = (t / 255.0).to(device)
+                except Exception:
+                    image_inputs = torch.zeros(1, 3, 32, 32, device=device)
+            except Exception as ie:
+                logger.warning("Failed decoding image input: %s", ie)
+
         t0 = time.time()
-        response = core.generate(
-            chat_prompt,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            top_k=top_k,
-        )
+        use_agent = bool(body.get("use_agent") or body.get("mode") == "agent")
+        
+        agent_steps = None
+        if use_agent:
+            from atulya.core.npdna.autonomy import NpDnaAgent
+            agent = NpDnaAgent(core)
+            response, agent_steps = agent.run_with_telemetry(prompt, max_iterations=5)
+        else:
+            response = core.generate(
+                chat_prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                top_k=top_k,
+                audio_inputs=audio_inputs,
+                image_inputs=image_inputs
+            )
+            
         response = _clean_chat_response(response)
         
         write_backs = [
@@ -89,6 +153,8 @@ def api_chat(
             "vocab_used": core.tokenizer.size,
             "readiness": readiness,
         }
+        if agent_steps is not None:
+            payload["agent_steps"] = agent_steps
         if hasattr(core, "get_routing_telemetry"):
             payload["routing_telemetry"] = core.get_routing_telemetry()
         if not readiness.get("ready"):

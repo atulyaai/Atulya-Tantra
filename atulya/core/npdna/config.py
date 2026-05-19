@@ -158,7 +158,7 @@ def _estimate_params(cfg: NpDnaConfig) -> int:
     )
     # DNA generates strand weights, so actual stored params are just seeds + genome
     mesh_router = cfg.hidden_size * cfg.mesh.num_strands
-    per_layer = genome // cfg.num_layers + mesh_router
+    per_layer = mesh_router
     lm_head = 0 if cfg.tie_embeddings else cfg.hidden_size * cfg.initial_vocab
     norm = cfg.hidden_size * 2 * (cfg.num_layers + 1)
     return embedding + genome + per_layer * cfg.num_layers + lm_head + norm

@@ -1290,6 +1290,7 @@ canvas{display:block;width:100%;}
             <select id="chat-model" style="width:200px;margin:0;font-size:11px;padding:6px 10px;"></select>
             <select id="chat-mode" style="width:170px;margin:0;font-size:11px;padding:6px 10px;" title="AI mode">
               <option value="chat">Chat</option>
+              <option value="agent">Autonomous Agent (ReAct)</option>
               <option value="translate_en">Hindi/Sanskrit -> English</option>
               <option value="translate_hi">English -> Hindi</option>
               <option value="translate_sa">English/Hindi -> Sanskrit</option>
@@ -1315,7 +1316,14 @@ canvas{display:block;width:100%;}
         <div id="chat-msgs">
           <div class="msg-ai">Neural interface active. Connect a trained checkpoint to begin. If no model exists, run training first.</div>
         </div>
+        <div id="multimodal-preview" style="display:none; padding:8px 16px; background:rgba(255,255,255,.05); border-top:1px solid var(--border); display:flex; gap:10px; align-items:center; flex-wrap:wrap;"></div>
         <div class="chat-bar">
+          <input type="file" id="audio-upload" accept="audio/wav,audio/mp3,audio/ogg" style="display:none;" onchange="handleAudioUpload(this)">
+          <input type="file" id="image-upload" accept="image/png,image/jpeg,image/webp" style="display:none;" onchange="handleImageUpload(this)">
+          
+          <button class="btn btn-sm btn-outline" style="padding: 6px 12px; margin:0; display:flex; align-items:center; gap:4px; font-size:11px;" onclick="$('audio-upload').click()" title="Attach Audio (WAV)"><span style="font-size:13px;">🎤</span> Audio</button>
+          <button class="btn btn-sm btn-outline" style="padding: 6px 12px; margin:0; display:flex; align-items:center; gap:4px; font-size:11px;" onclick="$('image-upload').click()" title="Attach Image"><span style="font-size:13px;">🖼️</span> Image</button>
+          
           <input type="text" id="chat-in" placeholder="Transmit query to neural engine..." style="margin:0;flex:1;min-width:200px;font-size:12px;">
           <button class="btn btn-dna" id="btn-chat">Send ⏎</button>
         </div>
@@ -2436,14 +2444,87 @@ function fillCfgPreview(c){
     </div>`;
 }
 
+window.uploadedAudioBase64 = null;
+window.uploadedImageBase64 = null;
+
+function handleAudioUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    window.uploadedAudioBase64 = e.target.result;
+    renderMultimodalPreviews();
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleImageUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    window.uploadedImageBase64 = e.target.result;
+    renderMultimodalPreviews();
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeAudio() {
+  window.uploadedAudioBase64 = null;
+  const upload = $('audio-upload');
+  if (upload) upload.value = '';
+  renderMultimodalPreviews();
+}
+
+function removeImage() {
+  window.uploadedImageBase64 = null;
+  const upload = $('image-upload');
+  if (upload) upload.value = '';
+  renderMultimodalPreviews();
+}
+
+function renderMultimodalPreviews() {
+  const container = $('multimodal-preview');
+  if (!container) return;
+  container.innerHTML = '';
+  
+  let hasItems = false;
+  
+  if (window.uploadedAudioBase64) {
+    hasItems = true;
+    const card = document.createElement('div');
+    card.style = 'background:rgba(239,68,68,.15); border:1px solid rgba(239,68,68,.3); padding:4px 8px; border-radius:4px; font-size:11px; display:flex; align-items:center; gap:8px;';
+    card.innerHTML = `<span>🎤 Audio Attached</span> <button onclick="removeAudio()" style="background:none; border:none; color:var(--plastic); cursor:pointer; font-weight:bold; padding:0; font-size:12px;">✕</button>`;
+    container.appendChild(card);
+  }
+  
+  if (window.uploadedImageBase64) {
+    hasItems = true;
+    const card = document.createElement('div');
+    card.style = 'background:rgba(56,189,248,.15); border:1px solid rgba(56,189,248,.3); padding:4px 8px; border-radius:4px; font-size:11px; display:flex; align-items:center; gap:8px;';
+    card.innerHTML = `<img src="${window.uploadedImageBase64}" style="width:16px; height:16px; object-fit:cover; border-radius:2px;"> <span>🖼️ Image Attached</span> <button onclick="removeImage()" style="background:none; border:none; color:var(--plastic); cursor:pointer; font-weight:bold; padding:0; font-size:12px;">✕</button>`;
+    container.appendChild(card);
+  }
+  
+  if (hasItems) {
+    container.style.display = 'flex';
+  } else {
+    container.style.display = 'none';
+  }
+}
+
 // ─── CHAT ────────────────────────────────────────────────────────────────
 async function sendChat(){
-  const prompt=$('chat-in').value.trim(); if(!prompt) return;
+  const prompt=$('chat-in').value.trim(); if(!prompt && !window.uploadedAudioBase64 && !window.uploadedImageBase64) return;
   $('chat-in').value='';
   const msgs=$('chat-msgs');
 
   const userDiv=document.createElement('div');
-  userDiv.className='msg-user'; userDiv.textContent=prompt;
+  userDiv.className='msg-user';
+  let userContent = prompt || "[Multimodal Transmit]";
+  if (window.uploadedAudioBase64) userContent += " 🎤 [Audio]";
+  if (window.uploadedImageBase64) userContent += " 🖼️ [Image]";
+  userDiv.textContent=userContent;
   msgs.appendChild(userDiv); msgs.scrollTop=msgs.scrollHeight;
 
   const thinking=document.createElement('div');
@@ -2451,23 +2532,52 @@ async function sendChat(){
   thinking.innerHTML='<span style="opacity:.6;font-family:\'Space Mono\',monospace;font-size:11px;">Generating...</span>';
   msgs.appendChild(thinking); msgs.scrollTop=msgs.scrollHeight;
 
+  // Cache base64 variables before we clear them
+  const audioToSend = window.uploadedAudioBase64;
+  const imageToSend = window.uploadedImageBase64;
+  removeAudio();
+  removeImage();
+
   try{
     const r=await apiJson('/api/chat',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
-        prompt,
+        prompt: prompt || "[Multimodal Transmit]",
         model_id: $('chat-model').value,
         mode: $('chat-mode').value,
         temperature: +$('chat-temp').value,
         top_k: +$('chat-topk').value,
         max_tokens: +$('chat-maxtok').value,
+        audio: audioToSend,
+        image: imageToSend,
       })
     });
     const res=r.error||r.response||`Received: "${prompt}". No model loaded - run training first to enable generation.`;
     const timeStr=r.time_sec?` <span style="color:var(--muted);font-size:9px;">${r.time_sec}s</span>`:'';
     const warn=r.warning?`<div style="color:var(--plastic);font-family:'Space Mono',monospace;font-size:10px;margin-bottom:6px;">${escapeHtml(r.warning)}</div>`:'';
     thinking.innerHTML=`${warn}${escapeHtml(res)}${timeStr}`;
+
+    // Render ReAct agent steps if present
+    if (r.agent_steps && r.agent_steps.length > 0) {
+      const agentContainer = document.createElement('div');
+      agentContainer.className = 'agent-steps-container';
+      agentContainer.style = 'margin-top: 10px; border-top: 1px dashed var(--border); padding-top: 10px; display:flex; flex-direction:column; gap:8px;';
+      
+      let stepsHtml = `<div style="font-family:'Space Mono',monospace; font-size:10px; color:var(--dna); margin-bottom:4px; font-weight:bold;">🤖 AUTONOMOUS AGENT RECACT LOGS:</div>`;
+      r.agent_steps.forEach((step) => {
+        stepsHtml += `
+          <div style="background:rgba(255,255,255,.02); border:1px solid var(--border); border-radius:4px; padding:6px 10px; text-align: left; font-size:11px;">
+            <div style="font-weight:bold; color:var(--ice); margin-bottom:4px;">Step ${step.step}</div>
+            <div style="margin-bottom:4px;"><span style="color:var(--muted); font-family:'Space Mono',monospace; font-size:10px;">[Thought]</span> ${escapeHtml(step.thought)}</div>
+            \${step.action ? \`<div style="margin-bottom:4px;"><span style="color:var(--dna); font-family:'Space Mono',monospace; font-size:10px;">Action:</span> <strong style="font-family:'Space Mono',monospace; color: var(--ice);">\${escapeHtml(step.action)}[\${escapeHtml(step.args)}]</strong></div>\` : ''}
+            \${step.observation ? \`<div style="background:rgba(0,0,0,.2); padding:4px 8px; border-radius:2px; margin-top:4px;"><span style="color:var(--plastic); font-family:'Space Mono',monospace; font-size:10px;">[Observation]</span> <span style="font-family:'Space Mono',monospace; font-size:10px; color: var(--text);">\${escapeHtml(step.observation)}</span></div>\` : ''}
+          </div>
+        `;
+      });
+      agentContainer.innerHTML = stepsHtml;
+      thinking.appendChild(agentContainer);
+    }
     
     // Telemetry trace button
     if (r.routing_telemetry && r.routing_telemetry.length > 0) {

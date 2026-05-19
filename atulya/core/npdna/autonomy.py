@@ -81,9 +81,9 @@ class NpDnaAgent:
             # Stop if we see [Observation] or similar tags
             output = self.core.generate(
                 current_prompt,
-                max_new_tokens=128,
+                max_tokens=128,
                 temperature=0.3,
-                top_p=0.9
+                top_k=5
             )
             
             # Extract only the newly generated part
@@ -122,3 +122,77 @@ class NpDnaAgent:
             context += f"[Observation] {observation}\n"
             
         return "Agent failed to reach a conclusion within step limit."
+
+    def run_with_telemetry(self, user_prompt: str, max_iterations: int = 5) -> tuple[str, list[dict]]:
+        """Execute the ReAct loop and return both final response and detailed step-by-step logs."""
+        steps = []
+        system_instructions = (
+            "You are an autonomous NP-DNA agent. Solve the user's goal by thinking step-by-step "
+            "and invoking tools. Supported tools:\n"
+            "  - Action: cortex_search[query]\n"
+            "  - Action: cortex_store[fact]\n\n"
+            "Format your output strictly using these tags:\n"
+            "[Thought] Explain your reasoning here.\n"
+            "Action: tool_name[arguments]\n"
+            "[Observation] Results will be shown here.\n"
+            "Action: respond[your final response to the user]\n"
+        )
+        
+        context = f"{system_instructions}\nUser: {user_prompt}\n"
+        
+        for iteration in range(max_iterations):
+            logger.info("NpDnaAgent running telemetry step %d/%d", iteration + 1, max_iterations)
+            current_prompt = context + "[Thought]"
+            output = self.core.generate(
+                current_prompt,
+                max_tokens=128,
+                temperature=0.3,
+                top_k=5
+            )
+            
+            new_text = output[len(current_prompt):].strip()
+            context += "[Thought] " + new_text + "\n"
+            
+            action_match = re.search(r"Action:\s*([a-zA-Z0-9_-]+)\[(.*?)\]", new_text)
+            
+            # Extract thought before action block
+            thought_text = new_text.split("Action:")[0].strip()
+            
+            step_info = {
+                "step": iteration + 1,
+                "thought": thought_text,
+                "action": None,
+                "args": None,
+                "observation": None
+            }
+            
+            if not action_match:
+                step_info["action"] = "respond"
+                step_info["args"] = new_text
+                step_info["observation"] = "Direct completion"
+                steps.append(step_info)
+                return new_text, steps
+            
+            tool_name = action_match.group(1).strip()
+            tool_arg = action_match.group(2).strip()
+            step_info["action"] = tool_name
+            step_info["args"] = tool_arg
+            
+            if tool_name == "respond":
+                step_info["observation"] = "Final response generated"
+                steps.append(step_info)
+                return tool_arg, steps
+                
+            if tool_name in self.tools:
+                try:
+                    observation = self.tools[tool_name](tool_arg)
+                except Exception as e:
+                    observation = f"Error: {str(e)}"
+            else:
+                observation = f"Unknown tool '{tool_name}'."
+                
+            step_info["observation"] = observation
+            steps.append(step_info)
+            context += f"[Observation] {observation}\n"
+            
+        return "Agent failed to reach a conclusion within step limit.", steps

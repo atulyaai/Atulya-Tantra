@@ -156,7 +156,7 @@ class PlasticityEngine:
                 key = (layer_i, s_id)
                 if key in self._last_dead_reinit:
                     continue
-                global_id = layer_i * mesh.config.num_strands + s_id
+                global_id = int(mesh.strands[s_id].strand_id)
                 if 0 <= global_id < genome.seeds.shape[0]:
                     genome.seeds[global_id].normal_(mean=0.0, std=0.02)
                 if 0 <= s_id < mesh.router.weight.shape[0]:

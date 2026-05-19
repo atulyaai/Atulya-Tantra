@@ -527,14 +527,22 @@ def train_npdna(
             input_ids = torch.tensor([ids[:-1]], dtype=torch.long, device=train_device)
             labels = torch.tensor([ids[1:]], dtype=torch.long, device=train_device)
 
+            # Generate synthetic multimodal training inputs to optimize projection layers
+            import random
+            audio_inputs = None
+            image_inputs = None
+            if random.random() < 0.3:
+                audio_inputs = torch.randn(1, 1600, device=train_device) * 0.01
+                image_inputs = torch.randn(1, 3, 32, 32, device=train_device) * 0.01
+
             try:
                 if use_autocast:
                     with torch.autocast(device_type=train_device.type, dtype=torch.bfloat16):
-                        logits, balance_loss = model(input_ids)
+                        logits, balance_loss = model(input_ids, audio_inputs=audio_inputs, image_inputs=image_inputs)
                         ce_loss = loss_fn(logits.reshape(-1, logits.shape[-1]), labels.reshape(-1))
                         loss = ce_loss + balance_loss
                 else:
-                    logits, balance_loss = model(input_ids)
+                    logits, balance_loss = model(input_ids, audio_inputs=audio_inputs, image_inputs=image_inputs)
                     ce_loss = loss_fn(logits.reshape(-1, logits.shape[-1]), labels.reshape(-1))
                     loss = ce_loss + balance_loss
 

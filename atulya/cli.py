@@ -51,6 +51,13 @@ def main() -> None:
         help="Stop and save before CPU free RAM drops below this many GB",
     )
     train_p.add_argument("--bpe-max-words", type=int, default=0, help="Maximum unique words used for BPE pair counting; 0 means all")
+    train_p.add_argument("--bf16", action="store_true", help="Use bfloat16 autocast")
+    train_p.add_argument("--lr-schedule", choices=["none", "cosine"], default="cosine", help="Learning rate schedule")
+    train_p.add_argument("--balance-weight", type=float, default=0.05, help="Router load-balance loss weight")
+    train_p.add_argument("--plasticity-interval", type=int, default=0, help="Plasticity check interval; 0 auto-scales")
+    train_p.add_argument("--plasticity-overload-threshold", type=float, default=0.14, help="Strand overload threshold")
+    train_p.add_argument("--plasticity-dead-threshold", type=float, default=0.01, help="Strand dead threshold")
+    train_p.add_argument("--plasticity-grow-cooldown", type=int, default=1, help="Plasticity grow cooldown checks")
     # --- generate ---
     gen_p = sub.add_parser("generate", help="Generate text from a saved model")
     gen_p.add_argument("--model", required=True, help="Path to saved model")
@@ -106,6 +113,13 @@ def _cmd_train(args: argparse.Namespace) -> None:
         seq_limit=args.seq_limit,
         min_free_ram_gb=args.min_free_ram_gb,
         bpe_max_words=args.bpe_max_words,
+        bf16=args.bf16,
+        lr_schedule=args.lr_schedule,
+        balance_weight=args.balance_weight,
+        plasticity_interval=args.plasticity_interval or None,
+        plasticity_overload_threshold=args.plasticity_overload_threshold,
+        plasticity_dead_threshold=args.plasticity_dead_threshold,
+        plasticity_grow_cooldown=args.plasticity_grow_cooldown,
     )
 
 

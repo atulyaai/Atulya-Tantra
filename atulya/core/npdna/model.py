@@ -290,6 +290,8 @@ class NpDnaCore:
         suppress_byte_tokens: bool = True,
         suppress_rare_unicode: bool = True,
         context_window: int = 128,
+        audio_inputs: Tensor | None = None,
+        image_inputs: Tensor | None = None,
     ) -> str:
         """Generate text from a prompt."""
         if "Assistant:" not in prompt and "User:" not in prompt:
@@ -322,8 +324,12 @@ class NpDnaCore:
 
         with torch.no_grad():
             for _ in range(max_tokens):
-                input_ids = torch.tensor([ids[-context_window:]], dtype=torch.long)
-                logits, _ = self.model(input_ids)
+                input_ids = torch.tensor([ids[-context_window:]], dtype=torch.long, device=self.model.embedding.weight.device)
+                logits, _ = self.model(
+                    input_ids=input_ids,
+                    audio_inputs=audio_inputs,
+                    image_inputs=image_inputs
+                )
                 next_logits = logits[0, -1]  # (vocab,)
                 next_logits = next_logits.clone()
 
@@ -513,7 +519,13 @@ class NpDnaCore:
         # Metadata
         meta = {
             "config_name": next(
-                (n for n, c in CONFIGS.items() if c is self.config), "custom"
+                (n for n, c in CONFIGS.items()
+                 if c.hidden_size == self.config.hidden_size
+                 and c.num_layers == self.config.num_layers
+                 and c.mesh.num_strands == self.config.mesh.num_strands
+                 and c.mesh.top_k == self.config.mesh.top_k
+                 and c.initial_vocab == self.config.initial_vocab),
+                "custom",
             ),
             "hidden_size": self.config.hidden_size,
             "state_size": self.config.state_size,
@@ -526,6 +538,10 @@ class NpDnaCore:
             "parameter_count": self.model.parameter_count(),
             "active_parameter_count": self.model.active_parameter_count(),
             "cortex_entries": self.cortex.size,
+            "genome_latent_dim": self.config.genome.latent_dim,
+            "genome_rank": self.config.genome.rank,
+            "genome_encoder_hidden": self.config.genome.encoder_hidden,
+            "genome_max_strands": self.config.genome.max_strands,
             "losses": (losses or [])[-500:],
             "saved_at": time.time(),
         }
@@ -572,13 +588,22 @@ class NpDnaCore:
             top_k=meta["top_k"],
             strand=strand_cfg,
         )
+        genome_cfg = GenomeConfig(
+            latent_dim=meta.get("genome_latent_dim", 256),
+            rank=meta.get("genome_rank", 32),
+            encoder_hidden=meta.get("genome_encoder_hidden", 512),
+            max_strands=meta.get("genome_max_strands", inferred_strands * meta["num_layers"]),
+        )
         config = NpDnaConfig(
             initial_vocab=meta["vocab_capacity"],
             hidden_size=meta["hidden_size"],
             state_size=meta["state_size"],
             num_layers=meta["num_layers"],
             mesh=mesh_cfg,
+            genome=genome_cfg,
         )
+        # Restore actual strand capacity after __post_init__ sync
+        config.genome.max_strands = meta.get("genome_max_strands", inferred_strands * meta["num_layers"])
 
         # Tokenizer
         tokenizer = AtulyaTokenizer.load(path / "tokenizer.json")
@@ -601,6 +626,7 @@ class NpDnaCore:
                 for layer_i in range(meta["num_layers"]):
                     ids = list(range(layer_i * base_n, layer_i * base_n + base_n))
                     ids.extend(base_n * meta["num_layers"] + g * meta["num_layers"] + layer_i for g in range(growth))
+                    inferred.append(ids)
                 model.restore_strand_id_map(inferred)
         try:
             model.load_state_dict(state, strict=False)
