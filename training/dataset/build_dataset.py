@@ -134,6 +134,9 @@ def load_dataset(path: str | Path, limit: int | None = None) -> list[str]:
 
 def _format_record(record: dict) -> str:
     """Convert a dataset record to training text."""
+    if "text" in record and "instruction" not in record:
+        return str(record["text"])
+
     system = record.get("system", "You are Atulya. Be warm, thoughtful, and direct.")
     instruction = record.get("instruction", "")
     output = record.get("output", "")

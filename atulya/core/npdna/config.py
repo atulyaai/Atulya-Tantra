@@ -75,6 +75,9 @@ class NpDnaConfig:
     # Embedding
     tie_embeddings: bool = True
 
+    # Optimization
+    gradient_checkpointing: bool = False
+
     def __post_init__(self):
         """Sync sub-configs with top-level sizes."""
         self.mesh.strand.hidden_size = self.hidden_size

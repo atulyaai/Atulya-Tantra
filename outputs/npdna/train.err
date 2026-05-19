@@ -1,0 +1,5 @@
+07:49:52 [__main__] INFO: Resuming from outputs\npdna\checkpoints\step_000700
+07:49:52 [atulya.core.npdna.cortex] INFO: Cortex loaded: 0 entries from outputs\npdna\checkpoints\step_000700\cortex
+07:49:52 [atulya.core.npdna.model] INFO: NpDnaCore loaded from outputs\npdna\checkpoints\step_000700 (7,326,016 params, 0 cortex entries)
+07:49:52 [training.dataset.build_dataset] INFO: Loaded 442 training samples from data\trilingual_instruction.jsonl
+07:49:52 [atulya.core.npdna.tokenizer] INFO: Training BPE: 2235 unique words, target 1200 merges

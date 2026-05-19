@@ -1,5 +1,4 @@
 # Outputs & checkpoints
-outputs/
 *.pt
 *.safetensors
 
@@ -9,6 +8,7 @@ data/*.bin
 
 # Cache
 .pytest_cache/
+.cache/
 
 # Python
 __pycache__/

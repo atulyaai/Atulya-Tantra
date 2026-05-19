@@ -169,11 +169,122 @@ def harvest_code_samples() -> list[dict]:
     return samples
 
 
+def harvest_huggingface(
+    dataset_name: str = "databricks/databricks-dolly-15k",
+    split: str = "train",
+    limit: int = 5000,
+    instruction_col: str = "instruction",
+    output_col: str = "response",
+) -> list[dict]:
+    """Download and format a HuggingFace dataset.
+
+    Popular open-source datasets:
+      - databricks/databricks-dolly-15k (15K instruction pairs)
+      - tatsu-lab/alpaca (52K instruction pairs)
+      - HuggingFaceH4/no_robots (10K curated pairs)
+      - iamtarun/python_code_instructions_18k_alpaca (18K code)
+
+    Args:
+        dataset_name: HuggingFace dataset identifier.
+        split: Dataset split to use.
+        limit: Max samples to take.
+        instruction_col: Column name for instruction.
+        output_col: Column name for output.
+
+    Returns:
+        List of {instruction, output} dicts.
+    """
+    try:
+        from datasets import load_dataset
+    except ImportError:
+        logger.error("Install datasets: pip install datasets")
+        return []
+
+    logger.info("Downloading HF dataset: %s (limit=%d)...", dataset_name, limit)
+
+    try:
+        ds = load_dataset(dataset_name, split=split, trust_remote_code=True)
+    except Exception as e:
+        logger.error("Failed to load %s: %s", dataset_name, e)
+        return []
+
+    samples = []
+    cols = ds.column_names
+
+    # Auto-detect column names
+    inst_col = instruction_col if instruction_col in cols else None
+    out_col = output_col if output_col in cols else None
+
+    # Common column name variants
+    for candidate in ["instruction", "input", "question", "prompt", "text"]:
+        if not inst_col and candidate in cols:
+            inst_col = candidate
+    for candidate in ["response", "output", "answer", "completion", "text"]:
+        if not out_col and candidate in cols:
+            out_col = candidate
+
+    if not inst_col or not out_col:
+        logger.warning("Could not auto-detect columns in %s. Columns: %s", dataset_name, cols)
+        # Try using "text" as combined field
+        if "text" in cols:
+            for i, row in enumerate(ds):
+                if i >= limit:
+                    break
+                text = str(row["text"]).strip()
+                if len(text) > 50:
+                    samples.append({
+                        "instruction": text[:200],
+                        "output": text[200:] if len(text) > 200 else text,
+                        "source": f"hf_{dataset_name.split('/')[-1]}",
+                    })
+            logger.info("Loaded %d samples from %s (text column)", len(samples), dataset_name)
+            return samples
+        return []
+
+    for i, row in enumerate(ds):
+        if i >= limit:
+            break
+
+        inst = str(row.get(inst_col, "")).strip()
+        out = str(row.get(out_col, "")).strip()
+
+        if not inst or not out or len(out) < 20:
+            continue
+
+        # Add context if available
+        context = ""
+        if "context" in cols:
+            context = str(row.get("context", "")).strip()
+
+        sample = {
+            "instruction": inst,
+            "output": out[:2000],
+            "source": f"hf_{dataset_name.split('/')[-1]}",
+        }
+        if context:
+            sample["context"] = context[:500]
+
+        samples.append(sample)
+
+    logger.info("Loaded %d samples from %s", len(samples), dataset_name)
+    return samples
+
+
+# Pre-configured dataset recipes
+DATASET_RECIPES = {
+    "dolly": ("databricks/databricks-dolly-15k", "train", 15000, "instruction", "response"),
+    "alpaca": ("tatsu-lab/alpaca", "train", 52000, "instruction", "output"),
+    "code": ("iamtarun/python_code_instructions_18k_alpaca", "train", 18000, "instruction", "output"),
+    "hindi_qa": ("HydraIndicLM/hindi_alpaca_dolly_67k", "train", 10000, "instruction", "output"),
+}
+
+
 def harvest_all(
     output_path: str | Path = "data/training_data.jsonl",
     en_limit: int = 2000,
     hi_limit: int = 500,
     sa_limit: int = 200,
+    hf_datasets: list[str] | None = None,
 ) -> Path:
     """Harvest all sources and write to JSONL.
 
@@ -182,6 +293,7 @@ def harvest_all(
         en_limit: English Wikipedia articles.
         hi_limit: Hindi Wikipedia articles.
         sa_limit: Sanskrit Wikipedia articles.
+        hf_datasets: List of HF dataset recipe names to include.
 
     Returns:
         Path to output file.
@@ -205,6 +317,17 @@ def harvest_all(
     # Code samples
     code_samples = harvest_code_samples()
     all_samples.extend(code_samples)
+
+    # HuggingFace datasets
+    if hf_datasets:
+        for name in hf_datasets:
+            if name in DATASET_RECIPES:
+                ds_name, split, limit, inst_col, out_col = DATASET_RECIPES[name]
+                hf_samples = harvest_huggingface(ds_name, split, limit, inst_col, out_col)
+            else:
+                # Treat as direct HF dataset name
+                hf_samples = harvest_huggingface(name)
+            all_samples.extend(hf_samples)
 
     # Also include seed dataset samples
     try:
@@ -243,6 +366,9 @@ if __name__ == "__main__":
     parser.add_argument("--en", type=int, default=2000, help="English Wikipedia articles")
     parser.add_argument("--hi", type=int, default=500, help="Hindi Wikipedia articles")
     parser.add_argument("--sa", type=int, default=200, help="Sanskrit Wikipedia articles")
+    parser.add_argument("--hf", nargs="*", default=None,
+                        help="HuggingFace datasets: dolly alpaca code hindi_qa (or any HF dataset name)")
 
     args = parser.parse_args()
-    harvest_all(args.output, args.en, args.hi, args.sa)
+    harvest_all(args.output, args.en, args.hi, args.sa, args.hf)
+

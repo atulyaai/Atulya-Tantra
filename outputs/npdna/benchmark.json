@@ -1,0 +1,55 @@
+{
+  "perplexity": 23897201531.7,
+  "compression": {
+    "npdna_total": 6670656,
+    "npdna_active": 921856,
+    "dense_equivalent": 1048704,
+    "compression_ratio": 0.1572115246236652,
+    "active_ratio": 7.2361149680644266
+  },
+  "strand_utilization": {
+    "layer_0": {
+      "usage_percent": {
+        "0": 21.20200333889816,
+        "1": 19.449081803005004,
+        "2": 16.402337228714522,
+        "3": 4.090150250417362,
+        "4": 4.674457429048413,
+        "5": 7.762938230383972,
+        "6": 10.058430717863102,
+        "7": 16.360601001669448
+      },
+      "dead_strands": [],
+      "overloaded_strands": [],
+      "utilization_score": 1.0
+    },
+    "layer_1": {
+      "usage_percent": {
+        "0": 17.445742904841403,
+        "1": 12.896494156928215,
+        "2": 25.542570951585976,
+        "3": 9.93322203672788,
+        "4": 26.961602671118527,
+        "5": 0.1669449081803005,
+        "6": 6.803005008347246,
+        "7": 0.25041736227045075
+      },
+      "dead_strands": [
+        5,
+        7
+      ],
+      "overloaded_strands": [],
+      "utilization_score": 0.75
+    }
+  },
+  "generation_speed": {
+    "tokens_generated": 26,
+    "time_seconds": 6.686,
+    "tokens_per_second": 3.9
+  },
+  "memory": {
+    "rss_mb": 227.7,
+    "param_memory_mb": 25.4,
+    "total_params": 6670656
+  }
+}

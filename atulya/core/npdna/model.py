@@ -20,7 +20,7 @@ from .config import CONFIGS, NpDnaConfig
 from .cortex import MemoryCortex
 from .genome import Genome
 from .mesh import NeuralMesh
-from .tokenizer import AtulyaTokenizer
+from .tokenizer import SPECIAL_TOKENS, AtulyaTokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +125,10 @@ class NpDnaModel(nn.Module):
 
         for i, (mesh, norm) in enumerate(zip(self.mesh_layers, self.layer_norms)):
             residual = x
-            mesh_out, balance_loss = mesh(x)
+            if self.config.gradient_checkpointing and x.requires_grad:
+                mesh_out, balance_loss = torch.utils.checkpoint.checkpoint(mesh, x, use_reentrant=False)
+            else:
+                mesh_out, balance_loss = mesh(x)
             x = norm(residual + mesh_out)
             total_balance_loss = total_balance_loss + balance_loss
 
@@ -211,22 +214,59 @@ class NpDnaCore:
         self,
         prompt: str,
         max_tokens: int = 50,
-        temperature: float = 0.8,
-        top_k: int = 40,
+        temperature: float = 0.35,
+        top_k: int = 12,
+        repetition_penalty: float = 1.12,
+        suppress_byte_tokens: bool = True,
+        suppress_rare_unicode: bool = True,
+        context_window: int = 128,
     ) -> str:
         """Generate text from a prompt."""
-        ids = self.encode(prompt, allow_growth=False)
+        prompt_ids = self.encode(prompt, allow_growth=False)
+        ids = list(prompt_ids)
         if not ids:
             ids = [self.tokenizer.token_to_id.get("<bos>", 2)]
 
         self.model.eval()
         eos_id = self.tokenizer.token_to_id.get("<eos>", 3)
+        valid_vocab = min(self.tokenizer.size, self.config.initial_vocab)
+        byte_ids = set(self.tokenizer.byte_to_id.values()) if suppress_byte_tokens else set()
+        special_ids = set(SPECIAL_TOKENS.values())
+        rare_unicode_ids: set[int] = set()
+        if suppress_rare_unicode:
+            for tok_id, tok in enumerate(self.tokenizer.id_to_token[:valid_vocab]):
+                if len(tok) != 1:
+                    continue
+                cp = ord(tok)
+                if cp > 126:
+                    rare_unicode_ids.add(tok_id)
 
         with torch.no_grad():
             for _ in range(max_tokens):
-                input_ids = torch.tensor([ids[-512:]], dtype=torch.long)
+                input_ids = torch.tensor([ids[-context_window:]], dtype=torch.long)
                 logits, _ = self.model(input_ids)
                 next_logits = logits[0, -1]  # (vocab,)
+                next_logits = next_logits.clone()
+
+                # The embedding table is sized to capacity, while the tokenizer may
+                # have used only part of it. Never sample ids the tokenizer cannot
+                # decode yet; those show up as empty/gibberish output.
+                if valid_vocab < next_logits.numel():
+                    next_logits[valid_vocab:] = float("-inf")
+                for tok_id in special_ids:
+                    if tok_id != eos_id and tok_id < next_logits.numel():
+                        next_logits[tok_id] = float("-inf")
+                for tok_id in byte_ids:
+                    if tok_id < next_logits.numel():
+                        next_logits[tok_id] = float("-inf")
+                for tok_id in rare_unicode_ids:
+                    if tok_id < next_logits.numel():
+                        next_logits[tok_id] = float("-inf")
+
+                if repetition_penalty > 1.0:
+                    for seen_id in set(ids[-128:]):
+                        if 0 <= seen_id < next_logits.numel():
+                            next_logits[seen_id] /= repetition_penalty
 
                 # Temperature
                 if temperature > 0:
@@ -246,7 +286,7 @@ class NpDnaCore:
                 if next_id == eos_id:
                     break
 
-        return self.decode(ids[len(self.encode(prompt, allow_growth=False)):])
+        return self.decode(ids[len(prompt_ids):])
 
     # ------------------------------------------------------------------
     # Save / Load
