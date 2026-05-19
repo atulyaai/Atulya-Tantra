@@ -245,10 +245,13 @@ class MemoryCortex(torch.nn.Module):
             merged_key = torch.stack([e.key for e in clustered_entries]).mean(dim=0)
             merged_value = torch.stack([e.value for e in clustered_entries]).mean(dim=0)
             
-            # Topic is the most common non-generic topic
+            # Topic is the most common non-generic topic, breaking ties by input order
             topics = [e.topic for e in clustered_entries if e.topic and e.topic.lower() != "general"]
             if topics:
-                merged_topic = max(set(topics), key=topics.count)
+                counts = {}
+                for t in topics:
+                    counts[t] = counts.get(t, 0) + 1
+                merged_topic = max(counts, key=counts.get)
             else:
                 merged_topic = clustered_entries[0].topic or "General"
                 

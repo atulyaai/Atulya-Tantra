@@ -323,13 +323,13 @@ Start the interactive dashboard:
 python atulya/dashboard.py
 ```
 
-The dashboard shows:
-- 📈 **Live loss curves** with moving averages
-- 🧬 **Strand activity heatmap** — which strands are active vs dead
-- 📊 **Parameter counts** — total vs active (shows DNA compression)
-- 🗃️ **Cortex stats** — knowledge entries by topic
-- ⚡ **Plasticity events** — when architecture adapted itself
-- 🏗️ **Architecture pipeline** — visual flow diagram
+The dashboard features:
+- 📈 **Live loss curves** with moving averages and real-time WebSocket metrics stream
+- 🧬 **Strand activity heatmap** — active vs dead strands tracking
+- 📊 **Parameter counts** — total vs active (DNA compression visualization)
+- 🗃️ **Memory Cortex search & control** — search vectors, list entries by topic, and trigger LFU Sleep Cycles
+- ⚡ **Plasticity events** — live logger of architectural adaptations
+- 🏗️ **Phase 4 Token Routing & Strand Telemetry Visualizer** — trace parallel neural routing dynamically
 
 ---
 
@@ -348,16 +348,31 @@ Atulya-Tantra/
 │   │   ├── plasticity.py          #   ⚡ Self-improvement engine
 │   │   └── tokenizer.py           #   Auto-scaling Hindi/Sanskrit/English
 │   ├── identity.py                # 🔒 Personality & privacy (config-driven)
-│   ├── dashboard.py               # 📊 Interactive training dashboard
+│   ├── dashboard.py               # 📊 Backward-compatible dashboard entry point
+│   ├── dashboard/                 # 📊 Command Center Dashboard subpackage
+│   │   ├── __init__.py            #   Subpackage initialization
+│   │   ├── app.py                 #   FastAPI app registration & uvicorn runner
+│   │   ├── state.py               #   Shared state and thread-safe locks
+│   │   ├── helpers.py             #   Utility scanners, estimators, and cache loaders
+│   │   └── routes/                #   Category-specific router modules:
+│   │       ├── auth.py            #     Session / token verification
+│   │       ├── chat.py            #     Generation & dynamic routing telemetry
+│   │       ├── cortex.py          #     Memory database & sleep cycles
+│   │       ├── model.py           #     Checkpoints & CPU benchmarking
+│   │       ├── system.py          #     Diagnostics, runs, and factory reset
+│   │       └── train.py           #     Training execution & websockets
+│   ├── dashboard_ui.html          # 🎨 Premium frontend for the dashboard
 │   └── cli.py                     # CLI: atulya info / train / generate
 ├── training/                      # Training pipeline
 │   ├── dataset/
-│   │   └── build_dataset.py       #   Seed data + identity samples
-│   └── npdna_train.py             #   Training loop + chunk training
+│   │   ├── build_dataset.py       #   Seed data + identity samples
+│   │   └── harvest_data.py        #   Wikipedia EN/HI/SA + code samples harvester
+│   ├── npdna_train.py             #   Training loop + chunk training
+│   └── benchmark.py               #   Perplexity, compression, and strand benchmark
 ├── data/
 │   └── identity.json              # Personality config (edit to customize)
 ├── tests/
-│   └── test_npdna.py              # 30 unit tests (all passing ✅)
+│   └── test_npdna.py              # 37 unit tests (all passing ✅)
 ├── docs/images/                   # Architecture diagrams
 ├── pyproject.toml                 # Package config
 └── requirements.txt               # torch, numpy, psutil
@@ -422,7 +437,7 @@ Edit `data/identity.json` to change personality, add languages, adjust privacy r
 ## 🧪 Tests
 
 ```bash
-# Run all 30 tests
+# Run all 37 tests
 python -m pytest tests/ -v
 
 # Expected output:
@@ -435,7 +450,7 @@ python -m pytest tests/ -v
 # tests/test_npdna.py::TestNpDnaModel::test_forward PASSED
 # tests/test_npdna.py::TestNpDnaCore::test_training_step PASSED
 # tests/test_npdna.py::TestIdentity::test_system_prompt_superuser PASSED
-# ... 30 passed in 3.72s
+# ... 37 passed in 7.06s
 ```
 
 ---
@@ -445,8 +460,8 @@ python -m pytest tests/ -v
 - [x] **Phase 1:** Core NP-DNA engine (Genome + Strand + Mesh + Cortex)
 - [x] **Phase 1:** Auto-scaling tokenizer (Hindi + Sanskrit + English)
 - [x] **Phase 1:** Training pipeline with chunk training
-- [x] **Phase 1:** Interactive dashboard
-- [x] **Phase 1:** 30 unit tests passing
+- [x] **Phase 1:** Modular Command Center Dashboard (FastAPI/WebSocket)
+- [x] **Phase 1:** 37 unit tests passing
 - [ ] **Phase 2:** Voice/Audio encoder (Mel spectrogram → shared core)
 - [ ] **Phase 3:** Vision encoder (patch embedding → shared core)
 - [ ] **Phase 4:** Autonomy layer (proactive agent)
