@@ -118,7 +118,7 @@ class NeuralMesh(nn.Module):
         routing_probs = torch.softmax(scores, dim=-1).mean(dim=(0, 1))  # (N,)
         balance_loss = N * (routing_probs * routing_probs).sum()  # Penalise concentration
         entropy = -(routing_probs * routing_probs.clamp_min(1e-9).log()).sum()
-        entropy = entropy / torch.log(torch.tensor(float(N), device=scores.device))
+        entropy = entropy / torch.log(torch.tensor(max(1.0, float(N)), device=scores.device))
         self._last_balance_loss.copy_(balance_loss.detach())
         self._last_router_entropy.copy_(entropy.detach())
 
@@ -168,6 +168,7 @@ class NeuralMesh(nn.Module):
         self.config.num_strands = new_n
 
         old_counts = self._usage_counts
-        self._usage_counts = torch.zeros(new_n, device=old_counts.device)
-        self._usage_counts[:old_n].copy_(old_counts)
+        new_counts = torch.zeros(new_n, device=old_counts.device)
+        new_counts[:old_n].copy_(old_counts)
+        self.register_buffer("_usage_counts", new_counts, persistent=False)
         logger.info("NeuralMesh: added strand %d (%d -> %d)", strand_id, old_n, new_n)

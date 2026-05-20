@@ -83,8 +83,11 @@ class NpDnaConfig:
         self.mesh.strand.hidden_size = self.hidden_size
         self.mesh.strand.state_size = self.state_size
         self.cortex.dim = self.hidden_size
-        self.genome.latent_dim = min(512, self.hidden_size * 2)
-        self.genome.max_strands = self.mesh.num_strands * self.num_layers
+        # Only set genome defaults if not explicitly configured
+        if self.genome.latent_dim == 256:
+            self.genome.latent_dim = min(512, self.hidden_size * 2)
+        if self.genome.max_strands == 128:
+            self.genome.max_strands = self.mesh.num_strands * self.num_layers
 
     @property
     def total_strands(self) -> int:
@@ -101,7 +104,7 @@ CONFIGS: dict[str, NpDnaConfig] = {
         hidden_size=64,
         state_size=32,
         num_layers=2,
-        mesh=MeshConfig(num_strands=4, top_k=2),
+        mesh=MeshConfig(num_strands=4, top_k=3),
     ),
     "nano": NpDnaConfig(
         initial_vocab=4096,
@@ -129,7 +132,7 @@ CONFIGS: dict[str, NpDnaConfig] = {
         hidden_size=512,
         state_size=256,
         num_layers=6,
-        mesh=MeshConfig(num_strands=12, top_k=4),
+        mesh=MeshConfig(num_strands=12, top_k=3),
     ),
 }
 

@@ -7,6 +7,7 @@ Byte-fallback ensures ANY text can be encoded, even unseen scripts.
 from __future__ import annotations
 
 import json
+import heapq
 import logging
 import math
 import re
@@ -272,6 +273,7 @@ class AtulyaTokenizer:
         max_words: int | None = 0,
         min_pair_freq: int = 2,
         progress_callback: Callable[["AtulyaTokenizer"], None] | None = None,
+        stop_callback: Callable[[], bool] | None = None,
     ) -> None:
         """Train or extend BPE merges on a text corpus.
 
@@ -290,7 +292,7 @@ class AtulyaTokenizer:
         if max_words and max_words > 0 and len(word_freqs) > max_words:
             word_freqs = Counter(dict(word_freqs.most_common(max_words)))
 
-        splits: dict[str, list[str]] = {w: self._bpe_encode(w) for w in word_freqs}
+        splits: dict[str, tuple[str, ...]] = {w: tuple(self._bpe_encode(w)) for w in word_freqs}
         logger.info(
             "Training BPE: %d unique words, extending %d -> %d merges",
             len(word_freqs),
@@ -298,25 +300,75 @@ class AtulyaTokenizer:
             target_merges,
         )
 
-        while len(self.merges) < target_merges:
-            pair_freqs: Counter[tuple[str, str]] = Counter()
-            for word, freq in word_freqs.items():
-                syms = splits[word]
-                for j in range(len(syms) - 1):
-                    pair_freqs[(syms[j], syms[j + 1])] += freq
-            if not pair_freqs:
-                break
+        pair_freqs: Counter[tuple[str, str]] = Counter()
+        pair_words: dict[tuple[str, str], set[str]] = {}
 
+        def add_pair(pair: tuple[str, str], word: str, freq: int) -> None:
+            pair_freqs[pair] += freq
+            pair_words.setdefault(pair, set()).add(word)
+
+        def discard_pair(pair: tuple[str, str], word: str, freq: int) -> None:
+            pair_freqs[pair] -= freq
+            if pair_freqs[pair] <= 0:
+                pair_freqs.pop(pair, None)
+                pair_words.pop(pair, None)
+                return
+            words = pair_words.get(pair)
+            if words is not None:
+                words.discard(word)
+                if not words:
+                    pair_words.pop(pair, None)
+
+        def adjacent_pairs(syms: tuple[str, ...]) -> list[tuple[str, str]]:
+            return [(syms[i], syms[i + 1]) for i in range(len(syms) - 1)]
+
+        def merge_symbols(syms: tuple[str, ...], pair: tuple[str, str]) -> tuple[str, ...]:
+            a, b = pair
+            merged = a + b
+            out: list[str] = []
+            i = 0
+            while i < len(syms):
+                if i < len(syms) - 1 and syms[i] == a and syms[i + 1] == b:
+                    out.append(merged)
+                    i += 2
+                else:
+                    out.append(syms[i])
+                    i += 1
+            return tuple(out)
+
+        for word, syms in splits.items():
+            freq = word_freqs[word]
+            for pair in adjacent_pairs(syms):
+                add_pair(pair, word, freq)
+
+        heap: list[tuple[int, tuple[str, str]]] = [
+            (-freq, pair) for pair, freq in pair_freqs.items() if freq >= min_pair_freq
+        ]
+        heapq.heapify(heap)
+
+        while len(self.merges) < target_merges:
             best_pair = None
-            for pair, freq in pair_freqs.most_common():
-                if freq < min_pair_freq:
-                    best_pair = None
+            while heap:
+                neg_freq, pair = heapq.heappop(heap)
+                freq = -neg_freq
+                current_freq = pair_freqs.get(pair, 0)
+                if current_freq != freq:
+                    if current_freq >= min_pair_freq and pair not in self.merge_ranks:
+                        heapq.heappush(heap, (-current_freq, pair))
+                    continue
+                if pair in self.merge_ranks:
+                    continue
+                if current_freq < min_pair_freq:
                     break
-                if pair not in self.merge_ranks:
-                    best_pair = pair
-                    break
+                best_pair = pair
+                break
             if best_pair is None:
                 break
+
+            if stop_callback is not None and stop_callback():
+                logger.info("BPE training stopped at %d/%d merges", len(self.merges), target_merges)
+                break
+
             a, b = best_pair
             merged = a + b
 
@@ -324,18 +376,24 @@ class AtulyaTokenizer:
             self.merge_ranks[best_pair] = len(self.merges) - 1
             self.add_token(merged)
 
-            for word in splits:
-                syms = splits[word]
-                new_syms: list[str] = []
-                i = 0
-                while i < len(syms):
-                    if i < len(syms) - 1 and syms[i] == a and syms[i + 1] == b:
-                        new_syms.append(merged)
-                        i += 2
-                    else:
-                        new_syms.append(syms[i])
-                        i += 1
+            affected_words = list(pair_words.get(best_pair, set()))
+            for word in affected_words:
+                old_syms = splits[word]
+                old_pairs = adjacent_pairs(old_syms)
+                if best_pair not in old_pairs:
+                    continue
+
+                freq = word_freqs[word]
+                for pair in old_pairs:
+                    discard_pair(pair, word, freq)
+
+                new_syms = merge_symbols(old_syms, best_pair)
                 splits[word] = new_syms
+
+                for pair in adjacent_pairs(new_syms):
+                    add_pair(pair, word, freq)
+                    if pair not in self.merge_ranks and pair_freqs[pair] >= min_pair_freq:
+                        heapq.heappush(heap, (-pair_freqs[pair], pair))
 
             if len(self.merges) % 1000 == 0:
                 logger.info("  BPE merge %d/%d, vocab=%d", len(self.merges), target_merges, self.size)

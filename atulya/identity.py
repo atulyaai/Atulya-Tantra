@@ -49,8 +49,20 @@ class Identity:
             self._config = {
                 "name": "Atulya",
                 "personality": {"tone": "warm and helpful"},
-                "self_knowledge": {"what_i_am": "An AI assistant."},
-                "privacy": {"default_role": "user", "roles": {}, "rules": []},
+                "self_knowledge": {
+                    "what_i_am": "An AI assistant.",
+                    "how_i_work": "NP-DNA sparse neural mesh",
+                    "what_i_can_do": ["help with questions", "write code"],
+                    "what_i_cannot_do": ["browse web", "remember forever"]
+                },
+                "privacy": {
+                    "default_role": "user",
+                    "roles": {
+                        "user": {"can_see": ["what_i_can_do"]},
+                        "superuser": {"can_see": ["everything"]}
+                    },
+                    "rules": []
+                },
             }
 
     @property

@@ -127,6 +127,18 @@ class TestGenome:
         genome.add_strand_capacity(4)
         assert genome.seeds.shape[0] == 8
 
+    def test_add_strand_capacity_uses_seed_tensor_size(self):
+        strand_cfg = StrandConfig(hidden_size=64, state_size=32)
+        genome_cfg = GenomeConfig(latent_dim=128, rank=16, max_strands=4)
+        genome = Genome(genome_cfg, strand_cfg)
+
+        genome.add_strand_capacity(4)
+        genome.config.max_strands = 4
+        genome.add_strand_capacity(2)
+
+        assert genome.seeds.shape[0] == 10
+        assert genome.config.max_strands == 10
+
 
 # ---------------------------------------------------------------------------
 # Strand
@@ -343,6 +355,29 @@ class TestNpDnaModel:
         logits_full, _ = model(input_ids)
         assert logits_full.shape == logits_empty.shape
         assert not torch.allclose(logits_full, logits_empty)
+
+    def test_repeated_growth_keeps_genome_capacity_synced(self):
+        config = NpDnaConfig(
+            initial_vocab=128,
+            hidden_size=32,
+            state_size=16,
+            num_layers=2,
+            genome=GenomeConfig(latent_dim=64, rank=8, max_strands=4),
+            mesh=MeshConfig(num_strands=2, top_k=1),
+            cortex=CortexConfig(max_entries=8, top_k=1),
+        )
+        model = NpDnaModel(config)
+
+        model.grow_strands(1)
+        model.config.genome.max_strands = 4
+        model.grow_strands(1)
+
+        assert model.genome.seeds.shape[0] == 8
+        assert model.config.genome.max_strands == 8
+        input_ids = torch.tensor([[1, 2, 3, 4]])
+        logits, balance_loss = model(input_ids)
+        assert logits.shape == (1, 4, config.initial_vocab)
+        assert balance_loss.ndim == 0
 
 
 # ---------------------------------------------------------------------------
@@ -722,8 +757,8 @@ class TestAutonomy:
             nonlocal iteration
             iteration += 1
             if iteration == 1:
-                return args[0] + "Action: dummy[test_argument]"
-            return args[0] + "Action: respond[ReAct execution successful]"
+                return "Action: dummy[test_argument]"
+            return "Action: respond[ReAct execution successful]"
             
         core.generate = mock_generate
         
@@ -744,6 +779,167 @@ class TestPipeline:
             assert s["source"] == "common_crawl"
 
 
+class TestTrainingModelManagement:
+    def test_backup_and_rotate(self, tmp_path):
+        from training.npdna_train import _backup_and_rotate_latest
+        # Create dummy model files in tmp_path
+        (tmp_path / "model.pt").write_text("model_data", encoding="utf-8")
+        (tmp_path / "metadata.json").write_text("{}", encoding="utf-8")
+        (tmp_path / "tokenizer.json").write_text("tokenizer_data", encoding="utf-8")
+        
+        # Test 1: First backup
+        _backup_and_rotate_latest(tmp_path, max_backups=3)
+        backups_dir = tmp_path / "backups"
+        assert backups_dir.exists()
+        backups = sorted(list(backups_dir.iterdir()))
+        assert len(backups) == 1
+        assert (backups[0] / "model.pt").exists()
+        
+        # Test 2: Rotation with sleep to ensure new timestamps
+        import time
+        for i in range(3):
+            time.sleep(1.1)  # Ensure different seconds/timestamps
+            _backup_and_rotate_latest(tmp_path, max_backups=3)
+            
+        backups = sorted(list(backups_dir.iterdir()))
+        # Should be capped at 3
+        assert len(backups) == 3
+
+    def test_stop_signal_check(self, tmp_path):
+        from training.npdna_train import train_npdna
+        # Write dataset
+        import json
+        dataset_path = tmp_path / "dataset.jsonl"
+        with open(dataset_path, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"instruction": "hi", "output": "hello"}) + "\n")
+            f.write(json.dumps({"instruction": "how are you", "output": "good"}) + "\n")
+
+        # Create stop signal file before starting or midway
+        stop_signal = tmp_path / "stop_signal.txt"
+        stop_signal.write_text("stop", encoding="utf-8")
+        
+        # Run training
+        core, losses = train_npdna(
+            config_name="seed",
+            max_steps=50,
+            output_dir=str(tmp_path),
+            data_path=str(dataset_path),
+            device="cpu",
+        )
+        # Should have stopped early
+        assert not stop_signal.exists()
+        
+        # Check that backup folder was created
+        backups_dir = tmp_path / "backups"
+        assert backups_dir.exists()
+
+    def test_losses_loaded_from_resume_meta(self, tmp_path):
+        from training.npdna_train import train_npdna
+        import json
+        
+        # Create a dummy metadata.json file in a resume checkpoint folder
+        resume_dir = tmp_path / "resume_ckpt"
+        resume_dir.mkdir()
+        
+        from atulya.core.npdna import NpDnaCore
+        core = NpDnaCore.from_config("seed")
+        core.save(resume_dir, losses=[1.5, 1.4, 1.3])
+        
+        # Write dataset
+        dataset_path = tmp_path / "dataset.jsonl"
+        with open(dataset_path, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"instruction": "hi", "output": "hello"}) + "\n")
+            
+        # Create stop signal so it terminates immediately
+        stop_signal = resume_dir / "stop_signal.txt"
+        stop_signal.write_text("stop", encoding="utf-8")
+        
+        # Run training with resume_from
+        res_core, losses = train_npdna(
+            config_name="seed",
+            max_steps=5,
+            output_dir=str(resume_dir),
+            resume_from=str(resume_dir),
+            data_path=str(dataset_path),
+            device="cpu",
+        )
+        
+        # Verify that losses were loaded
+        assert len(losses) >= 3
+        assert losses[:3] == [1.5, 1.4, 1.3]
+
+    def test_api_training_metrics_route(self, tmp_path, monkeypatch):
+        from fastapi.testclient import TestClient
+        from atulya.dashboard.app import app
+        import json
+        
+        # Mock OUTPUTS_DIR in the routes and ADMIN_TOKEN in helpers
+        from atulya.dashboard.routes import train
+        from atulya.dashboard import helpers
+        monkeypatch.setattr(train, "OUTPUTS_DIR", tmp_path)
+        monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")
+        
+        # Write dummy metrics to a temporary live_metrics.jsonl
+        metrics_file = tmp_path / "live_metrics.jsonl"
+        with open(metrics_file, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"step": 1, "loss": 1.5}) + "\n")
+            f.write(json.dumps({"step": 2, "loss": 1.4}) + "\n")
+            
+        client = TestClient(app)
+        
+        # Verify without token (unauthorized)
+        response = client.get("/api/training-metrics")
+        assert response.status_code == 401
+        
+        # Verify with token
+        response = client.get("/api/training-metrics", headers={"X-Atulya-Token": "test_token"})
+        assert response.status_code == 200
+        data = response.json()
+        assert "metrics" in data
+        assert len(data["metrics"]) == 2
+        assert data["metrics"][0]["step"] == 1
+        assert data["metrics"][1]["loss"] == 1.4
+
+
+    def test_api_run_plasticity_check(self, tmp_path, monkeypatch):
+        from fastapi.testclient import TestClient
+        from atulya.dashboard.app import app
+        from atulya.core.npdna import NpDnaCore
+        
+        # Create and save a minimal model instance to a temp path
+        model_path = tmp_path / "latest"
+        core = NpDnaCore.from_config("seed")
+        core.save(model_path, losses=[1.5, 1.4])
+        
+        # Mock index, token and endpoints in routes
+        from atulya.dashboard.routes import model
+        from atulya.dashboard import helpers
+        
+        monkeypatch.setattr(model, "_checkpoint_index", lambda: {"latest": model_path})
+        monkeypatch.setattr(helpers, "_checkpoint_index", lambda: {"latest": model_path})
+        monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")
+        
+        client = TestClient(app)
+        
+        # Verify unauthorized request
+        response = client.post("/api/plasticity/check", json={"model_id": "latest"})
+        assert response.status_code == 401
+        
+        # Verify authorized request
+        response = client.post(
+            "/api/plasticity/check",
+            json={"model_id": "latest"},
+            headers={"X-Atulya-Token": "test_token"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert "message" in data
+        assert "model_info" in data
+        assert data["model_info"]["exists"] is True
+
+
 if __name__ == "__main__":
+    import pytest
     pytest.main([__file__, "-v"])
 

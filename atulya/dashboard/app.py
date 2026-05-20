@@ -8,14 +8,22 @@ import logging
 import os
 import uvicorn
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
 from atulya.dashboard.state import _ROOT, ADMIN_TOKEN, ADMIN_TOKEN_SOURCE
-from atulya.dashboard.routes import auth, system, model, train, chat, cortex
+from atulya.dashboard.routes import auth, system, model, train, chat, cortex, automation, openai
 
 logger = logging.getLogger("atulya.dashboard.app")
 
 app = FastAPI(title="NP-DNA Command Center")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8501", "http://127.0.0.1:8501"],
+    allow_methods=["GET", "POST", "DELETE"],
+    allow_headers=["X-Atulya-Token", "Content-Type"],
+)
 
 # Register all modular routers
 app.include_router(auth.router)
@@ -24,6 +32,8 @@ app.include_router(model.router)
 app.include_router(train.router)
 app.include_router(chat.router)
 app.include_router(cortex.router)
+app.include_router(automation.router)
+app.include_router(openai.router)
 
 
 @app.get("/", response_class=HTMLResponse)

@@ -81,6 +81,188 @@ def _initialize_new_token_embeddings(
                 embedding[token_id].normal_(mean=0.0, std=0.02)
 
 
+def _has_meaningful_info(metadata: dict) -> bool:
+    """Check if a checkpoint/metadata has meaningful training information."""
+    if not metadata:
+        return True
+    losses = metadata.get("losses") or metadata.get("train_losses") or []
+    best_loss = metadata.get("best_loss") or metadata.get("train_best_loss")
+    final_loss = metadata.get("final_loss") or metadata.get("train_final_loss")
+    step = metadata.get("step") or metadata.get("train_step") or metadata.get("global_step")
+    param_count = metadata.get("parameter_count")
+    
+    has_losses = len(losses) > 0
+    has_loss_value = best_loss is not None or final_loss is not None
+    has_training_progress = step is not None and step > 0
+    has_model_info = param_count is not None and param_count > 0
+    
+    return has_losses or has_loss_value or (has_training_progress and has_model_info)
+
+
+def _extract_version_info(metadata: dict) -> dict:
+    """Extract version-relevant information from metadata."""
+    losses = metadata.get("losses") or metadata.get("train_losses") or []
+    best_loss = metadata.get("best_loss") or metadata.get("train_best_loss")
+    final_loss = metadata.get("final_loss") or metadata.get("train_final_loss")
+    step = metadata.get("step") or metadata.get("train_step") or metadata.get("global_step") or 0
+    
+    return {
+        "best_loss": float(best_loss) if best_loss is not None else (min(losses) if losses else None),
+        "final_loss": float(final_loss) if final_loss is not None else (losses[-1] if losses else None),
+        "step": int(step),
+        "loss_count": len(losses),
+        "parameter_count": metadata.get("parameter_count", 0),
+    }
+
+
+def _calculate_version_number(backups: list[Path], current_info: dict) -> str:
+    """Calculate intelligent version number based on model improvement."""
+    if not backups:
+        return "v1"
+    
+    versions = []
+    for backup_path in backups:
+        meta_file = backup_path / "metadata.json"
+        if meta_file.exists():
+            try:
+                meta = json.loads(meta_file.read_text(encoding="utf-8"))
+                version_tag = meta.get("version", backup_path.name)
+                version_info = _extract_version_info(meta)
+                versions.append((version_tag, version_info))
+            except Exception:
+                pass
+    
+    if not versions:
+        return "v1"
+    
+    latest_version_tag = versions[-1][0]
+    latest_info = versions[-1][1]
+    
+    try:
+        version_parts = latest_version_tag.lstrip('v').split('.')
+        major = int(version_parts[0]) if version_parts else 1
+        minor = int(version_parts[1]) if len(version_parts) > 1 else 0
+    except (ValueError, IndexError):
+        major, minor = 1, 0
+    
+    current_best = current_info.get("best_loss")
+    latest_best = latest_info.get("best_loss")
+    
+    if current_best is not None and latest_best is not None:
+        improvement = latest_best - current_best
+        if improvement > 0.1:
+            major += 1
+            minor = 0
+        elif improvement > 0.01:
+            minor += 1
+        elif improvement > 0.001:
+            minor += 0.5
+            minor = round(minor, 1)
+        else:
+            minor += 0.1
+            minor = round(minor, 1)
+    else:
+        current_step = current_info.get("step", 0)
+        latest_step = latest_info.get("step", 0)
+        if current_step > latest_step * 1.5:
+            major += 1
+            minor = 0
+        else:
+            minor += 0.1
+            minor = round(minor, 1)
+    
+    if minor == int(minor):
+        return f"v{major}.{int(minor)}"
+    return f"v{major}.{minor}"
+
+
+def _backup_and_rotate_latest(output_dir: str | Path, max_backups: int = 3) -> None:
+    """Takes a timestamped backup of latest model with intelligent versioning and retains exactly the last N meaningful backups."""
+    output_dir = Path(output_dir)
+    backups_dir = output_dir / "backups"
+    try:
+        backups_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.warning("Failed to create backups directory: %s", e)
+        return
+
+    latest_meta_path = output_dir / "metadata.json"
+    if not latest_meta_path.exists():
+        logger.warning("No metadata.json found, skipping backup")
+        return
+    
+    try:
+        latest_meta = json.loads(latest_meta_path.read_text(encoding="utf-8"))
+    except Exception as e:
+        logger.warning("Failed to read metadata: %s", e)
+        return
+    
+    if not _has_meaningful_info(latest_meta):
+        logger.info("Skipping backup: latest model has no meaningful training information")
+        return
+    
+    current_info = _extract_version_info(latest_meta)
+    
+    existing_backups = []
+    if backups_dir.exists():
+        for d in backups_dir.iterdir():
+            if d.is_dir() and (d / "metadata.json").exists():
+                try:
+                    meta = json.loads((d / "metadata.json").read_text(encoding="utf-8"))
+                    if _has_meaningful_info(meta) or (d / "model.pt").exists():
+                        existing_backups.append(d)
+                except Exception:
+                    pass
+    
+    existing_backups.sort(key=lambda x: x.name)
+    
+    version = _calculate_version_number(existing_backups, current_info)
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    backup_name = f"{version}_{timestamp}"
+    backup_path = backups_dir / backup_name
+    
+    files_to_backup = ["model.pt", "metadata.json", "tokenizer.json"]
+    copied = False
+    
+    try:
+        backup_path.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.warning("Failed to create backup path %s: %s", backup_path, e)
+        return
+    
+    for fname in files_to_backup:
+        src = output_dir / fname
+        if src.exists():
+            try:
+                shutil.copy2(src, backup_path / fname)
+                copied = True
+            except Exception as e:
+                logger.warning("Failed to backup %s: %s", fname, e)
+    
+    if copied:
+        backup_meta_path = backup_path / "metadata.json"
+        if backup_meta_path.exists():
+            try:
+                backup_meta = json.loads(backup_meta_path.read_text(encoding="utf-8"))
+                backup_meta["version"] = version
+                backup_meta["backup_timestamp"] = timestamp
+                backup_meta["backup_datetime"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                backup_meta_path.write_text(json.dumps(backup_meta, indent=2), encoding="utf-8")
+            except Exception as e:
+                logger.warning("Failed to update backup metadata: %s", e)
+        
+        logger.info("Created backup %s of latest model at %s", version, backup_path)
+        
+        existing_backups.append(backup_path)
+        existing_backups.sort(key=lambda x: x.name)
+        
+        if len(existing_backups) > max_backups:
+            to_delete = existing_backups[:-max_backups]
+            for d in to_delete:
+                shutil.rmtree(d, ignore_errors=True)
+                logger.info("Pruned old backup: %s", d.name)
+
+
 def _write_train_status(output_dir: str | Path, phase: str, **fields) -> None:
     """Write dashboard-readable training status before metrics exist."""
     path = Path(output_dir) / "train_status.json"
@@ -132,6 +314,41 @@ def _set_mesh_balance_weight(core: NpDnaCore, balance_weight: float) -> None:
     core.config.mesh.balance_weight = balance_weight
     for mesh in core.model.mesh_layers:
         mesh.config.balance_weight = balance_weight
+
+
+def _notify_training_complete(output_dir: str, config_name: str, steps: int, best_loss: float, elapsed: float) -> None:
+    """Send Slack/webhook notification when training completes."""
+    config_path = Path(output_dir).parent / "automation_config.json"
+    if not config_path.exists():
+        return
+    try:
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+    except Exception:
+        return
+
+    slack_url = config.get("slack_webhook", "")
+    if not slack_url:
+        return
+
+    loss_str = f"{best_loss:.4f}" if best_loss else "N/A"
+    minutes = elapsed / 60
+    message = (
+        f"Training complete: config={config_name}, steps={steps}, "
+        f"best_loss={loss_str}, time={minutes:.1f}min"
+    )
+    payload = {"text": message}
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            slack_url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            logger.info("Slack notification sent: %s", resp.status)
+    except Exception as e:
+        logger.warning("Failed to send Slack notification: %s", e)
 
 
 def _select_device(device: str) -> torch.device:
@@ -256,6 +473,7 @@ def train_npdna(
     plasticity_overload_threshold: float = 0.14,
     plasticity_dead_threshold: float = 0.01,
     plasticity_grow_cooldown: int = 1,
+    plasticity_reuse_dead: bool = True,
 ) -> tuple[NpDnaCore, list[float]]:
     """Train an NP-DNA model.
 
@@ -315,7 +533,9 @@ def train_npdna(
         if resume_meta_path.exists():
             try:
                 resume_meta = json.loads(resume_meta_path.read_text(encoding="utf-8"))
-                base_step = int(resume_meta.get("train_step") or resume_meta.get("loss_count") or 0)
+                ts = resume_meta.get("train_step")
+                lc = resume_meta.get("loss_count")
+                base_step = int(ts if ts is not None else (lc if lc is not None else 0))
             except (json.JSONDecodeError, TypeError, ValueError):
                 base_step = 0
     else:
@@ -368,7 +588,24 @@ def train_npdna(
                 vocab_capacity=tok.capacity,
                 bpe_max_words=bpe_max_words if bpe_max_words > 0 else "all",
             ),
+            stop_callback=lambda: (Path(output_dir) / "stop_signal.txt").exists(),
         )
+        stop_signal_file = Path(output_dir) / "stop_signal.txt"
+        if stop_signal_file.exists():
+            logger.info("Tokenizer warmup stopped by user signal")
+            try:
+                stop_signal_file.unlink(missing_ok=True)
+            except Exception:
+                pass
+            _write_train_status(
+                output_dir,
+                "stopped_tokenizer",
+                target_merges=bpe_merges,
+                current_merges=len(core.tokenizer.merges),
+                vocab=core.tokenizer.size,
+                vocab_capacity=core.tokenizer.capacity,
+            )
+            return core, []
         if core.tokenizer.capacity != old_capacity:
             core.model.resize_embeddings(core.tokenizer.capacity)
         _write_train_status(
@@ -465,12 +702,24 @@ def train_npdna(
         dead_threshold=plasticity_dead_threshold,
         overload_threshold=plasticity_overload_threshold,
         grow_cooldown_checks=plasticity_grow_cooldown,
+        reuse_dead_before_grow=plasticity_reuse_dead,
     )
     use_autocast = bool(bf16 and train_device.type == "cuda")
     if bf16 and not use_autocast:
         logger.info("bfloat16 autocast requested but disabled on %s for stability", train_device.type)
 
     losses: list[float] = []
+    if resume_from:
+        try:
+            resume_meta_path = Path(resume_from) / "metadata.json"
+            if resume_meta_path.exists():
+                resume_meta = json.loads(resume_meta_path.read_text(encoding="utf-8"))
+                prev_losses = resume_meta.get("losses", [])
+                if isinstance(prev_losses, list):
+                    losses = [float(x) for x in prev_losses]
+        except Exception as ex:
+            logger.warning("Could not load previous losses: %s", ex)
+
     step = 0
     tokens_seen = 0
     stop_reason: str | None = None
@@ -505,6 +754,17 @@ def train_npdna(
             if step >= max_steps:
                 break
 
+            # Check for stop signal file from the dashboard
+            stop_signal_file = Path(output_dir) / "stop_signal.txt"
+            if stop_signal_file.exists():
+                stop_reason = f"Stopped at step {base_step + step}: user stop signal received"
+                logger.info(stop_reason)
+                try:
+                    stop_signal_file.unlink(missing_ok=True)
+                except Exception:
+                    pass
+                break
+
             if train_device.type == "cpu":
                 memory_status = _memory_rule_status(core, seq_limit, batch_size, min_free_ram_gb)
                 if memory_status["available_ram_gb"] < memory_status["required_free_ram_gb"]:
@@ -527,22 +787,14 @@ def train_npdna(
             input_ids = torch.tensor([ids[:-1]], dtype=torch.long, device=train_device)
             labels = torch.tensor([ids[1:]], dtype=torch.long, device=train_device)
 
-            # Generate synthetic multimodal training inputs to optimize projection layers
-            import random
-            audio_inputs = None
-            image_inputs = None
-            if random.random() < 0.3:
-                audio_inputs = torch.randn(1, 1600, device=train_device) * 0.01
-                image_inputs = torch.randn(1, 3, 32, 32, device=train_device) * 0.01
-
             try:
                 if use_autocast:
                     with torch.autocast(device_type=train_device.type, dtype=torch.bfloat16):
-                        logits, balance_loss = model(input_ids, audio_inputs=audio_inputs, image_inputs=image_inputs)
+                        logits, balance_loss = model(input_ids)
                         ce_loss = loss_fn(logits.reshape(-1, logits.shape[-1]), labels.reshape(-1))
                         loss = ce_loss + balance_loss
                 else:
-                    logits, balance_loss = model(input_ids, audio_inputs=audio_inputs, image_inputs=image_inputs)
+                    logits, balance_loss = model(input_ids)
                     ce_loss = loss_fn(logits.reshape(-1, logits.shape[-1]), labels.reshape(-1))
                     loss = ce_loss + balance_loss
 
@@ -608,7 +860,23 @@ def train_npdna(
                     step, max_steps, loss_val, avg, elapsed, tok_per_sec,
                 )
             
-            # Live metrics append for dashboard
+            # Plasticity check
+            old_named_states = {}
+            if step % plasticity_check_interval == 0:
+                old_named_params = dict(model.named_parameters())
+                for name, param in old_named_params.items():
+                    state = optimizer.state.get(param)
+                    if state is not None:
+                        old_named_states[name] = {
+                            k: (v.clone() if isinstance(v, torch.Tensor) else v)
+                            for k, v in state.items()
+                        }
+
+            events = plasticity.check(base_step + step)
+            for e in events:
+                logger.info("⚡ Plasticity [%s]: %s", e.event_type, e.details)
+
+            # Live metrics append for dashboard (after plasticity to include events)
             metrics_file = Path(output_dir) / "live_metrics.jsonl"
             metrics_file.parent.mkdir(parents=True, exist_ok=True)
             usage = {}
@@ -623,6 +891,7 @@ def train_npdna(
                 sum(layer_router_entropies.values()) / len(layer_router_entropies)
                 if layer_router_entropies else 0.0
             )
+            plasticity_events = [{"type": e.event_type, "details": e.details} for e in events] if events else []
             with open(metrics_file, "a") as f:
                 f.write(json.dumps({
                     "step": base_step + step,
@@ -639,23 +908,9 @@ def train_npdna(
                     "vocab_size": core.tokenizer.size,
                     "vocab_capacity": core.tokenizer.capacity,
                     "lr": optimizer.param_groups[0]["lr"],
+                    "plasticity_events": plasticity_events,
                 }) + "\n")
-
-            # Plasticity check
-            old_named_states = {}
-            if step % plasticity_check_interval == 0:
-                old_named_params = dict(model.named_parameters())
-                for name, param in old_named_params.items():
-                    if param in optimizer.state:
-                        state = optimizer.state[param]
-                        old_named_states[name] = {
-                            k: (v.clone() if isinstance(v, torch.Tensor) else v)
-                            for k, v in state.items()
-                        }
-
-            events = plasticity.check(base_step + step)
-            for e in events:
-                logger.info("⚡ Plasticity [%s]: %s", e.event_type, e.details)
+                f.flush()
 
             if any(e.event_type == "grow_strands" for e in events):
                 current_lr = optimizer.param_groups[0]["lr"]
@@ -746,7 +1001,7 @@ def train_npdna(
                     if d.is_dir() and (d / "metadata.json").exists():
                         try:
                             m = json.loads((d / "metadata.json").read_text(encoding="utf-8"))
-                            c_loss = min(m.get("losses", [999]))
+                            c_loss = min(m.get("losses") or [999])
                             ckpts.append((c_loss, d))
                         except Exception:
                             pass
@@ -780,7 +1035,9 @@ def train_npdna(
                 else:
                     logger.info("Checkpoint saved: %s", ckpt_path)
 
-            del input_ids, labels, logits, balance_loss, ce_loss, loss
+            for _var in ("input_ids", "labels", "logits", "balance_loss", "ce_loss", "loss"):
+                if _var in locals():
+                    del locals()[_var]
             if step % 50 == 0:
                 gc.collect()
                 if train_device.type == "cuda":
@@ -806,42 +1063,101 @@ def train_npdna(
         warning=stop_reason,
     )
 
-    # Save the final model as "latest". Best historical checkpoints remain in
-    # outputs/npdna/checkpoints for resume comparisons.
+    # Save the final model as "latest"
     ckpt_dir = Path(output_dir) / "checkpoints"
     best_loss_so_far = 999
+    best_ckpt_dir = None
     if ckpt_dir.exists():
         for d in ckpt_dir.iterdir():
             if d.is_dir() and (d / "metadata.json").exists():
                 try:
                     m = json.loads((d / "metadata.json").read_text(encoding="utf-8"))
-                    best_loss_so_far = min(best_loss_so_far, min(m.get("losses", [999])))
+                    c_losses = m.get("losses") or []
+                    c_min = min(c_losses) if c_losses else 999
+                    c_best = m.get("best_loss") or m.get("train_best_loss") or c_min
+                    c_best_val = min(c_min, c_best)
+                    if c_best_val < best_loss_so_far:
+                        best_loss_so_far = c_best_val
+                        best_ckpt_dir = d
                 except Exception:
                     pass
 
     final_min = min(losses) if losses else 999
-    core.save(
-        output_dir,
-        losses=losses,
-        metadata_extra=_training_metadata(
-            config_name=config_name,
-            data_path=data_path,
-            limit_samples=limit_samples,
-            step=base_step + step,
-            max_steps=base_step + max_steps,
+    
+    # Determine if we should use best checkpoint or final model
+    use_best_checkpoint = best_ckpt_dir and best_loss_so_far < final_min
+    
+    if use_best_checkpoint:
+        logger.info(
+            "Best checkpoint %s (loss: %.4f) is better than final model (loss: %.4f). Using best checkpoint as latest.",
+            best_ckpt_dir.name,
+            best_loss_so_far,
+            final_min,
+        )
+        for fname in ("model.pt", "metadata.json", "tokenizer.json"):
+            src_f = best_ckpt_dir / fname
+            dst_f = Path(output_dir) / fname
+            if src_f.exists():
+                try:
+                    shutil.copy2(src_f, dst_f)
+                except Exception as e:
+                    logger.warning("Failed to copy %s from best checkpoint to latest: %s", fname, e)
+    else:
+        core.save(
+            output_dir,
             losses=losses,
-            pack_sequences=pack_sequences,
-            bpe_merges=bpe_merges,
-            lr_schedule=lr_schedule,
-            balance_weight=balance_weight,
-            plasticity_interval=plasticity_check_interval,
-            plasticity_overload_threshold=plasticity_overload_threshold,
-        ),
-    )
+            metadata_extra=_training_metadata(
+                config_name=config_name,
+                data_path=data_path,
+                limit_samples=limit_samples,
+                step=base_step + step,
+                max_steps=base_step + max_steps,
+                losses=losses,
+                pack_sequences=pack_sequences,
+                bpe_merges=bpe_merges,
+                lr_schedule=lr_schedule,
+                balance_weight=balance_weight,
+                plasticity_interval=plasticity_check_interval,
+                plasticity_overload_threshold=plasticity_overload_threshold,
+            ),
+        )
+    
+    # Update latest metadata with version tag
+    latest_meta_path = Path(output_dir) / "metadata.json"
+    if latest_meta_path.exists():
+        try:
+            latest_meta = json.loads(latest_meta_path.read_text(encoding="utf-8"))
+            latest_meta["is_latest"] = True
+            latest_meta["best_loss"] = min(final_min, best_loss_so_far)
+            latest_meta_path.write_text(json.dumps(latest_meta, indent=2), encoding="utf-8")
+        except Exception as e:
+            logger.warning("Failed to update latest metadata: %s", e)
+
+    # Restore historical benchmark if a backup exists and no new benchmark was generated
+    bak_bench = Path(output_dir) / "benchmark.json.bak"
+    target_bench = Path(output_dir) / "benchmark.json"
+    if bak_bench.exists() and not target_bench.exists():
+        try:
+            shutil.copy2(bak_bench, target_bench)
+            logger.info("Restored historical benchmark.json from backup")
+        except Exception as e:
+            logger.warning("Failed to restore benchmark backup: %s", e)
+
+    # Clean up intermediate checkpoints directory
+    if ckpt_dir.exists():
+        logger.info("Removing intermediate checkpoints directory...")
+        try:
+            shutil.rmtree(ckpt_dir, ignore_errors=True)
+        except Exception as e:
+            logger.warning("Failed to remove checkpoints directory: %s", e)
+
+    # Create timestamped backup of the latest model and perform rotation
+    _backup_and_rotate_latest(output_dir, max_backups=5)
+
     logger.info(
         "Final model saved to %s (Best Loss: %.4f, previous checkpoint best: %.4f)",
         output_dir,
-        final_min,
+        min(final_min, best_loss_so_far),
         best_loss_so_far,
     )
 
@@ -861,6 +1177,9 @@ def train_npdna(
 
     if plasticity.events:
         logger.info(plasticity.summary())
+
+    # Send Slack notification if configured
+    _notify_training_complete(output_dir, config_name, step, final_min, elapsed)
 
     return core, losses
 
@@ -993,6 +1312,7 @@ if __name__ == "__main__":
     parser.add_argument("--plasticity-overload-threshold", type=float, default=0.14, help="Strand usage ratio that counts as overloaded")
     parser.add_argument("--plasticity-dead-threshold", type=float, default=0.01, help="Strand usage ratio that counts as dead")
     parser.add_argument("--plasticity-grow-cooldown", type=int, default=1, help="Plasticity checks to wait before growing strands again")
+    parser.add_argument("--plasticity-reuse-dead", action="store_true", default=True, help="Reuse dead strands before growing new ones (default: enabled)")
 
     args = parser.parse_args()
     try:
@@ -1012,13 +1332,14 @@ if __name__ == "__main__":
             device=args.device,
             bpe_merges=args.bpe_merges,
             lr_schedule=args.lr_schedule,
-        min_free_ram_gb=args.min_free_ram_gb,
-        bpe_max_words=args.bpe_max_words,
-        balance_weight=args.balance_weight,
-        plasticity_interval=args.plasticity_interval or None,
-        plasticity_overload_threshold=args.plasticity_overload_threshold,
-        plasticity_dead_threshold=args.plasticity_dead_threshold,
-        plasticity_grow_cooldown=args.plasticity_grow_cooldown,
+            min_free_ram_gb=args.min_free_ram_gb,
+            bpe_max_words=args.bpe_max_words,
+            balance_weight=args.balance_weight,
+            plasticity_interval=args.plasticity_interval or None,
+            plasticity_overload_threshold=args.plasticity_overload_threshold,
+            plasticity_dead_threshold=args.plasticity_dead_threshold,
+            plasticity_grow_cooldown=args.plasticity_grow_cooldown,
+            plasticity_reuse_dead=args.plasticity_reuse_dead,
     )
     except Exception as exc:
         _write_train_status(args.output, "error", error=str(exc))

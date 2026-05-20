@@ -48,17 +48,30 @@ def api_training_status(_admin: str | None = Header(default=None, alias="X-Atuly
     _require_admin(_admin)
     owned_running = DashboardState.TRAIN_PROC is not None and DashboardState.TRAIN_PROC.poll() is None
     external = _training_processes()
-    
+
     # Check if there's any active run history that got orphaned
     status = _read_train_status() or {}
     metrics = _latest_metric_status()
-    
+    is_running = owned_running or len(external) > 0
+    if status and not is_running:
+        phase = str(status.get("phase") or "")
+        terminal_phases = ("complete", "error", "stopped", "blocked")
+        if phase and not phase.startswith(terminal_phases):
+            status = {
+                **status,
+                "stale": True,
+                "message": "No active training process found; this is the last saved status from an interrupted run.",
+            }
+
     return {
+        "running": is_running,
         "owned_running": owned_running,
         "external_running": len(external) > 0,
         "external": external,
         "status": status,
         "metrics": metrics,
+        "last": metrics.get("last") or status,
+        "log_tail": _tail_text(OUTPUTS_DIR / "train.log", 120) if is_running else [],
     }
 
 
@@ -69,6 +82,22 @@ def api_train_log(_admin: str | None = Header(default=None, alias="X-Atulya-Toke
         "status": _read_train_status(),
         "log_tail": _tail_text(OUTPUTS_DIR / "train.log", 120),
     }
+
+
+@router.get("/api/training-metrics")
+def api_training_metrics(_admin: str | None = Header(default=None, alias="X-Atulya-Token")):
+    _require_admin(_admin)
+    mf = OUTPUTS_DIR / "live_metrics.jsonl"
+    points = []
+    if mf.exists():
+        try:
+            with mf.open(encoding="utf-8") as f:
+                for line in f:
+                    if line.strip():
+                        points.append(json.loads(line))
+        except Exception as e:
+            logger.error("Failed to read live_metrics.jsonl: %s", e)
+    return {"metrics": points[-500:]}
 
 
 @router.post("/api/train/start")
@@ -117,10 +146,25 @@ def api_train_start(
         mf.unlink()
     bench_file = OUTPUTS_DIR / "benchmark.json"
     if bench_file.exists():
-        bench_file.unlink()
+        bak_file = OUTPUTS_DIR / "benchmark.json.bak"
+        try:
+            if bak_file.exists():
+                bak_file.unlink()
+            bench_file.rename(bak_file)
+        except Exception:
+            try:
+                bench_file.unlink()
+            except Exception:
+                pass
     status_file = OUTPUTS_DIR / "train_status.json"
     if status_file.exists():
         status_file.unlink()
+    stop_signal = OUTPUTS_DIR / "stop_signal.txt"
+    if stop_signal.exists():
+        try:
+            stop_signal.unlink()
+        except Exception:
+            pass
         
     cmd = [
         sys.executable,
@@ -180,10 +224,35 @@ def api_train_start(
         resume = _checkpoint_index().get(str(resume_id))
         if not resume:
             return {"error": "Resume checkpoint not found or not allowed"}
+        meta_path = Path(resume) / "metadata.json"
+        if meta_path.exists():
+            try:
+                resume_meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                requested_cfg = CONFIGS[config]
+                resume_hidden = int(resume_meta.get("hidden_size") or 0)
+                resume_layers = int(resume_meta.get("num_layers") or 0)
+                if resume_hidden and resume_layers and (
+                    resume_hidden != int(requested_cfg.hidden_size)
+                    or resume_layers != int(requested_cfg.num_layers)
+                ):
+                    return {
+                        "error": (
+                            f"Resume checkpoint shape does not match config '{config}'. "
+                            "Choose a matching checkpoint or use '-- Initialize New Instance --' for fresh training."
+                        ),
+                        "resume": str(resume_id),
+                        "resume_hidden_size": resume_hidden,
+                        "resume_layers": resume_layers,
+                        "requested_hidden_size": requested_cfg.hidden_size,
+                        "requested_layers": requested_cfg.num_layers,
+                    }
+            except (OSError, json.JSONDecodeError, TypeError, ValueError):
+                return {"error": "Resume checkpoint metadata could not be read"}
         cmd.extend(["--resume", str(resume)])
         
     log_path = OUTPUTS_DIR / "train.log"
     log_f = log_path.open("a", encoding="utf-8")
+    DashboardState.TRAIN_LOG_F = log_f
     DashboardState.TRAIN_PROC = subprocess.Popen(
         cmd,
         cwd=str(_ROOT),
@@ -228,19 +297,20 @@ async def websocket_endpoint(ws: WebSocket):
     log_f = OUTPUTS_DIR / "train.log"
     mf = OUTPUTS_DIR / "live_metrics.jsonl"
     last_pos, log_pos = 0, 0
-    
+
     # Seek to end of existing files initially
     if mf.exists():
         last_pos = mf.stat().st_size
     if log_f.exists():
         log_pos = log_f.stat().st_size
-        
+
     try:
         while True:
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.5)
+            is_training = DashboardState.TRAIN_PROC is not None and DashboardState.TRAIN_PROC.poll() is None
             vm = psutil.virtual_memory()
             await ws.send_json({
-                "type": "sys",
+                "type": "system",
                 "data": {
                     "ram_total_gb": round(vm.total / 1e9, 1),
                     "ram_avail_gb": round(vm.available / 1e9, 1),
@@ -254,9 +324,21 @@ async def websocket_endpoint(ws: WebSocket):
                 continue
             with open(mf, encoding="utf-8") as f:
                 f.seek(last_pos)
-                for line in f.readlines():
-                    if line.strip():
-                        await ws.send_json({"type": "metric", "data": json.loads(line)})
+                chunk = f.read()
+                if chunk:
+                    decoder = json.JSONDecoder()
+                    pos = 0
+                    while pos < len(chunk):
+                        while pos < len(chunk) and chunk[pos] in ' \t\r\n':
+                            pos += 1
+                        if pos >= len(chunk):
+                            break
+                        try:
+                            obj, end = decoder.raw_decode(chunk, pos)
+                            await ws.send_json({"type": "metric", "data": obj})
+                            pos += end
+                        except json.JSONDecodeError:
+                            break
                 last_pos = f.tell()
             if log_f.exists():
                 with open(log_f, encoding="utf-8", errors="replace") as f:
@@ -265,9 +347,17 @@ async def websocket_endpoint(ws: WebSocket):
                         if line.strip():
                             await ws.send_json({"type": "log", "data": line.strip()})
                     log_pos = f.tell()
-            # Check if training ended
             if DashboardState.TRAIN_PROC and DashboardState.TRAIN_PROC.poll() is not None:
                 await ws.send_json({"type": "train_done"})
+                # Restore benchmark from backup if present and target is missing
+                bak_bench = OUTPUTS_DIR / "benchmark.json.bak"
+                target_bench = OUTPUTS_DIR / "benchmark.json"
+                if bak_bench.exists() and not target_bench.exists():
+                    try:
+                        import shutil
+                        shutil.copy2(bak_bench, target_bench)
+                    except Exception:
+                        pass
                 DashboardState.TRAIN_PROC = None
     except WebSocketDisconnect:
         pass
