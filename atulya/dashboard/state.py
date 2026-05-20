@@ -29,6 +29,7 @@ DEFAULT_SYSTEM_PROMPT = "You are Atulya. Be warm, thoughtful, and direct."
 class DashboardState:
     """Container for mutable server runtime states."""
     TRAIN_PROC: subprocess.Popen | None = None
+    TRAIN_LOG_F: object | None = None
     MODEL_CACHE: dict[str, object] = {}
     MODEL_CACHE_MTIME: dict[str, float] = {}
     ADMIN_TOKEN: str | None = None
@@ -47,6 +48,16 @@ def load_admin_token() -> tuple[str, str]:
         return env_token, "env"
 
     token_path = OUTPUTS_DIR / "dashboard_token.txt"
+    try:
+        if token_path.exists():
+            token = token_path.read_text(encoding="utf-8").strip()
+            if token:
+                DashboardState.ADMIN_TOKEN = token
+                DashboardState.ADMIN_TOKEN_SOURCE = str(token_path)
+                return token, str(token_path)
+    except OSError:
+        pass
+
     token = secrets.token_urlsafe(24)
     try:
         token_path.parent.mkdir(parents=True, exist_ok=True)

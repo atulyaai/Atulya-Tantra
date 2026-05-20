@@ -7,6 +7,7 @@ from __future__ import annotations
 import re
 import logging
 from typing import Callable, Any
+import torch
 from .model import NpDnaCore
 
 logger = logging.getLogger(__name__)
@@ -17,34 +18,99 @@ class NpDnaAgent:
         self.core = core
         self.tools: dict[str, Callable[[str], str]] = {}
         
-        # Register default cortex tools
+        # Register default tools
         self.register_tool("cortex_search", self._cortex_search)
         self.register_tool("cortex_store", self._cortex_store)
+        self.register_tool("web_search", self._web_search)
+        self.register_tool("code_execute", self._code_execute)
+        self.register_tool("math_eval", self._math_eval)
 
     def register_tool(self, name: str, func: Callable[[str], str]) -> None:
         """Register a new python tool for the agent to call."""
         self.tools[name] = func
         logger.info("Tool '%s' registered with NpDnaAgent.", name)
 
+    def _encode_to_vector(self, text: str) -> torch.Tensor:
+        """Encode text to a dense vector via tokenizer + embedding mean."""
+        token_ids = self.core.encode(text, allow_growth=False)
+        if not token_ids:
+            return torch.zeros(self.core.config.hidden_size)
+        with torch.no_grad():
+            token_t = torch.tensor(token_ids, dtype=torch.long, device=self.core.model.embedding.weight.device)
+            embs = self.core.model.embedding(token_t)
+            return embs.mean(dim=0)
+
     def _cortex_search(self, query: str) -> str:
         """Search memory cortex for query."""
-        results = self.core.model.cortex.retrieve(query, top_k=2)
-        if not results:
+        query_vec = self._encode_to_vector(query)
+        if self.core.model.cortex.size == 0:
+            return "Memory cortex is empty. No matching memories found."
+        values, scores = self.core.model.cortex.retrieve(query_vec, top_k=2)
+        if values is None or values.shape[0] == 0:
             return "No matching memories found."
         items = []
-        for i, (text, score) in enumerate(results):
-            items.append(f"Match {i+1} (score={score:.3f}): {text}")
-        return "\n".join(items)
+        for i in range(values.shape[0]):
+            score = float(scores[i].item())
+            entry = self.core.model.cortex.entries[i]
+            items.append(f"Match {i+1} (score={score:.3f}): {entry.source}")
+        return "\n".join(items) if items else "No matching memories found."
 
     def _cortex_store(self, fact: str) -> str:
         """Store a new fact in the memory cortex."""
-        # Clean the fact/tag format
         fact_clean = fact.strip()
-        self.core.model.cortex.store(fact_clean)
-        # Force a save to disk if path is active
+        vector = self._encode_to_vector(fact_clean)
+        self.core.model.cortex.store(key=vector, value=vector, topic="agent", source=fact_clean)
         if hasattr(self.core, "active_path") and self.core.active_path:
-            self.core.save(self.core.active_path)
-        return f"Successfully saved fact to cortex: '{fact_clean}'"
+            self.core.model.cortex.save(self.core.active_path / "cortex")
+        return f"Successfully saved fact to cortex: '{fact_clean[:80]}'"
+
+    def _web_search(self, query: str) -> str:
+        """Search the web using DuckDuckGo Instant Answer API (no key needed)."""
+        import urllib.request
+        import urllib.parse
+        url = f"https://api.duckduckgo.com/?q={urllib.parse.quote(query)}&format=json&no_redirect=1"
+        try:
+            with urllib.request.urlopen(url, timeout=5) as r:
+                data = __import__("json").loads(r.read())
+            result = data.get("AbstractText") or data.get("Answer") or data.get("RelatedTopics", [{}])[0].get("Text", "")
+            if result:
+                return result[:500]
+            return f"No instant answer found for '{query}'."
+        except Exception as e:
+            return f"Web search failed: {str(e)[:200]}"
+
+    def _code_execute(self, code: str) -> str:
+        """Execute Python code in a restricted subprocess."""
+        import subprocess
+        import sys
+        dangerous = ["import os", "import subprocess", "__import__", "eval(", "exec(", "open("]
+        for d in dangerous:
+            if d in code:
+                return f"Code execution blocked: '{d}' is not allowed."
+        try:
+            result = subprocess.run(
+                [sys.executable, "-c", code],
+                capture_output=True, text=True, timeout=10,
+            )
+            output = result.stdout[:500] or result.stderr[:500] or "(no output)"
+            return output.strip()
+        except subprocess.TimeoutExpired:
+            return "Code execution timed out (10s limit)."
+        except Exception as e:
+            return f"Code execution error: {str(e)[:300]}"
+
+    def _math_eval(self, expr: str) -> str:
+        """Evaluate a mathematical expression safely."""
+        import math
+        allowed = {"abs": abs, "round": round, "min": min, "max": max, "sum": sum,
+                    "pow": pow, "sqrt": math.sqrt, "sin": math.sin, "cos": math.cos,
+                    "tan": math.tan, "log": math.log, "log10": math.log10,
+                    "pi": math.pi, "e": math.e, "ceil": math.ceil, "floor": math.floor}
+        try:
+            result = eval(expr, {"__builtins__": {}}, allowed)
+            return str(result)
+        except Exception as e:
+            return f"Math error: {str(e)[:200]}"
 
     def run(self, user_prompt: str, max_iterations: int = 5) -> str:
         """Execute the ReAct loop until response is reached or iteration limit is hit.
@@ -56,7 +122,6 @@ class NpDnaAgent:
         Returns:
             The final text response from the agent.
         """
-        # Format the system instructions
         system_instructions = (
             "You are an autonomous NP-DNA agent. Solve the user's goal by thinking step-by-step "
             "and invoking tools. Supported tools:\n"
@@ -74,31 +139,23 @@ class NpDnaAgent:
         for iteration in range(max_iterations):
             logger.info("NpDnaAgent iteration %d/%d", iteration + 1, max_iterations)
             
-            # 1. Append [Thought] tag to prime the model
             current_prompt = context + "[Thought]"
             
-            # 2. Generate response from the core model
-            # Stop if we see [Observation] or similar tags
             output = self.core.generate(
                 current_prompt,
                 max_tokens=128,
                 temperature=0.3,
                 top_k=5
             )
-            
-            # Extract only the newly generated part
-            new_text = output[len(current_prompt):].strip()
+
+            new_text = output.strip()
             logger.debug("Agent generated: %s", new_text)
             
-            # Combine the thought to context
             context += "[Thought] " + new_text + "\n"
             
-            # Parse for actions: Action: tool_name[args]
-            # Match first action in the new text
             action_match = re.search(r"Action:\s*([a-zA-Z0-9_-]+)\[(.*?)\]", new_text)
             
             if not action_match:
-                # If no formal action is generated, treat it as a direct response
                 return new_text
             
             tool_name = action_match.group(1).strip()
@@ -117,8 +174,6 @@ class NpDnaAgent:
                 observation = f"Unknown tool '{tool_name}'. Available: {list(self.tools.keys())}."
                 
             logger.debug("Observation: %s", observation)
-            
-            # Append observation to context
             context += f"[Observation] {observation}\n"
             
         return "Agent failed to reach a conclusion within step limit."
@@ -150,12 +205,11 @@ class NpDnaAgent:
                 top_k=5
             )
             
-            new_text = output[len(current_prompt):].strip()
+            new_text = output.strip()
             context += "[Thought] " + new_text + "\n"
             
             action_match = re.search(r"Action:\s*([a-zA-Z0-9_-]+)\[(.*?)\]", new_text)
             
-            # Extract thought before action block
             thought_text = new_text.split("Action:")[0].strip()
             
             step_info = {

@@ -287,9 +287,9 @@ select option{background:var(--ink2);}
 
 /* ── CANVAS ── */
 canvas{display:block;width:100%;}
-.r-charts .card{min-height:300px;height:auto;align-self:start;}
+.r-charts .card{min-height:300px;height:100%;display:flex;flex-direction:column;}
 .r-charts canvas{height:220px;max-height:220px;}
-#strand-canvas{height:auto;max-height:none;}
+#strand-canvas{height:160px;max-height:200px;}
 
 /* ── KNOWLEDGE MESH ── */
 #knowledge-container{
@@ -979,7 +979,10 @@ canvas{display:block;width:100%;}
     <!-- Row 3: Arch + Bench + Log -->
     <div class="row r-metrics-bottom">
       <div class="card accent-dna card-fit">
-        <div class="card-title"><span><span class="dot-accent" style="background:var(--dna);"></span>Architecture Profile</span></div>
+        <div class="card-title">
+          <span><span class="dot-accent" style="background:var(--dna);"></span>Architecture Profile</span>
+          <button class="btn btn-sm btn-dna" id="btn-plasticity-check">Plasticity Check</button>
+        </div>
         <div id="arch-lines"><div style="color:var(--dim);font-family:'Space Mono',monospace;font-size:11px;">Awaiting metadata...</div></div>
         <div style="margin-top:14px;" id="arch-progs"></div>
       </div>
@@ -1206,7 +1209,7 @@ canvas{display:block;width:100%;}
         <div class="card accent-mesh">
           <div class="card-title"><span><span class="dot-accent" style="background:var(--mesh);"></span>Resume Checkpoint</span></div>
           <select id="sel-resume"></select>
-          <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--dna);margin-bottom:12px;line-height:1.7;">System maintains 1 active base model + last 4–5 best checkpoints.</div>
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--dna);margin-bottom:12px;line-height:1.7;">System exposes the active base model plus all retained checkpoints.</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
             <button class="btn btn-outline" id="btn-resume-latest">Latest</button>
             <button class="btn btn-outline" id="btn-resume-best">Best Loss</button>
@@ -1411,7 +1414,7 @@ canvas{display:block;width:100%;}
           <span><span class="dot-accent" style="background:var(--cortex);"></span>Model Registry</span>
           <button class="btn btn-sm btn-outline" onclick="loadModels()">↻ Refresh</button>
         </div>
-        <div style="color:var(--muted);font-family:'Space Mono',monospace;font-size:11px;margin-bottom:14px;line-height:1.7;">System maintains a single optimized base model + top-5 checkpoints by loss.</div>
+        <div style="color:var(--muted);font-family:'Space Mono',monospace;font-size:11px;margin-bottom:14px;line-height:1.7;">System maintains an optimized base model and checkpoint snapshots for comparison.</div>
         <div id="model-list"></div>
         <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
           <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);">Delete all model weights and checkpoints. Datasets are preserved.</span>
@@ -1683,6 +1686,7 @@ let DASH_TOKEN = localStorage.getItem('atulyaDashboardToken')||'';
 const MAX_POINTS=250;
 let lastTelemetryPaint=0;
 let lastStatusLogKey='', lastStatusLogAt=0;
+let savedArchMeta=null; // persistent architecture baseline to prevent flicker
 
 // User Management State (local simulation when no backend)
 let USERS = JSON.parse(localStorage.getItem('atulya_users')||'null') || [
@@ -1843,14 +1847,16 @@ async function apiJson(path, opts={}){
 
 // ─── AUTH ──────────────────────────────────────────────────────────────
 async function checkAuth(token){
-  const res=await fetch('/api/auth/verify',{method:'POST',headers:{'X-Atulya-Token':token}});
-  if(res.ok){
-    DASH_TOKEN=token;
-    localStorage.setItem('atulyaDashboardToken',token);
-    $('login-overlay').style.display='none';
-    init();
-    return true;
-  }
+  try {
+    const res=await fetch('/api/auth/verify',{method:'POST',headers:{'X-Atulya-Token':token}});
+    if(res.ok){
+      DASH_TOKEN=token;
+      localStorage.setItem('atulyaDashboardToken',token);
+      $('login-overlay').style.display='none';
+      init();
+      return true;
+    }
+  } catch(e) {}
   return false;
 }
 
@@ -1910,7 +1916,7 @@ function setConsoleActive(active){
 }
 
 // ─── METRICS PROCESSING ─────────────────────────────────────────────────
-function proc(m){
+function proc(m, forcePaint = false){
   // Only update metrics if we have real data (step > 0 or loss > 0)
   if(!m || (m.step==null && m.loss==null)) return;
 
@@ -1958,7 +1964,7 @@ function proc(m){
     banner.style.display='none';
   }
 
-  const shouldPaint = Date.now()-lastTelemetryPaint>900;
+  const shouldPaint = forcePaint || (Date.now()-lastTelemetryPaint>900);
   if(shouldPaint){
     drawLossChart();
     lastTelemetryPaint=Date.now();
@@ -1974,6 +1980,8 @@ function proc(m){
     syncKnowledgeMeshFromUsage(grouped,m);
     fillLiveArchFromMetric(m,grouped);
     updatePlasticityWatch(m);
+  } else if(shouldPaint) {
+    drawStrandFallback(m);
   }
 }
 
@@ -1983,9 +1991,10 @@ function drawLossChart(){
   const ctx=c.getContext('2d');
   const rect=c.parentElement.getBoundingClientRect();
   const dpr=window.devicePixelRatio||1;
-  c.width=rect.width*dpr; c.height=220*dpr;
+  c.width=Math.round(rect.width*dpr); c.height=Math.round(220*dpr);
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,c.width,c.height);
   ctx.scale(dpr,dpr);
-  ctx.clearRect(0,0,rect.width,220);
 
   if(!points.length || !TRAIN_PROC_RUNNING && points.length===0){
     ctx.fillStyle='#3d4260'; ctx.font='11px "Space Mono",monospace';
@@ -2053,13 +2062,25 @@ function drawStrandMap(layers){
   const maxStrands=Math.max(1,...entries.map(([,d])=>Object.keys(d||{}).length));
   const chartH=Math.max(150, 42 + entries.length*34);
   c.style.height=chartH+'px';
-  c.width=cssW*dpr; c.height=chartH*dpr;
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-  ctx.clearRect(0,0,cssW,chartH);
+  c.width=Math.round(cssW*dpr);
+  c.height=Math.round(chartH*dpr);
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,c.width,c.height);
+  ctx.scale(dpr,dpr);
 
   if(!entries.length){
-    ctx.fillStyle='#3d4260'; ctx.font='11px "Space Mono",monospace';
-    ctx.fillText('Awaiting strand data...',20,40); return;
+    ctx.fillStyle='rgba(124,109,255,.05)';
+    ctx.fillRect(0,0,cssW,chartH);
+    ctx.fillStyle='#7c6dff';
+    ctx.font='12px "Space Mono",monospace';
+    ctx.textAlign='center';
+    ctx.fillText('STRAND TELEMETRY PENDING',cssW/2,64);
+    ctx.fillStyle='#8a8faa';
+    ctx.font='10px "Space Mono",monospace';
+    ctx.fillText('Router activity appears after tokenizer warmup and forward steps begin.',cssW/2,90);
+    const ev=$('plasticity-events');
+    if(ev && ev.textContent.includes('Plasticity watch starting')) ev.textContent='Waiting for model training phase...';
+    return;
   }
 
   const left=46, right=12, top=14, rowH=34, gap=3;
@@ -2091,60 +2112,136 @@ function drawStrandMap(layers){
   });
 }
 
-function drawStrandPending(phase='waiting'){
-  const c=$('strand-canvas'); if(!c) return;
-  const ctx=c.getContext('2d');
-  const rect=c.parentElement.getBoundingClientRect();
-  const dpr=window.devicePixelRatio||1;
-  const cssW=Math.max(260,rect.width);
-  const chartH=160;
-  c.style.height=chartH+'px';
-  c.width=cssW*dpr; c.height=chartH*dpr;
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-  ctx.clearRect(0,0,cssW,chartH);
-  ctx.fillStyle='rgba(124,109,255,.05)';
-  ctx.fillRect(0,0,cssW,chartH);
-  ctx.strokeStyle='rgba(124,109,255,.18)';
-  ctx.setLineDash([4,6]);
-  for(let y=24;y<chartH;y+=24){ctx.beginPath();ctx.moveTo(18,y);ctx.lineTo(cssW-18,y);ctx.stroke();}
-  ctx.setLineDash([]);
-  ctx.fillStyle='#7c6dff';
-  ctx.font='12px "Space Mono",monospace';
-  ctx.textAlign='center';
-  ctx.fillText('STRAND TELEMETRY PENDING',cssW/2,64);
-  ctx.fillStyle='#8a8faa';
-  ctx.font='10px "Space Mono",monospace';
-  ctx.fillText(`Current phase: ${phase}`,cssW/2,90);
-  ctx.fillText('Router activity appears after tokenizer warmup and forward steps begin.',cssW/2,114);
-  const ev=$('plasticity-events');
-  if(ev && ev.textContent.includes('Plasticity watch starting')) ev.textContent='Waiting for model training phase...';
+function groupedStrandsFromMeta(meta){
+  if(!meta || !meta.num_layers || !meta.num_strands) return {};
+  const grouped={};
+  const pct=100/Math.max(1,Number(meta.num_strands)||1);
+  for(let li=0; li<Number(meta.num_layers||0); li++){
+    grouped['L'+li]={};
+    for(let sid=0; sid<Number(meta.num_strands||0); sid++){
+      grouped['L'+li][String(sid)]=pct;
+    }
+  }
+  return grouped;
+}
+
+function drawStrandFallback(statusOrMetric={}){
+  const last=[...points].reverse().find(p=>p && p.usage && Object.keys(p.usage).length);
+  if(last){
+    const grouped={};
+    Object.entries(last.usage||{}).forEach(([k,v])=>{
+      const parts=k.split('-'),layer=parts[0]||'L0',sid=(parts[1]||k).replace('S','');
+      grouped[layer]=grouped[layer]||{};
+      grouped[layer][sid]=Number(v)*100;
+    });
+    drawStrandMap(grouped);
+    return;
+  }
+  const meta=savedArchMeta||latestModelMeta;
+  const grouped=groupedStrandsFromMeta(meta);
+  if(Object.keys(grouped).length){
+    drawStrandMap(grouped);
+    const ev=$('plasticity-events');
+    if(ev && (!ev.textContent || ev.textContent.includes('Plasticity watch starting') || ev.textContent.includes('Waiting'))){
+      const phase=statusOrMetric.phase ? `Phase: ${statusOrMetric.phase}` : 'Showing saved model topology until live routing starts.';
+      ev.textContent=phase;
+    }
+    return;
+  }
+  drawStrandMap({});
 }
 
 function fillLiveArchFromMetric(m, grouped){
   const box=$('arch-lines'); if(!box || !m) return;
-  clr(box);
-  const layers=Object.keys(grouped||{}).length;
-  const strands=Math.max(0,...Object.values(grouped||{}).map(v=>Object.keys(v||{}).length));
-  kv(box,'Status','live training','var(--dna)');
-  kv(box,'Step',m.step||0,'var(--mesh)');
-  if(m.run_step || m.run_max_steps) kv(box,'Run Progress',`${m.run_step||0} / ${m.run_max_steps||'?'}`,'var(--plastic)');
-  if(m.loss) kv(box,'Loss / Avg',`${Number(m.loss).toFixed(4)} / ${Number(m.avg_loss||m.loss).toFixed(4)}`,'var(--cortex)');
-  if(layers) kv(box,'Layers',layers,'var(--dna)');
-  if(strands) kv(box,'Strands / Layer',strands,'var(--plastic)');
-  if(m.vocab_size||m.vocab_capacity) {
-    kv(box,'Vocab Size',`${m.vocab_size||0} / ${m.vocab_capacity||0}`,'var(--ice)');
-    txt('m-vocab', `Vocab ${fmt(m.vocab_size||0)} / ${fmt(m.vocab_capacity||0)}`);
-  }
-  if(m.total_params&&m.active_params) kv(box,'Params',`${fmt(m.active_params)} / ${fmt(m.total_params)}`,'var(--mesh)');
-  if(m.total_params&&m.active_params) kv(box,'Compression',`${(m.total_params/m.active_params).toFixed(1)}x`,'var(--dna)');
-  if(m.lr) kv(box,'Learning Rate',Number(m.lr).toExponential(2),'var(--cortex)');
 
+  // Merge incoming data into persistent baseline — every field that arrives is kept forever
+  savedArchMeta = savedArchMeta || {};
+  const liveTotalParams = Number(m.total_params || m.parameter_count || 0);
+  const liveActiveParams = Number(m.active_params || m.active_parameter_count || 0);
+  const usageLayerCount = grouped && Object.keys(grouped).length ? Object.keys(grouped).length : 0;
+  const usageStrandCount = usageLayerCount
+    ? Math.max(0, ...Object.values(grouped).map(v=>Object.keys(v||{}).length))
+    : 0;
+  if(m.config_name) savedArchMeta.config_name = m.config_name;
+  if(m.hidden_size) savedArchMeta.hidden_size = m.hidden_size;
+  if(m.state_size) savedArchMeta.state_size = m.state_size;
+  if(m.num_layers) savedArchMeta.num_layers = m.num_layers;
+  else if(usageLayerCount) savedArchMeta.num_layers = Math.max(Number(savedArchMeta.num_layers || 0), usageLayerCount);
+  if(m.num_strands) savedArchMeta.num_strands = m.num_strands;
+  else if(usageStrandCount) savedArchMeta.num_strands = Math.max(Number(savedArchMeta.num_strands || 0), usageStrandCount);
+  if(m.top_k != null) savedArchMeta.top_k = m.top_k;
+  if(m.vocab_size) savedArchMeta.vocab_size = m.vocab_size;
+  if(m.vocab_capacity) savedArchMeta.vocab_capacity = m.vocab_capacity;
+  if(m.cortex_entries != null) savedArchMeta.cortex_entries = m.cortex_entries;
+  if(liveTotalParams) savedArchMeta.parameter_count = liveTotalParams;
+  if(liveActiveParams) savedArchMeta.active_parameter_count = liveActiveParams;
+  // Live fields — always overwrite with latest
+  if(m.step != null) savedArchMeta._step = m.step;
+  if(m.run_step != null) savedArchMeta._run_step = m.run_step;
+  if(m.run_max_steps != null) savedArchMeta._run_max_steps = m.run_max_steps;
+  if(m.loss) savedArchMeta._loss = m.loss;
+  if(m.avg_loss) savedArchMeta._avg_loss = m.avg_loss;
+  if(m.lr) savedArchMeta._lr = m.lr;
+  if(liveTotalParams) savedArchMeta._total_params = liveTotalParams;
+  if(liveActiveParams) savedArchMeta._active_params = liveActiveParams;
+  // Usage-derived fields
+  if(usageLayerCount){
+    savedArchMeta._usage_layers = usageLayerCount;
+    savedArchMeta._usage_strands = usageStrandCount;
+  }
+
+  // Full re-render from merged state — no flicker, nothing vanishes
+  clr(box);
+  box.dataset.savedMeta='1';
+
+  // Static architecture fields (shown once known, never disappear)
+  if(savedArchMeta.config_name) kv(box,'Config', savedArchMeta.config_name, 'var(--plastic)');
+  if(savedArchMeta.hidden_size) kv(box,'Hidden Size', savedArchMeta.hidden_size, 'var(--mesh)');
+  if(savedArchMeta.state_size) kv(box,'State Size', savedArchMeta.state_size);
+  if(savedArchMeta.num_layers) kv(box,'Layers', savedArchMeta.num_layers, 'var(--dna)');
+  if(savedArchMeta.num_strands) kv(box,'Strands / Layer', savedArchMeta.num_strands, 'var(--dna)');
+  if(savedArchMeta.top_k != null) kv(box,'Top-K Active', savedArchMeta.top_k, 'var(--cortex)');
+  if(savedArchMeta.vocab_size || savedArchMeta.vocab_capacity){
+    kv(box,'Vocab Size', `${savedArchMeta.vocab_size||0} / ${savedArchMeta.vocab_capacity||0}`, 'var(--ice)');
+    txt('m-vocab', `Vocab ${fmt(savedArchMeta.vocab_size||0)} / ${fmt(savedArchMeta.vocab_capacity||0)}`);
+  }
+  if(savedArchMeta.cortex_entries != null) kv(box,'Cortex Entries', savedArchMeta.cortex_entries, 'var(--mesh)');
+  const tp = Number(savedArchMeta._total_params || savedArchMeta.parameter_count || 0);
+  const ap = Number(savedArchMeta._active_params || savedArchMeta.active_parameter_count || 0);
+  if(tp) kv(box,'Total Params', fmt(tp), 'var(--plastic)');
+  if(ap) kv(box,'Active Params', fmt(ap), 'var(--mesh)');
+
+  // Live / dynamic fields
+  if(savedArchMeta._step != null) kv(box,'Step', savedArchMeta._step, 'var(--mesh)');
+  if(savedArchMeta._run_step != null || savedArchMeta._run_max_steps != null)
+    kv(box,'Run Progress', `${savedArchMeta._run_step||0} / ${savedArchMeta._run_max_steps||'?'}`, 'var(--plastic)');
+  if(savedArchMeta._loss)
+    kv(box,'Loss / Avg', `${Number(savedArchMeta._loss).toFixed(4)} / ${Number(savedArchMeta._avg_loss||savedArchMeta._loss).toFixed(4)}`, 'var(--cortex)');
+  if(savedArchMeta._usage_layers) kv(box,'Usage Layers', savedArchMeta._usage_layers, 'var(--dna)');
+  if(savedArchMeta._usage_strands) kv(box,'Usage Strands', savedArchMeta._usage_strands, 'var(--plastic)');
+  if(tp && ap) kv(box,'Compression', `${(tp/ap).toFixed(1)}x`, 'var(--dna)');
+  if(savedArchMeta._lr) kv(box,'Learning Rate', Number(savedArchMeta._lr).toExponential(2), 'var(--cortex)');
+
+  if(tp) totalParams = tp;
+  if(ap) activeParams = ap;
+  if(tp) txt('sys-total-params', fmt(tp));
+  if(ap) txt('sys-active-params', fmt(ap));
+  if(tp && ap){
+    txt('m-params', `${fmt(ap)} / ${fmt(tp)}`);
+    const mParams=$('m-params');
+    if(mParams) mParams.style.fontSize='1.2rem';
+    txt('sys-compression', `${(tp/ap).toFixed(1)}x`);
+  }
+
+  // Progress bars
   const progs=$('arch-progs');
   if(progs){
     const rows=[];
-    if(m.vocab_size&&m.vocab_capacity) rows.push(prog('Vocab fill',Math.round(m.vocab_size/m.vocab_capacity*100),'var(--cortex)'));
-    if(m.total_params&&m.active_params) rows.push(prog('Active compute',Math.round(m.active_params/m.total_params*100),'var(--mesh)'));
-    progs.innerHTML=rows.join('');
+    const vs = savedArchMeta.vocab_size || 0;
+    const vc = savedArchMeta.vocab_capacity || 0;
+    if(vs && vc) rows.push(prog('Vocab fill', Math.round(vs/vc*100), 'var(--cortex)'));
+    if(tp && ap) rows.push(prog('Active compute', Math.round(ap/tp*100), 'var(--mesh)'));
+    progs.innerHTML = rows.join('');
   }
 }
 
@@ -2177,8 +2274,10 @@ function drawBenchRadar(data){
   const W=c.parentElement.getBoundingClientRect().width;
   const H=Math.max(104, parseInt(getComputedStyle(c).height, 10) || 112);
   const dpr=window.devicePixelRatio||1;
-  c.width=W*dpr; c.height=H*dpr;
-  ctx.scale(dpr,dpr); ctx.clearRect(0,0,W,H);
+  c.width=Math.round(W*dpr); c.height=Math.round(H*dpr);
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,c.width,c.height);
+  ctx.scale(dpr,dpr);
 
   const cx=W/2, cy=H/2, R=Math.min(cx,cy)-20;
   const labels=['Perplexity','Tok/s','Memory','Compression','Vocab'];
@@ -2278,6 +2377,7 @@ function updateCompression(total,active){
 // ─── ARCH DISPLAY ────────────────────────────────────────────────────────
 function fillArch(meta){
   if(!meta) return;
+  savedArchMeta = meta; // persist as baseline
   const box=$('arch-lines'); clr(box);
   box.dataset.savedMeta='1';
   kv(box,'Config',meta.config_name,'var(--plastic)');
@@ -2307,6 +2407,7 @@ function fillArch(meta){
     $('m-params').style.fontSize='1.2rem';
     updateCompression(totalParams,activeParams);
   }
+  drawStrandFallback({phase:'model_loaded'});
 }
 
 // ─── TRAINING ACTIONS ────────────────────────────────────────────────────
@@ -2872,7 +2973,17 @@ function engageTelemetryTrace(btn) {
   wrapper.style.marginTop = '6px';
   wrapper.style.marginBottom = '8px';
   
-  genTelemetry.forEach((item, idx) => {
+  const visibleTelemetry = genTelemetry.length ? genTelemetry : telemetry;
+  if(!visibleTelemetry.length){
+    const strandsContainer = $('tele-strands');
+    const cortexContainer = $('tele-cortex');
+    if(strandsContainer) strandsContainer.textContent='No routing telemetry was captured for this response.';
+    if(cortexContainer) cortexContainer.textContent='No cortex retrievals captured.';
+    $('chat-split-container').classList.add('drawer-open');
+    return;
+  }
+
+  visibleTelemetry.forEach((item, idx) => {
     const span = document.createElement('span');
     span.className = 'token-span';
     span.textContent = item.token_clean || ' ';
@@ -2888,7 +2999,7 @@ function engageTelemetryTrace(btn) {
       
       const strandsContainer = $('tele-strands');
       strandsContainer.innerHTML = '';
-      item.layers.forEach((layerRouting, layerIdx) => {
+      (item.layers || []).forEach((layerRouting, layerIdx) => {
         const layerHeader = document.createElement('div');
         layerHeader.style.color = 'var(--muted)';
         layerHeader.style.borderBottom = '1px solid var(--border2)';
@@ -2897,7 +3008,7 @@ function engageTelemetryTrace(btn) {
         layerHeader.textContent = `Layer ${layerIdx + 1}:`;
         strandsContainer.appendChild(layerHeader);
         
-        layerRouting.forEach(strand => {
+        (layerRouting || []).forEach(strand => {
           const strandRow = document.createElement('div');
           strandRow.style.display = 'flex';
           strandRow.style.justifyContent = 'space-between';
@@ -2906,6 +3017,9 @@ function engageTelemetryTrace(btn) {
           strandsContainer.appendChild(strandRow);
         });
       });
+      if(!strandsContainer.children.length){
+        strandsContainer.textContent='No active strand route for this token.';
+      }
       
       const cortexContainer = $('tele-cortex');
       cortexContainer.innerHTML = '';
@@ -2946,10 +3060,62 @@ function engageTelemetryTrace(btn) {
 }
 
 // ─── MODEL REGISTRY ──────────────────────────────────────────────────────
+function modelOptionText(m, includeLoss=false){
+  const label=m.label||m.id||'model';
+  const config=m.config||'?';
+  const step=m.step!=null?`step ${m.step}`:'step ?';
+  const loss=m.best_loss!=null?`loss: ${m.best_loss}`:'loss: ?';
+  return includeLoss ? `${label} (${loss})` : `${label} (${config}, ${step})`;
+}
+
+function syncModelSelectors(modelList, opts={}){
+  const items=(modelList||[]).filter(m=>m && m.id);
+  const selectedChat=$('chat-model')?.value;
+  const selectedResume=$('sel-resume')?.value;
+  const sChatModel=$('chat-model');
+  if(sChatModel){
+    clr(sChatModel);
+    items.forEach((m,i)=>{
+      const o=document.createElement('option');
+      o.value=m.id;
+      o.textContent=modelOptionText(m);
+      if((opts.preserve!==false && selectedChat===m.id) || (!selectedChat && i===0)) o.selected=true;
+      sChatModel.appendChild(o);
+    });
+    if(!items.length){
+      const o=document.createElement('option');
+      o.value='latest';
+      o.textContent='latest';
+      sChatModel.appendChild(o);
+    }
+  }
+  const sRes=$('sel-resume');
+  if(sRes){
+    clr(sRes);
+    items.forEach((m,i)=>{
+      const o=document.createElement('option');
+      o.value=m.id;
+      o.textContent=modelOptionText(m,true);
+      if((opts.preserve!==false && selectedResume===m.id) || (!selectedResume && i===0)) o.selected=true;
+      sRes.appendChild(o);
+    });
+    const oNew=document.createElement('option');
+    oNew.value='';
+    oNew.textContent='-- Initialize New Instance --';
+    if(selectedResume==='') oNew.selected=true;
+    sRes.appendChild(oNew);
+  }
+}
+
 async function loadModels(){
   const r=await apiJson('/api/models');
   const list=$('model-list'); clr(list);
   const ms=r.models||[];
+  models=ms;
+  if(ms.length){
+    checkpoints=ms;
+    syncModelSelectors(ms, {preserve:true});
+  }
 
   txt('sys-ckpt-count', ms.length);
   let baseName='—';
@@ -3080,6 +3246,24 @@ $('btn-bench').onclick=async()=>{
   fillBench(r.results);
   toast('Benchmark complete!','ok');
 };
+
+// ─── PLASTICITY CHECK ───────────────────────────────────────────────────
+$('btn-plasticity-check').onclick=async()=>{
+  const btn=$('btn-plasticity-check'); btn.textContent='Checking...'; btn.disabled=true;
+  const r=await apiJson('/api/plasticity/check',{method:'POST'});
+  btn.textContent='Plasticity Check'; btn.disabled=false;
+  if(r.error){ toast(r.error,'err'); return; }
+  if(r.model_info && r.model_info.meta){
+    latestModelMeta=r.model_info.meta;
+    txt('config-badge', r.model_info.meta.config_name||'NP-DNA');
+    fillArch(r.model_info.meta);
+    if(r.model_info.meta.parameter_count) totalParams=r.model_info.meta.parameter_count;
+    if(r.model_info.meta.active_parameter_count) activeParams=r.model_info.meta.active_parameter_count;
+    if(r.model_info.benchmark) fillBench(r.model_info.benchmark);
+  }
+  toast(r.message || 'Plasticity check complete!','ok');
+};
+
 
 // ─── USER MANAGEMENT ─────────────────────────────────────────────────────
 function loadUsers(){
@@ -3280,7 +3464,16 @@ function savePreferences(){
   toast('Preferences saved.','ok');
 }
 function saveLimits(){toast('Limits saved (backend required for persistence).','warn');}
-function saveWebhook(){toast('Webhook configuration saved.','ok');}
+async function saveWebhook(){
+  try{
+    const url=$('webhook-url')?.value||'';
+    const auth=$('webhook-auth')?.value||'';
+    const slack=$('slack-webhook')?.value||'';
+    const res=await apiJson('/api/automation/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({webhook_url:url,webhook_auth:auth,slack_webhook:slack})});
+    if(res.status==='saved') toast('Webhook configuration saved.','ok');
+    else toast('Failed to save webhook config.','err');
+  }catch(e){toast('Failed to save webhook config.','err');}
+}
 function saveCorsSettings(){toast('API/CORS settings saved.','ok');}
 function saveNotifications(){toast('Notification settings saved.','ok');}
 function exportConfig(){
@@ -3812,7 +4005,7 @@ function connectWS(){
       if(last) proc(last);
     }
     else if(msg.type==='system'){
-      txt('sys-ram', msg.ram_avail_gb+'GB'); txt('sys-cpu', msg.cpu_pct+'%');
+      txt('sys-ram', (msg.data?.ram_avail_gb??'—')+'GB'); txt('sys-cpu', (msg.data?.cpu_pct??'—')+'%');
     }
     else if(msg.type==='train_done'){
       addLog('Training sequence complete.','log-box','info');
@@ -3832,7 +4025,7 @@ function connectWS(){
       if(s.vocab || s.vocab_capacity) txt('m-vocab', `Vocab ${fmt(s.vocab||0)} / ${fmt(s.vocab_capacity||0)}`);
       // Only show status logs during training
       if(TRAIN_PROC_RUNNING && s.phase){
-        if(!s.step) drawStrandPending(s.phase);
+        if(!s.step) drawStrandFallback(s);
         const isErr=s.phase.includes('error');
         const key=`${s.phase}:${s.step||''}`;
         const now=Date.now();
@@ -3865,10 +4058,11 @@ async function init(){
   loadPreferences();
 
   // Load initial data
-  const [cf, md, ck]=await Promise.all([
+  const [cf, md, ck, tm]=await Promise.all([
     apiJson('/api/configs'),
     apiJson('/api/model'),
     apiJson('/api/checkpoints'),
+    apiJson('/api/training-metrics'),
   ]);
 
   configs=cf.configs||[];
@@ -3895,21 +4089,7 @@ async function init(){
 
   await loadDatasets();
 
-  const sRes=$('sel-resume'), sChatModel=$('chat-model');
-  clr(sRes); clr(sChatModel);
-  checkpoints.forEach((c,i)=>{
-    const o1=document.createElement('option');
-    o1.value=c.id; o1.textContent=`${c.label} (loss: ${c.best_loss})`;
-    if(i===0) o1.selected=true;
-    sRes.appendChild(o1);
-    const o2=document.createElement('option');
-    o2.value=c.id; o2.textContent=`${c.label} (${c.config})`;
-    if(i===0) o2.selected=true;
-    sChatModel.appendChild(o2);
-  });
-  const oNew=document.createElement('option');
-  oNew.value=''; oNew.textContent='-- Initialize New Instance --';
-  sRes.appendChild(oNew);
+  syncModelSelectors(checkpoints, {preserve:false});
 
   if(md.exists && md.meta){
     latestModelMeta=md.meta;
@@ -3917,11 +4097,16 @@ async function init(){
     fillArch(md.meta);
     if(md.meta.parameter_count) totalParams=md.meta.parameter_count;
     if(md.meta.active_parameter_count) activeParams=md.meta.active_parameter_count;
-    if(md.meta.losses&&md.meta.losses.length){
-      points=md.meta.losses.map((loss,idx)=>({step:idx+1,loss,avg_loss:loss}));
-      bestLoss=Math.min(...md.meta.losses);
-    }
     if(md.benchmark) fillBench(md.benchmark);
+  }
+
+  // Load points: prefer live metrics file, fallback to metadata losses
+  if(tm && tm.metrics && tm.metrics.length){
+    points=tm.metrics;
+    bestLoss=Math.min(...points.map(p=>Number(p.loss)||Infinity));
+  } else if(md.exists && md.meta && md.meta.losses && md.meta.losses.length){
+    points=md.meta.losses.map((loss,idx)=>({step:idx+1,loss,avg_loss:loss}));
+    bestLoss=Math.min(...md.meta.losses);
   }
 
   // Live training status — only inject logs if actually running
@@ -3931,7 +4116,7 @@ async function init(){
     if(st.last&&Object.keys(st.last).length) proc(st.last);
     else if(st.status&&st.status.phase) {
       fillLiveArchFromStatus(st.status);
-      drawStrandPending(st.status.phase);
+      drawStrandFallback(st.status);
     }
     if((st.log_tail||[]).length) st.log_tail.slice(-10).forEach(l=>{
       addLog(l,'log-box','info');
@@ -3940,14 +4125,17 @@ async function init(){
     showRunning();
   } else {
     // Not running — show metrics from model if available, but no console spam
-    if(st.last&&Object.keys(st.last).length) proc(st.last);
-    else if(points.length) proc(points[points.length-1]);
-    else drawStrandPending('idle');
+    if(points.length) {
+      proc(points[points.length - 1], true);
+    } else {
+      drawStrandFallback({phase:'idle'});
+    }
     // No log spam if not training
   }
 
   drawLossChart();
   refreshSystem();
+  setInterval(refreshSystem, 5000);
   loadModels();
   renderApiKeys();
   connectWS();

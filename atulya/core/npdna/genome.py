@@ -112,7 +112,7 @@ class Genome(nn.Module):
 
     def add_strand_capacity(self, count: int = 1) -> None:
         """Grow seed bank to accommodate more Strands."""
-        old_max = self.config.max_strands
+        old_max = int(self.seeds.shape[0])
         new_max = old_max + count
         old_seeds = self.seeds.data
         new_seeds = torch.randn(new_max, self.config.latent_dim, device=old_seeds.device) * 0.02

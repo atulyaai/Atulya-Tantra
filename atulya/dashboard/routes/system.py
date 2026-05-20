@@ -35,16 +35,28 @@ def api_datasets(_admin: str | None = Header(default=None, alias="X-Atulya-Token
 def api_configs(_admin: str | None = Header(default=None, alias="X-Atulya-Token")):
     _require_admin(_admin)
     vm = psutil.virtual_memory()
+    recommended = _auto_config_name()
+    configs_list = []
+    for k, v in CONFIGS.items():
+        params = _estimate_params(v)
+        if params >= 1_000_000:
+            params_label = f"{params/1_000_000:.1f}M"
+        else:
+            params_label = f"{params/1_000:.0f}K"
+        configs_list.append({
+            "name": k,
+            "params": params,
+            "params_label": params_label,
+            "layers": v.num_layers,
+            "strands": v.mesh.num_strands,
+            "top_k": v.mesh.top_k,
+            "vocab": v.initial_vocab,
+            "hidden": v.hidden_size,
+            "recommended": k == recommended,
+        })
     return {
-        "configs": {
-            k: {
-                "params": _estimate_params(v),
-                "layers": v.num_layers,
-                "strands": v.num_strands,
-            }
-            for k, v in CONFIGS.items()
-        },
-        "recommended": _auto_config_name(),
+        "configs": configs_list,
+        "recommended": recommended,
         "ram_gb": round(vm.total / (1024**3), 1),
     }
 
@@ -53,6 +65,7 @@ def api_configs(_admin: str | None = Header(default=None, alias="X-Atulya-Token"
 def api_system(_admin: str | None = Header(default=None, alias="X-Atulya-Token")):
     _require_admin(_admin)
     vm = psutil.virtual_memory()
+    cpu_val = psutil.cpu_percent(interval=0.1)
     return {
         "os": platform.system(),
         "os_release": platform.release(),
@@ -60,6 +73,8 @@ def api_system(_admin: str | None = Header(default=None, alias="X-Atulya-Token")
         "cpu_logical": psutil.cpu_count(logical=True),
         "ram_total_gb": round(vm.total / (1024**3), 1),
         "ram_avail_gb": round(vm.available / (1024**3), 1),
+        "ram_pct": round(vm.percent, 1),
+        "cpu_pct": round(cpu_val, 1),
         "python_version": platform.python_version(),
     }
 
@@ -67,7 +82,7 @@ def api_system(_admin: str | None = Header(default=None, alias="X-Atulya-Token")
 @router.get("/api/run-history")
 def api_run_history(_admin: str | None = Header(default=None, alias="X-Atulya-Token")):
     _require_admin(_admin)
-    return {"history": _read_run_history(50)}
+    return {"runs": _read_run_history(50)}
 
 
 @router.get("/api/dataset-preview/{data_id}")

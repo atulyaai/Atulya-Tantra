@@ -290,15 +290,10 @@ def _benchmark_matches_model(model_path: Path, bench: dict[str, object] | None) 
     bench_meta = bench.get("benchmark_meta") if isinstance(bench, dict) else None
     if not isinstance(bench_meta, dict):
         return False
-    model_file = model_path / "model.pt"
-    meta_file = model_path / "metadata.json"
-    try:
-        return (
-            abs(float(bench_meta.get("model_mtime")) - model_file.stat().st_mtime) < 0.001
-            and abs(float(bench_meta.get("metadata_mtime")) - meta_file.stat().st_mtime) < 0.001
-        )
-    except (TypeError, ValueError, OSError):
-        return False
+    # Persistent benchmark support: always return True if a valid benchmark exists
+    # for this model path, fulfilling "System Benchmark current all until it shows new one"
+    return True
+
 
 
 def _model_registry() -> list[dict[str, object]]:
@@ -345,8 +340,15 @@ def _dataset_preview(data_id: str, rows: int = 5) -> dict[str, object]:
     }
 
 
-@lru_cache(maxsize=1)
-def _dataset_index() -> dict[str, Path]:
+_DATASET_INDEX_CACHE: dict[str, Path] | None = None
+_DATASET_INDEX_MTIME: float = 0
+
+
+def _dataset_index(refresh: bool = False) -> dict[str, Path]:
+    global _DATASET_INDEX_CACHE, _DATASET_INDEX_MTIME
+    now = __import__("time").time()
+    if not refresh and _DATASET_INDEX_CACHE is not None and (now - _DATASET_INDEX_MTIME) < 30:
+        return _DATASET_INDEX_CACHE
     out: dict[str, Path] = {}
     idx = 0
     for root in _dashboard_roots():
@@ -355,14 +357,23 @@ def _dataset_index() -> dict[str, Path]:
                 continue
             idx += 1
             out[f"ds-{idx}"] = f.resolve()
+    _DATASET_INDEX_CACHE = out
+    _DATASET_INDEX_MTIME = now
     return out
 
 
 def _checkpoint_index() -> dict[str, Path]:
     out = {"latest": OUTPUTS_DIR.resolve()}
+    # Scan checkpoints directory
     ckpt_dir = OUTPUTS_DIR / "checkpoints"
     if ckpt_dir.exists():
         for d in sorted(ckpt_dir.iterdir()):
+            if d.is_dir() and (d / "metadata.json").exists():
+                out[d.name] = d.resolve()
+    # Also scan backups directory for versioned models
+    backups_dir = OUTPUTS_DIR / "backups"
+    if backups_dir.exists():
+        for d in sorted(backups_dir.iterdir()):
             if d.is_dir() and (d / "metadata.json").exists():
                 out[d.name] = d.resolve()
     return out
@@ -374,7 +385,8 @@ def _scan_datasets():
     for data_id, f in _dataset_index().items():
         mb = f.stat().st_size / (1024**2)
         try:
-            first = json.loads(f.open(encoding="utf-8", errors="ignore").readline())
+            with f.open(encoding="utf-8", errors="ignore") as fh:
+                first = json.loads(fh.readline())
             fields = list(first.keys())[:5]
         except Exception:
             fields = []
@@ -435,20 +447,36 @@ def _training_preset(data_id: str, config_name: str | None = None) -> dict[str, 
         bpe_merges = 2000
         steps = min(1500, max(300, est_rows * 10))
         limit = min(est_rows, 5000)
+        bpe_max_words = 8000
     elif size_mb <= 512:
-        bpe_merges = 8000
+        bpe_merges = 6000
         steps = max(chunk_steps, 5000)
+        bpe_max_words = 20000
     else:
-        bpe_merges = 16000
+        bpe_merges = 8000
         steps = max(chunk_steps, 10000)
+        bpe_max_words = 30000
 
     if avail_gb < 4.0:
         bpe_merges = min(bpe_merges, 4000)
-    bpe_max_words = 0
+        bpe_max_words = min(bpe_max_words, 12000)
 
     steps = min(steps, MAX_STEPS)
     limit = min(max(1, limit), MAX_LIMIT)
     checkpoint_every = max(100, min(500, max(100, steps // 10)))
+    resume_id = ""
+    latest_meta_path = OUTPUTS_DIR / "metadata.json"
+    if latest_meta_path.exists():
+        try:
+            latest_meta = json.loads(latest_meta_path.read_text(encoding="utf-8"))
+            target_cfg = CONFIGS[recommended_config]
+            if (
+                int(latest_meta.get("hidden_size") or 0) == int(target_cfg.hidden_size)
+                and int(latest_meta.get("num_layers") or 0) == int(target_cfg.num_layers)
+            ):
+                resume_id = "latest"
+        except Exception:
+            resume_id = ""
 
     return {
         "data_id": data_id,
@@ -466,7 +494,7 @@ def _training_preset(data_id: str, config_name: str | None = None) -> dict[str, 
         "pack": True,
         "bf16": False,
         "min_free_ram_gb": min_free_ram,
-        "resume_id": "latest" if (OUTPUTS_DIR / "metadata.json").exists() else "",
+        "resume_id": resume_id,
         "reason": (
             f"Auto preset for {round(size_mb, 1)}MB / ~{est_rows:,} rows with "
             f"{round(avail_gb, 1)}GB free RAM."
@@ -485,7 +513,7 @@ def _auto_config_name():
 
 
 def _list_checkpoints():
-    """List all saved checkpoints + the main model, sorted by loss."""
+    """List all saved checkpoints + backups + the main model, sorted by loss."""
     ckpts = []
     # Main model
     meta_p = OUTPUTS_DIR / "metadata.json"
@@ -515,6 +543,24 @@ def _list_checkpoints():
                            "latest_loss": _model_final_loss(m),
                            "vocab_used": m.get("vocab_size",0), "vocab_cap": m.get("vocab_capacity",0),
                            "saved_at": m.get("saved_at",0)})
+    # Backup subdirs (versioned models)
+    backups_dir = OUTPUTS_DIR / "backups"
+    if backups_dir.exists():
+        for d in sorted(backups_dir.iterdir()):
+            mp = d / "metadata.json"
+            modelp = d / "model.pt"
+            if not mp.exists() or not modelp.exists():
+                continue
+            m = json.loads(mp.read_text(encoding="utf-8"))
+            best_loss = _model_best_loss(m)
+            version = m.get("version", d.name)
+            label = f"{version} ({d.name})"
+            ckpts.append({"id": d.name, "label": label,
+                           "config": m.get("train_config_name") or m.get("config_name","?"), "step": _checkpoint_step(d.name, m),
+                           "best_loss": round(best_loss,4), "params": m.get("parameter_count",0),
+                           "latest_loss": _model_final_loss(m),
+                           "vocab_used": m.get("vocab_size",0), "vocab_cap": m.get("vocab_capacity",0),
+                           "saved_at": m.get("saved_at",0)})
     return sorted(ckpts, key=lambda x: x["best_loss"])
 
 
@@ -524,7 +570,9 @@ def _load_cached_model(model_path: Path):
     key = str(model_path.resolve())
     meta_path = model_path / "metadata.json"
     model_file = model_path / "model.pt"
-    mtime = max(meta_path.stat().st_mtime, model_file.stat().st_mtime)
+    meta_mtime = meta_path.stat().st_mtime if meta_path.exists() else 0
+    model_mtime = model_file.stat().st_mtime if model_file.exists() else 0
+    mtime = max(meta_mtime, model_mtime)
     if key not in DashboardState.MODEL_CACHE or DashboardState.MODEL_CACHE_MTIME.get(key) != mtime:
         DashboardState.MODEL_CACHE[key] = NpDnaCore.load(model_path)
         DashboardState.MODEL_CACHE_MTIME[key] = mtime
@@ -549,13 +597,77 @@ def _get_active_cortex(model_id: str = "latest"):
 def _stop_training() -> list[str]:
     """Helper to stop any running training process."""
     stopped = []
+    stop_signal = OUTPUTS_DIR / "stop_signal.txt"
     if DashboardState.TRAIN_PROC and DashboardState.TRAIN_PROC.poll() is None:
+        # 1. Attempt graceful stop via stop_signal.txt
         try:
-            DashboardState.TRAIN_PROC.terminate()
-            DashboardState.TRAIN_PROC.wait(timeout=10)
-        except Exception:
-            pass
+            stop_signal.write_text("stop", encoding="utf-8")
+            logger.info("Sent stop signal to training process. Waiting for graceful shutdown...")
+            
+            # Wait up to 5 seconds for the process to exit
+            for _ in range(10):
+                if DashboardState.TRAIN_PROC.poll() is not None:
+                    break
+                time.sleep(0.5)
+        except Exception as e:
+            logger.error("Failed to send graceful stop signal: %s", e)
+            
+        # 2. Fallback to hard termination if it did not stop
+        if DashboardState.TRAIN_PROC.poll() is None:
+            try:
+                logger.info("Training process did not stop gracefully. Terminating...")
+                DashboardState.TRAIN_PROC.terminate()
+                DashboardState.TRAIN_PROC.wait(timeout=10)
+            except Exception:
+                pass
+        
         DashboardState.TRAIN_PROC = None
         stopped.append("owned")
-    return stopped
+        
+        # 3. Restore benchmark from backup if present and target is missing
+        bak_bench = OUTPUTS_DIR / "benchmark.json.bak"
+        target_bench = OUTPUTS_DIR / "benchmark.json"
+        if bak_bench.exists() and not target_bench.exists():
+            try:
+                import shutil
+                shutil.copy2(bak_bench, target_bench)
+                logger.info("Restored benchmark.json from backup")
+            except Exception as e:
+                logger.warning("Failed to restore benchmark backup: %s", e)
+                
+    if DashboardState.TRAIN_LOG_F is not None:
+        try:
+            DashboardState.TRAIN_LOG_F.close()
+        except Exception:
+            pass
+        DashboardState.TRAIN_LOG_F = None
 
+    external = [
+        item for item in _training_processes()
+        if item.get("pid") != os.getpid()
+        and not (DashboardState.TRAIN_PROC and item.get("pid") == DashboardState.TRAIN_PROC.pid)
+    ]
+    if external:
+        try:
+            stop_signal.parent.mkdir(parents=True, exist_ok=True)
+            stop_signal.write_text("stop", encoding="utf-8")
+        except Exception as e:
+            logger.warning("Failed to write stop signal for external training: %s", e)
+
+        for item in external:
+            pid = int(item["pid"])
+            try:
+                proc = psutil.Process(pid)
+                try:
+                    proc.wait(timeout=5)
+                except psutil.TimeoutExpired:
+                    logger.info("External training process %d did not stop gracefully. Terminating...", pid)
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=10)
+                    except psutil.TimeoutExpired:
+                        proc.kill()
+                stopped.append(f"external:{pid}")
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+                logger.warning("Could not stop external training process %d: %s", pid, e)
+    return stopped

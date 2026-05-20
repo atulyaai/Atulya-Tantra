@@ -53,6 +53,7 @@ class PlasticityEngine:
         reinit_dead_strands: bool = True,
         grow_overloaded_strands: bool = True,
         grow_cooldown_checks: int = 3,
+        reuse_dead_before_grow: bool = True,
     ):
         self.core = core
         self.check_interval = check_interval
@@ -63,10 +64,12 @@ class PlasticityEngine:
         self.reinit_dead_strands = reinit_dead_strands
         self.grow_overloaded_strands = grow_overloaded_strands
         self.grow_cooldown_checks = grow_cooldown_checks
+        self.reuse_dead_before_grow = reuse_dead_before_grow
 
         self.events: list[PlasticityEvent] = []
         self.loss_history: list[float] = []
         self._last_dead_reinit: set[tuple[int, int]] = set()
+        self._available_dead_strands: dict[int, list[int]] = {}
         self._checks_since_growth = grow_cooldown_checks
 
     def record_loss(self, loss: float) -> None:
@@ -94,9 +97,10 @@ class PlasticityEngine:
         return events
 
     def _check_strand_usage(self, step: int) -> list[PlasticityEvent]:
-        """Detect dead and overloaded Strands."""
+        """Detect dead and overloaded Strands. Reuse dead strands before growing new ones."""
         events = []
         grew_this_check = False
+        dead_strands_by_layer: dict[int, list[int]] = {}
 
         for layer_i, mesh in enumerate(self.core.model.mesh_layers):
             stats = mesh.usage_stats
@@ -109,6 +113,8 @@ class PlasticityEngine:
                 msg = f"Layer {layer_i}: {len(dead)} dead strands {dead}"
                 logger.warning("Plasticity: %s", msg)
                 events.append(PlasticityEvent(step, "dead_strands", msg))
+                dead_strands_by_layer[layer_i] = dead
+                self._available_dead_strands[layer_i] = dead
                 if self.reinit_dead_strands:
                     reinitialized = self._reinit_dead_strands(layer_i, mesh, dead)
                     if reinitialized:
@@ -121,17 +127,54 @@ class PlasticityEngine:
                 logger.warning("Plasticity: %s", msg)
                 events.append(PlasticityEvent(step, "overloaded_strands", msg))
                 if self.grow_overloaded_strands and not grew_this_check:
-                    growth = self._grow_for_overload(step, msg)
-                    if growth:
-                        events.append(growth)
-                        self._checks_since_growth = 0
-                        grew_this_check = True
-                        overloaded = []
+                    reused = False
+                    if self.reuse_dead_before_grow:
+                        reused = self._reuse_dead_for_overload(step, layer_i, mesh, overloaded, dead_strands_by_layer.get(layer_i, []))
+                    if not reused:
+                        growth = self._grow_for_overload(step, msg)
+                        if growth:
+                            events.append(growth)
+                            self._checks_since_growth = 0
+                            grew_this_check = True
 
-            # Reset counters for next check interval
             mesh.reset_usage()
 
         return events
+
+    def _reuse_dead_for_overload(self, step: int, layer_i: int, mesh, overloaded: list[int], dead: list[int]) -> bool:
+        """Reuse dead strands to handle overloaded capacity instead of growing new ones.
+        
+        Returns True if dead strands were successfully reused.
+        """
+        available = self._available_dead_strands.get(layer_i, [])
+        if not available:
+            return False
+        
+        reuse_count = min(len(overloaded), len(available))
+        if reuse_count == 0:
+            return False
+        
+        genome = self.core.model.genome
+        with torch.no_grad():
+            for i in range(reuse_count):
+                dead_id = available[i]
+                global_id = int(mesh.strands[dead_id].strand_id)
+                
+                if 0 <= global_id < genome.seeds.shape[0]:
+                    genome.seeds[global_id].normal_(mean=0.0, std=0.02)
+                if 0 <= dead_id < mesh.router.weight.shape[0]:
+                    nn_init_std = 1.0 / (max(1, mesh.router.weight.shape[1]) ** 0.5)
+                    mesh.router.weight[dead_id].normal_(mean=0.0, std=nn_init_std)
+                
+                key = (layer_i, dead_id)
+                self._last_dead_reinit.discard(key)
+                
+                msg = f"Layer {layer_i}: reused dead strand {dead_id} for overloaded capacity"
+                logger.info("Plasticity: %s", msg)
+                self.events.append(PlasticityEvent(step, "reuse_dead_strand", msg))
+        
+        self._available_dead_strands[layer_i] = available[reuse_count:]
+        return True
 
     def _grow_for_overload(self, step: int, reason: str) -> PlasticityEvent | None:
         model = self.core.model
@@ -160,10 +203,14 @@ class PlasticityEngine:
                 if 0 <= global_id < genome.seeds.shape[0]:
                     genome.seeds[global_id].normal_(mean=0.0, std=0.02)
                 if 0 <= s_id < mesh.router.weight.shape[0]:
-                    nn_init_std = 1.0 / max(1, mesh.router.weight.shape[1]) ** 0.5
+                    nn_init_std = 1.0 / (max(1, mesh.router.weight.shape[1]) ** 0.5)
                     mesh.router.weight[s_id].normal_(mean=0.0, std=nn_init_std)
                 reinitialized.append(s_id)
                 self._last_dead_reinit.add(key)
+        if len(self._last_dead_reinit) > 1000:
+            to_remove = len(self._last_dead_reinit) - 1000
+            for _ in range(to_remove):
+                self._last_dead_reinit.pop()
         return reinitialized
 
     def _check_vocab_pressure(self, step: int) -> list[PlasticityEvent]:
