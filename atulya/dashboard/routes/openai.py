@@ -8,20 +8,18 @@ import json
 import logging
 import time
 import uuid
-from pathlib import Path
 from fastapi import APIRouter, Header, Request
 from fastapi.responses import StreamingResponse
 
-from atulya.dashboard.state import OUTPUTS_DIR, MAX_CHAT_TOKENS
+from atulya.dashboard.state import MAX_CHAT_TOKENS, MAX_PROMPT_CHARS
 from atulya.dashboard.helpers import (
     _require_admin,
     _check_request_origin,
     _checkpoint_index,
-    _read_metadata,
-    _model_readiness,
     _load_cached_model,
     _clamp_int,
     _clamp_float,
+    _model_registry,
 )
 
 logger = logging.getLogger("atulya.dashboard.routes.openai")
@@ -45,8 +43,56 @@ def _messages_to_prompt(messages: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def _authorized_model_path(model_id: str):
+    return _checkpoint_index().get(model_id)
+
+
+def _validate_messages(messages) -> str | None:
+    if not isinstance(messages, list) or not messages:
+        return "messages is required"
+    if len(messages) > 64:
+        return "too many messages"
+    total_chars = 0
+    for msg in messages:
+        if not isinstance(msg, dict):
+            return "each message must be an object"
+        content = msg.get("content", "")
+        if not isinstance(content, str):
+            return "message content must be text"
+        total_chars += len(content)
+    if total_chars > MAX_PROMPT_CHARS:
+        return f"prompt too long. Max {MAX_PROMPT_CHARS} characters."
+    return None
+
+
 def _make_completion_id():
     return f"chatcmpl-{uuid.uuid4().hex[:12]}"
+
+
+@router.get("/v1/models")
+def openai_models(authorization: str | None = Header(default=None)):
+    token = authorization
+    if token and token.startswith("Bearer "):
+        token = token[7:]
+    _require_admin(token)
+    return {
+        "object": "list",
+        "data": [
+            {
+                "id": str(model.get("id")),
+                "object": "model",
+                "created": int(float(model.get("saved_at") or time.time())),
+                "owned_by": "atulya",
+                "meta": {
+                    "label": model.get("label"),
+                    "config": model.get("config"),
+                    "step": model.get("step"),
+                    "best_loss": model.get("best_loss"),
+                },
+            }
+            for model in _model_registry()
+        ],
+    }
 
 
 @router.post("/v1/chat/completions")
@@ -64,22 +110,18 @@ def openai_chat_completions(
     _require_admin(token)
 
     messages = body.get("messages", [])
-    if not messages:
-        return {"error": {"message": "messages is required", "type": "invalid_request_error"}}
+    message_error = _validate_messages(messages)
+    if message_error:
+        return {"error": {"message": message_error, "type": "invalid_request_error"}}
 
     model_id = str(body.get("model") or "latest")
-    model_path = _checkpoint_index().get(model_id)
-    if not model_path:
-        candidate = Path(model_id)
-        from atulya.dashboard.helpers import _is_within
-        if candidate.exists() and _is_within(candidate, [OUTPUTS_DIR.resolve()]):
-            model_path = candidate.resolve()
+    model_path = _authorized_model_path(model_id)
 
-    if not model_path or not (Path(model_path) / "metadata.json").exists():
+    if not model_path or not (model_path / "metadata.json").exists():
         return {"error": {"message": "No trained model found", "type": "model_not_found"}}
 
     try:
-        core = _load_cached_model(Path(model_path))
+        core = _load_cached_model(model_path)
         max_tokens = _clamp_int(body.get("max_tokens"), 40, 1, MAX_CHAT_TOKENS)
         temperature = _clamp_float(body.get("temperature"), 0.35, 0.0, 2.0)
         top_p = _clamp_float(body.get("top_p"), 1.0, 0.0, 1.0)
@@ -161,23 +203,20 @@ def openai_completions(
         token = token[7:]
     _require_admin(token)
 
-    prompt = body.get("prompt", "")
+    prompt = str(body.get("prompt", ""))
     if not prompt:
         return {"error": {"message": "prompt is required", "type": "invalid_request_error"}}
+    if len(prompt) > MAX_PROMPT_CHARS:
+        return {"error": {"message": f"prompt too long. Max {MAX_PROMPT_CHARS} characters.", "type": "invalid_request_error"}}
 
     model_id = str(body.get("model") or "latest")
-    model_path = _checkpoint_index().get(model_id)
-    if not model_path:
-        candidate = Path(model_id)
-        from atulya.dashboard.helpers import _is_within
-        if candidate.exists() and _is_within(candidate, [OUTPUTS_DIR.resolve()]):
-            model_path = candidate.resolve()
+    model_path = _authorized_model_path(model_id)
 
-    if not model_path or not (Path(model_path) / "metadata.json").exists():
+    if not model_path or not (model_path / "metadata.json").exists():
         return {"error": {"message": "No trained model found", "type": "model_not_found"}}
 
     try:
-        core = _load_cached_model(Path(model_path))
+        core = _load_cached_model(model_path)
         max_tokens = _clamp_int(body.get("max_tokens"), 40, 1, MAX_CHAT_TOKENS)
         temperature = _clamp_float(body.get("temperature"), 0.35, 0.0, 2.0)
 

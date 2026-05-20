@@ -1209,7 +1209,7 @@ canvas{display:block;width:100%;}
         <div class="card accent-mesh">
           <div class="card-title"><span><span class="dot-accent" style="background:var(--mesh);"></span>Resume Checkpoint</span></div>
           <select id="sel-resume"></select>
-          <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--dna);margin-bottom:12px;line-height:1.7;">System maintains 1 active base model + last 4–5 best checkpoints.</div>
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--dna);margin-bottom:12px;line-height:1.7;">System exposes the active base model plus all retained checkpoints.</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
             <button class="btn btn-outline" id="btn-resume-latest">Latest</button>
             <button class="btn btn-outline" id="btn-resume-best">Best Loss</button>
@@ -1414,7 +1414,7 @@ canvas{display:block;width:100%;}
           <span><span class="dot-accent" style="background:var(--cortex);"></span>Model Registry</span>
           <button class="btn btn-sm btn-outline" onclick="loadModels()">↻ Refresh</button>
         </div>
-        <div style="color:var(--muted);font-family:'Space Mono',monospace;font-size:11px;margin-bottom:14px;line-height:1.7;">System maintains a single optimized base model + top-5 checkpoints by loss.</div>
+        <div style="color:var(--muted);font-family:'Space Mono',monospace;font-size:11px;margin-bottom:14px;line-height:1.7;">System maintains an optimized base model and checkpoint snapshots for comparison.</div>
         <div id="model-list"></div>
         <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
           <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);">Delete all model weights and checkpoints. Datasets are preserved.</span>
@@ -3060,10 +3060,62 @@ function engageTelemetryTrace(btn) {
 }
 
 // ─── MODEL REGISTRY ──────────────────────────────────────────────────────
+function modelOptionText(m, includeLoss=false){
+  const label=m.label||m.id||'model';
+  const config=m.config||'?';
+  const step=m.step!=null?`step ${m.step}`:'step ?';
+  const loss=m.best_loss!=null?`loss: ${m.best_loss}`:'loss: ?';
+  return includeLoss ? `${label} (${loss})` : `${label} (${config}, ${step})`;
+}
+
+function syncModelSelectors(modelList, opts={}){
+  const items=(modelList||[]).filter(m=>m && m.id);
+  const selectedChat=$('chat-model')?.value;
+  const selectedResume=$('sel-resume')?.value;
+  const sChatModel=$('chat-model');
+  if(sChatModel){
+    clr(sChatModel);
+    items.forEach((m,i)=>{
+      const o=document.createElement('option');
+      o.value=m.id;
+      o.textContent=modelOptionText(m);
+      if((opts.preserve!==false && selectedChat===m.id) || (!selectedChat && i===0)) o.selected=true;
+      sChatModel.appendChild(o);
+    });
+    if(!items.length){
+      const o=document.createElement('option');
+      o.value='latest';
+      o.textContent='latest';
+      sChatModel.appendChild(o);
+    }
+  }
+  const sRes=$('sel-resume');
+  if(sRes){
+    clr(sRes);
+    items.forEach((m,i)=>{
+      const o=document.createElement('option');
+      o.value=m.id;
+      o.textContent=modelOptionText(m,true);
+      if((opts.preserve!==false && selectedResume===m.id) || (!selectedResume && i===0)) o.selected=true;
+      sRes.appendChild(o);
+    });
+    const oNew=document.createElement('option');
+    oNew.value='';
+    oNew.textContent='-- Initialize New Instance --';
+    if(selectedResume==='') oNew.selected=true;
+    sRes.appendChild(oNew);
+  }
+}
+
 async function loadModels(){
   const r=await apiJson('/api/models');
   const list=$('model-list'); clr(list);
   const ms=r.models||[];
+  models=ms;
+  if(ms.length){
+    checkpoints=ms;
+    syncModelSelectors(ms, {preserve:true});
+  }
 
   txt('sys-ckpt-count', ms.length);
   let baseName='—';
@@ -4037,21 +4089,7 @@ async function init(){
 
   await loadDatasets();
 
-  const sRes=$('sel-resume'), sChatModel=$('chat-model');
-  clr(sRes); clr(sChatModel);
-  checkpoints.forEach((c,i)=>{
-    const o1=document.createElement('option');
-    o1.value=c.id; o1.textContent=`${c.label} (loss: ${c.best_loss})`;
-    if(i===0) o1.selected=true;
-    sRes.appendChild(o1);
-    const o2=document.createElement('option');
-    o2.value=c.id; o2.textContent=`${c.label} (${c.config})`;
-    if(i===0) o2.selected=true;
-    sChatModel.appendChild(o2);
-  });
-  const oNew=document.createElement('option');
-  oNew.value=''; oNew.textContent='-- Initialize New Instance --';
-  sRes.appendChild(oNew);
+  syncModelSelectors(checkpoints, {preserve:false});
 
   if(md.exists && md.meta){
     latestModelMeta=md.meta;

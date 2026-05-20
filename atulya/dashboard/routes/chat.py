@@ -5,11 +5,10 @@ import json
 import logging
 import re
 import time
-from pathlib import Path
 from fastapi import APIRouter, Header, Request
 from fastapi.responses import StreamingResponse
 
-from atulya.dashboard.state import OUTPUTS_DIR, MAX_PROMPT_CHARS, MAX_CHAT_TOKENS
+from atulya.dashboard.state import MAX_PROMPT_CHARS, MAX_CHAT_TOKENS
 from atulya.dashboard.helpers import (
     _require_admin,
     _check_request_origin,
@@ -21,7 +20,6 @@ from atulya.dashboard.helpers import (
     _clamp_float,
     _format_mode_prompt,
     _clean_chat_response,
-    _is_within,
 )
 
 logger = logging.getLogger("atulya.dashboard.routes.chat")
@@ -122,20 +120,16 @@ def api_chat(
 
     model_id = str(body.get("model_id") or body.get("model_path") or "latest")
     model_path = _checkpoint_index().get(model_id)
-    if not model_path:
-        candidate = Path(model_id)
-        if candidate.exists() and _is_within(candidate, [OUTPUTS_DIR.resolve()]):
-            model_path = candidate.resolve()
 
     if not model_path:
         return {"error": "Model path not allowed"}
-    if not (Path(model_path) / "metadata.json").exists():
+    if not (model_path / "metadata.json").exists():
         return {"error": "No trained model found. Train first."}
 
     try:
-        meta = _read_metadata(Path(model_path))
+        meta = _read_metadata(model_path)
         readiness = _model_readiness(meta)
-        core = _load_cached_model(Path(model_path))
+        core = _load_cached_model(model_path)
         max_tokens = _clamp_int(body.get("max_tokens"), 40, 1, MAX_CHAT_TOKENS)
         temperature = _clamp_float(body.get("temperature"), 0.15, 0.0, 2.0)
         top_k = _clamp_int(body.get("top_k"), 5, 0, 100)
@@ -228,19 +222,15 @@ async def api_chat_stream(
 
     model_id = str(body.get("model_id") or body.get("model_path") or "latest")
     model_path = _checkpoint_index().get(model_id)
-    if not model_path:
-        candidate = Path(model_id)
-        if candidate.exists() and _is_within(candidate, [OUTPUTS_DIR.resolve()]):
-            model_path = candidate.resolve()
 
     if not model_path:
         return {"error": "Model path not allowed"}
-    if not (Path(model_path) / "metadata.json").exists():
+    if not (model_path / "metadata.json").exists():
         return {"error": "No trained model found. Train first."}
 
-    meta = _read_metadata(Path(model_path))
+    meta = _read_metadata(model_path)
     readiness = _model_readiness(meta)
-    core = _load_cached_model(Path(model_path))
+    core = _load_cached_model(model_path)
     max_tokens = _clamp_int(body.get("max_tokens"), 40, 1, MAX_CHAT_TOKENS)
     temperature = _clamp_float(body.get("temperature"), 0.15, 0.0, 2.0)
     top_k = _clamp_int(body.get("top_k"), 5, 0, 100)

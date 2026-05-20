@@ -938,8 +938,49 @@ class TestTrainingModelManagement:
         assert "model_info" in data
         assert data["model_info"]["exists"] is True
 
+    def test_openai_models_lists_checkpoints(self, monkeypatch):
+        from fastapi.testclient import TestClient
+        from atulya.dashboard.app import app
+        from atulya.dashboard import helpers
+        from atulya.dashboard.routes import openai
+
+        monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")
+        monkeypatch.setattr(openai, "_model_registry", lambda: [
+            {"id": "latest", "label": "latest", "config": "seed", "step": 20, "best_loss": 3.2, "saved_at": 123.0},
+            {"id": "step_000020", "label": "step_000020", "config": "seed", "step": 20, "best_loss": 3.2, "saved_at": 123.0},
+        ])
+
+        client = TestClient(app)
+        response = client.get("/v1/models", headers={"Authorization": "Bearer test_token"})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert [m["id"] for m in data["data"]] == ["latest", "step_000020"]
+
+    def test_chat_rejects_raw_model_paths(self, tmp_path, monkeypatch):
+        from fastapi.testclient import TestClient
+        from atulya.dashboard.app import app
+        from atulya.dashboard import helpers
+        from atulya.dashboard.routes import chat
+
+        raw_model_path = tmp_path / "raw_model"
+        raw_model_path.mkdir()
+        (raw_model_path / "metadata.json").write_text("{}", encoding="utf-8")
+
+        monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")
+        monkeypatch.setattr(chat, "_checkpoint_index", lambda: {"latest": raw_model_path})
+
+        client = TestClient(app)
+        response = client.post(
+            "/api/chat",
+            json={"prompt": "hi", "model_id": str(raw_model_path)},
+            headers={"X-Atulya-Token": "test_token"},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["error"] == "Model path not allowed"
+
 
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])
-
