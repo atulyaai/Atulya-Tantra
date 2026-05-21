@@ -737,6 +737,15 @@ class TestMultimodal:
 
 
 class TestAutonomy:
+    def test_agent_math_eval_blocks_code_execution(self):
+        from atulya.core.npdna import NpDnaCore, NpDnaAgent
+        core = NpDnaCore.from_config("seed")
+        agent = NpDnaAgent(core)
+
+        assert agent._math_eval("sqrt(16) + 2") == "6.0"
+        assert "blocked" in agent._math_eval("__import__('os').system('echo bad')").lower()
+        assert "blocked" in agent._code_execute("open('secret.txt').read()").lower()
+
     def test_agent_react_loop(self):
         from atulya.core.npdna import NpDnaCore, NpDnaAgent
         core = NpDnaCore.from_config("seed")

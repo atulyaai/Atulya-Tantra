@@ -9,6 +9,7 @@ import logging
 from typing import Callable, Any
 import torch
 from .model import NpDnaCore
+from .safe_eval import safe_expression_output
 
 logger = logging.getLogger(__name__)
 
@@ -80,37 +81,12 @@ class NpDnaAgent:
             return f"Web search failed: {str(e)[:200]}"
 
     def _code_execute(self, code: str) -> str:
-        """Execute Python code in a restricted subprocess."""
-        import subprocess
-        import sys
-        dangerous = ["import os", "import subprocess", "__import__", "eval(", "exec(", "open("]
-        for d in dangerous:
-            if d in code:
-                return f"Code execution blocked: '{d}' is not allowed."
-        try:
-            result = subprocess.run(
-                [sys.executable, "-c", code],
-                capture_output=True, text=True, timeout=10,
-            )
-            output = result.stdout[:500] or result.stderr[:500] or "(no output)"
-            return output.strip()
-        except subprocess.TimeoutExpired:
-            return "Code execution timed out (10s limit)."
-        except Exception as e:
-            return f"Code execution error: {str(e)[:300]}"
+        """Evaluate a single safe expression without launching a shell."""
+        return safe_expression_output(code.strip())
 
     def _math_eval(self, expr: str) -> str:
         """Evaluate a mathematical expression safely."""
-        import math
-        allowed = {"abs": abs, "round": round, "min": min, "max": max, "sum": sum,
-                    "pow": pow, "sqrt": math.sqrt, "sin": math.sin, "cos": math.cos,
-                    "tan": math.tan, "log": math.log, "log10": math.log10,
-                    "pi": math.pi, "e": math.e, "ceil": math.ceil, "floor": math.floor}
-        try:
-            result = eval(expr, {"__builtins__": {}}, allowed)
-            return str(result)
-        except Exception as e:
-            return f"Math error: {str(e)[:200]}"
+        return safe_expression_output(expr.strip())
 
     def run(self, user_prompt: str, max_iterations: int = 5) -> str:
         """Execute the ReAct loop until response is reached or iteration limit is hit.

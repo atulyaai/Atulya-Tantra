@@ -351,10 +351,15 @@ def _dataset_index(refresh: bool = False) -> dict[str, Path]:
         return _DATASET_INDEX_CACHE
     out: dict[str, Path] = {}
     idx = 0
+    seen_files: set[str] = set()
     for root in _dashboard_roots():
         for f in sorted(root.rglob("*.jsonl")):
             if not f.is_file():
                 continue
+            resolved = str(f.resolve()).lower()
+            if resolved in seen_files:
+                continue
+            seen_files.add(resolved)
             idx += 1
             out[f"ds-{idx}"] = f.resolve()
     _DATASET_INDEX_CACHE = out

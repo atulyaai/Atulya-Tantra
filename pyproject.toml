@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "atulya-tantra"
-version = "0.1.0"
-description = "NP-DNA: NeuroPlastic DNA Network — a novel neural architecture with DNA weight generation, sparse mesh routing, external memory cortex, and self-improvement"
+version = "0.2.0"
+description = "Atulya Tantra - AI that grows with you. NP-DNA neural core, self-improving cycle, automation, and memory."
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [{name = "Atulya AI"}]
@@ -18,12 +18,19 @@ dependencies = [
 [project.optional-dependencies]
 serve = ["fastapi", "uvicorn", "jinja2", "python-multipart"]
 dev = ["pytest>=7.0", "ruff"]
+chakra = ["GitPython>=3.1"]
+yantra = ["scapy", "zeroconf", "broadlink"]
+all = [
+    "fastapi", "uvicorn", "jinja2", "python-multipart",
+    "GitPython>=3.1",
+    "scapy", "zeroconf", "broadlink",
+]
 
 [project.scripts]
 atulya = "atulya.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["atulya*"]
+include = ["atulya*", "yantra*", "memory*"]
 
 [tool.ruff]
 line-length = 100

@@ -66,7 +66,7 @@ class AtulyaTokenizer:
     def __init__(
         self,
         initial_capacity: int = 4096,
-        max_capacity: int | None = 256_000,
+        max_capacity: int | None = None,
         growth_factor: float = 1.5,
         growth_threshold: float = 0.95,
     ):

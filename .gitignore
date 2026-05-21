@@ -44,3 +44,6 @@ _archive/
 .coverage
 htmlcov/
 outputs/
+tantra/runs/
+tantra/model/runs/
+third_party_sources/

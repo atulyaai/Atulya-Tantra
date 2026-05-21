@@ -1,481 +1,136 @@
-<p align="center">
-  <img src="docs/images/architecture.png" alt="Atulya Tantra - NP-DNA Architecture" width="800"/>
-</p>
+# Atulya Tantra
 
-<h1 align="center">Atulya Tantra</h1>
-<h3 align="center">NP-DNA — NeuroPlastic DNA Network</h3>
+Atulya Tantra is an experimental open-source AI stack built around **NP-DNA
+(NeuroPlastic DNA Network)**. The core idea is simple: keep a compact genome
+that generates neural weights on demand, then combine it with sparse routing,
+external memory, plasticity, multimodal encoders, and a web dashboard.
 
-<p align="center">
-  <em>A novel neural architecture that stores <strong>rules for generating weights</strong>, not the weights themselves.</em>
-</p>
+The repository is intentionally local-first. It can train and serve small
+models on CPU, expose an OpenAI-compatible API, and provide dashboard controls
+for training, model loading, memory exploration, and chat.
 
-<p align="center">
-  <a href="#quickstart">Quickstart</a> •
-  <a href="#architecture">Architecture</a> •
-  <a href="#how-it-works">How It Works</a> •
-  <a href="#scaling">Scaling</a> •
-  <a href="#training">Training</a> •
-  <a href="#dashboard">Dashboard</a> •
-  <a href="#api-reference">API</a>
-</p>
+## Current Layout
 
-<p align="center">
-  <img src="https://img.shields.io/badge/python-3.10+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+"/>
-  <img src="https://img.shields.io/badge/CPU-First-green?style=for-the-badge&logo=intel&logoColor=white" alt="CPU First"/>
-  <img src="https://img.shields.io/badge/Hindi-संस्कृत-orange?style=for-the-badge" alt="Hindi Sanskrit"/>
-  <img src="https://img.shields.io/badge/license-MIT-purple?style=for-the-badge" alt="MIT License"/>
-</p>
-
----
-
-## 💡 The Core Insight
-
-Current AI models store **100M weights** = **100M numbers** in memory.  
-NP-DNA stores **rules for generating weights**. A **1M param DNA** generates **100M+ effective weights**.
-
-> **Analogy:** Human DNA is ~3 billion base pairs, but generates ~37 trillion cells.  
-> The DNA doesn't store each cell — it stores the *rules* for building them.
-
-```
-Traditional:  100M params → 100M stored numbers → 400MB
-NP-DNA:       5M params  → 100M generated numbers → 20MB  (20x smaller, same intelligence)
+```text
+atulya/
+  core/npdna/          NP-DNA model, tokenizer, cortex, generation, autonomy
+  dashboard/           FastAPI backend and modular API routes
+  dashboard_ui.html    Single-file dashboard frontend (HTML/CSS/JS)
+  identity.py          Identity and role-aware prompt helpers
+training/
+  npdna_train.py       Training loop, resume support, optimizer recovery
+  dataset/             Dataset builders and harvest utilities
+data/                  Seed identity, tokenizer, and training data
+tests/                 Unit and route regression tests
+docs/images/           Architecture images used by the README
 ```
 
-<p align="center">
-  <img src="docs/images/dna_compression.png" alt="DNA Compression — 20x smaller, same intelligence" width="750"/>
-</p>
+## What NP-DNA Does
 
----
+Traditional neural models store large weight matrices directly. NP-DNA stores
+compact seed parameters and uses a genome network to generate low-rank weight
+factors at runtime.
 
-## 🏗️ Architecture
-
-NP-DNA combines **four novel components** that no existing system uses together:
-
-<p align="center">
-  <img src="docs/images/architecture.png" alt="NP-DNA Architecture" width="800"/>
-</p>
-
-```
-  ┌──────────────────────────────────────────────────────────────┐
-  │                     ATULYA CORE                              │
-  │                                                              │
-  │  Text/Voice/Image ──▶ Embedding ──▶ ┌─────────────────┐     │
-  │                                     │  Neural Mesh     │     │
-  │                    ┌────────────────▶│  (Sparse Router) │     │
-  │                    │                │  top-k Strands   │     │
-  │               DNA Genome            └────────┬────────┘     │
-  │            (generates weights                │              │
-  │             for ALL Strands)                  ▼              │
-  │                                         Layer Norm          │
-  │                                              │              │
-  │                                         Memory Cortex       │
-  │                                       (external knowledge)  │
-  │                                              │              │
-  │                                         LM Head ──▶ Output  │
-  │                                                              │
-  │  Plasticity Engine monitors everything, auto-scales          │
-  └──────────────────────────────────────────────────────────────┘
+```text
+Input tokens
+  -> tokenizer and embeddings
+  -> sparse Neural Mesh
+  -> DNA-generated Strands
+  -> Memory Cortex retrieval
+  -> language-model head
 ```
 
-### The Four Pillars
+Core pieces:
 
-<p align="center">
-  <img src="docs/images/four_pillars.png" alt="Four Pillars of NP-DNA" width="750"/>
-</p>
+| Component | Purpose |
+| --- | --- |
+| Genome | Generates per-strand weights from compact seeds |
+| Strand | Causal gated state-space processing block |
+| Neural Mesh | Routes each token to top-k strands |
+| Memory Cortex | Vector memory for external facts |
+| Plasticity Engine | Grows vocabulary and strands during training |
+| Multimodal Encoders | Projects voice and image inputs into model space |
+| Autonomy Layer | ReAct-style tool loop with restricted expression tools |
 
-| Component | What It Does | Why It Matters |
-|---|---|---|
-| **🧬 DNA Genome** | Small network (~2M params) that *generates* weight matrices for all Strands | 100x compression — 5M actual → 500M effective |
-| **🕸️ Neural Mesh** | Sparse routing — only top-k Strands compute per token (rest skipped) | 4x faster — only 25% of compute used per token |
-| **🗃️ Memory Cortex** | External vector knowledge store — add facts without retraining | Infinite knowledge — just add vectors |
-| **⚡ Plasticity Engine** | Self-monitors loss/usage, auto-grows strands/vocab/layers | Zero manual tuning — architecture adapts itself |
-
----
-
-## 🔬 How It Works
-
-### 1. DNA Weight Generation (The Compression Engine)
-
-Instead of storing full weight matrices, the Genome generates them on-demand:
-
-```python
-# Traditional: store 64x64 = 4,096 parameters per weight matrix
-W_gate = nn.Parameter(torch.randn(64, 64))  # 4,096 params stored
-
-# NP-DNA: generate from a 256-dim DNA seed via low-rank factors
-seed = genome.seeds[strand_id]          # 256 params stored
-latent = genome.encoder(seed)           # Shared encoder
-U = genome.decoder_U(latent)            # → (64, 32) = 2,048
-V = genome.decoder_V(latent)            # → (32, 64) = 2,048
-W_gate = U @ V                          # Full 64x64 matrix, reconstructed
-```
-
-**Compression math:**
-```
-Direct storage:    4 weights × 64×64 = 16,384 params per Strand
-DNA generation:    1 seed × 256 = 256 params per Strand + shared Genome
-                   = 256 + (Genome shared across ALL Strands)
-Compression:       16,384 / 256 = 64x per Strand
-```
-
-### 2. Causal Gated SSM (The Processing Engine)
-
-NP-DNA is not an RWKV implementation. Its Strands have recurrent/state-space behavior, but the block structure is a DNA-generated gated SSM routed through a sparse mesh, not RWKV time-mix/channel-mix blocks.
-
-Each Strand processes tokens left-to-right using gated state recurrence — **O(T) linear time**, no attention matrices:
-
-```
-For each token t:
-    gate_t = σ(x_t @ W_gate + state_{t-1} @ W_recurrent)
-    state_t = gate_t * state_{t-1} + (1 - gate_t) * tanh(x_t @ W_state)
-    output_t = state_t @ W_output
-```
-
-| | Transformer | NP-DNA SSM |
-|---|---|---|
-| Time per token | O(n) — attend to all previous | O(1) — update state only |
-| Memory per token | O(n) — KV cache grows | O(1) — fixed state size |
-| 1000 tokens | 1M attention operations | 1000 state updates |
-| CPU performance | ~500 tok/sec | ~3000+ tok/sec |
-
-### 3. Sparse Routing (The Efficiency Engine)
-
-Not all Strands compute for every token. The Mesh routes each token to only the top-k most relevant Strands:
-
-```
-Nano config: 6 Strands, top-3 routing:
-  Token "hello"   -> Strand 1 (grammar) + Strand 3 (semantics) + Strand 5 (style)
-  Token "print()" -> Strand 2 (code) + Strand 4 (syntax) + Strand 5 (semantics)
-  Token "namaste" -> Strand 1 (grammar) + Strand 3 (Hindi) + Strand 4 (meaning)
-
-3 out of 6 Strands skipped per token = 50% strand compute savings.
-Micro config uses 16 Strands, top-3 routing = 81.25% strand compute savings.
-```
-
-### 4. Memory Cortex (The Knowledge Engine)
-
-Knowledge stored externally as vectors — not baked into weights:
-
-```python
-# Add knowledge (zero training needed):
-cortex.store(key=embed("quantum physics"), topic="physics",
-             source="Quantum mechanics describes nature at atomic scales...")
-
-# Retrieve during inference:
-values, scores = cortex.retrieve(query=embed("what is quantum?"), top_k=8)
-# → Returns the 8 most relevant knowledge chunks
-```
-
-| | Traditional Model | NP-DNA + Cortex |
-|---|---|---|
-| Add knowledge | Retrain entire model | Add one vector |
-| Remove knowledge | Retrain or hope it forgets | Delete one entry |
-| Knowledge capacity | Fixed (param count) | Unlimited (disk space) |
-| Cost to update | $$$$ | Free |
-
----
-
-## 📊 Scaling
-
-<p align="center">
-  <img src="docs/images/scaling_comparison.png" alt="NP-DNA vs GPT-4, Claude, Gemini, Grok" width="750"/>
-</p>
-
-> **Note:** Comparison uses publicly reported and estimated parameter counts. Exact architectures of proprietary models are not disclosed by their companies. NP-DNA's "effective intelligence" is a theoretical estimate based on DNA compression ratios — real-world benchmarks will follow.
-
-NP-DNA auto-scales from a 500K seed to billions. Nothing is fixed — vocab, strands, layers all grow automatically:
-
-| Config | Actual Params | RAM | Disk | Effective Intelligence | CPU Train Time |
-|---|---|---|---|---|---|
-| `seed` | 500K | 20MB | 2MB | ~5M | 30 seconds |
-| `nano` | 6.7M | 50MB | 8MB | ~50M | 2 minutes |
-| `micro` | 14.2M | 100MB | 40MB | ~500M | 20 minutes |
-| `small` | 32.4M | 400MB | 200MB | ~5B | 2 hours |
-| `medium` | 61.7M | 1.5GB | 800MB | ~50B | 8 hours |
-
-**+ Memory Cortex adds unlimited factual knowledge on top:**
-
-| Cortex Entries | RAM | Equivalent Dense |
-|---|---|---|
-| 100K | 100MB | ~10B params |
-| 1M | 1GB | ~100B params |
-| 10M | 10GB | ~1T params |
-
-**Practical example:** `small` config (400MB) + 1M Cortex (1GB) = **1.4GB total for 5B+ effective intelligence on CPU.**
-
----
-
-## 🚀 Quickstart
-
-### Install
+## Quickstart
 
 ```bash
-git clone https://github.com/atulyaai/Atulya-Tantra.git
-cd Atulya-Tantra
 pip install -e .
+python -m pytest -q
+python -m training.npdna_train --config seed --max-steps 10
+python -m atulya.dashboard.app
 ```
 
-### Your First Training Run (30 seconds)
+The dashboard app provides chat, model management, training metrics, memory
+inspection, system status, and OpenAI-compatible routes.
+
+## Training
+
+Small CPU runs are the default development path:
 
 ```bash
-python training/npdna_train.py --config seed --steps 50
+python -m training.npdna_train --config seed --max-steps 50 --device cpu
 ```
 
-Output:
-```
-04:16:56 NpDnaCore created [seed]: 1,739,680 params (total), 296,064 active
-04:16:56 Seed dataset created: 49 total samples (English + Hindi + Sanskrit)
-04:16:58 Training: 50 steps, lr=2.0e-03
-04:16:59 step 10/50  loss=22.33  elapsed=1.5s  tok/s=789
-04:17:00 step 20/50  loss=13.43  elapsed=2.8s  tok/s=858
-04:17:02 step 30/50  loss=9.04   elapsed=4.0s  tok/s=906
-04:17:04 step 40/50  loss=6.12   elapsed=5.3s  tok/s=945
-04:17:06 step 50/50  loss=4.88   elapsed=6.5s  tok/s=960
-04:17:06 Model saved to outputs/npdna
-```
+Training supports:
 
-### View Model Info
+- checkpoint save and resume with automatic rotation
+- stop-signal handling (graceful + hard termination)
+- optimizer-state recovery after plasticity changes
+- live metrics streaming via WebSocket to the dashboard
+- dataset builders for identity and trilingual examples
+- **RAG** (Retrieval-Augmented Generation) integration
+- **LoRA adapters** for parameter-efficient fine-tuning
+- **RLHF** (Reinforcement Learning from Human Feedback) phase support
+- **Plasticity controls**: interval, overload/dead thresholds, grow cooldown
+- **Auto-growing vocabulary** with no artificial limits (byte-fallback ensures any text can be encoded)
+- **BPE tokenizer** with Hindi, Sanskrit, and English support
+- **Sequence packing** for efficient training
+- **bfloat16** support for GPU acceleration
+
+## Dashboard Features
+
+The NP-DNA Command Center (`dashboard_ui.html`) provides:
+
+- **Metrics Tab**: Live loss trajectory, strand activity heatmap, architecture profile, benchmark radar
+- **Knowledge Tab**: Interactive MoE expert visualization with neural cluster mapping
+- **Training Tab**: Comprehensive training console with dataset management, hyperparameter controls, advanced training options (RAG, LoRA, RLHF, plasticity), resume/pause/stop controls, and real-time log streaming
+- **Chat AI Tab**: Neural chat interface with multimodal support (audio/image), ReAct agent mode, translation modes, and telemetry tracing
+- **Models Tab**: Model registry with checkpoint management, DNA compression stats, factory reset
+- **Cortex Tab**: Memory vector management with semantic search, fact injection, sleep consolidation, and paginated registry
+- **History Tab**: Run history with event tracking
+- **Users Tab**: User management, API key generation, role permissions matrix
+- **Domains Tab**: Linked domain management, DNS verification, webhook configuration, CORS settings
+- **Settings Tab**: Organized into sub-tabs (Access, System, Notifications, Limits, Danger Zone)
+
+## Security Posture
+
+Implemented controls include bounded dashboard inputs, token-protected admin
+routes, constant-time token comparison, restricted autonomy expression
+evaluation, model path allowlisting, and regression tests for these paths.
+
+Some security goals remain roadmap or partial until they are enforced across
+all runtime entry points. See [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md)
+for the explicit implemented/partial/planned split.
+
+## Context Compression
+
+The current repository does not include the older agent tree that previously
+held a named context-compression helper. On `main`, context handling is focused
+inside the NP-DNA tokenizer, generation path, dashboard routes, and training
+pipeline. A standalone compressor should be added as a first-party module if
+the product needs reusable cross-session compression.
+
+## Verification
+
+Use these checks before pushing changes:
 
 ```bash
+python -m pytest -q
 python -m atulya.cli info
+rg -n -i "eval\\(|exec\\(|TODO|FIXME" atulya training tests README.md docs
 ```
 
-```
-  Atulya Tantra — NP-DNA Scaling Configs
+## License
 
-  Name            Total       Active  Layers  Strands  Top-k    Vocab
-  --------------------------------------------------------------------------
-  seed        1,739,680      296,064       2        4      2     2048
-  nano        6,668,096      986,368       2        6      3     4096
-  micro      14,155,648    3,551,744       3       16      3     8192
-  small      32,374,272   17,073,152       4       32      4    16384
-  medium     61,654,656   53,839,360       6       64      4    32768
-```
-
-### Generate Text
-
-```bash
-python -m atulya.cli generate --model outputs/npdna --prompt "Hello" --tokens 30
-```
-
-### Open Dashboard
-
-```bash
-python atulya/dashboard.py
-# Open http://localhost:8501
-```
-
----
-
-## 🎓 Training
-
-### Full Training
-
-```bash
-# Nano config (6.7M stored params, ~2 minutes)
-python training/npdna_train.py --config nano --steps 200 --lr 1e-3
-
-# Small config (32.4M stored params, ~2 hours)
-python training/npdna_train.py --config small --steps 2000 --lr 5e-4
-
-# With checkpoints
-python training/npdna_train.py --config micro --steps 500 --checkpoint-every 100
-```
-
-Use `--bf16` to enable bfloat16 autocast where supported. Without `--bf16`, training uses the default PyTorch float32 path.
-
-### Chunk Training (Topic-Specific)
-
-Train ONE Strand on ONE topic in ~30 seconds. Other Strands are completely frozen:
-
-```python
-from training.npdna_train import train_topic
-
-# Train math strand (other knowledge untouched)
-train_topic(
-    model_path="outputs/npdna",
-    topic="mathematics",
-    data_path="data/math_dataset.jsonl",
-    steps=100
-)
-```
-
-### Custom Dataset
-
-Create a JSONL file with instruction/output pairs:
-
-```json
-{"instruction": "What is gravity?", "output": "Gravity is the force..."}
-{"instruction": "गुरुत्वाकर्षण क्या है?", "output": "गुरुत्वाकर्षण वह बल है..."}
-```
-
-```bash
-python training/npdna_train.py --data my_dataset.jsonl --config nano --steps 200
-```
-
----
-
-## 📊 Dashboard
-
-Start the interactive dashboard:
-
-```bash
-python atulya/dashboard.py
-```
-
-The dashboard features:
-- 📈 **Live loss curves** with moving averages and real-time WebSocket metrics stream
-- 🧬 **Strand activity heatmap** — active vs dead strands tracking
-- 📊 **Parameter counts** — total vs active (DNA compression visualization)
-- 🗃️ **Memory Cortex search & control** — search vectors, list entries by topic, and trigger LFU Sleep Cycles
-- ⚡ **Plasticity events** — live logger of architectural adaptations
-- 🏗️ **Phase 4 Token Routing & Strand Telemetry Visualizer** — trace parallel neural routing dynamically
-
----
-
-## 🗂️ Project Structure
-
-```
-Atulya-Tantra/
-├── atulya/                        # Core Python package
-│   ├── core/npdna/                # NP-DNA architecture
-│   │   ├── config.py              #   Scaling configs (seed → medium)
-│   │   ├── genome.py              #   🧬 DNA weight generator
-│   │   ├── strand.py              #   Causal gated SSM unit
-│   │   ├── mesh.py                #   🕸️ Sparse top-k routing
-│   │   ├── cortex.py              #   🗃️ External memory store
-│   │   ├── model.py               #   Full model + NpDnaCore wrapper
-│   │   ├── plasticity.py          #   ⚡ Self-improvement engine
-│   │   └── tokenizer.py           #   Auto-scaling Hindi/Sanskrit/English
-│   ├── identity.py                # 🔒 Personality & privacy (config-driven)
-│   ├── dashboard.py               # 📊 Backward-compatible dashboard entry point
-│   ├── dashboard/                 # 📊 Command Center Dashboard subpackage
-│   │   ├── __init__.py            #   Subpackage initialization
-│   │   ├── app.py                 #   FastAPI app registration & uvicorn runner
-│   │   ├── state.py               #   Shared state and thread-safe locks
-│   │   ├── helpers.py             #   Utility scanners, estimators, and cache loaders
-│   │   └── routes/                #   Category-specific router modules:
-│   │       ├── auth.py            #     Session / token verification
-│   │       ├── chat.py            #     Generation & dynamic routing telemetry
-│   │       ├── cortex.py          #     Memory database & sleep cycles
-│   │       ├── model.py           #     Checkpoints & CPU benchmarking
-│   │       ├── system.py          #     Diagnostics, runs, and factory reset
-│   │       └── train.py           #     Training execution & websockets
-│   ├── dashboard_ui.html          # 🎨 Premium frontend for the dashboard
-│   └── cli.py                     # CLI: atulya info / train / generate
-├── training/                      # Training pipeline
-│   ├── dataset/
-│   │   ├── build_dataset.py       #   Seed data + identity samples
-│   │   └── harvest_data.py        #   Wikipedia EN/HI/SA + code samples harvester
-│   ├── npdna_train.py             #   Training loop + chunk training
-│   └── benchmark.py               #   Perplexity, compression, and strand benchmark
-├── data/
-│   └── identity.json              # Personality config (edit to customize)
-├── tests/
-│   └── test_npdna.py              # 37 unit tests (all passing ✅)
-├── docs/images/                   # Architecture diagrams
-├── pyproject.toml                 # Package config
-└── requirements.txt               # torch, numpy, psutil
-```
-
----
-
-## 🌐 Language Support
-
-Built-in support for **Hindi**, **Sanskrit**, and **English** with auto-expanding vocabulary:
-
-```python
-from atulya.core.npdna import NpDnaCore
-
-core = NpDnaCore.from_config("seed")
-
-# English
-core.encode("Hello, world!")
-
-# Hindi (Devanagari)
-core.encode("नमस्ते दुनिया")
-
-# Sanskrit (with Vedic extensions)
-core.encode("अहं ब्रह्मास्मि")
-
-# Mixed — works seamlessly
-core.encode("Hello! मेरा नाम Atulya है।")
-```
-
-The tokenizer includes:
-- **256 byte tokens** — universal fallback for ANY script
-- **128 Devanagari characters** — Hindi + Sanskrit shared
-- **48 Vedic extension chars** — Sanskrit-specific marks
-- **95 ASCII printable** — English + punctuation
-- **BPE merges** — trained from corpus for subword efficiency
-- **Auto-growth** — vocabulary capacity expands when needed
-
----
-
-## 🔒 Privacy & Identity
-
-Atulya's personality and privacy rules are **config-driven**, not hardcoded:
-
-```python
-from atulya.identity import Identity
-
-identity = Identity()  # Loads from data/identity.json
-
-# Regular user — sees limited info
-prompt = identity.get_system_prompt("user")
-# → Personality, capabilities, privacy rules enforced
-
-# Superuser — full transparency
-prompt = identity.get_system_prompt("superuser")
-# → Architecture details, internal config, everything visible
-```
-
-Edit `data/identity.json` to change personality, add languages, adjust privacy rules. Zero code changes needed.
-
----
-
-## 🧪 Tests
-
-```bash
-# Run all 37 tests
-python -m pytest tests/ -v
-
-# Expected output:
-# tests/test_npdna.py::TestConfig::test_configs_exist PASSED
-# tests/test_npdna.py::TestTokenizer::test_encode_decode_hindi PASSED
-# tests/test_npdna.py::TestGenome::test_generate_weights PASSED
-# tests/test_npdna.py::TestStrand::test_causal_output_differs PASSED
-# tests/test_npdna.py::TestMesh::test_forward_shape PASSED
-# tests/test_npdna.py::TestCortex::test_store_and_retrieve PASSED
-# tests/test_npdna.py::TestNpDnaModel::test_forward PASSED
-# tests/test_npdna.py::TestNpDnaCore::test_training_step PASSED
-# tests/test_npdna.py::TestIdentity::test_system_prompt_superuser PASSED
-# ... 37 passed in 7.06s
-```
-
----
-
-## 🔮 Roadmap
-
-- [x] **Phase 1:** Core NP-DNA engine (Genome + Strand + Mesh + Cortex)
-- [x] **Phase 1:** Auto-scaling tokenizer (Hindi + Sanskrit + English)
-- [x] **Phase 1:** Training pipeline with chunk training
-- [x] **Phase 1:** Modular Command Center Dashboard (FastAPI/WebSocket)
-- [x] **Phase 1:** 44 unit tests passing
-- [x] **Phase 2:** Voice/Audio encoder (Mel spectrogram → shared core)
-- [x] **Phase 3:** Vision encoder (patch embedding → shared core)
-- [x] **Phase 4:** Autonomy layer (proactive agent)
-- [x] **Phase 5:** Large-scale data pipeline (Wikipedia, Common Crawl)
-
----
-
-## 📄 License
-
-MIT License — see [LICENSE](LICENSE) for details.
-
----
-
-<p align="center">
-  <strong>Atulya Tantra</strong> — Intelligence through compression, not scale.<br/>
-  <em>5M parameters. 500M effective. Runs on your laptop.</em>
-</p>
+MIT.

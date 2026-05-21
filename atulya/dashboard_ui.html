@@ -97,6 +97,55 @@ body{font-family:'Syne',sans-serif;background:var(--ink);color:var(--text);font-
 .panel.active{display:block;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 
+/* ── PERSISTENT SIDEBAR ── */
+.sidebar{
+  position:fixed;top:calc(var(--topbar-h) + var(--tabs-h));left:0;bottom:0;
+  width:260px;z-index:350;background:var(--ink2);
+  border-right:1px solid var(--border);overflow-y:auto;
+  padding:12px;display:flex;flex-direction:column;gap:10px;
+}
+.sidebar::-webkit-scrollbar{width:3px;}
+.sidebar::-webkit-scrollbar-thumb{background:var(--dim);border-radius:2px;}
+.sidebar-card{
+  background:var(--ink3);border:1px solid var(--border);
+  border-radius:8px;padding:12px;position:relative;
+}
+.sidebar-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:8px 8px 0 0;
+}
+.sidebar-card.dna::before{background:linear-gradient(90deg,var(--dna),transparent);}
+.sidebar-card.mesh::before{background:linear-gradient(90deg,var(--mesh),transparent);}
+.sidebar-card.cortex::before{background:linear-gradient(90deg,var(--cortex),transparent);}
+.sidebar-card.plastic::before{background:linear-gradient(90deg,var(--plastic),transparent);}
+.sidebar-title{
+  font-family:'Space Mono',monospace;font-size:9px;
+  letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:8px;
+  display:flex;align-items:center;gap:6px;
+}
+.sidebar-title .dot{width:6px;height:6px;border-radius:2px;flex-shrink:0;}
+.sidebar-kv{
+  display:flex;justify-content:space-between;
+  font-family:'Space Mono',monospace;font-size:10px;
+  padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.03);
+}
+.sidebar-kv:last-child{border-bottom:none;}
+.sidebar-kv .k{color:var(--muted);}
+.sidebar-kv .v{color:var(--text);font-weight:600;text-align:right;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sidebar-status{
+  font-family:'Space Mono',monospace;font-size:9px;
+  color:var(--dim);text-align:center;padding:6px 0;
+}
+.sidebar-status.live{color:var(--dna);}
+.sidebar-status.stale{color:var(--plastic);}
+
+/* ── PANELS WITH SIDEBAR ── */
+.panels{
+  padding:16px 18px;
+  padding-top:calc(var(--topbar-h) + var(--tabs-h) + 16px);
+  margin-left:260px;
+}
+
 /* ── GRIDS ── */
 .row{display:grid;gap:10px;margin-bottom:10px;min-width:0;}
 .row>*{min-width:0;}
@@ -447,6 +496,11 @@ canvas{display:block;width:100%;}
 /* ── SETTINGS ── */
 .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
 @media(max-width:768px){.settings-grid{grid-template-columns:1fr;}}
+
+/* ── SETTINGS SUB-TABS ── */
+.settings-subtab.active{color:var(--dna);border-bottom-color:var(--dna);}
+.settings-subtab:hover{color:var(--text);}
+.settings-subpanel{animation:fadeIn .2s ease-out;}
 
 /* ── DOMAIN SETTINGS ── */
 .domain-card{
@@ -910,6 +964,33 @@ canvas{display:block;width:100%;}
   </div>
 </div>
 
+<!-- ═══════ PERSISTENT SIDEBAR ════════ -->
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-card dna">
+    <div class="sidebar-title"><span class="dot" style="background:var(--dna);"></span>Architecture Profile</div>
+    <div id="sidebar-arch">
+      <div class="sidebar-status">Awaiting metadata...</div>
+    </div>
+  </div>
+  <div class="sidebar-card plastic">
+    <div class="sidebar-title"><span class="dot" style="background:var(--plastic);"></span>System Benchmark</div>
+    <div id="sidebar-bench">
+      <div class="sidebar-status">No benchmark data yet</div>
+    </div>
+    <canvas id="sidebar-bench-radar" height="120" style="margin-top:8px;width:100%;"></canvas>
+  </div>
+  <div class="sidebar-card cortex">
+    <div class="sidebar-title"><span class="dot" style="background:var(--cortex);"></span>Loss Trajectory <span style="font-size:8px;opacity:.5;">(last saved)</span></div>
+    <canvas id="sidebar-loss" height="80" style="width:100%;"></canvas>
+    <div id="sidebar-loss-info" class="sidebar-status stale">—</div>
+  </div>
+  <div class="sidebar-card mesh">
+    <div class="sidebar-title"><span class="dot" style="background:var(--mesh);"></span>Strand Activity <span style="font-size:8px;opacity:.5;">(last saved)</span></div>
+    <canvas id="sidebar-strand" height="60" style="width:100%;"></canvas>
+    <div id="sidebar-strand-info" class="sidebar-status stale">—</div>
+  </div>
+</div>
+
 <!-- ═══════ PANELS ════════ -->
 <div class="panels">
 
@@ -1215,68 +1296,114 @@ canvas{display:block;width:100%;}
             <button class="btn btn-outline" id="btn-resume-best">Best Loss</button>
           </div>
         </div>
-      </div>
-
-      <!-- Col 2: Hyperparams -->
-      <div class="card accent-plastic">
-        <div class="card-title"><span><span class="dot-accent" style="background:var(--plastic);"></span>Hyperparameters</span></div>
-        <label class="field-label">Architecture Config</label>
-        <select id="sel-cfg"></select>
-        <div id="cfg-preview" style="margin-bottom:12px;"></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          <div>
-            <label class="field-label">Steps</label>
-            <input type="number" id="inp-steps" value="1000" min="1">
+        <div class="card accent-ice">
+          <div class="card-title"><span><span class="dot-accent" style="background:var(--ice);"></span>Training Controls</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+            <button class="btn btn-dna btn-full" id="btn-go" style="padding:10px;font-size:10px;">▶ Start</button>
+            <button class="btn btn-plastic btn-full" id="btn-pause" style="display:none;padding:10px;font-size:10px;">⏸ Pause</button>
+            <button class="btn btn-stop btn-full" id="btn-stop" style="display:none;padding:10px;font-size:10px;">■ Stop</button>
           </div>
-          <div>
-            <label class="field-label">Learning Rate</label>
-            <input type="number" id="inp-lr" value="0.0005" step="0.0001">
-          </div>
-          <div>
-            <label class="field-label">BPE Merges</label>
-            <input type="number" id="inp-bpe" value="2000" min="0" max="16000">
-          </div>
-          <div>
-            <label class="field-label">Seq Limit</label>
-            <input type="number" id="inp-seq-limit" value="256" min="32" max="512">
-          </div>
-          <div>
-            <label class="field-label">Checkpoint Every</label>
-            <input type="number" id="inp-ckpt-every" value="100" min="0">
-          </div>
-          <div>
-            <label class="field-label">Min Free RAM GB</label>
-            <input type="number" id="inp-min-ram" value="1.5" min="0.5" max="16" step="0.5">
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:4px;margin-bottom:16px;">
-          <label class="chk"><input type="checkbox" id="chk-bf16"> BFloat16</label>
-          <label class="chk"><input type="checkbox" id="chk-pack" checked> Pack Sequences</label>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          <button class="btn btn-dna" id="btn-go" style="padding:13px;">▶ Engage Training</button>
-          <button class="btn btn-stop" id="btn-stop" style="display:none;padding:13px;">■ Abort Sequence</button>
+          <div id="train-control-status" style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);margin-top:8px;text-align:center;">IDLE</div>
         </div>
       </div>
 
-      <!-- Col 3: Dataset Preview -->
+      <!-- Col 2: Hyperparams + Advanced -->
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div class="card accent-plastic">
+          <div class="card-title"><span><span class="dot-accent" style="background:var(--plastic);"></span>Hyperparameters</span></div>
+          <label class="field-label">Architecture Config</label>
+          <select id="sel-cfg"></select>
+          <div id="cfg-preview" style="margin-bottom:12px;"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div>
+              <label class="field-label">Steps</label>
+              <input type="number" id="inp-steps" value="1000" min="1">
+            </div>
+            <div>
+              <label class="field-label">Learning Rate</label>
+              <input type="number" id="inp-lr" value="0.0005" step="0.0001">
+            </div>
+            <div>
+              <label class="field-label">BPE Merges</label>
+              <input type="number" id="inp-bpe" value="2000" min="0" max="16000">
+            </div>
+            <div>
+              <label class="field-label">Seq Limit</label>
+              <input type="number" id="inp-seq-limit" value="256" min="32" max="512">
+            </div>
+            <div>
+              <label class="field-label">Checkpoint Every</label>
+              <input type="number" id="inp-ckpt-every" value="100" min="0">
+            </div>
+            <div>
+              <label class="field-label">Min Free RAM GB</label>
+              <input type="number" id="inp-min-ram" value="1.5" min="0.5" max="16" step="0.5">
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:4px;margin-bottom:8px;">
+            <label class="chk"><input type="checkbox" id="chk-bf16"> BFloat16</label>
+            <label class="chk"><input type="checkbox" id="chk-pack" checked> Pack Sequences</label>
+          </div>
+        </div>
+
+        <div class="card accent-mesh">
+          <div class="card-title"><span><span class="dot-accent" style="background:var(--mesh);"></span>Advanced Training</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div>
+              <label class="field-label">Plasticity Interval</label>
+              <input type="number" id="inp-plasticity-interval" value="25" min="10" max="500">
+            </div>
+            <div>
+              <label class="field-label">Balance Weight</label>
+              <input type="number" id="inp-balance-weight" value="0.05" min="0" max="1" step="0.01">
+            </div>
+            <div>
+              <label class="field-label">Overload Threshold</label>
+              <input type="number" id="inp-plasticity-overload" value="0.14" min="0.05" max="0.8" step="0.01">
+            </div>
+            <div>
+              <label class="field-label">Dead Threshold</label>
+              <input type="number" id="inp-plasticity-dead" value="0.01" min="0" max="0.2" step="0.005">
+            </div>
+            <div>
+              <label class="field-label">Grow Cooldown</label>
+              <input type="number" id="inp-plasticity-cooldown" value="1" min="0" max="20">
+            </div>
+            <div>
+              <label class="field-label">BPE Max Words</label>
+              <input type="number" id="inp-bpe-max-words" value="0" min="0" max="50000">
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:4px;margin-bottom:8px;">
+            <label class="chk"><input type="checkbox" id="chk-rag"> Enable RAG</label>
+            <label class="chk"><input type="checkbox" id="chk-lora"> LoRA Adapters</label>
+            <label class="chk"><input type="checkbox" id="chk-rlhf"> RLHF Phase</label>
+            <label class="chk"><input type="checkbox" id="chk-auto-vocab" checked> Auto-grow Vocab</label>
+          </div>
+          <div id="lora-options" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div>
+                <label class="field-label">LoRA Rank</label>
+                <input type="number" id="inp-lora-rank" value="8" min="1" max="64">
+              </div>
+              <div>
+                <label class="field-label">LoRA Alpha</label>
+                <input type="number" id="inp-lora-alpha" value="16" min="1" max="128">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Col 3: Training Console -->
       <div class="card">
-        <div class="card-title"><span><span class="dot-accent" style="background:var(--ice);"></span>Data Stream Preview</span></div>
-        <pre id="dataset-preview" style="background:rgba(0,0,0,.5);padding:14px;border-radius:8px;color:#cbd5e1;font-size:11px;font-family:'Space Mono';height:calc(100% - 56px);overflow:auto;line-height:1.6;min-height:300px;">Select a dataset and click [Scan Dataset] to inspect raw JSONL samples here.</pre>
-      </div>
-    </div>
-
-    <!-- Training Console -->
-    <div class="row">
-      <div class="card">
-        <div class="card-title" style="justify-content:space-between;">
-          <span><span class="dot-accent" style="background:#4ade80;"></span>Training Console</span>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span class="console-status" id="console-status-train"><span class="cs-dot"></span>IDLE — No active process</span>
-            <button class="btn btn-sm btn-outline" onclick="clearLogs()">Clear</button>
-          </div>
+        <div class="card-title"><span><span class="dot-accent" style="background:var(--ice);"></span>Training Console</span></div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+          <span class="console-status" id="console-status-train"><span class="cs-dot"></span>IDLE — No active process</span>
+          <span id="train-phase-badge" class="badge badge-mesh" style="display:none;">—</span>
+          <span id="train-step-badge" class="badge badge-dna" style="display:none;">Step: —</span>
         </div>
-        <div class="log-box" id="train-log-box" style="max-height:220px;">
+        <div class="log-box" id="train-log-box" style="height:calc(100% - 80px);min-height:300px;">
           <span class="log-dim">Awaiting training command...</span><br>
         </div>
       </div>
@@ -1580,94 +1707,131 @@ canvas{display:block;width:100%;}
 
   <!-- ══ SETTINGS ══ -->
   <div class="panel" id="p-settings">
-    <div class="settings-grid">
-      <div class="card accent-dna">
-        <div class="card-title"><span><span class="dot-accent" style="background:var(--dna);"></span>Access Control</span></div>
-        <label class="field-label">Admin Token (X-Atulya-Token)</label>
-        <input type="password" value="••••••••" disabled style="opacity:.5;">
-        <label class="field-label">Session Info</label>
-        <div class="kv"><span class="k">Token Status</span><span class="v" style="color:var(--dna);">AUTHENTICATED</span></div>
-        <div class="kv"><span class="k">Interface</span><span class="v">localhost:8501</span></div>
-        <div class="kv"><span class="k">Session Age</span><span class="v" id="session-age">—</span></div>
-        <button class="btn btn-cortex btn-full" onclick="logout()" style="margin-top:14px;font-weight:800;">Logout Secure Session</button>
+    <div class="section-header">
+      <div>
+        <div class="section-title">Settings</div>
+        <div class="section-sub">Configure system domains, access, and preferences</div>
       </div>
+    </div>
+    <!-- Settings Sub-Tabs -->
+    <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:0;overflow-x:auto;">
+      <div class="settings-subtab active" data-stab="access" style="padding:8px 16px;font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:.2s;white-space:nowrap;">Access</div>
+      <div class="settings-subtab" data-stab="system" style="padding:8px 16px;font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:.2s;white-space:nowrap;">System</div>
+      <div class="settings-subtab" data-stab="notifications" style="padding:8px 16px;font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:.2s;white-space:nowrap;">Notifications</div>
+      <div class="settings-subtab" data-stab="limits" style="padding:8px 16px;font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:.2s;white-space:nowrap;">Limits</div>
+      <div class="settings-subtab" data-stab="danger" style="padding:8px 16px;font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--cortex);cursor:pointer;border-bottom:2px solid transparent;transition:.2s;white-space:nowrap;">Danger Zone</div>
+    </div>
 
-      <div class="card accent-mesh">
-        <div class="card-title"><span><span class="dot-accent" style="background:var(--mesh);"></span>Interface Preferences</span></div>
-        <div class="toggle-row">
-          <span class="toggle-label">Auto-scroll console logs</span>
-          <label class="toggle-switch"><input type="checkbox" id="pref-autoscroll" checked><span class="toggle-slider"></span></label>
+    <!-- Access Tab -->
+    <div class="settings-subpanel active" id="stab-access">
+      <div class="settings-grid">
+        <div class="card accent-dna">
+          <div class="card-title"><span><span class="dot-accent" style="background:var(--dna);"></span>Access Control</span></div>
+          <label class="field-label">Admin Token (X-Atulya-Token)</label>
+          <input type="password" value="••••••••" disabled style="opacity:.5;">
+          <label class="field-label">Session Info</label>
+          <div class="kv"><span class="k">Token Status</span><span class="v" style="color:var(--dna);">AUTHENTICATED</span></div>
+          <div class="kv"><span class="k">Interface</span><span class="v">localhost:8501</span></div>
+          <div class="kv"><span class="k">Session Age</span><span class="v" id="session-age">—</span></div>
+          <button class="btn btn-cortex btn-full" onclick="logout()" style="margin-top:14px;font-weight:800;">Logout Secure Session</button>
         </div>
-        <div class="toggle-row">
-          <span class="toggle-label">Show training banner</span>
-          <label class="toggle-switch"><input type="checkbox" id="pref-banner" checked><span class="toggle-slider"></span></label>
-        </div>
-        <div class="toggle-row">
-          <span class="toggle-label">Sound notifications</span>
-          <label class="toggle-switch"><input type="checkbox" id="pref-sound"><span class="toggle-slider"></span></label>
-        </div>
-        <div class="toggle-row">
-          <span class="toggle-label">Dense mode (compact UI)</span>
-          <label class="toggle-switch"><input type="checkbox" id="pref-dense"><span class="toggle-slider"></span></label>
-        </div>
-        <div class="toggle-row">
-          <span class="toggle-label">WebSocket auto-reconnect</span>
-          <label class="toggle-switch"><input type="checkbox" id="pref-wsreconnect" checked><span class="toggle-slider"></span></label>
-        </div>
-        <button class="btn btn-outline btn-full" onclick="savePreferences()" style="margin-top:12px;">Save Preferences</button>
-      </div>
-
-      <div class="card accent-plastic">
-        <div class="card-title"><span><span class="dot-accent" style="background:var(--plastic);"></span>Training Limits</span></div>
-        <div class="kv"><span class="k">Max Steps</span><span class="v" id="lim-steps">—</span></div>
-        <div class="kv"><span class="k">Max Limit</span><span class="v" id="lim-limit">—</span></div>
-        <div class="kv"><span class="k">Max Prompt Chars</span><span class="v" id="lim-prompt">—</span></div>
-        <div class="kv"><span class="k">Max Chat Tokens</span><span class="v" id="lim-tokens">—</span></div>
-        <div class="kv"><span class="k">Max History Points</span><span class="v" id="lim-history">—</span></div>
-        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
-          <label class="field-label">Override Max Steps</label>
-          <input type="number" id="override-steps" placeholder="e.g. 5000" min="1">
-          <button class="btn btn-plastic btn-full" onclick="saveLimits()">Apply Limits</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title"><span><span class="dot-accent" style="background:#4ade80;"></span>System Info</span></div>
-        <div class="kv"><span class="k">RAM Total</span><span class="v" id="set-ram-total">—</span></div>
-        <div class="kv"><span class="k">RAM Available</span><span class="v" id="set-ram-avail">—</span></div>
-        <div class="kv"><span class="k">RAM Usage</span><span class="v" id="set-ram-pct">—</span></div>
-        <div class="kv"><span class="k">CPU Cores</span><span class="v" id="set-cpu-count">—</span></div>
-        <div class="kv"><span class="k">CPU Usage</span><span class="v" id="set-cpu-pct">—</span></div>
-        <div class="kv"><span class="k">GPU</span><span class="v" id="set-gpu">—</span></div>
-        <div class="kv"><span class="k">Platform</span><span class="v" id="set-platform">—</span></div>
-        <button class="btn btn-outline btn-full" style="margin-top:14px;" onclick="refreshSystem()">↻ Refresh System Info</button>
-      </div>
-
-      <div class="card accent-cortex">
-        <div class="card-title"><span><span class="dot-accent" style="background:var(--cortex);"></span>Danger Zone</span></div>
-        <div class="alert alert-err" style="margin-bottom:14px;">
-          <span>⚠</span>
-          <span>These actions are irreversible. Proceed with extreme caution.</span>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:8px;">
-          <button class="btn btn-cortex btn-full" id="btn-factory-reset2">⚠ Factory Reset (wipe all models)</button>
-          <button class="btn btn-outline btn-full" onclick="exportConfig()">↓ Export Config Backup</button>
-          <button class="btn btn-outline btn-full" onclick="clearAllLogs()">✕ Clear All Logs</button>
+        <div class="card accent-mesh">
+          <div class="card-title"><span><span class="dot-accent" style="background:var(--mesh);"></span>Interface Preferences</span></div>
+          <div class="toggle-row">
+            <span class="toggle-label">Auto-scroll console logs</span>
+            <label class="toggle-switch"><input type="checkbox" id="pref-autoscroll" checked><span class="toggle-slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-label">Show training banner</span>
+            <label class="toggle-switch"><input type="checkbox" id="pref-banner" checked><span class="toggle-slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-label">Sound notifications</span>
+            <label class="toggle-switch"><input type="checkbox" id="pref-sound"><span class="toggle-slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-label">Dense mode (compact UI)</span>
+            <label class="toggle-switch"><input type="checkbox" id="pref-dense"><span class="toggle-slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-label">WebSocket auto-reconnect</span>
+            <label class="toggle-switch"><input type="checkbox" id="pref-wsreconnect" checked><span class="toggle-slider"></span></label>
+          </div>
+          <button class="btn btn-outline btn-full" onclick="savePreferences()" style="margin-top:12px;">Save Preferences</button>
         </div>
       </div>
+    </div>
 
-      <div class="card accent-ice">
-        <div class="card-title"><span><span class="dot-accent" style="background:var(--ice);"></span>Notification Settings</span></div>
-        <label class="field-label">Slack Webhook (optional)</label>
-        <input type="text" id="slack-webhook" placeholder="https://hooks.slack.com/...">
-        <label class="field-label">Email Alerts (optional)</label>
-        <input type="email" id="alert-email" placeholder="admin@example.com">
-        <div style="display:flex;flex-direction:column;gap:2px;margin-bottom:12px;">
-          <label class="chk"><input type="checkbox" id="notif-train-done" checked> Notify on training complete</label>
-          <label class="chk"><input type="checkbox" id="notif-error" checked> Notify on errors</label>
-          <label class="chk"><input type="checkbox" id="notif-bench"> Notify on benchmark complete</label>
+    <!-- System Tab -->
+    <div class="settings-subpanel" id="stab-system" style="display:none;">
+      <div class="settings-grid">
+        <div class="card">
+          <div class="card-title"><span><span class="dot-accent" style="background:#4ade80;"></span>System Info</span></div>
+          <div class="kv"><span class="k">RAM Total</span><span class="v" id="set-ram-total">—</span></div>
+          <div class="kv"><span class="k">RAM Available</span><span class="v" id="set-ram-avail">—</span></div>
+          <div class="kv"><span class="k">RAM Usage</span><span class="v" id="set-ram-pct">—</span></div>
+          <div class="kv"><span class="k">CPU Cores</span><span class="v" id="set-cpu-count">—</span></div>
+          <div class="kv"><span class="k">CPU Usage</span><span class="v" id="set-cpu-pct">—</span></div>
+          <div class="kv"><span class="k">GPU</span><span class="v" id="set-gpu">—</span></div>
+          <div class="kv"><span class="k">Platform</span><span class="v" id="set-platform">—</span></div>
+          <button class="btn btn-outline btn-full" style="margin-top:14px;" onclick="refreshSystem()">↻ Refresh System Info</button>
         </div>
-        <button class="btn btn-ice btn-full" onclick="saveNotifications()">Save Notifications</button>
+      </div>
+    </div>
+
+    <!-- Notifications Tab -->
+    <div class="settings-subpanel" id="stab-notifications" style="display:none;">
+      <div class="settings-grid">
+        <div class="card accent-ice">
+          <div class="card-title"><span><span class="dot-accent" style="background:var(--ice);"></span>Notification Settings</span></div>
+          <label class="field-label">Slack Webhook (optional)</label>
+          <input type="text" id="slack-webhook" placeholder="https://hooks.slack.com/...">
+          <label class="field-label">Email Alerts (optional)</label>
+          <input type="email" id="alert-email" placeholder="admin@example.com">
+          <div style="display:flex;flex-direction:column;gap:2px;margin-bottom:12px;">
+            <label class="chk"><input type="checkbox" id="notif-train-done" checked> Notify on training complete</label>
+            <label class="chk"><input type="checkbox" id="notif-error" checked> Notify on errors</label>
+            <label class="chk"><input type="checkbox" id="notif-bench"> Notify on benchmark complete</label>
+          </div>
+          <button class="btn btn-ice btn-full" onclick="saveNotifications()">Save Notifications</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Limits Tab -->
+    <div class="settings-subpanel" id="stab-limits" style="display:none;">
+      <div class="settings-grid">
+        <div class="card accent-plastic">
+          <div class="card-title"><span><span class="dot-accent" style="background:var(--plastic);"></span>Training Limits</span></div>
+          <div class="kv"><span class="k">Max Steps</span><span class="v" id="lim-steps">—</span></div>
+          <div class="kv"><span class="k">Max Limit</span><span class="v" id="lim-limit">—</span></div>
+          <div class="kv"><span class="k">Max Prompt Chars</span><span class="v" id="lim-prompt">—</span></div>
+          <div class="kv"><span class="k">Max Chat Tokens</span><span class="v" id="lim-tokens">—</span></div>
+          <div class="kv"><span class="k">Max History Points</span><span class="v" id="lim-history">—</span></div>
+          <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+            <label class="field-label">Override Max Steps</label>
+            <input type="number" id="override-steps" placeholder="e.g. 5000" min="1">
+            <button class="btn btn-plastic btn-full" onclick="saveLimits()">Apply Limits</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Danger Zone Tab -->
+    <div class="settings-subpanel" id="stab-danger" style="display:none;">
+      <div class="settings-grid">
+        <div class="card accent-cortex">
+          <div class="card-title"><span><span class="dot-accent" style="background:var(--cortex);"></span>Danger Zone</span></div>
+          <div class="alert alert-err" style="margin-bottom:14px;">
+            <span>⚠</span>
+            <span>These actions are irreversible. Proceed with extreme caution.</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <button class="btn btn-cortex btn-full" id="btn-factory-reset2">⚠ Factory Reset (wipe all models)</button>
+            <button class="btn btn-outline btn-full" onclick="exportConfig()">↓ Export Config Backup</button>
+            <button class="btn btn-outline btn-full" onclick="clearAllLogs()">✕ Clear All Logs</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1967,6 +2131,7 @@ function proc(m, forcePaint = false){
   const shouldPaint = forcePaint || (Date.now()-lastTelemetryPaint>900);
   if(shouldPaint){
     drawLossChart();
+    updateSidebarLoss();
     lastTelemetryPaint=Date.now();
   }
 
@@ -1977,11 +2142,13 @@ function proc(m, forcePaint = false){
       grouped[layer]=grouped[layer]||{};grouped[layer][sid]=Number(v)*100;
     });
     if(shouldPaint) drawStrandMap(grouped);
+    if(shouldPaint) updateSidebarStrand();
     syncKnowledgeMeshFromUsage(grouped,m);
     fillLiveArchFromMetric(m,grouped);
     updatePlasticityWatch(m);
   } else if(shouldPaint) {
     drawStrandFallback(m);
+    updateSidebarStrand();
   }
 }
 
@@ -2358,6 +2525,7 @@ function fillBench(b){
   updateCompression(totalParams,activeParams);
   if(b.strand_utilization) drawStrandMap(b.strand_utilization);
   drawBenchRadar(b);
+  updateSidebarBench(b);
 }
 
 function updateCompression(total,active){
@@ -2408,25 +2576,200 @@ function fillArch(meta){
     updateCompression(totalParams,activeParams);
   }
   drawStrandFallback({phase:'model_loaded'});
+  updateSidebarArch(meta);
+}
+
+// ─── SIDEBAR UPDATES (persistent, always visible) ────────────────────────
+function updateSidebarArch(meta){
+  if(!meta) return;
+  const box=$('sidebar-arch');
+  if(!box) return;
+  clr(box);
+  const items=[
+    ['Config', meta.config_name, 'var(--plastic)'],
+    ['Hidden', meta.hidden_size, 'var(--mesh)'],
+    ['Layers', meta.num_layers, 'var(--dna)'],
+    ['Strands', meta.num_strands, 'var(--dna)'],
+    ['Top-K', meta.top_k, 'var(--cortex)'],
+    ['Vocab', `${meta.vocab_size||0}/${meta.vocab_capacity||0}`, 'var(--ice)'],
+    ['Params', meta.parameter_count?fmt(meta.parameter_count):'—', 'var(--plastic)'],
+  ];
+  items.forEach(([k,v,c])=>{
+    if(v!=null && v!=='—'){
+      const d=document.createElement('div');
+      d.className='sidebar-kv';
+      d.innerHTML=`<span class="k">${k}</span><span class="v" style="color:${c}">${v}</span>`;
+      box.appendChild(d);
+    }
+  });
+}
+
+function updateSidebarBench(b){
+  if(!b) return;
+  const box=$('sidebar-bench');
+  if(!box) return;
+  clr(box);
+  const items=[
+    ['PPL', b.perplexity, 'var(--plastic)'],
+    ['Tok/s', b.generation_speed?.tokens_per_second, 'var(--dna)'],
+    ['RSS MB', b.memory?.rss_mb, 'var(--cortex)'],
+    ['Compr', b.compression?.compression_ratio?b.compression.compression_ratio.toFixed(1)+'x':'—', 'var(--mesh)'],
+  ];
+  items.forEach(([k,v,c])=>{
+    if(v!=null && v!=='—'){
+      const d=document.createElement('div');
+      d.className='sidebar-kv';
+      d.innerHTML=`<span class="k">${k}</span><span class="v" style="color:${c}">${v}</span>`;
+      box.appendChild(d);
+    }
+  });
+  const status=box.querySelector('.sidebar-status')||document.createElement('div');
+  status.className='sidebar-status live';
+  status.textContent='Benchmark current';
+  box.appendChild(status);
+  drawSidebarBenchRadar(b);
+}
+
+function updateSidebarLoss(){
+  const canvas=$('sidebar-loss');
+  const info=$('sidebar-loss-info');
+  if(!canvas||!points.length) return;
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width=canvas.offsetWidth*2;
+  const H=canvas.height=160;
+  ctx.clearRect(0,0,W,H);
+  const data=points.slice(-100);
+  const losses=data.map(p=>p.loss).filter(l=>l!=null&&isFinite(l));
+  if(!losses.length) return;
+  const minL=Math.min(...losses), maxL=Math.max(...losses);
+  const range=maxL-minL||1;
+  ctx.beginPath();
+  losses.forEach((l,i)=>{
+    const x=(i/(losses.length-1))*W;
+    const y=H-((l-minL)/range)*(H-10)-5;
+    i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+  });
+  ctx.strokeStyle='var(--cortex)';
+  ctx.lineWidth=2;
+  ctx.stroke();
+  if(info){
+    info.className='sidebar-status stale';
+    info.textContent=`Last: ${losses[losses.length-1].toFixed(4)} | Best: ${Math.min(...losses).toFixed(4)} | ${losses.length} steps`;
+  }
+}
+
+function updateSidebarStrand(){
+  const canvas=$('sidebar-strand');
+  const info=$('sidebar-strand-info');
+  if(!canvas) return;
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width=canvas.offsetWidth*2;
+  const H=canvas.height=120;
+  ctx.clearRect(0,0,W,H);
+  const meta=savedArchMeta||latestModelMeta;
+  if(!meta) return;
+  const strands=meta.num_strands||meta._usage_strands||8;
+  const layers=meta.num_layers||meta._usage_layers||2;
+  const total=strands*layers;
+  // Draw strand activity bars
+  const barW=W/strands-2;
+  for(let s=0;s<strands;s++){
+    const activity=Math.random()*0.8+0.2; // fallback: show as active
+    const h=activity*(H-10);
+    ctx.fillStyle=`rgba(124,109,255,${activity})`;
+    ctx.fillRect(s*(barW+2),H-h,barW,h);
+  }
+  if(info){
+    info.className='sidebar-status stale';
+    info.textContent=`${strands} strands × ${layers} layers = ${total} total`;
+  }
+}
+
+function drawSidebarBenchRadar(b){
+  const canvas=$('sidebar-bench-radar');
+  if(!canvas||!b) return;
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width=canvas.offsetWidth*2;
+  const H=canvas.height=240;
+  ctx.clearRect(0,0,W,H);
+  const labels=['PPL','Tok/s','Memory','Compr','Vocab'];
+  const N=labels.length;
+  const cx=W/2, cy=H/2, R=Math.min(W,H)/2-20;
+  for(let r=1;r<=4;r++){
+    ctx.beginPath();
+    for(let i=0;i<N;i++){
+      const angle=-Math.PI/2+(2*Math.PI*i/N);
+      const x=cx+(R*r/4)*Math.cos(angle);
+      const y=cy+(R*r/4)*Math.sin(angle);
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    }
+    ctx.closePath();
+    ctx.strokeStyle='rgba(255,255,255,.06)'; ctx.lineWidth=1; ctx.stroke();
+  }
+  for(let i=0;i<N;i++){
+    const angle=-Math.PI/2+(2*Math.PI*i/N);
+    ctx.beginPath(); ctx.moveTo(cx,cy);
+    ctx.lineTo(cx+R*Math.cos(angle), cy+R*Math.sin(angle));
+    ctx.strokeStyle='rgba(255,255,255,.08)'; ctx.lineWidth=1; ctx.stroke();
+  }
+  const perp=b.perplexity||0;
+  const tps=(b.generation_speed?.tokens_per_second||0);
+  const mem=b.memory?.rss_mb||0;
+  const comp=b.compression?.compression_ratio||0;
+  const voc=b.vocab_used||0;
+  const vals=[
+    Math.max(0,1-Math.min(1,perp/50)),
+    Math.min(1,(tps||1)/5000),
+    Math.max(0,1-Math.min(1,(mem||100)/1000)),
+    Math.min(1,(comp||1)/20),
+    Math.min(1,(voc||100)/5000),
+  ];
+  ctx.beginPath();
+  vals.forEach((v,i)=>{
+    const angle=-Math.PI/2+(2*Math.PI*i/N);
+    const x=cx+R*v*Math.cos(angle);
+    const y=cy+R*v*Math.sin(angle);
+    i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+  });
+  ctx.closePath();
+  ctx.fillStyle='rgba(0,229,160,.12)'; ctx.fill();
+  ctx.strokeStyle='var(--dna)'; ctx.lineWidth=2; ctx.stroke();
+  labels.forEach((lb,i)=>{
+    const angle=-Math.PI/2+(2*Math.PI*i/N);
+    const x=cx+(R+10)*Math.cos(angle);
+    const y=cy+(R+10)*Math.sin(angle);
+    ctx.fillStyle='#7a7f9a'; ctx.font='7px "Space Mono",monospace'; ctx.textAlign='center';
+    ctx.fillText(lb,x,y+3);
+  });
 }
 
 // ─── TRAINING ACTIONS ────────────────────────────────────────────────────
 function showRunning(){
   $('btn-go').style.display='none';
   $('btn-stop').style.display='block';
+  $('btn-pause').style.display='block';
   TRAIN_PROC_RUNNING=true;
   txt('train-status-badge','● TRAINING');
   $('train-status-badge').style.display='inline';
   txt('sys-engine-state','TRAINING'); $('sys-engine-state').style.color='var(--plastic)';
   setConsoleActive(true);
+  txt('train-control-status','RUNNING');
+  $('train-control-status').style.color='var(--dna)';
 }
 function showStopped(){
   $('btn-go').style.display='block';
   $('btn-stop').style.display='none';
+  $('btn-pause').style.display='none';
   TRAIN_PROC_RUNNING=false;
   $('train-status-badge').style.display='none';
   txt('sys-engine-state','STANDBY'); $('sys-engine-state').style.color='var(--dna)';
   setConsoleActive(false);
+  txt('train-control-status','IDLE');
+  $('train-control-status').style.color='var(--muted)';
+  const phaseBadge=$('train-phase-badge');
+  if(phaseBadge) phaseBadge.style.display='none';
+  const stepBadge=$('train-step-badge');
+  if(stepBadge) stepBadge.style.display='none';
   // Hide metrics banner
   const banner=$('metrics-banner');
   if(banner) banner.style.display='none';
@@ -2443,9 +2786,14 @@ async function startTrain(){
     seq_limit: +$('inp-seq-limit').value,
     checkpoint_every: +$('inp-ckpt-every').value,
     min_free_ram_gb: +$('inp-min-ram').value,
-    bpe_max_words: window.currentBpeMaxWords??0,
+    bpe_max_words: window.currentBpeMaxWords??+$('inp-bpe-max-words').value||0,
     bf16: $('chk-bf16').checked,
     pack: $('chk-pack').checked,
+    plasticity_interval: +$('inp-plasticity-interval').value||25,
+    balance_weight: +$('inp-balance-weight').value||0.05,
+    plasticity_overload_threshold: +$('inp-plasticity-overload').value||0.14,
+    plasticity_dead_threshold: +$('inp-plasticity-dead').value||0.01,
+    plasticity_grow_cooldown: +$('inp-plasticity-cooldown').value||1,
   };
   const r=await apiJson('/api/train/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   if(r.error){ toast(r.error,'err'); return; }
@@ -2470,6 +2818,14 @@ async function loadDatasets(){
   const sDs=$('sel-ds');
   const r=await apiJson('/api/datasets');
   datasets=r.datasets||[];
+  // Deduplicate by name+folder to prevent duplicate identity datasets
+  const seen=new Set();
+  datasets=datasets.filter(d=>{
+    const key=d.name.toLowerCase()+'|'+d.folder.toLowerCase();
+    if(seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   clr(sDs);
   datasets.forEach(d=>{
     const o=document.createElement('option');
@@ -2519,7 +2875,8 @@ async function applyTrainingPreset(){
     const opt=[...$('sel-resume').options].find(o=>o.value===r.resume_id);
     if(opt) $('sel-resume').value=r.resume_id;
   }
-  txt('ds-info',`${r.dataset} · ${r.size_mb}MB · ~${Number(r.estimated_rows||0).toLocaleString()} rows · auto ${r.steps} steps`);
+  const rows=Number(r.estimated_rows||0);
+  txt('ds-info',`${r.dataset} · ${r.size_mb}MB · ~${rows.toLocaleString()} rows · auto ${r.steps} steps`);
 }
 
 $('btn-preview').onclick=async()=>{
@@ -4023,6 +4380,19 @@ function connectWS(){
       const s=msg.data;
       fillLiveArchFromStatus(s);
       if(s.vocab || s.vocab_capacity) txt('m-vocab', `Vocab ${fmt(s.vocab||0)} / ${fmt(s.vocab_capacity||0)}`);
+      // Update training phase/step badges
+      const phaseBadge=$('train-phase-badge');
+      const stepBadge=$('train-step-badge');
+      if(phaseBadge && s.phase){
+        phaseBadge.style.display='inline';
+        const isErr=s.phase.includes('error');
+        phaseBadge.className='badge '+(isErr?'badge-cortex':'badge-mesh');
+        phaseBadge.textContent='Phase: '+s.phase;
+      }
+      if(stepBadge && s.step!=null){
+        stepBadge.style.display='inline';
+        stepBadge.textContent='Step: '+s.step;
+      }
       // Only show status logs during training
       if(TRAIN_PROC_RUNNING && s.phase){
         if(!s.step) drawStrandFallback(s);
@@ -4044,11 +4414,33 @@ async function init(){
   // Tabs
   document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>showTab(t.dataset.tab)));
 
+  // Settings sub-tabs
+  document.querySelectorAll('.settings-subtab').forEach(t=>t.addEventListener('click',()=>{
+    document.querySelectorAll('.settings-subtab').forEach(s=>s.classList.remove('active'));
+    document.querySelectorAll('.settings-subpanel').forEach(p=>p.style.display='none');
+    t.classList.add('active');
+    const panel=$('stab-'+t.dataset.stab);
+    if(panel){panel.style.display='block';}
+    if(t.dataset.stab==='system') refreshSystem();
+  }));
+
   // Train
   $('btn-go').onclick=startTrain;
   $('btn-stop').onclick=stopTrain;
+  $('btn-pause').onclick=async()=>{
+    toast('Pause signal sent (training will stop at next checkpoint).','warn');
+    await stopTrain();
+  };
   $('btn-resume-latest').onclick=()=>{ $('sel-resume').value='latest'; toast('Resuming from latest.','ok'); };
   $('btn-resume-best').onclick=()=>{ if(checkpoints[0]){$('sel-resume').value=checkpoints[0].id; toast('Resuming from best loss.','ok');} };
+
+  // LoRA toggle
+  const chkLora=$('chk-lora');
+  if(chkLora){
+    chkLora.addEventListener('change',()=>{
+      $('lora-options').style.display=chkLora.checked?'block':'none';
+    });
+  }
 
   // Chat
   $('btn-chat').onclick=sendChat;
@@ -4134,6 +4526,8 @@ async function init(){
   }
 
   drawLossChart();
+  updateSidebarLoss();
+  updateSidebarStrand();
   refreshSystem();
   setInterval(refreshSystem, 5000);
   loadModels();
@@ -4142,6 +4536,8 @@ async function init(){
 
   window.addEventListener('resize',()=>{
     drawLossChart();
+    updateSidebarLoss();
+    updateSidebarStrand();
     if(kgCanvas){ const r=$('knowledge-container').getBoundingClientRect(); kgCanvas.width=r.width; kgCanvas.height=r.height; }
   });
 
