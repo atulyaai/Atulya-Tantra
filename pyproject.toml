@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "atulya-tantra"
-version = "0.2.0"
+version = "0.3.0"
 description = "Atulya Tantra - AI that grows with you. NP-DNA neural core, self-improving cycle, automation, and memory."
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -30,7 +30,7 @@ all = [
 atulya = "atulya.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["atulya*", "yantra*", "memory*"]
+include = ["atulya*", "tantra*", "yantra*", "memory*"]
 
 [tool.ruff]
 line-length = 100

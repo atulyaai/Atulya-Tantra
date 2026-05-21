@@ -1,4 +1,4 @@
-"""Atulya Tantra CLI entry point."""
+﻿"""Atulya Tantra CLI entry point."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(
         prog="atulya",
-        description="Atulya Tantra — NP-DNA NeuroPlastic DNA Network",
+        description="Atulya Tantra â€” NP-DNA NeuroPlastic DNA Network",
     )
     sub = parser.add_subparsers(dest="command")
 
@@ -77,9 +77,9 @@ def main() -> None:
 
 
 def _cmd_info() -> None:
-    from atulya.core.npdna import CONFIGS, NpDnaModel
+    from tantra.core.npdna import CONFIGS, NpDnaModel
 
-    print("\n  Atulya Tantra — NP-DNA Scaling Configs\n")
+    print("\n  Atulya Tantra â€” NP-DNA Scaling Configs\n")
     print(f"  {'Name':<10} {'Total':>12} {'Active':>12} {'Layers':>7} {'Strands':>8} {'Top-k':>6} {'Vocab':>8}")
     print("  " + "-" * 70)
     for name, cfg in CONFIGS.items():
@@ -95,7 +95,7 @@ def _cmd_info() -> None:
 
 def _cmd_train(args: argparse.Namespace) -> None:
     # Import here to avoid slow torch import on --help
-    from training.npdna_train import train_npdna
+    from tantra.training.npdna_train import train_npdna
 
     train_npdna(
         config_name=args.config,
@@ -124,7 +124,7 @@ def _cmd_train(args: argparse.Namespace) -> None:
 
 
 def _cmd_generate(args: argparse.Namespace) -> None:
-    from atulya.core.npdna import NpDnaCore
+    from tantra.core.npdna import NpDnaCore
 
     core = NpDnaCore.load(args.model)
     print(f"\nPrompt: {args.prompt}")

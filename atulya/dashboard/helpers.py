@@ -1,4 +1,4 @@
-"""NP-DNA Dashboard Helper Utilities.
+﻿"""NP-DNA Dashboard Helper Utilities.
 
 Contains shared utilities for routing, origin verification, process scanning,
 chat cleanup, preset calculators, and caching model instances.
@@ -16,7 +16,7 @@ from pathlib import Path
 import psutil
 from fastapi import Header, HTTPException, Request, WebSocket
 
-from atulya.core.npdna.config import CONFIGS
+from tantra.core.npdna.config import CONFIGS
 from atulya.dashboard.state import (
     _ROOT,
     OUTPUTS_DIR,
@@ -68,7 +68,7 @@ def _check_ws_origin(ws: WebSocket) -> bool:
 
 def _dashboard_roots() -> list[Path]:
     raw = os.environ.get("ATULYA_DATASET_ROOTS")
-    roots = [Path(_ROOT / "data")]
+    roots = [Path(_ROOT / "tantra" / "data")]
     if raw:
         roots.extend(Path(p) for p in raw.split(os.pathsep) if p.strip())
     else:
@@ -124,7 +124,7 @@ def _training_processes() -> list[dict[str, object]]:
         try:
             cmdline = proc.info.get("cmdline") or []
             joined = " ".join(str(x) for x in cmdline)
-            if "npdna_train.py" not in joined:
+            if "npdna_train" not in joined and "atulya.training.npdna_train" not in joined:
                 continue
             found.append({
                 "pid": proc.info["pid"],
@@ -330,12 +330,14 @@ def _dataset_preview(data_id: str, rows: int = 5) -> dict[str, object]:
                     samples.append({"text": line[:500]})
             if total_seen >= 10000 and len(samples) >= rows:
                 break
+    row_count = _estimate_dataset_rows(path)
     return {
         "id": data_id,
         "name": path.name,
         "folder": path.parent.name,
         "size_mb": round(path.stat().st_size / (1024 ** 2), 1),
         "sampled_count": total_seen,
+        "row_count": row_count,
         "samples": samples,
     }
 
@@ -352,16 +354,22 @@ def _dataset_index(refresh: bool = False) -> dict[str, Path]:
     out: dict[str, Path] = {}
     idx = 0
     seen_files: set[str] = set()
+    seen_real_paths: set[str] = set()
     for root in _dashboard_roots():
         for f in sorted(root.rglob("*.jsonl")):
             if not f.is_file():
                 continue
-            resolved = str(f.resolve()).lower()
-            if resolved in seen_files:
+            resolved = f.resolve()
+            real_key = str(resolved).lower()
+            if real_key in seen_real_paths:
                 continue
-            seen_files.add(resolved)
+            seen_real_paths.add(real_key)
+            name_key = f"{f.stem.lower()}|{f.parent.name.lower()}"
+            if name_key in seen_files:
+                continue
+            seen_files.add(name_key)
             idx += 1
-            out[f"ds-{idx}"] = f.resolve()
+            out[f"ds-{idx}"] = resolved
     _DATASET_INDEX_CACHE = out
     _DATASET_INDEX_MTIME = now
     return out
@@ -387,8 +395,14 @@ def _checkpoint_index() -> dict[str, Path]:
 def _scan_datasets():
     """Find dashboard-approved .jsonl datasets without exposing full paths."""
     out = []
+    seen_keys: set[str] = set()
     for data_id, f in _dataset_index().items():
+        dedup_key = f"{f.stem.lower()}|{f.parent.name.lower()}|{f.resolve()}"
+        if dedup_key in seen_keys:
+            continue
+        seen_keys.add(dedup_key)
         mb = f.stat().st_size / (1024**2)
+        row_count = _estimate_dataset_rows(f)
         try:
             with f.open(encoding="utf-8", errors="ignore") as fh:
                 first = json.loads(fh.readline())
@@ -399,6 +413,7 @@ def _scan_datasets():
                      "folder": f.parent.name,
                      "size_mb": round(mb,1),
                      "size_label": f"{mb:.0f} MB" if mb < 1024 else f"{mb/1024:.1f} GB",
+                     "row_count": row_count,
                      "fields": fields})
     return sorted(out, key=lambda x: x["name"].lower())
 
@@ -570,7 +585,7 @@ def _list_checkpoints():
 
 
 def _load_cached_model(model_path: Path):
-    from atulya.core.npdna import NpDnaCore
+    from tantra.core.npdna import NpDnaCore
 
     key = str(model_path.resolve())
     meta_path = model_path / "metadata.json"

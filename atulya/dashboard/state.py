@@ -14,7 +14,7 @@ logger = logging.getLogger("atulya.dashboard.state")
 
 # Path calculation: state.py is in atulya/dashboard/
 _ROOT = Path(__file__).resolve().parent.parent.parent
-OUTPUTS_DIR = _ROOT / "outputs" / "npdna"
+OUTPUTS_DIR = _ROOT / "tantra" / "outputs" / "npdna"
 
 # Default configuration limits
 MAX_STEPS = int(os.environ.get("ATULYA_DASHBOARD_MAX_STEPS", "10000"))

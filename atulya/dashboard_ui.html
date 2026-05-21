@@ -1080,6 +1080,7 @@ canvas{display:block;width:100%;}
           <span><span class="dot-accent" style="background:#4ade80;"></span>Console Output</span>
           <div style="display:flex;gap:6px;align-items:center;">
             <span class="console-status" id="console-status-metrics"><span class="cs-dot"></span>IDLE</span>
+            <button class="btn btn-sm btn-outline" onclick="restoreLogs()">Restore</button>
             <button class="btn btn-sm btn-outline" onclick="clearLogs()">Clear</button>
           </div>
         </div>
@@ -1402,6 +1403,7 @@ canvas{display:block;width:100%;}
           <span class="console-status" id="console-status-train"><span class="cs-dot"></span>IDLE — No active process</span>
           <span id="train-phase-badge" class="badge badge-mesh" style="display:none;">—</span>
           <span id="train-step-badge" class="badge badge-dna" style="display:none;">Step: —</span>
+          <button class="btn btn-sm btn-outline" style="margin-left:auto;" onclick="restoreLogs()">Restore Logs</button>
         </div>
         <div class="log-box" id="train-log-box" style="height:calc(100% - 80px);min-height:300px;">
           <span class="log-dim">Awaiting training command...</span><br>
@@ -1878,6 +1880,7 @@ function toast(msg, type='ok', duration=3000){
   setTimeout(()=>t.classList.remove('show'),duration);
 }
 
+let logHistory=[];
 function addLog(msg, box='log-box', type='info'){
   const b=$(box);
   if(!b) return;
@@ -1885,9 +1888,10 @@ function addLog(msg, box='log-box', type='info'){
   const ts=`[${new Date().toLocaleTimeString()}]`;
   d.innerHTML=`<span style="color:var(--dim)">${ts}</span> <span class="log-${type}">${escapeHtml(msg)}</span>`;
   b.appendChild(d);
+  logHistory.push({msg, box, type, ts: new Date().toLocaleTimeString()});
+  if(logHistory.length > 500) logHistory = logHistory.slice(-500);
   const autoScroll = !$('pref-autoscroll') || $('pref-autoscroll').checked;
   if(autoScroll) b.scrollTop=b.scrollHeight;
-  // Mirror to train-log-box too
   if(box==='log-box'){
     const tb=$('train-log-box');
     if(tb){const d2=d.cloneNode(true);tb.appendChild(d2);if(autoScroll)tb.scrollTop=tb.scrollHeight;}
@@ -1900,8 +1904,24 @@ function escapeHtml(s){
 
 function clearLogs(){
   const lb=$('log-box'), tb=$('train-log-box');
-  if(lb){lb.innerHTML='';const d=document.createElement('span');d.className='log-dim';d.textContent='Logs cleared.';lb.appendChild(d);}
-  if(tb){tb.innerHTML='';const d2=document.createElement('span');d2.className='log-dim';d2.textContent='Logs cleared.';tb.appendChild(d2);}
+  if(lb){lb.innerHTML='';const d=document.createElement('span');d.className='log-dim';d.textContent='Display cleared. Logs preserved in memory.';lb.appendChild(d);}
+  if(tb){tb.innerHTML='';const d2=document.createElement('span');d2.className='log-dim';d2.textContent='Display cleared. Logs preserved in memory.';tb.appendChild(d2);}
+}
+function restoreLogs(){
+  const lb=$('log-box'), tb=$('train-log-box');
+  if(!lb) return;
+  lb.innerHTML='';
+  if(tb) tb.innerHTML='';
+  logHistory.forEach(entry=>{
+    if(entry.box==='log-box'){
+      const d=document.createElement('div');
+      d.innerHTML=`<span style="color:var(--dim)">[${entry.ts}]</span> <span class="log-${entry.type}">${escapeHtml(entry.msg)}</span>`;
+      lb.appendChild(d);
+      if(tb){const d2=d.cloneNode(true);tb.appendChild(d2);}
+    }
+  });
+  if(lb) lb.scrollTop=lb.scrollHeight;
+  if(tb) tb.scrollTop=tb.scrollHeight;
 }
 function addPlasticityEvent(text){
   const box=$('plasticity-events'); if(!box) return;
@@ -2767,10 +2787,13 @@ function showStopped(){
   txt('train-control-status','IDLE');
   $('train-control-status').style.color='var(--muted)';
   const phaseBadge=$('train-phase-badge');
-  if(phaseBadge) phaseBadge.style.display='none';
+  if(phaseBadge){
+    phaseBadge.style.display='inline';
+    phaseBadge.className='badge badge-dna';
+    phaseBadge.textContent='Phase: complete';
+  }
   const stepBadge=$('train-step-badge');
   if(stepBadge) stepBadge.style.display='none';
-  // Hide metrics banner
   const banner=$('metrics-banner');
   if(banner) banner.style.display='none';
 }
@@ -2794,13 +2817,21 @@ async function startTrain(){
     plasticity_overload_threshold: +$('inp-plasticity-overload').value||0.14,
     plasticity_dead_threshold: +$('inp-plasticity-dead').value||0.01,
     plasticity_grow_cooldown: +$('inp-plasticity-cooldown').value||1,
+    rag: $('chk-rag').checked,
+    lora: $('chk-lora').checked,
+    rlhf: $('chk-rlhf').checked,
+    auto_vocab: $('chk-auto-vocab').checked,
+    checkpoint_save: true,
+    lora_rank: +$('inp-lora-rank').value||8,
+    lora_alpha: +$('inp-lora-alpha').value||16,
   };
   const r=await apiJson('/api/train/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   if(r.error){ toast(r.error,'err'); return; }
   points=[]; bestLoss=Infinity;
   drawLossChart();
-  clearLogs();
+  addLog('─'.repeat(50), 'log-box', 'dim');
   addLog(`Training engaged. PID: ${r.pid} | Config: ${body.config} | Steps: ${body.steps}`, 'log-box', 'info');
+  addLog(`RAG: ${body.rag?'ON':'OFF'} | LoRA: ${body.lora?'ON':'OFF'} | RLHF: ${body.rlhf?'ON':'OFF'} | Auto-vocab: ${body.auto_vocab?'ON':'OFF'}`, 'log-box', 'info');
   showRunning();
   showTab('metrics');
   toast('Training started!','ok');
@@ -2818,7 +2849,6 @@ async function loadDatasets(){
   const sDs=$('sel-ds');
   const r=await apiJson('/api/datasets');
   datasets=r.datasets||[];
-  // Deduplicate by name+folder to prevent duplicate identity datasets
   const seen=new Set();
   datasets=datasets.filter(d=>{
     const key=d.name.toLowerCase()+'|'+d.folder.toLowerCase();
@@ -2830,12 +2860,14 @@ async function loadDatasets(){
   datasets.forEach(d=>{
     const o=document.createElement('option');
     o.value=d.id;
-    o.textContent=`${d.name} (${d.size_label||d.size_mb+'MB'})`;
+    const rowCount = d.row_count ? ` · ~${d.row_count.toLocaleString()} lines` : '';
+    o.textContent=`${d.name} (${d.size_label||d.size_mb+'MB'}${rowCount})`;
     sDs.appendChild(o);
   });
   if(datasets.length>0){
     const d=datasets[0];
-    txt('ds-info',`${d.folder} · ${d.size_label||d.size_mb+'MB'} · [${(d.fields||[]).join(', ')}]`);
+    const rc = d.row_count ? ` · ~${d.row_count.toLocaleString()} lines` : '';
+    txt('ds-info',`${d.folder} · ${d.size_label||d.size_mb+'MB'}${rc} · [${(d.fields||[]).join(', ')}]`);
     await applyTrainingPreset();
   }
 }
@@ -2849,7 +2881,10 @@ $('btn-refresh-ds').onclick=async()=>{
 
 $('sel-ds').onchange=async function(){
   const d=datasets.find(x=>x.id===this.value);
-  if(d) txt('ds-info',`${d.folder} · ${d.size_label||d.size_mb+'MB'} · [${(d.fields||[]).join(', ')}]`);
+  if(d){
+    const rc = d.row_count ? ` · ~${d.row_count.toLocaleString()} lines` : '';
+    txt('ds-info',`${d.folder} · ${d.size_label||d.size_mb+'MB'}${rc} · [${(d.fields||[]).join(', ')}]`);
+  }
   await applyTrainingPreset();
 };
 
@@ -2876,15 +2911,25 @@ async function applyTrainingPreset(){
     if(opt) $('sel-resume').value=r.resume_id;
   }
   const rows=Number(r.estimated_rows||0);
-  txt('ds-info',`${r.dataset} · ${r.size_mb}MB · ~${rows.toLocaleString()} rows · auto ${r.steps} steps`);
+  const ds = datasets.find(x=>x.id===id);
+  const rc = ds && ds.row_count ? ` · ~${ds.row_count.toLocaleString()} lines` : '';
+  txt('ds-info',`${r.dataset} · ${r.size_mb}MB${rc} · ~${rows.toLocaleString()} rows · auto ${r.steps} steps`);
 }
 
 $('btn-preview').onclick=async()=>{
   const id=$('sel-ds').value; if(!id) return;
   const btn=$('btn-preview'); btn.textContent='Scanning...'; btn.disabled=true;
   const r=await apiJson('/api/dataset-preview/'+encodeURIComponent(id));
-  $('dataset-preview').textContent=JSON.stringify(r,null,2);
   btn.textContent='⬡ Scan Dataset'; btn.disabled=false;
+  if(r.error){ toast(r.error,'err'); return; }
+  const ds = datasets.find(x=>x.id===id);
+  const rc = ds && ds.row_count ? ` · ~${ds.row_count.toLocaleString()} lines` : '';
+  const info = `${r.name} · ${r.size_mb}MB${rc} · ${r.sampled_count||'?'} samples scanned`;
+  txt('ds-info', info);
+  if(r.samples && r.samples.length){
+    const preview = r.samples.slice(0,3).map(s=>JSON.stringify(s).slice(0,200)).join('\n');
+    addLog(`Dataset preview (${r.sampled_count} samples): ${preview}`, 'log-box', 'info');
+  }
   toast('Dataset scanned.','ok');
 };
 
@@ -4380,23 +4425,37 @@ function connectWS(){
       const s=msg.data;
       fillLiveArchFromStatus(s);
       if(s.vocab || s.vocab_capacity) txt('m-vocab', `Vocab ${fmt(s.vocab||0)} / ${fmt(s.vocab_capacity||0)}`);
-      // Update training phase/step badges
       const phaseBadge=$('train-phase-badge');
       const stepBadge=$('train-step-badge');
       if(phaseBadge && s.phase){
         phaseBadge.style.display='inline';
-        const isErr=s.phase.includes('error');
-        phaseBadge.className='badge '+(isErr?'badge-cortex':'badge-mesh');
-        phaseBadge.textContent='Phase: '+s.phase;
+        const phaseLower = String(s.phase).toLowerCase();
+        const isComplete = phaseLower.includes('complete') || phaseLower.includes('done') || phaseLower.includes('finished');
+        const isStopped = phaseLower.includes('stop');
+        const isErr = !isComplete && !isStopped && phaseLower.includes('error');
+        if(isComplete){
+          phaseBadge.className='badge badge-dna';
+          phaseBadge.textContent='Phase: complete';
+        } else if(isStopped){
+          phaseBadge.className='badge badge-plastic';
+          phaseBadge.textContent='Phase: stopped';
+        } else if(isErr){
+          phaseBadge.className='badge badge-cortex';
+          phaseBadge.textContent='Phase: '+s.phase;
+        } else {
+          phaseBadge.className='badge badge-mesh';
+          phaseBadge.textContent='Phase: '+s.phase;
+        }
       }
       if(stepBadge && s.step!=null){
         stepBadge.style.display='inline';
         stepBadge.textContent='Step: '+s.step;
       }
-      // Only show status logs during training
       if(TRAIN_PROC_RUNNING && s.phase){
         if(!s.step) drawStrandFallback(s);
-        const isErr=s.phase.includes('error');
+        const phaseLower = String(s.phase).toLowerCase();
+        const isComplete = phaseLower.includes('complete') || phaseLower.includes('done') || phaseLower.includes('finished');
+        const isErr = !isComplete && phaseLower.includes('error');
         const key=`${s.phase}:${s.step||''}`;
         const now=Date.now();
         if(key!==lastStatusLogKey || now-lastStatusLogAt>10000){

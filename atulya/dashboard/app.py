@@ -39,9 +39,16 @@ app.include_router(openai.router)
 @app.get("/", response_class=HTMLResponse)
 def serve_ui():
     p = _ROOT / "atulya" / "dashboard_ui.html"
-    return HTMLResponse(
-        p.read_text(encoding="utf-8") if p.exists() else "<h1>UI not found</h1>"
-    )
+    if not p.exists():
+        return HTMLResponse("<h1>UI not found</h1>")
+    
+    content = p.read_text(encoding="utf-8")
+    response = HTMLResponse(content)
+    # Prevent browser caching of UI
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 def main():

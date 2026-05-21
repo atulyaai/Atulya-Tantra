@@ -1,4 +1,4 @@
-"""NP-DNA Dashboard System Routes.
+﻿"""NP-DNA Dashboard System Routes.
 """
 from __future__ import annotations
 import logging
@@ -8,7 +8,7 @@ from pathlib import Path
 import psutil
 from fastapi import APIRouter, Header, Request, HTTPException
 
-from atulya.core.npdna.config import CONFIGS, _estimate_params
+from tantra.core.npdna.config import CONFIGS, _estimate_params
 from atulya.dashboard.state import OUTPUTS_DIR, DashboardState
 from atulya.dashboard.helpers import (
     _check_request_origin,

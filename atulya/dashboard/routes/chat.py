@@ -1,4 +1,4 @@
-"""NP-DNA Dashboard Chat Routes.
+﻿"""NP-DNA Dashboard Chat Routes.
 """
 from __future__ import annotations
 import json
@@ -154,7 +154,7 @@ def api_chat(
 
         agent_steps = None
         if use_agent:
-            from atulya.core.npdna.autonomy import NpDnaAgent
+            from tantra.core.npdna.autonomy import NpDnaAgent
             agent = NpDnaAgent(core)
             response, agent_steps = agent.run_with_telemetry(prompt, max_iterations=5)
         else:

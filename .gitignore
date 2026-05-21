@@ -2,9 +2,9 @@
 *.pt
 *.safetensors
 
-# Generated data (keep identity.json)
-data/seed_dataset.jsonl
+# Generated data
 data/*.bin
+tantra/data/*.jsonl
 
 # Cache
 .pytest_cache/
@@ -43,7 +43,7 @@ _archive/
 *.log
 .coverage
 htmlcov/
-outputs/
+
+# Tantra outputs (model artifacts)
+tantra/outputs/
 tantra/runs/
-tantra/model/runs/
-third_party_sources/

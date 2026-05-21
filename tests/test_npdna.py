@@ -1,4 +1,4 @@
-"""Unit tests for NP-DNA architecture."""
+﻿"""Unit tests for NP-DNA architecture."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 import torch
 
-from atulya.core.npdna import (
+from tantra.core.npdna import (
     CONFIGS,
     AtulyaTokenizer,
     Genome,
@@ -19,7 +19,7 @@ from atulya.core.npdna import (
     PlasticityEngine,
     Strand,
 )
-from atulya.core.npdna.config import CortexConfig, GenomeConfig, MeshConfig, NpDnaConfig, StrandConfig
+from tantra.core.npdna.config import CortexConfig, GenomeConfig, MeshConfig, NpDnaConfig, StrandConfig
 
 
 # ---------------------------------------------------------------------------
@@ -53,14 +53,14 @@ class TestTokenizer:
 
     def test_encode_decode_hindi(self):
         tok = AtulyaTokenizer(initial_capacity=2048)
-        ids = tok.encode("नमस्ते दुनिया")
+        ids = tok.encode("à¤¨à¤®à¤¸à¥à¤¤à¥‡ à¤¦à¥à¤¨à¤¿à¤¯à¤¾")
         assert len(ids) > 0
         text = tok.decode(ids)
-        assert "नमस्ते" in text
+        assert "à¤¨à¤®à¤¸à¥à¤¤à¥‡" in text
 
     def test_byte_fallback(self):
         tok = AtulyaTokenizer(initial_capacity=512)
-        ids = tok.encode("🎉 emoji test", allow_growth=False)
+        ids = tok.encode("ðŸŽ‰ emoji test", allow_growth=False)
         assert len(ids) > 0  # Should encode via byte fallback
         text = tok.decode(ids)
         assert "emoji" in text
@@ -258,10 +258,10 @@ class TestCortex:
 
         v1 = base_vector.clone()
         v2 = base_vector.clone()
-        v2[1] = 0.05  # cosine similarity ≈ 0.998
+        v2[1] = 0.05  # cosine similarity â‰ˆ 0.998
 
         v3 = base_vector.clone()
-        v3[1] = 0.08  # cosine similarity ≈ 0.996
+        v3[1] = 0.08  # cosine similarity â‰ˆ 0.996
 
         cortex.store(v1, topic="Paris Info", source="Paris is the capital of France.")
         cortex.store(v2, topic="Paris", source="Paris is beautiful, the capital city of France.")
@@ -446,7 +446,7 @@ class TestNpDnaCore:
 
     def test_train_topic_device_routing(self, tmp_path):
         import json
-        from training.npdna_train import train_topic
+        from tantra.training.npdna_train import train_topic
 
         # Create a tiny mock model and save it
         core = NpDnaCore.from_config("seed")
@@ -474,7 +474,7 @@ class TestNpDnaCore:
         assert updated_core.model.genome.seeds.requires_grad is True
 
     def test_optimizer_state_recovery(self):
-        from training.npdna_train import restore_optimizer_state
+        from tantra.training.npdna_train import restore_optimizer_state
         import torch
 
         # 1. Create a model
@@ -686,7 +686,7 @@ class TestIdentity:
 
 class TestMultimodal:
     def test_voice_encoder(self):
-        from atulya.core.npdna.multimodal import VoiceEncoder
+        from tantra.core.npdna.multimodal import VoiceEncoder
         encoder = VoiceEncoder(hidden_size=64, input_freq_bins=80)
         
         # Test raw waveform input
@@ -705,7 +705,7 @@ class TestMultimodal:
         assert output_spec.shape == (2, 5, 64)
 
     def test_vision_encoder(self):
-        from atulya.core.npdna.multimodal import VisionEncoder
+        from tantra.core.npdna.multimodal import VisionEncoder
         encoder = VisionEncoder(hidden_size=64, patch_size=8, in_channels=3, max_patches=16)
         
         # Test standard size image matching max_patches limits
@@ -719,7 +719,7 @@ class TestMultimodal:
         assert output_large.shape == (2, 64, 64)
 
     def test_model_multimodal_forward(self):
-        from atulya.core.npdna import NpDnaConfig, NpDnaModel
+        from tantra.core.npdna import NpDnaConfig, NpDnaModel
         cfg = NpDnaConfig(hidden_size=64, num_layers=2)
         model = NpDnaModel(cfg)
         
@@ -738,7 +738,7 @@ class TestMultimodal:
 
 class TestAutonomy:
     def test_agent_math_eval_blocks_code_execution(self):
-        from atulya.core.npdna import NpDnaCore, NpDnaAgent
+        from tantra.core.npdna import NpDnaCore, NpDnaAgent
         core = NpDnaCore.from_config("seed")
         agent = NpDnaAgent(core)
 
@@ -747,7 +747,7 @@ class TestAutonomy:
         assert "blocked" in agent._code_execute("open('secret.txt').read()").lower()
 
     def test_agent_react_loop(self):
-        from atulya.core.npdna import NpDnaCore, NpDnaAgent
+        from tantra.core.npdna import NpDnaCore, NpDnaAgent
         core = NpDnaCore.from_config("seed")
         agent = NpDnaAgent(core)
         
@@ -779,7 +779,7 @@ class TestAutonomy:
 
 class TestPipeline:
     def test_harvest_common_crawl(self):
-        from training.dataset.harvest_data import harvest_common_crawl
+        from tantra.training.dataset.harvest_data import harvest_common_crawl
         samples = harvest_common_crawl(limit=2)
         assert len(samples) >= 1
         for s in samples:
@@ -790,7 +790,7 @@ class TestPipeline:
 
 class TestTrainingModelManagement:
     def test_backup_and_rotate(self, tmp_path):
-        from training.npdna_train import _backup_and_rotate_latest
+        from tantra.training.npdna_train import _backup_and_rotate_latest
         # Create dummy model files in tmp_path
         (tmp_path / "model.pt").write_text("model_data", encoding="utf-8")
         (tmp_path / "metadata.json").write_text("{}", encoding="utf-8")
@@ -815,7 +815,7 @@ class TestTrainingModelManagement:
         assert len(backups) == 3
 
     def test_stop_signal_check(self, tmp_path):
-        from training.npdna_train import train_npdna
+        from tantra.training.npdna_train import train_npdna
         # Write dataset
         import json
         dataset_path = tmp_path / "dataset.jsonl"
@@ -843,14 +843,14 @@ class TestTrainingModelManagement:
         assert backups_dir.exists()
 
     def test_losses_loaded_from_resume_meta(self, tmp_path):
-        from training.npdna_train import train_npdna
+        from tantra.training.npdna_train import train_npdna
         import json
         
         # Create a dummy metadata.json file in a resume checkpoint folder
         resume_dir = tmp_path / "resume_ckpt"
         resume_dir.mkdir()
         
-        from atulya.core.npdna import NpDnaCore
+        from tantra.core.npdna import NpDnaCore
         core = NpDnaCore.from_config("seed")
         core.save(resume_dir, losses=[1.5, 1.4, 1.3])
         
@@ -913,7 +913,7 @@ class TestTrainingModelManagement:
     def test_api_run_plasticity_check(self, tmp_path, monkeypatch):
         from fastapi.testclient import TestClient
         from atulya.dashboard.app import app
-        from atulya.core.npdna import NpDnaCore
+        from tantra.core.npdna import NpDnaCore
         
         # Create and save a minimal model instance to a temp path
         model_path = tmp_path / "latest"

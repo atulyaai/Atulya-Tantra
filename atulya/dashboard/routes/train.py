@@ -1,4 +1,4 @@
-"""NP-DNA Dashboard Training Routes.
+﻿"""NP-DNA Dashboard Training Routes.
 """
 from __future__ import annotations
 import asyncio
@@ -11,7 +11,7 @@ from pathlib import Path
 import psutil
 from fastapi import APIRouter, Header, Request, WebSocket, WebSocketDisconnect
 
-from atulya.core.npdna.config import CONFIGS
+from tantra.core.npdna.config import CONFIGS
 from atulya.dashboard.state import (
     _ROOT,
     OUTPUTS_DIR,
@@ -49,14 +49,15 @@ def api_training_status(_admin: str | None = Header(default=None, alias="X-Atuly
     owned_running = DashboardState.TRAIN_PROC is not None and DashboardState.TRAIN_PROC.poll() is None
     external = _training_processes()
 
-    # Check if there's any active run history that got orphaned
     status = _read_train_status() or {}
     metrics = _latest_metric_status()
     is_running = owned_running or len(external) > 0
+
     if status and not is_running:
-        phase = str(status.get("phase") or "")
-        terminal_phases = ("complete", "error", "stopped", "blocked")
-        if phase and not phase.startswith(terminal_phases):
+        phase = str(status.get("phase") or "").lower()
+        terminal_phases = ("complete", "done", "finished", "error", "stopped", "blocked")
+        is_terminal = any(phase.endswith(t) for t in terminal_phases)
+        if not is_terminal:
             status = {
                 **status,
                 "stale": True,
@@ -168,7 +169,8 @@ def api_train_start(
         
     cmd = [
         sys.executable,
-        str(_ROOT / "training" / "npdna_train.py"),
+        "-m",
+        "atulya.training.npdna_train",
         "--config",
         config,
         "--steps",
@@ -210,6 +212,19 @@ def api_train_start(
         cmd.append("--bf16")
     if body.get("pack", True):
         cmd.append("--pack")
+
+    # Advanced training flags
+    if body.get("rag", False):
+        cmd.append("--rag")
+    if body.get("lora", False):
+        cmd.extend(["--lora-rank", str(_clamp_int(body.get("lora_rank"), 8, 1, 64))])
+        cmd.extend(["--lora-alpha", str(_clamp_float(body.get("lora_alpha"), 16.0, 1.0, 128.0))])
+    if body.get("rlhf", False):
+        cmd.append("--rlhf")
+    if body.get("auto_vocab", True):
+        cmd.append("--auto-vocab")
+    if body.get("checkpoint_save", True):
+        cmd.append("--save-checkpoints")
         
     resume_id = body.get("resume_id")
     if resume_id is None:
@@ -348,6 +363,9 @@ async def websocket_endpoint(ws: WebSocket):
                             await ws.send_json({"type": "log", "data": line.strip()})
                     log_pos = f.tell()
             if DashboardState.TRAIN_PROC and DashboardState.TRAIN_PROC.poll() is not None:
+                final_status = _read_train_status()
+                if final_status:
+                    await ws.send_json({"type": "status", "data": final_status})
                 await ws.send_json({"type": "train_done"})
                 # Restore benchmark from backup if present and target is missing
                 bak_bench = OUTPUTS_DIR / "benchmark.json.bak"

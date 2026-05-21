@@ -1,4 +1,4 @@
-"""NP-DNA Dashboard Model Routes.
+﻿"""NP-DNA Dashboard Model Routes.
 """
 from __future__ import annotations
 import json
@@ -96,7 +96,7 @@ def api_run_plasticity_check(
         
     try:
         from atulya.dashboard.helpers import _load_cached_model
-        from atulya.core.npdna.plasticity import PlasticityEngine
+        from tantra.core.npdna.plasticity import PlasticityEngine
         import torch
         
         # Load core
@@ -118,7 +118,7 @@ def api_run_plasticity_check(
                 
         texts = []
         if data_path and Path(data_path).exists():
-            from training.dataset.build_dataset import load_dataset
+            from tantra.training.dataset.build_dataset import load_dataset
             try:
                 loaded = load_dataset(data_path, limit=10)
                 texts = [x for x in loaded if x.strip()]
@@ -282,7 +282,8 @@ def api_run_benchmark(
 
         cmd = [
             sys.executable,
-            str(_ROOT / "training" / "benchmark.py"),
+            "-m",
+            "tantra.training.benchmark",
             "--model",
             str(model_path),
             "--config",
