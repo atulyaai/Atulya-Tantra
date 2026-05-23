@@ -47,3 +47,9 @@ htmlcov/
 # Tantra outputs (model artifacts)
 tantra/outputs/
 tantra/runs/
+
+# Old webui (replaced by atulya/dashboard)
+webui/
+
+# Datasets should be committed separately
+tantra/data/categorized/
