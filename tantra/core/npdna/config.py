@@ -86,7 +86,7 @@ class NpDnaConfig:
         # Only set genome defaults if not explicitly configured
         if self.genome.latent_dim == 256:
             self.genome.latent_dim = min(512, self.hidden_size * 2)
-        if self.genome.max_strands == 128:
+        if self.genome.max_strands == 64:
             self.genome.max_strands = self.mesh.num_strands * self.num_layers
 
     @property
