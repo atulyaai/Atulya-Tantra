@@ -21,11 +21,6 @@ class SessionSearchProvider(MemoryProvider):
             self._conn.execute("PRAGMA journal_mode=WAL")
         return self._conn
 
-    def _close_conn(self):
-        if self._conn:
-            self._conn.close()
-            self._conn = None
-
     async def initialize(self):
         conn = self._get_conn()
         conn.execute("""
@@ -43,7 +38,6 @@ class SessionSearchProvider(MemoryProvider):
             (entry.id, entry.content, json.dumps(entry.metadata), json.dumps(entry.tags), entry.created_at),
         )
         conn.commit()
-        self._close_conn()
         return entry.id
 
     async def search(self, query: str, limit: int = 10) -> list[MemoryEntry]:
@@ -52,7 +46,6 @@ class SessionSearchProvider(MemoryProvider):
             "SELECT id, content, metadata, tags, created_at FROM sessions WHERE sessions MATCH ? LIMIT ?",
             (query, limit),
         ).fetchall()
-        self._close_conn()
         return [
             MemoryEntry(
                 id=r[0], provider="session_search", content=r[1],
@@ -69,7 +62,6 @@ class SessionSearchProvider(MemoryProvider):
             "SELECT id, content, metadata, tags, created_at FROM sessions ORDER BY created_at DESC LIMIT ?",
             (limit,),
         ).fetchall()
-        self._close_conn()
         return [
             MemoryEntry(
                 id=r[0], provider="session_search", content=r[1],
@@ -84,11 +76,13 @@ class SessionSearchProvider(MemoryProvider):
         conn = self._get_conn()
         conn.execute("INSERT INTO sessions(sessions) VALUES('optimize')")
         conn.commit()
-        self._close_conn()
 
     async def stats(self) -> dict[str, Any]:
         conn = self._get_conn()
         count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
-        self._close_conn()
         return {"total_sessions": count}
 
+    async def close(self):
+        if self._conn:
+            self._conn.close()
+            self._conn = None

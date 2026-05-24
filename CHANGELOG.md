@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.0] — 2026-05-25
+
+Deep bug bounty pass: 11 structural fixes across the memory subsystem, audit log, voice pipeline, and error handling.
+
+### Fixed
+- **C1 — Temp file leak** (`voice_pipeline.py`): `_save_temp_audio()` leaked a `.wav` file on every STT call. Now saves to a managed path and deletes after use.
+- **C2 — Audit log OOM + hash chain race** (`audit_log.py`): `_load_last_hash()`, `verify()`, and `__len__()` read the entire file into memory. Rewritten to stream lines; hash state now persisted *after* flush+fsync to survive crashes; `encoding="utf-8"` added for Windows compat.
+- **H1 — Session ID loads 100K rows** (`manager.py`): `store_session()` called `get_recent(limit=100000)` just to count entries. Now uses `stats()` with `SELECT COUNT(*)`.
+- **H2 — DB reconnect overhead** (`session_search.py`, `subconscious.py`, `reflection.py`, `tree.py`): All four providers opened and closed SQLite connections on every operation, defeating WAL caching. Switched to persistent connections with a `close()` method for cleanup.
+- **H3 — ReflectionProvider memory bloat** (`reflection.py`): Loaded every `.json` file into RAM at init and wrote each entry to a separate file. Rewritten to use SQLite with indexed queries.
+- **H4 — Missing Windows encoding** (`npdna_train.py:894`, `audit_log.py:45`): Added `encoding="utf-8"` to file writes that defaulted to cp1252 on Windows.
+- **H5 — Silent error swallowing** (`helpers.py`): Added `logger.debug()` calls to 3 `except Exception` blocks in `_tail_lines`, `_pid_running`, and `_read_status_file`.
+- **M1/M2 — MemoryTree unbounded SELECT** (`tree.py`): `_update_l1` and `_update_l2` loaded all rows for a topic/summary. Added `LIMIT 1000` and `LIMIT 500` respectively.
+- **M3 — `shell=True` in ExecTool** (`capabilities/__init__.py`): Replaced `subprocess.run(command, shell=True, ...)` with list-form `shlex.split()` call.
+- **M4 — Dashboard cache race** (`helpers.py`): `DashboardState.MODEL_CACHE` mutation wrapped in `threading.Lock`.
+
 ## [0.3.1] — 2026-05-25
 
 Audit and hardening pass: 11 runtime bugs fixed, file consolidation, channel hardening, and project-wide lint cleanup.

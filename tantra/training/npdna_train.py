@@ -891,7 +891,7 @@ def train_npdna(
                 if layer_router_entropies else 0.0
             )
             plasticity_events = [{"type": e.event_type, "details": e.details} for e in events] if events else []
-            with open(metrics_file, "a") as f:
+            with open(metrics_file, "a", encoding="utf-8") as f:
                 f.write(json.dumps({
                     "step": base_step + step,
                     "run_step": step,

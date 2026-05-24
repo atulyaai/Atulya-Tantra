@@ -154,13 +154,14 @@ class SpeechToText:
         language: str = "en", model: str = "base",
     ) -> STTResult:
         """Transcribe audio to text."""
+        _temp_created = False
         if audio_base64 and not audio_path:
             audio_path = self._save_temp_audio(audio_base64)
+            _temp_created = True
         if not audio_path:
             return STTResult(id="error", text="", error="No audio provided")
 
         stt_result = STTResult(id="error", text="", error="Transcription failed")
-        # Try local whisper first (free, CPU-based)
         try:
             import whisper
             whisp_model = whisper.load_model(model)
@@ -175,8 +176,13 @@ class SpeechToText:
                 confidence=result.get("confidence", 0.9), words=words, provider="whisper",
             )
         except ImportError:
-            # Fallback: OpenAI API
             stt_result = await self._transcribe_openai(audio_path, language)
+        finally:
+            if _temp_created and audio_path:
+                try:
+                    os.unlink(audio_path)
+                except OSError:
+                    pass
 
         self._history.append(stt_result)
         return stt_result

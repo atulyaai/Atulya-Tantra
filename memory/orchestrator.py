@@ -54,6 +54,9 @@ class MemoryProvider(ABC):
     @abstractmethod
     async def get_recent(self, limit: int = 10) -> list[MemoryEntry]: pass
 
+    async def close(self):
+        pass
+
 
 class MemoryOrchestrator:
     def __init__(self, data_dir: str | Path):
@@ -102,6 +105,10 @@ class MemoryOrchestrator:
         for p in self.providers.values():
             if hasattr(p, "compact"):
                 await p.compact()
+
+    async def close_all(self):
+        for p in self.providers.values():
+            await p.close()
 
     def get_stats(self) -> dict[str, Any]:
         return {

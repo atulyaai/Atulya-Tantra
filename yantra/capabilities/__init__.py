@@ -139,7 +139,8 @@ class ExecTool(Tool):
         if not allowed or executable not in {item.lower() for item in allowed}:
             return ToolResult(success=False, error=f"Command not allow-listed: {executable}")
         try:
-            result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=30)
+            cmd_list = shlex.split(command, posix=False)
+            result = subprocess.run(cmd_list, capture_output=True, text=True, timeout=30)
             return ToolResult(success=result.returncode == 0, output=result.stdout, error=result.stderr)
         except Exception as e:
             return ToolResult(success=False, error=str(e))

@@ -125,6 +125,7 @@ class TestSessionSearch:
                 await p.store(MemoryEntry(id="t1", provider="ss", content="hello world"))
                 results = await p.search("hello")
                 assert len(results) >= 1
+                await p.close()
         asyncio.run(run())
 
 
@@ -151,6 +152,7 @@ class TestSubconscious:
                 await p.log_decision("d1", "test decision", "success")
                 recent = await p.get_recent()
                 assert len(recent) >= 1
+                await p.close()
         asyncio.run(run())
 
 
@@ -164,6 +166,7 @@ class TestReflection:
                 await p.add_reflection("test insight", "insight")
                 insights = await p.get_insights()
                 assert len(insights) >= 1
+                await p.close()
         asyncio.run(run())
 
 
@@ -471,6 +474,7 @@ class TestMemoryTree:
             assert l1["entry_count"] == 2
             l2 = t.get_l2_global()
             assert len(l2) >= 1
+            t.close()
 
     def test_search(self):
         from atulya.memory.tree import MemoryTree
@@ -479,6 +483,7 @@ class TestMemoryTree:
             t.add_entry("hello world", "general")
             results = t.search("hello")
             assert len(results) >= 1
+            t.close()
 
 
 # ===================================================================

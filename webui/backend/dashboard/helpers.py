@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
+import threading
 from pathlib import Path
 from typing import Any
 
 from fastapi import Header, HTTPException
 
 from .state import ADMIN_TOKEN, DATASETS_DIR, DashboardState, OUTPUTS_DIR
+
+logger = logging.getLogger(__name__)
 
 
 def _require_admin(token: str | None = Header(default=None, alias="X-Atulya-Token")) -> None:
@@ -79,15 +83,18 @@ def _model_registry() -> list[dict]:
     return models
 
 
+_MODEL_CACHE_LOCK = threading.Lock()
+
 def _load_cached_model(model_path: Path):
     from tantra.npdna import NpDnaCore
 
     key = str(model_path.resolve())
     meta = model_path / "metadata.json"
     mtime = meta.stat().st_mtime if meta.exists() else 0
-    if key not in DashboardState.MODEL_CACHE or DashboardState.MODEL_CACHE_MTIME.get(key) != mtime:
-        DashboardState.MODEL_CACHE[key] = NpDnaCore.load(model_path)
-        DashboardState.MODEL_CACHE_MTIME[key] = mtime
+    with _MODEL_CACHE_LOCK:
+        if key not in DashboardState.MODEL_CACHE or DashboardState.MODEL_CACHE_MTIME.get(key) != mtime:
+            DashboardState.MODEL_CACHE[key] = NpDnaCore.load(model_path)
+            DashboardState.MODEL_CACHE_MTIME[key] = mtime
     return DashboardState.MODEL_CACHE[key]
 
 
@@ -159,7 +166,8 @@ def _tail_lines(path: Path, max_lines: int = 80) -> list[str]:
         return []
     try:
         return path.read_text(encoding="utf-8", errors="replace").splitlines()[-max_lines:]
-    except Exception:
+    except Exception as exc:
+        logger.debug("Failed to tail %s: %s", path, exc)
         return []
 
 
@@ -169,7 +177,8 @@ def _pid_running(pid: int | None) -> bool:
     try:
         import psutil
         return psutil.pid_exists(pid) and psutil.Process(pid).is_running()
-    except Exception:
+    except Exception as exc:
+        logger.debug("psutil pid check failed: %s", exc)
         try:
             os.kill(pid, 0)
             return True
@@ -213,7 +222,8 @@ def _read_status_file() -> dict:
         data = json.loads(path.read_text(encoding="utf-8"))
         data["_path"] = str(path)
         return data
-    except Exception:
+    except Exception as exc:
+        logger.debug("Failed to read status file %s: %s", path, exc)
         return {"_path": str(path), "phase": "unreadable"}
 
 

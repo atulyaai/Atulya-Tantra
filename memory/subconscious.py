@@ -20,11 +20,6 @@ class SubconsciousProvider(MemoryProvider):
             self._conn.execute("PRAGMA journal_mode=WAL")
         return self._conn
 
-    def _close_conn(self):
-        if self._conn:
-            self._conn.close()
-            self._conn = None
-
     async def initialize(self):
         conn = self._get_conn()
         conn.execute("""
@@ -43,7 +38,6 @@ class SubconsciousProvider(MemoryProvider):
              entry.created_at, entry.metadata.get("outcome", "pending")),
         )
         conn.commit()
-        self._close_conn()
         return entry.id
 
     async def search(self, query: str, limit: int = 10) -> list[MemoryEntry]:
@@ -52,7 +46,6 @@ class SubconsciousProvider(MemoryProvider):
             "SELECT id, content, metadata, tags, created_at FROM decisions WHERE content LIKE ? LIMIT ?",
             (f"%{query}%", limit),
         ).fetchall()
-        self._close_conn()
         return [
             MemoryEntry(id=r[0], provider="subconscious", content=r[1],
                        metadata=json.loads(r[2]) if r[2] else {},
@@ -66,7 +59,6 @@ class SubconsciousProvider(MemoryProvider):
             "SELECT id, content, metadata, tags, created_at FROM decisions ORDER BY created_at DESC LIMIT ?",
             (limit,),
         ).fetchall()
-        self._close_conn()
         return [
             MemoryEntry(id=r[0], provider="subconscious", content=r[1],
                        metadata=json.loads(r[2]) if r[2] else {},
@@ -83,5 +75,8 @@ class SubconsciousProvider(MemoryProvider):
         conn = self._get_conn()
         conn.execute("VACUUM")
         conn.commit()
-        self._close_conn()
 
+    async def close(self):
+        if self._conn:
+            self._conn.close()
+            self._conn = None
