@@ -32,13 +32,21 @@ _UNARY_OPS: dict[type[ast.unaryop], Callable[[Any], Any]] = {
     ast.USub: operator.neg,
 }
 
+
+def _safe_pow(a: Any, b: Any) -> Any:
+    """pow() wrapper that enforces the same exponent limit as the ** operator."""
+    if abs(b) > 12:
+        raise ValueError(f"Exponent too large: {b}")
+    return pow(a, b)
+
+
 _FUNCTIONS: dict[str, Callable[..., Any]] = {
     "abs": abs,
     "round": round,
     "min": min,
     "max": max,
     "sum": sum,
-    "pow": pow,
+    "pow": _safe_pow,
     "sqrt": math.sqrt,
     "sin": math.sin,
     "cos": math.cos,
