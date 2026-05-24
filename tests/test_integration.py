@@ -1,5 +1,6 @@
-"""Comprehensive tests for all Atulya Tantra systems."""
 from __future__ import annotations
+
+"""Comprehensive tests for all Atulya Tantra systems."""
 
 import asyncio
 import tempfile
@@ -174,7 +175,7 @@ class TestReflection:
 # SELF-IMPROVEMENT TESTS
 # ===================================================================
 
-class TestUnifiedSelfImprovement:
+class TestUnifiedSelfImprovementIntegration:
     def test_init(self):
         from yantra.selfimprovement.unified import UnifiedSelfImprovement
         with tempfile.TemporaryDirectory() as tmp:
@@ -277,7 +278,7 @@ class TestPluginRegistry:
 # CONTEXT TESTS
 # ===================================================================
 
-class TestContextWindowGuard:
+class TestContextWindowGuardIntegration:
     def test_add_message(self):
         from tantra.core.context import ContextWindowGuard, ContextMessage
         guard = ContextWindowGuard(max_tokens=100)
@@ -292,7 +293,7 @@ class TestContextWindowGuard:
         assert len(guard.messages) <= 3
 
 
-class TestContextCompressor:
+class TestContextCompressorIntegration:
     def test_compress(self):
         from tantra.core.context import ContextCompressor
         c = ContextCompressor()
@@ -317,7 +318,7 @@ class TestContextCompressor:
 # SECURITY TESTS
 # ===================================================================
 
-class TestApprovalSystem:
+class TestApprovalSystemIntegration:
     def test_risk_assessment(self):
         from tantra.core.security import ApprovalSystem, RiskLevel
         a = ApprovalSystem()
@@ -332,7 +333,7 @@ class TestApprovalSystem:
         assert req.status == ApprovalStatus.APPROVED
 
 
-class TestSSRFProtection:
+class TestSSRFProtectionIntegration:
     def test_block_private(self):
         from tantra.core.security import SSRFProtection
         s = SSRFProtection()
@@ -542,7 +543,7 @@ class TestCronScheduler:
 # TASK CLASSIFIER TESTS
 # ===================================================================
 
-class TestTaskClassifier:
+class TestTaskClassifierIntegration:
     def test_classify_coding(self):
         from tantra.core.task_classifier import TaskClassifier, TaskCategory
         tc = TaskClassifier()
@@ -560,7 +561,7 @@ class TestTaskClassifier:
 # TAMPER-EVIDENT LOG TESTS
 # ===================================================================
 
-class TestTamperEvidentLog:
+class TestTamperEvidentLogIntegration:
     def test_append_and_verify(self):
         from tantra.core.audit_log import TamperEvidentLog
         with tempfile.TemporaryDirectory() as tmp:
@@ -573,7 +574,7 @@ class TestTamperEvidentLog:
 # ENCRYPTION AT REST TESTS
 # ===================================================================
 
-class TestEncryptedStorage:
+class TestEncryptedStorageIntegration:
     def test_encrypt_decrypt(self):
         from tantra.core.encryption import EncryptedStorage
         e = EncryptedStorage("test-key")
@@ -616,7 +617,7 @@ class TestPlasticityAutoScale:
 # CORTEX AUTO-STORE TESTS
 # ===================================================================
 
-class TestCortexAutoStore:
+class TestCortexAutoStoreIntegration:
     def test_store_and_retrieve(self):
         from tantra.npdna.cortex_autostore import CortexAutoStore
         with tempfile.TemporaryDirectory() as tmp:
@@ -630,7 +631,7 @@ class TestCortexAutoStore:
 # AUDIO/VISION ENCODER TESTS
 # ===================================================================
 
-class TestAudioEncoder:
+class TestAudioEncoderIntegration:
     def test_encode(self):
         from tantra.npdna.encoders import AudioEncoder
         e = AudioEncoder()
@@ -638,7 +639,7 @@ class TestAudioEncoder:
         assert len(result.embedding) == 128
 
 
-class TestVisionEncoder:
+class TestVisionEncoderIntegration:
     def test_encode(self):
         from tantra.npdna.encoders import VisionEncoder
         e = VisionEncoder()
