@@ -69,11 +69,16 @@ class NpDnaModel(nn.Module):
     def active_parameter_count(self) -> int:
         """Params active per token (sparse — only top_k strands)."""
         total = self.embedding.weight.numel() + self.final_norm.weight.numel() * 2
-        per_strand = (
-            self.config.hidden_size * self.config.state_size * 3
-            + self.config.state_size * self.config.hidden_size
+        H = self.config.hidden_size
+        S = self.config.state_size
+        # Per-strand: gate (H×S + S) + state (H×S + S) + recurrent (S×S + S) + output (S×H + H)
+        per_strand_weights = H * S + H * S + S * S + S * H  # = 3*H*S + S*S
+        per_strand_biases = S + S + S + H  # = 3*S + H
+        per_strand = per_strand_weights + per_strand_biases
+        total += sum(
+            per_strand * min(spec.top_k, spec.num_strands)
+            for spec in self.layer_specs
         )
-        total += per_strand * self.config.mesh.top_k * self.config.num_layers
         total += self.genome.config.param_estimate
         return total
 

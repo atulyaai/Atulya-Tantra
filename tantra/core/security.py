@@ -172,16 +172,26 @@ class PromptInjectionGuard:
 
 class EncryptionManager:
     def __init__(self, key: str | None = None):
-        self._key = key or os.environ.get("ATULYA_ENCRYPTION_KEY", "default-key-change-in-production")
+        resolved = key or os.environ.get("ATULYA_ENCRYPTION_KEY")
+        if not resolved:
+            raise ValueError(
+                "EncryptionManager requires a key via constructor argument or "
+                "ATULYA_ENCRYPTION_KEY environment variable"
+            )
+        self._key = resolved
 
     def hash_password(self, password: str) -> str:
-        salt = os.urandom(16).hex()
-        hash_val = hashlib.sha256((salt + password).encode()).hexdigest()
-        return f"{salt}:{hash_val}"
+        salt = os.urandom(16)
+        hash_val = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 600_000).hex()
+        return f"{salt.hex()}:{hash_val}"
 
     def verify_password(self, password: str, stored: str) -> bool:
-        salt, hash_val = stored.split(":")
-        return hashlib.sha256((salt + password).encode()).hexdigest() == hash_val
+        salt_hex, hash_val = stored.split(":")
+        salt = bytes.fromhex(salt_hex)
+        return hmac.compare_digest(
+            hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 600_000).hex(),
+            hash_val,
+        )
 
     def redact_secrets(self, text: str) -> str:
         patterns = [

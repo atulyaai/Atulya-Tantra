@@ -16,6 +16,12 @@ from torch import Tensor
 
 from .tokenizer import SPECIAL_TOKENS
 
+try:
+    from atulya.identity import Identity as _Identity
+    _HAS_IDENTITY = True
+except ImportError:
+    _HAS_IDENTITY = False
+
 logger = logging.getLogger(__name__)
 
 # ── Sampling helpers ──────────────────────────────────────────────────────────
@@ -76,10 +82,12 @@ def _build_chat_prompt(prompt: str, system: Optional[str] = None) -> str:
     if "Assistant:" in prompt and "User:" in prompt:
         return prompt
     if system is None:
-        try:
-            from atulya.identity import Identity
-            system = Identity().get_system_prompt()
-        except Exception:
+        if _HAS_IDENTITY:
+            try:
+                system = _Identity().get_system_prompt()
+            except Exception:
+                system = "You are Atulya. Be warm, thoughtful, and direct."
+        else:
             system = "You are Atulya. Be warm, thoughtful, and direct."
     return f"System: {system}\nUser: {prompt.strip()}\nAssistant:"
 

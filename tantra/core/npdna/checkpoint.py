@@ -168,6 +168,70 @@ class CheckpointMixin:
         core.active_path = path
         return core
 
+    @staticmethod
+    def _is_component_format(path: Path) -> bool:
+        """Check if model_index.json points to component files (v3) vs shards (v2)."""
+        try:
+            idx = json.loads((path / "model_index.json").read_text(encoding="utf-8"))
+            return "component_files" in idx
+        except Exception:
+            return False
+
+    @staticmethod
+    def _load_components(path: Path) -> dict[str, torch.Tensor]:
+        """Load state dict from component files (genome.pt, embedding.pt, layer_*.pt, final_norm.pt)."""
+        idx = json.loads((path / "model_index.json").read_text(encoding="utf-8"))
+        components = idx["component_files"]
+        vocabulary_file = components.get("vocabulary") or components.get("embedding")
+        if not vocabulary_file:
+            raise KeyError(
+                f"Checkpoint at {path} is missing both 'vocabulary' and 'embedding' keys "
+                "in model_index.json component_files"
+            )
+        required_files = [components["genome"], vocabulary_file, *components["layers"], components["final_norm"]]
+        missing = [fname for fname in required_files if not (path / fname).exists()]
+        if missing:
+            raise FileNotFoundError(
+                f"Checkpoint at {path} is component-indexed but missing weight files: {missing}"
+            )
+        state = {}
+
+        # Load genome
+        genome = torch.load(path / components["genome"], map_location="cpu", weights_only=True)
+        state.update(genome)
+        logger.debug("Loaded genome.pt (%d tensors)", len(genome))
+
+        # Load embedding
+        embedding = torch.load(path / components["embedding"], map_location="cpu", weights_only=True)
+        state.update(embedding)
+        logger.debug("Loaded embedding.pt (%d tensors)", len(embedding))
+
+        # Load per-layer files
+        for fname in components["layers"]:
+            layer = torch.load(path / fname, map_location="cpu", weights_only=True)
+            state.update(layer)
+            logger.debug("Loaded %s (%d tensors)", fname, len(layer))
+
+        # Load final norm
+        final_norm = torch.load(path / components["final_norm"], map_location="cpu", weights_only=True)
+        state.update(final_norm)
+        logger.debug("Loaded final_norm.pt (%d tensors)", len(final_norm))
+
+        logger.info("Loaded state from %d component files", len(required_files))
+        return state
+
+    @staticmethod
+    def _load_sharded(path: Path, index: dict) -> dict[str, torch.Tensor]:
+        """Load state dict from multiple shard files listed in model_index.json (v2 format)."""
+        state = {}
+        for wf in index["weight_files"]:
+            shard = torch.load(path / wf, map_location="cpu", weights_only=True)
+            state.update(shard)
+            logger.debug("Loaded shard %s (%d tensors)", wf, len(shard))
+        return state
+
+    # ── Config matching ────────────────────────────────────────────────────────
+
     def _match_config_name(self) -> str:
         from .config import CONFIGS
         for name, c in CONFIGS.items():

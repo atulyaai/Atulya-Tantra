@@ -21,7 +21,7 @@ class EncryptedStorage:
         self._master_key = hashlib.sha256(self._key.encode()).digest()
 
     def _derive_encryption_key(self) -> bytes:
-        return hashlib.sha256(self._key.encode()).digest()
+        return self._master_key
 
     def encrypt_value(self, value: str) -> str:
         """XOR-encrypt with random IV so same value produces different ciphertexts."""
