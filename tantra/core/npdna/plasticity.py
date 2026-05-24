@@ -10,6 +10,7 @@ Monitors training metrics and adapts the architecture:
 from __future__ import annotations
 
 import logging
+from collections import OrderedDict
 from dataclasses import dataclass, field
 
 import torch
@@ -68,7 +69,7 @@ class PlasticityEngine:
 
         self.events: list[PlasticityEvent] = []
         self.loss_history: list[float] = []
-        self._last_dead_reinit: set[tuple[int, int]] = set()
+        self._last_dead_reinit: OrderedDict[tuple[int, int], None] = OrderedDict()
         self._available_dead_strands: dict[int, list[int]] = {}
         self._checks_since_growth = grow_cooldown_checks
 
@@ -167,7 +168,7 @@ class PlasticityEngine:
                     mesh.router.weight[dead_id].normal_(mean=0.0, std=nn_init_std)
                 
                 key = (layer_i, dead_id)
-                self._last_dead_reinit.discard(key)
+                self._last_dead_reinit.pop(key, None)
                 
                 msg = f"Layer {layer_i}: reused dead strand {dead_id} for overloaded capacity"
                 logger.info("Plasticity: %s", msg)
@@ -206,11 +207,11 @@ class PlasticityEngine:
                     nn_init_std = 1.0 / (max(1, mesh.router.weight.shape[1]) ** 0.5)
                     mesh.router.weight[s_id].normal_(mean=0.0, std=nn_init_std)
                 reinitialized.append(s_id)
-                self._last_dead_reinit.add(key)
+                self._last_dead_reinit[key] = None
         if len(self._last_dead_reinit) > 1000:
             to_remove = len(self._last_dead_reinit) - 1000
             for _ in range(to_remove):
-                self._last_dead_reinit.pop()
+                self._last_dead_reinit.popitem(last=False)
         return reinitialized
 
     def _check_vocab_pressure(self, step: int) -> list[PlasticityEvent]:
