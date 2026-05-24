@@ -14,9 +14,9 @@ from dataclasses import dataclass, field
 class GenomeConfig:
     """DNA weight generator configuration."""
 
-    latent_dim: int = 256
+    latent_dim: int | None = None  # None = auto-computed from hidden_size
     rank: int = 32
-    max_strands: int = 64
+    max_strands: int | None = None  # None = auto-computed from num_layers * mesh.num_strands
     encoder_hidden: int = 512
 
     @property
@@ -84,9 +84,9 @@ class NpDnaConfig:
         self.mesh.strand.state_size = self.state_size
         self.cortex.dim = self.hidden_size
         # Only set genome defaults if not explicitly configured
-        if self.genome.latent_dim == 256:
+        if self.genome.latent_dim is None:
             self.genome.latent_dim = min(512, self.hidden_size * 2)
-        if self.genome.max_strands == 64:
+        if self.genome.max_strands is None:
             self.genome.max_strands = self.mesh.num_strands * self.num_layers
 
     @property

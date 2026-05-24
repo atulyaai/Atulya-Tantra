@@ -110,6 +110,7 @@ class GenerationMixin:
         context_window: int = 128,
         audio_inputs: Optional[Tensor] = None,
         image_inputs: Optional[Tensor] = None,
+        system: Optional[str] = None,
     ) -> str:
         return "".join(
             self.generate_stream(
@@ -124,6 +125,7 @@ class GenerationMixin:
                 context_window=context_window,
                 audio_inputs=audio_inputs,
                 image_inputs=image_inputs,
+                system=system,
             )
         )
 
@@ -140,8 +142,9 @@ class GenerationMixin:
         context_window: int = 128,
         audio_inputs: Optional[Tensor] = None,
         image_inputs: Optional[Tensor] = None,
+        system: Optional[str] = None,
     ) -> Generator[str, None, None]:
-        prompt = _build_chat_prompt(prompt)
+        prompt = _build_chat_prompt(prompt, system=system)
         prompt_ids = self.encode(prompt, allow_growth=False)
         self.last_prompt_len = len(prompt_ids)
         ids = list(prompt_ids) or [self.tokenizer.token_to_id.get("<bos>", 2)]
@@ -241,7 +244,7 @@ class GenerationMixin:
 
         telemetry = []
         for t, tok_id in enumerate(self.last_generated_ids):
-            tok_raw = self.tokenizer.id_to_token[tok_id] if tok_id < len(self.tokenizer.id_to_token) else f"<unk_{tok_id}>"
+            tok_raw = self.tokenizer.id_to_token[tok_id] if tok_id < self.tokenizer.size else f"<unk_{tok_id}>"
 
             layers_info = []
             for mesh in self.model.mesh_layers:

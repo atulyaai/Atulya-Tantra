@@ -85,33 +85,37 @@ class NeuralMesh(nn.Module):
         # Compute outputs from selected Strands
         output = torch.zeros_like(x)
 
-        for k_idx in range(K):
-            strand_indices = top_indices[:, :, k_idx]  # (B, T)
-            w = top_weights[:, :, k_idx].unsqueeze(-1)  # (B, T, 1)
+        # Gather all (batch, time, k_idx) triples and group by strand
+        # This replaces the O(K×N) nested loop with O(num_active_strands × avg_tokens_per_strand)
+        flat_indices = top_indices.reshape(B * T * K)  # (B*T*K,)
+        flat_weights = top_weights.reshape(B * T * K, 1)  # (B*T*K, 1)
+        flat_x = x.unsqueeze(2).expand(-1, -1, K, -1).reshape(B * T * K, -1)  # (B*T*K, H)
 
-            for s_id in range(N):
-                mask = strand_indices == s_id  # (B, T)
-                if not mask.any():
-                    continue
+        # Find unique strand indices and their inverse mapping
+        unique_strands, inverse = torch.unique(flat_indices, return_inverse=True)
+        unique_strands = unique_strands.tolist()  # move to host for iteration
 
-                # Gather tokens that route to this Strand
-                # Use a batched approach: find all (batch, time) positions
-                batch_idx, time_idx = torch.where(mask)
-                if len(batch_idx) == 0:
-                    continue
+        for s_id in unique_strands:
+            mask = inverse == int(s_id)  # use the pre-computed inverse
+            mask_flat = mask
+            if not mask_flat.any():
+                continue
 
-                # Extract relevant tokens
-                strand_input = x[batch_idx, time_idx].unsqueeze(1)  # (M, 1, H)
+            strand_tokens = flat_x[mask_flat].unsqueeze(1)  # (M, 1, H)
+            strand_weights = flat_weights[mask_flat]  # (M, 1)
 
-                # Process through Strand
-                strand_output = self.strands[s_id](strand_input).squeeze(1)  # (M, H)
+            # Process through Strand
+            strand_output = self.strands[s_id](strand_tokens).squeeze(1)  # (M, H)
 
-                # Weight and accumulate
-                token_weights = w[batch_idx, time_idx]  # (M, 1)
-                output[batch_idx, time_idx] += strand_output * token_weights
+            # Scatter back
+            flat_indices_masked = torch.where(mask_flat)[0]
+            batch_idx = flat_indices_masked // (T * K)
+            remainder = flat_indices_masked % (T * K)
+            time_idx = remainder // K
+            output[batch_idx, time_idx] += strand_output * strand_weights
 
-                # Track usage
-                self._usage_counts[s_id] += len(batch_idx)
+            # Track usage
+            self._usage_counts[s_id] += mask_flat.sum().item()
 
         # Load-balancing loss: encourage even distribution across Strands
         # Based on Switch Transformer's balance loss
