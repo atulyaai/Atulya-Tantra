@@ -27,7 +27,11 @@ class CortexAutoStore:
     def _load(self):
         store_file = self.data_dir / "cortex_store.json"
         if store_file.exists():
-            self._store = json.loads(store_file.read_text())
+            try:
+                self._store = json.loads(store_file.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError, OSError) as exc:
+                logger.warning("CortexAutoStore: corrupt store file %s — starting fresh (%s)", store_file, exc)
+                self._store = {}
 
     def _save(self):
         store_file = self.data_dir / "cortex_store.json"
