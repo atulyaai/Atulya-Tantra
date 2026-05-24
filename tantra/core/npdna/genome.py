@@ -111,12 +111,24 @@ class Genome(nn.Module):
         return self.config.max_strands
 
     def add_strand_capacity(self, count: int = 1) -> None:
-        """Grow seed bank to accommodate more Strands."""
+        """Grow seed bank to accommodate more Strands.
+
+        Grows the seeds tensor **in-place** so that the same Parameter
+        object is preserved.  This is important because optimizers track
+        state (momentum, Adam buffers) by parameter object identity —
+        replacing ``self.seeds`` with a brand-new ``nn.Parameter`` would
+        orphan those optimizer states and silently stop training the new
+        seeds.
+        """
         old_max = int(self.seeds.shape[0])
         new_max = old_max + count
-        old_seeds = self.seeds.data
-        new_seeds = torch.randn(new_max, self.config.latent_dim, device=old_seeds.device) * 0.02
-        new_seeds[:old_max] = old_seeds
-        self.seeds = nn.Parameter(new_seeds)
+        device = self.seeds.device
+        # Resize the existing parameter's data in-place
+        self.seeds.data.resize_(new_max, self.config.latent_dim)
+        # Zero-init the newly-grown rows (conservative — don't assume
+        # a distribution scale that may interfere with the existing
+        # trained seeds).
+        with torch.no_grad():
+            self.seeds.data[old_max:].normal_(mean=0.0, std=0.02)
         self.config.max_strands = new_max
         logger.info("Genome: expanded seed bank %d → %d", old_max, new_max)
