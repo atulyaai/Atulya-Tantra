@@ -118,15 +118,23 @@ def load_dataset(path: str | Path, limit: int | None = None, append_eos: bool = 
         path = build_seed_dataset(path)
 
     texts = []
-    with open(path, encoding="utf-8") as f:
+    with open(path, encoding="utf-8-sig") as f:
         for line in f:
             line = line.strip()
             if not line:
                 continue
-            record = json.loads(line)
-            texts.append(_format_record(record, append_eos=append_eos))
+            try:
+                record = json.loads(line)
+                texts.append(_format_record(record, append_eos=append_eos))
+            except json.JSONDecodeError:
+                continue
             if limit and len(texts) >= limit:
                 break
+
+    if not texts:
+        logger.warning("No valid JSONL samples in %s, building seed dataset", path)
+        path = build_seed_dataset(path)
+        return load_dataset(path, limit=limit, append_eos=append_eos)
 
     logger.info("Loaded %d training samples from %s", len(texts), path)
     return texts

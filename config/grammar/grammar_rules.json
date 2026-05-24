@@ -215,6 +215,54 @@
       "replacement": "bar",
       "description": "Test rule",
       "enabled": true
+    },
+    {
+      "name": "test_rule",
+      "language": "en",
+      "pattern": "foo",
+      "replacement": "bar",
+      "description": "Test rule",
+      "enabled": true
+    },
+    {
+      "name": "test_rule",
+      "language": "en",
+      "pattern": "foo",
+      "replacement": "bar",
+      "description": "Test rule",
+      "enabled": true
+    },
+    {
+      "name": "test_rule",
+      "language": "en",
+      "pattern": "foo",
+      "replacement": "bar",
+      "description": "Test rule",
+      "enabled": true
+    },
+    {
+      "name": "test_rule",
+      "language": "en",
+      "pattern": "foo",
+      "replacement": "bar",
+      "description": "Test rule",
+      "enabled": true
+    },
+    {
+      "name": "test_rule",
+      "language": "en",
+      "pattern": "foo",
+      "replacement": "bar",
+      "description": "Test rule",
+      "enabled": true
+    },
+    {
+      "name": "test_rule",
+      "language": "en",
+      "pattern": "foo",
+      "replacement": "bar",
+      "description": "Test rule",
+      "enabled": true
     }
   ]
 }

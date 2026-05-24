@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.1] — 2026-05-25
+
+Consolidated test files from 30 to 4 (one per package), deduplicating imports and renaming overlapping integration classes with `Integration` suffix. All 413 tests pass.
+
+### Changed
+- `tests/tantra/` (18 files → `test_tantra.py`), `tests/yantra/` (9 files → `test_yantra.py`), `tests/atulya/` (2 files → `test_atulya.py`), `tests/integration/` (1 file → `test_integration.py`)
+- 11 overlapping integration test classes renamed with `Integration` suffix to avoid name collisions
+
 ## [0.4.0] — 2026-05-25
 
 Deep bug bounty pass: 11 structural fixes across the memory subsystem, audit log, voice pipeline, and error handling.
