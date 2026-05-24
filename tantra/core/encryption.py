@@ -10,7 +10,15 @@ from typing import Any
 
 class EncryptedStorage:
     def __init__(self, key: str | None = None):
-        self._key = key or os.environ.get("ATULYA_ENCRYPTION_KEY", "default-key-change-in-production")
+        resolved = key or os.environ.get("ATULYA_ENCRYPTION_KEY")
+        if not resolved:
+            raise ValueError(
+                "EncryptedStorage requires a key via constructor argument or "
+                "ATULYA_ENCRYPTION_KEY environment variable"
+            )
+        self._key = resolved
+        # Derive a fixed 32-byte master key once
+        self._master_key = hashlib.sha256(self._key.encode()).digest()
 
     def _derive_encryption_key(self) -> bytes:
         return hashlib.sha256(self._key.encode()).digest()
