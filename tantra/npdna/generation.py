@@ -237,7 +237,7 @@ class GenerationMixin:
 
         telemetry = []
         for t, tok_id in enumerate(self.last_generated_ids):
-            tok_raw = self.tokenizer.id_to_token[tok_id] if tok_id < len(self.tokenizer.id_to_token) else f"<unk_{tok_id}>"
+            tok_raw = self.tokenizer.id_to_token[tok_id] if tok_id < self.tokenizer.size else f"<unk_{tok_id}>"
 
             layers_info = []
             for mesh in self.model.mesh_layers:

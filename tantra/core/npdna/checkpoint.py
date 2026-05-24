@@ -87,8 +87,9 @@ class CheckpointMixin:
 
         # Infer actual strand count from weights (beats stale metadata)
         inferred_strands = max(
-            (int(re.match(r"mesh_layers\.\d+\.strands\.(\d+)\.", k).group(1)) + 1
-             for k in state if re.match(r"mesh_layers\.\d+\.strands\.(\d+)\.", k)),
+            (int(m.group(1)) + 1
+             for k in state
+             if (m := re.match(r"mesh_layers\.\d+\.strands\.(\d+)\.", k))),
             default=meta.get("num_strands", 4),
         )
 

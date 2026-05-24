@@ -74,7 +74,11 @@ class PlasticityEngine:
         self._checks_since_growth = grow_cooldown_checks
 
     def record_loss(self, loss: float) -> None:
-        """Record a training loss value."""
+        """Record a training loss value. Rejects non-numeric and bool values."""
+        if isinstance(loss, bool):
+            raise TypeError(f"loss must be numeric, got bool")
+        if not isinstance(loss, (int, float)):
+            raise TypeError(f"loss must be numeric, got {type(loss).__name__}")
         self.loss_history.append(loss)
 
     def check(self, step: int) -> list[PlasticityEvent]:

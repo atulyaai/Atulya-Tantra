@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -118,12 +119,11 @@ class PromptCache:
 
     def get(self, key: str) -> str | None:
         entry = self._cache.get(key)
-        if entry and entry.get("expires", 0) > 0:
+        if entry and time.time() < entry.get("expires", 0):
             return entry.get("value")
         return None
 
     def set(self, key: str, value: str, ttl: int = 3600):
-        import time
         self._cache[key] = {"value": value, "expires": time.time() + ttl}
 
     def invalidate(self, key: str):
