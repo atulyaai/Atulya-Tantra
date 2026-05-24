@@ -32,10 +32,21 @@ Core ideas:
 
 - **Genome-generated weights**: compact seeds plus a generator instead of every dense layer weight.
 - **Specialist strands**: named groups like `main`, `sentiment`, `bias`, `security`, and `cortex`.
-- **Sparse top-k routing**: only a few strands activate per token.
+- **Sparse top-k routing**: a **mesh** layer scores every strand per token, activates only the top-k, and weight-sums their outputs. Compute stays linear in active strands, not total strands.
 - **Memory cortex**: external vector memory for facts, state, and retrieval.
 - **Plasticity**: vocabulary and strand growth hooks for adaptation during training.
 - **Frozen codecs**: audio/image/video can become tokenizer-like streams without storing codec weights inside NP-DNA.
+
+**Mesh routing breakdown**:
+
+| Step | What happens |
+|------|-------------|
+| 1. Score | Router linear layer computes a score per strand: `scores = W_router @ x` |
+| 2. Select | Top-k scores picked: `indices = scores.topk(k)` |
+| 3. Normalize | Softmax over selected scores → weighted blend |
+| 4. Execute | Only the k selected strands run their SSM on the token |
+| 5. Combine | Weighted sum of strand outputs added to the residual stream |
+| 6. Regularize | Router probabilities pushed toward uniform to prevent collapse |
 
 ## Current Layout
 
