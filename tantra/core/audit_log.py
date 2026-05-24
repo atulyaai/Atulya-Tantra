@@ -20,7 +20,7 @@ class AuditEntry:
 
 
 class TamperEvidentLog:
-    def __init__(self, log_path: str | Path = "data/audit.log"):
+    def __init__(self, log_path: str | Path = "assets/audit.log"):
         self.log_path = Path(log_path)
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         self._last_hash = "0" * 64
@@ -28,7 +28,7 @@ class TamperEvidentLog:
 
     def _load_last_hash(self):
         if self.log_path.exists():
-            lines = self.log_path.read_text().strip().split("\n")
+            lines = [line for line in self.log_path.read_text().splitlines() if line.strip()]
             if lines:
                 last = json.loads(lines[-1])
                 self._last_hash = last.get("entry_hash", "0" * 64)
@@ -55,7 +55,7 @@ class TamperEvidentLog:
         """Verify log integrity."""
         if not self.log_path.exists():
             return True
-        lines = self.log_path.read_text().strip().split("\n")
+        lines = [line for line in self.log_path.read_text().splitlines() if line.strip()]
         prev_hash = "0" * 64
         for line in lines:
             entry = json.loads(line)
@@ -70,4 +70,4 @@ class TamperEvidentLog:
     def __len__(self) -> int:
         if not self.log_path.exists():
             return 0
-        return len(self.log_path.read_text().strip().split("\n"))
+        return len([line for line in self.log_path.read_text().splitlines() if line.strip()])

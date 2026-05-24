@@ -5,14 +5,12 @@ Supports OpenCode as primary provider with circuit breaker pattern.
 from __future__ import annotations
 
 import asyncio
-import json
 import subprocess
 import time
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
 from typing import Any, AsyncIterator
 
 logger = logging.getLogger(__name__)
@@ -516,7 +514,6 @@ def create_failover_from_config(config: dict[str, Any]) -> ModelFailover:
     providers.append((OpenCodeProvider(opencode_cfg), opencode_cfg))
 
     if config.get("openai_api_key"):
-        from openai import AsyncOpenAI
         openai_cfg = ProviderConfig(
             name="openai",
             priority=10,

@@ -1,13 +1,15 @@
 """Plugin system with lifecycle hooks and SDK."""
 from __future__ import annotations
 
-import importlib
 import json
+import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable
+
+logger = logging.getLogger(__name__)
 
 
 class PluginState(Enum):
@@ -69,9 +71,11 @@ class PluginRegistry:
     async def run_hook(self, hook_name: str, **kwargs: Any):
         for callback in self._hooks.get(hook_name, []):
             try:
-                await callback(**kwargs) if hasattr(callback, "__await__") else callback(**kwargs)
+                result = callback(**kwargs)
+                if hasattr(result, "__await__"):
+                    await result
             except Exception as e:
-                pass
+                logger.error("Hook '%s' callback %s failed: %s", hook_name, getattr(callback, "__name__", callback), e)
 
     def scan_plugin(self, plugin_path: Path) -> dict[str, Any]:
         """Scan plugin for security before install."""

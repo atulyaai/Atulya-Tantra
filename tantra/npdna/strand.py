@@ -1,11 +1,11 @@
-"""Strand — causal gated state-space processing unit.
+﻿"""Strand â€” causal gated state-space processing unit.
 
 Each Strand is a lightweight recurrent processor whose weights are generated
 by the Genome (DNA).  It processes sequences causally (left-to-right) using
-gated state recurrence — O(T) linear time, no attention matrices, CPU-fast.
+gated state recurrence â€” O(T) linear time, no attention matrices, CPU-fast.
 
 The state update at each position t:
-    gate_t = σ(x_t @ W_gate + s_{t-1} @ W_recurrent + b_gate + b_rec)
+    gate_t = Ïƒ(x_t @ W_gate + s_{t-1} @ W_recurrent + b_gate + b_rec)
     s_t    = gate_t * s_{t-1} + (1 - gate_t) * tanh(x_t @ W_state + b_state)
     y_t    = s_t @ W_output + b_output
 
@@ -24,7 +24,7 @@ from .genome import Genome
 class Strand(nn.Module):
     """Causal gated state-space processing unit with DNA-generated weights.
 
-    Does NOT store its own weights — they come from the Genome.  This means
+    Does NOT store its own weights â€” they come from the Genome.  This means
     adding a new Strand costs only 256 params (one new seed in the Genome),
     not a full set of weight matrices.
 
@@ -44,7 +44,7 @@ class Strand(nn.Module):
         # Usage tracking for Plasticity Engine
         self.usage_count: int = 0
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, weights: dict[str, tuple[Tensor, Tensor]] | None = None) -> Tensor:
         """Process sequence causally.
 
         Args:
@@ -59,8 +59,9 @@ class Strand(nn.Module):
 
         x = self.norm(x)
 
-        # Generate weights from DNA (shared Genome)
-        weights = self.genome.generate_all(self.strand_id)
+        # Generate weights from DNA once per mesh forward when caller provides a cache.
+        if weights is None:
+            weights = self.genome.generate_all(self.strand_id)
         W_gate, b_gate = weights["gate"]          # (H, S), (S,)
         W_state, b_state = weights["state"]       # (H, S), (S,)
         W_rec, b_rec = weights["recurrent"]       # (S, S), (S,)
@@ -86,3 +87,4 @@ class Strand(nn.Module):
 
         self.usage_count += B * T
         return torch.stack(outputs, dim=1)  # (B, T, H)
+

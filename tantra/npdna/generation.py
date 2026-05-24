@@ -8,13 +8,20 @@ from __future__ import annotations
 import json
 import logging
 import re
-from pathlib import Path
+import hashlib
+import os
 from typing import Generator, Optional
 
 import torch
 from torch import Tensor
 
 from .tokenizer import SPECIAL_TOKENS
+
+try:
+    from atulya.persona import Persona as _Identity
+    _HAS_IDENTITY = True
+except ImportError:
+    _HAS_IDENTITY = False
 
 logger = logging.getLogger(__name__)
 
@@ -75,9 +82,31 @@ def _build_chat_prompt(prompt: str, system: Optional[str] = None) -> str:
     """Wrap a bare prompt in the standard chat format."""
     if "Assistant:" in prompt and "User:" in prompt:
         return prompt
-    # For seed/untrained models, skip system prompt to avoid leakage
-    # The model hasn't learned the System/User/Assistant format yet
-    return f"User: {prompt.strip()}\nAssistant:"
+    if system is None:
+        if _HAS_IDENTITY:
+            try:
+                system = _Identity().get_system_prompt()
+            except Exception:
+                system = "You are Atulya. Be warm, thoughtful, and direct."
+        else:
+            system = "You are Atulya. Be warm, thoughtful, and direct."
+    return f"System: {system}\nUser: {prompt.strip()}\nAssistant:"
+
+
+def _cache_prompt(prompt: str) -> str:
+    """Wire the prompt cache into generation without changing model behavior."""
+    try:
+        from memory.prompt_cache import PromptCacheProvider
+
+        cache = PromptCacheProvider(os.environ.get("ATULYA_DATA_DIR", "assets"))
+        key = "prompt_" + hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+        cached = cache.get(key)
+        if cached is None:
+            cache.set(key, prompt)
+        return cached or prompt
+    except Exception as exc:
+        logger.debug("Prompt cache unavailable: %s", exc)
+        return prompt
 
 
 # ── Generation mixin ──────────────────────────────────────────────────────────
@@ -106,6 +135,7 @@ class GenerationMixin:
         context_window: int = 128,
         audio_inputs: Optional[Tensor] = None,
         image_inputs: Optional[Tensor] = None,
+        system: Optional[str] = None,
     ) -> str:
         return "".join(
             self.generate_stream(
@@ -120,6 +150,7 @@ class GenerationMixin:
                 context_window=context_window,
                 audio_inputs=audio_inputs,
                 image_inputs=image_inputs,
+                system=system,
             )
         )
 
@@ -136,8 +167,10 @@ class GenerationMixin:
         context_window: int = 128,
         audio_inputs: Optional[Tensor] = None,
         image_inputs: Optional[Tensor] = None,
+        system: Optional[str] = None,
     ) -> Generator[str, None, None]:
-        prompt = _build_chat_prompt(prompt)
+        original_prompt = prompt
+        prompt = _cache_prompt(_build_chat_prompt(prompt, system=system))
         prompt_ids = self.encode(prompt, allow_growth=False)
         self.last_prompt_len = len(prompt_ids)
         ids = list(prompt_ids) or [self.tokenizer.token_to_id.get("<bos>", 2)]
@@ -156,11 +189,7 @@ class GenerationMixin:
                 input_ids = torch.tensor(
                     [ids[-context_window:]], dtype=torch.long, device=device
                 )
-                logits, _ = self.model(
-                    input_ids=input_ids,
-                    audio_inputs=audio_inputs,
-                    image_inputs=image_inputs,
-                )
+                logits, _ = self.model(input_ids=input_ids)
                 next_logits = logits[0, -1].clone()
 
                 if valid_vocab < next_logits.numel():
@@ -186,7 +215,19 @@ class GenerationMixin:
                 yield self.decode([next_id])
 
         self.last_generated_ids = ids
+        self._record_strand_specialization(original_prompt)
         self._handle_cortex_writeback(ids[len(prompt_ids):], device)
+
+    def _record_strand_specialization(self, prompt: str) -> None:
+        try:
+            from tantra.core.task_classifier import TaskClassifier
+
+            topic = TaskClassifier().classify(prompt).category.value
+            for mesh in self.model.mesh_layers:
+                if hasattr(mesh, "record_activation_topic"):
+                    mesh.record_activation_topic(topic)
+        except Exception as exc:
+            logger.debug("Strand specialization tracking skipped: %s", exc)
 
     # ── Cortex write-back ─────────────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-"""Checkpoint mixin for NpDnaCore.
+﻿"""Checkpoint mixin for NpDnaCore.
 
 Extracted from model.py to keep that file focused on architecture.
 Handles: save, load, metadata construction.
@@ -32,7 +32,6 @@ class CheckpointMixin:
         losses: list[float] | None = None,
         metadata_extra: dict | None = None,
     ) -> None:
-        from .config import CONFIGS
 
         path = Path(path)
         self.active_path = path
@@ -49,6 +48,14 @@ class CheckpointMixin:
             "num_layers": self.config.num_layers,
             "num_strands": self.config.mesh.num_strands,
             "top_k": self.config.mesh.top_k,
+            "layer_specs": [
+                {
+                    "name": spec.name,
+                    "num_strands": spec.num_strands,
+                    "top_k": spec.top_k,
+                }
+                for spec in getattr(self.model, "layer_specs", [])
+            ],
             "strand_ids": self.model.strand_id_map(),
             "vocab_capacity": self.tokenizer.capacity,
             "vocab_size": self.tokenizer.size,
@@ -73,17 +80,22 @@ class CheckpointMixin:
             meta.update(metadata_extra)
 
         (path / "metadata.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
-        logger.info("NpDnaCore saved → %s (%s params)", path, f"{self.model.parameter_count():,}")
+        logger.info("NpDnaCore saved â†’ %s (%s params)", path, f"{self.model.parameter_count():,}")
 
     @classmethod
     def load(cls, path: str | Path) -> "CheckpointMixin":
-        from .config import CONFIGS, CortexConfig, GenomeConfig, MeshConfig, NpDnaConfig, StrandConfig
+        from .config import CONFIGS, CortexConfig, GenomeConfig, LayerSpec, MeshConfig, NpDnaConfig, StrandConfig
         from .cortex import MemoryCortex
         from .tokenizer import AtulyaTokenizer
 
         path = Path(path)
         meta = json.loads((path / "metadata.json").read_text(encoding="utf-8"))
-        state = torch.load(path / "model.pt", map_location="cpu", weights_only=True)
+        if (path / "model.pt").exists():
+            state = torch.load(path / "model.pt", map_location="cpu", weights_only=True)
+        elif cls._is_component_format(path):
+            state = cls._load_components(path)
+        else:
+            raise FileNotFoundError(f"Checkpoint at {path} has neither model.pt nor component model_index.json")
 
         # Infer actual strand count from weights (beats stale metadata)
         inferred_strands = max(
@@ -102,6 +114,15 @@ class CheckpointMixin:
             top_k=meta["top_k"],
             strand=strand_cfg,
         )
+        layer_specs = [
+            LayerSpec(
+                name=str(item.get("name", "main")),
+                num_strands=int(item.get("num_strands", inferred_strands)),
+                top_k=int(item.get("top_k", meta["top_k"])),
+                strand=StrandConfig(hidden_size=meta["hidden_size"], state_size=meta["state_size"]),
+            )
+            for item in meta.get("layer_specs", [])
+        ]
         genome_cfg = GenomeConfig(
             latent_dim=meta.get("genome_latent_dim", 256),
             rank=meta.get("genome_rank", 32),
@@ -119,12 +140,13 @@ class CheckpointMixin:
             state_size=meta["state_size"],
             num_layers=meta["num_layers"],
             mesh=mesh_cfg,
+            mesh_specs=layer_specs,
             genome=genome_cfg,
             cortex=cortex_cfg,
         )
         config.genome.max_strands = meta.get("genome_max_strands", inferred_strands * meta["num_layers"])
 
-        # Avoid circular import — import NpDnaModel here
+        # Avoid circular import â€” import NpDnaModel here
         from .model import NpDnaModel
         model = NpDnaModel(config)
 
@@ -135,7 +157,7 @@ class CheckpointMixin:
         else:
             base_cfg = CONFIGS.get(str(meta.get("train_config_name") or meta.get("config_name")))
             base_n = base_cfg.mesh.num_strands if base_cfg else meta["num_strands"]
-            if meta["num_strands"] > base_n:
+            if not layer_specs and meta["num_strands"] > base_n:
                 growth = meta["num_strands"] - base_n
                 inferred = [
                     list(range(li * base_n, li * base_n + base_n))
@@ -161,12 +183,76 @@ class CheckpointMixin:
         cortex = MemoryCortex.load(cortex_path, config.cortex) if cortex_path.exists() else MemoryCortex(config.cortex)
 
         logger.info(
-            "NpDnaCore loaded ← %s (%s params, %d cortex entries)",
+            "NpDnaCore loaded â† %s (%s params, %d cortex entries)",
             path, f"{model.parameter_count():,}", cortex.size,
         )
         core = cls(model=model, tokenizer=tokenizer, cortex=cortex, config=config)
         core.active_path = path
         return core
+
+    @staticmethod
+    def _is_component_format(path: Path) -> bool:
+        """Check if model_index.json points to component files (v3) vs shards (v2)."""
+        try:
+            idx = json.loads((path / "model_index.json").read_text(encoding="utf-8"))
+            return "component_files" in idx
+        except Exception:
+            return False
+
+    @staticmethod
+    def _load_components(path: Path) -> dict[str, torch.Tensor]:
+        """Load state dict from component files (genome.pt, embedding.pt, layer_*.pt, final_norm.pt)."""
+        idx = json.loads((path / "model_index.json").read_text(encoding="utf-8"))
+        components = idx["component_files"]
+        vocabulary_file = components.get("vocabulary") or components.get("embedding")
+        if not vocabulary_file:
+            raise KeyError(
+                f"Checkpoint at {path} is missing both 'vocabulary' and 'embedding' keys "
+                "in model_index.json component_files"
+            )
+        required_files = [components["genome"], vocabulary_file, *components["layers"], components["final_norm"]]
+        missing = [fname for fname in required_files if not (path / fname).exists()]
+        if missing:
+            raise FileNotFoundError(
+                f"Checkpoint at {path} is component-indexed but missing weight files: {missing}"
+            )
+        state = {}
+
+        # Load genome
+        genome = torch.load(path / components["genome"], map_location="cpu", weights_only=True)
+        state.update(genome)
+        logger.debug("Loaded genome.pt (%d tensors)", len(genome))
+
+        # Load embedding
+        embedding = torch.load(path / vocabulary_file, map_location="cpu", weights_only=True)
+        state.update(embedding)
+        logger.debug("Loaded embedding.pt (%d tensors)", len(embedding))
+
+        # Load per-layer files
+        for fname in components["layers"]:
+            layer = torch.load(path / fname, map_location="cpu", weights_only=True)
+            state.update(layer)
+            logger.debug("Loaded %s (%d tensors)", fname, len(layer))
+
+        # Load final norm
+        final_norm = torch.load(path / components["final_norm"], map_location="cpu", weights_only=True)
+        state.update(final_norm)
+        logger.debug("Loaded final_norm.pt (%d tensors)", len(final_norm))
+
+        logger.info("Loaded state from %d component files", len(required_files))
+        return state
+
+    @staticmethod
+    def _load_sharded(path: Path, index: dict) -> dict[str, torch.Tensor]:
+        """Load state dict from multiple shard files listed in model_index.json (v2 format)."""
+        state = {}
+        for wf in index["weight_files"]:
+            shard = torch.load(path / wf, map_location="cpu", weights_only=True)
+            state.update(shard)
+            logger.debug("Loaded shard %s (%d tensors)", wf, len(shard))
+        return state
+
+    # â”€â”€ Config matching â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _match_config_name(self) -> str:
         from .config import CONFIGS
@@ -180,3 +266,4 @@ class CheckpointMixin:
             ):
                 return name
         return "custom"
+

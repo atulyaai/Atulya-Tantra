@@ -3,68 +3,43 @@
 Public API:
     from tantra.npdna import NpDnaCore, NpDnaConfig, CONFIGS
 
-    core = NpDnaCore.from_config("seed")
+    core = NpDnaCore.from_config("atulya_seed")
     ids = core.encode("Hello, world!")
     logits, loss = core.model(torch.tensor([ids]))
     text = core.generate("Hello")
 """
 
-from .config import CONFIGS, NpDnaConfig, auto_config
+from .config import CONFIGS, PREFERRED_CONFIG_NAMES, NpDnaConfig, auto_config
+from .cortex import CortexAutoStore, MemoryCortex
+from .genome import Genome
+from .mesh import NeuralMesh
+from .model import NpDnaCore, NpDnaModel
+from .plasticity import PlasticityAutoScaler, PlasticityEngine, PlasticityMetrics
+from .strand import Strand
+from .tokenizer import AtulyaTokenizer
+from .codecs import FrozenCodecRef, FrozenCodecRegistry
+from .encoder_audio import AudioFeatureEncoder
+from .autonomy import NpDnaAgent
 
 __all__ = [
     "CONFIGS",
+    "PREFERRED_CONFIG_NAMES",
     "NpDnaConfig",
     "auto_config",
     "Genome",
     "Strand",
     "NeuralMesh",
     "MemoryCortex",
+    "CortexAutoStore",
     "NpDnaModel",
     "NpDnaCore",
     "PlasticityEngine",
+    "PlasticityAutoScaler",
+    "PlasticityMetrics",
     "AtulyaTokenizer",
-    "VoiceEncoder",
-    "VisionEncoder",
+    "FrozenCodecRef",
+    "FrozenCodecRegistry",
+    "AudioFeatureEncoder",
     "NpDnaAgent",
 ]
 
-
-def __getattr__(name: str):
-    """Lazy-load Torch-backed NP-DNA components only when a route actually uses them."""
-    if name == "Genome":
-        from .genome import Genome
-
-        return Genome
-    if name == "Strand":
-        from .strand import Strand
-
-        return Strand
-    if name == "NeuralMesh":
-        from .mesh import NeuralMesh
-
-        return NeuralMesh
-    if name == "MemoryCortex":
-        from .cortex import MemoryCortex
-
-        return MemoryCortex
-    if name in {"NpDnaCore", "NpDnaModel"}:
-        from .model import NpDnaCore, NpDnaModel
-
-        return {"NpDnaCore": NpDnaCore, "NpDnaModel": NpDnaModel}[name]
-    if name == "PlasticityEngine":
-        from .plasticity import PlasticityEngine
-
-        return PlasticityEngine
-    if name == "AtulyaTokenizer":
-        from .tokenizer import AtulyaTokenizer
-
-        return AtulyaTokenizer
-    if name in {"VoiceEncoder", "VisionEncoder"}:
-        from .multimodal import VoiceEncoder, VisionEncoder
-
-        return {"VoiceEncoder": VoiceEncoder, "VisionEncoder": VisionEncoder}[name]
-    if name == "NpDnaAgent":
-        from .autonomy import NpDnaAgent
-
-        return NpDnaAgent
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

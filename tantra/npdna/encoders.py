@@ -1,11 +1,9 @@
 """Audio and vision encoders for NP-DNA multimodal."""
 from __future__ import annotations
 
-import hashlib
 import logging
 import struct
 from dataclasses import dataclass
-from typing import Any
 
 logger = logging.getLogger(__name__)
 

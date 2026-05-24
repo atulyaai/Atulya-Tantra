@@ -1,4 +1,4 @@
-"""Memory - Persistent memory, knowledge graphs, and context management."""
+﻿"""Memory - Persistent memory, knowledge graphs, and context management."""
 from .orchestrator import (
     ContextWindow,
     MemoryEntry,
@@ -7,6 +7,7 @@ from .orchestrator import (
     MemoryProviderType,
 )
 from .tree import MemoryTree
+from .manager import MemoryManager
 from .obsidian import ObsidianExporter
 from .subconscious import SubconsciousProvider
 from .session_search import SessionSearchProvider
@@ -20,9 +21,11 @@ __all__ = [
     "MemoryProvider",
     "MemoryProviderType",
     "MemoryTree",
+    "MemoryManager",
     "ObsidianExporter",
     "SubconsciousProvider",
     "SessionSearchProvider",
     "PromptCacheProvider",
     "ReflectionProvider",
 ]
+

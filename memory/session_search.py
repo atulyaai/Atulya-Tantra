@@ -1,9 +1,8 @@
-"""Session search provider with FTS5."""
+﻿"""Session search provider with FTS5."""
 from __future__ import annotations
 
 import json
 import sqlite3
-import time
 from pathlib import Path
 from typing import Any
 
@@ -92,3 +91,4 @@ class SessionSearchProvider(MemoryProvider):
         count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
         self._close_conn()
         return {"total_sessions": count}
+

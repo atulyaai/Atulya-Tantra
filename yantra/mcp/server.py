@@ -3,8 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
-import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
@@ -37,7 +36,7 @@ class MCPPrompt:
 class MCPServer:
     """Full MCP server bridging all tools to external agents."""
 
-    def __init__(self, data_dir: str | Path = "data/mcp"):
+    def __init__(self, data_dir: str | Path = "assets/mcp"):
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self._tools: dict[str, MCPTool] = {}

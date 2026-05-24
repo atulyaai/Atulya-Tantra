@@ -1,4 +1,4 @@
-"""Reflection provider for self-improvement."""
+﻿"""Reflection provider for self-improvement."""
 from __future__ import annotations
 
 import json
@@ -65,3 +65,4 @@ class ReflectionProvider(MemoryProvider):
             if r.get("metadata", {}).get("category") == "insight":
                 insights.append(r)
         return insights
+

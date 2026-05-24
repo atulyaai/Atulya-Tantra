@@ -1,4 +1,4 @@
-"""Context management — window guard, TokenJuice compression, prompt cache."""
+"""Context management - window guard, TokenJuice compression, prompt cache."""
 from __future__ import annotations
 
 import re
@@ -23,12 +23,19 @@ class ContextWindowGuard:
         self.total_tokens = 0
 
     def add(self, message: ContextMessage) -> bool:
-        # Enforce max_messages — remove oldest when at capacity
+        # Enforce max_messages - remove oldest when at capacity
+        if message.token_count <= 0:
+            message.token_count = max(1, len(message.content) // 4 + 1)
+        if message.token_count > self.max_tokens:
+            return False
         if len(self.messages) >= self.max_messages:
             removed = self.messages.pop(0)
             self.total_tokens -= removed.token_count
         if self.total_tokens + message.token_count > self.max_tokens:
             self._compact()
+        while self.total_tokens + message.token_count > self.max_tokens and self.messages:
+            removed = self.messages.pop(0)
+            self.total_tokens -= removed.token_count
         self.messages.append(message)
         self.total_tokens += message.token_count
         return True
@@ -54,8 +61,8 @@ class ContextCompressor:
             "url_shorten": True,
             "html_strip": True,
         }
-        self._user_rules: dict[str, Any] = {}
-        self._project_rules: dict[str, Any] = {}
+        self._user_rules: dict[str, str] = {}
+        self._project_rules: dict[str, str] = {}
 
     def add_tool_rule(self, tool_name: str, rules: dict[str, Any]):
         self._tool_rules[tool_name] = rules
@@ -64,18 +71,21 @@ class ContextCompressor:
         self._user_rules[pattern] = action
 
     def add_project_rule(self, pattern: str, action: str):
-        self._project_rules[pattern] = rules = {"pattern": pattern, "action": action}
+        self._project_rules[pattern] = action
 
     def compress(self, text: str, tool_name: str | None = None) -> str:
         lines = text.split("\n")
         result = []
         seen = set()
 
-        # Apply 3-layer override: Builtin -> User -> Project
-        rules = {**self._builtin_rules, **self._user_rules, **self._project_rules}
+        rules = dict(self._builtin_rules)
 
         for line in lines:
             stripped = line.strip()
+            custom = self._apply_pattern_rules(stripped)
+            if custom is None:
+                continue
+            stripped = custom
 
             # Blank line compression
             if rules.get("blank_lines") and not stripped:
@@ -102,6 +112,17 @@ class ContextCompressor:
             result.append(stripped)
 
         return "\n".join(result)
+
+    def _apply_pattern_rules(self, line: str) -> str | None:
+        for pattern, action in [*self._user_rules.items(), *self._project_rules.items()]:
+            if not re.search(pattern, line):
+                continue
+            normalized = action.lower().strip()
+            if normalized in {"drop", "remove", "omit", "exclude"}:
+                return None
+            if normalized in {"mask", "redact"}:
+                return re.sub(pattern, "[REDACTED]", line)
+        return line
 
     def collapse_blank_lines(self, text: str) -> str:
         return re.sub(r'\n{3,}', '\n\n', text)

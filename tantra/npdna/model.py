@@ -1,9 +1,9 @@
-"""NP-DNA Model — full NeuroPlastic DNA Network.
+﻿"""NP-DNA Model â€” full NeuroPlastic DNA Network.
 
 Architecture:
-    Token IDs → Embedding → [Mesh₁ → … → Meshₙ] → Norm → LM Head
+    Token IDs â†’ Embedding â†’ [Meshâ‚ â†’ â€¦ â†’ Meshâ‚™] â†’ Norm â†’ LM Head
 
-Auto-scales: vocab grows, strands grow, layers grow — all automatic.
+Auto-scales: vocab grows, strands grow, layers grow â€” all automatic.
 
 Generation logic lives in generation.py (GenerationMixin).
 Save/load logic lives in checkpoint.py (CheckpointMixin).
@@ -17,19 +17,18 @@ from pathlib import Path
 import torch
 from torch import Tensor, nn
 
-from .config import CONFIGS, NpDnaConfig
+from .config import CONFIGS, LayerSpec, NpDnaConfig
 from .cortex import MemoryCortex
 from .genome import Genome
 from .mesh import NeuralMesh
 from .tokenizer import AtulyaTokenizer
-from .multimodal import VoiceEncoder, VisionEncoder
 from .generation import GenerationMixin
 from .checkpoint import CheckpointMixin
 
 logger = logging.getLogger(__name__)
 
 
-# ── Core architecture ─────────────────────────────────────────────────────────
+# â”€â”€ Core architecture â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class NpDnaModel(nn.Module):
     """Full NP-DNA language model (architecture only, no inference helpers)."""
@@ -42,11 +41,28 @@ class NpDnaModel(nn.Module):
         self.embedding = nn.Embedding(config.initial_vocab, H)
         self.genome = Genome(config.genome, config.mesh.strand)
 
-        self.mesh_layers = nn.ModuleList([
-            NeuralMesh(self.genome, deepcopy(config.mesh), layer_offset=i * config.mesh.num_strands)
-            for i in range(config.num_layers)
-        ])
-        self.layer_norms = nn.ModuleList([nn.LayerNorm(H) for _ in range(config.num_layers)])
+        self.layer_specs: list[LayerSpec] = []
+        self.mesh_layers = nn.ModuleList()
+        self.layer_norms = nn.ModuleList()
+
+        if config.mesh_specs:
+            self.layer_specs = config.mesh_specs
+            offset = 0
+            for spec in config.mesh_specs:
+                mesh_cfg = spec.make_mesh_config(H, config.state_size)
+                self.mesh_layers.append(NeuralMesh(self.genome, mesh_cfg, layer_offset=offset))
+                self.layer_norms.append(nn.LayerNorm(H))
+                offset += spec.num_strands
+        else:
+            self.layer_specs = [
+                LayerSpec(name="layer", num_strands=config.mesh.num_strands, top_k=config.mesh.top_k)
+                for _ in range(config.num_layers)
+            ]
+            for i in range(config.num_layers):
+                self.mesh_layers.append(
+                    NeuralMesh(self.genome, deepcopy(config.mesh), layer_offset=i * config.mesh.num_strands)
+                )
+                self.layer_norms.append(nn.LayerNorm(H))
         self.final_norm = nn.LayerNorm(H)
         self.lm_head = nn.Linear(H, config.initial_vocab, bias=False)
 
@@ -54,10 +70,8 @@ class NpDnaModel(nn.Module):
             self.lm_head.weight = self.embedding.weight
 
         self.cortex = MemoryCortex(config.cortex)
-        self.voice_encoder = VoiceEncoder(H)
-        self.vision_encoder = VisionEncoder(H)
 
-    # ── Properties ────────────────────────────────────────────────────────────
+    # â”€â”€ Properties â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @property
     def vocab_size(self) -> int:
@@ -67,17 +81,22 @@ class NpDnaModel(nn.Module):
         return sum(p.numel() for p in self.parameters())
 
     def active_parameter_count(self) -> int:
-        """Params active per token (sparse — only top_k strands)."""
+        """Params active per token (sparse â€” only top_k strands)."""
         total = self.embedding.weight.numel() + self.final_norm.weight.numel() * 2
-        per_strand = (
-            self.config.hidden_size * self.config.state_size * 3
-            + self.config.state_size * self.config.hidden_size
+        H = self.config.hidden_size
+        S = self.config.state_size
+        # Per-strand: gate (HÃ—S + S) + state (HÃ—S + S) + recurrent (SÃ—S + S) + output (SÃ—H + H)
+        per_strand_weights = H * S + H * S + S * S + S * H  # = 3*H*S + S*S
+        per_strand_biases = S + S + S + H  # = 3*S + H
+        per_strand = per_strand_weights + per_strand_biases
+        total += sum(
+            per_strand * min(spec.top_k, spec.num_strands)
+            for spec in self.layer_specs
         )
-        total += per_strand * self.config.mesh.top_k * self.config.num_layers
         total += self.genome.config.param_estimate
         return total
 
-    # ── Growth / reshape ──────────────────────────────────────────────────────
+    # â”€â”€ Growth / reshape â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def grow_strands(self, count: int = 1) -> None:
         """Uniformly grow every mesh layer by `count` new strands."""
@@ -95,7 +114,32 @@ class NpDnaModel(nn.Module):
             int(self.genome.seeds.shape[0]),
             new_n * self.config.num_layers,
         )
-        logger.info("NpDnaModel: strands/layer %d → %d", old_n, new_n)
+        logger.info("NpDnaModel: strands/layer %d â†’ %d", old_n, new_n)
+
+    def add_layer(
+        self,
+        name: str = "main",
+        num_strands: int | None = None,
+        top_k: int | None = None,
+    ) -> None:
+        """Append a new logical layer and allocate its strand seeds."""
+        matching = [spec for spec in self.layer_specs if spec.name == name]
+        if num_strands is None:
+            num_strands = matching[-1].num_strands if matching else self.config.mesh.num_strands
+        if top_k is None:
+            top_k = matching[-1].top_k if matching else self.config.mesh.top_k
+
+        old_total = int(self.genome.seeds.shape[0])
+        self.genome.add_strand_capacity(num_strands)
+        spec = LayerSpec(name=name, num_strands=num_strands, top_k=top_k)
+        mesh_cfg = spec.make_mesh_config(self.config.hidden_size, self.config.state_size)
+        self.mesh_layers.append(NeuralMesh(self.genome, mesh_cfg, layer_offset=old_total))
+        self.layer_norms.append(nn.LayerNorm(self.config.hidden_size))
+        self.layer_specs.append(spec)
+        self.config.mesh_specs = self.layer_specs
+        self.config.num_layers = len(self.layer_specs)
+        self.config.genome.max_strands = int(self.genome.seeds.shape[0])
+        logger.info("NpDnaModel: added %s layer with %d strands (top-%d)", name, num_strands, top_k)
 
     def resize_embeddings(self, new_vocab: int) -> None:
         if new_vocab <= self.vocab_size:
@@ -112,7 +156,7 @@ class NpDnaModel(nn.Module):
         self.lm_head = new_head
         if self.config.tie_embeddings:
             self.lm_head.weight = self.embedding.weight
-        logger.info("Embeddings resized: %d → %d", old_n, new_vocab)
+        logger.info("Embeddings resized: %d â†’ %d", old_n, new_vocab)
 
     def strand_id_map(self) -> list[list[int]]:
         return [[int(s.strand_id) for s in mesh.strands] for mesh in self.mesh_layers]
@@ -123,25 +167,13 @@ class NpDnaModel(nn.Module):
                 for strand, sid in zip(mesh.strands, ids):
                     strand.strand_id = int(sid)
 
-    # ── Forward ───────────────────────────────────────────────────────────────
+    # â”€â”€ Forward â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def forward(
         self,
-        input_ids: Tensor | None = None,
-        audio_inputs: Tensor | None = None,
-        image_inputs: Tensor | None = None,
+        input_ids: Tensor,
     ) -> tuple[Tensor, Tensor]:
-        embeddings: list[Tensor] = []
-        if input_ids is not None:
-            embeddings.append(self.embedding(input_ids))
-        if audio_inputs is not None:
-            embeddings.append(self.voice_encoder(audio_inputs))
-        if image_inputs is not None:
-            embeddings.append(self.vision_encoder(image_inputs))
-        if not embeddings:
-            raise ValueError("Provide at least one of: input_ids, audio_inputs, image_inputs.")
-
-        x = torch.cat(embeddings, dim=1) if len(embeddings) > 1 else embeddings[0]
+        x = self.embedding(input_ids)
         total_balance_loss = torch.tensor(0.0, device=x.device)
 
         for mesh, norm in zip(self.mesh_layers, self.layer_norms):
@@ -158,7 +190,7 @@ class NpDnaModel(nn.Module):
         return self.lm_head(x), total_balance_loss
 
 
-# ── High-level wrapper ────────────────────────────────────────────────────────
+# â”€â”€ High-level wrapper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class NpDnaCore(GenerationMixin, CheckpointMixin):
     """High-level wrapper: model + tokenizer + cortex + auto-scaling.
@@ -166,7 +198,7 @@ class NpDnaCore(GenerationMixin, CheckpointMixin):
     This is the main interface for training and inference.
 
     Usage:
-        core = NpDnaCore.from_config("nano")
+        core = NpDnaCore.from_config("atulya_small")
         ids  = core.encode("Hello world")
         text = core.generate("Hello world")
     """
@@ -183,12 +215,12 @@ class NpDnaCore(GenerationMixin, CheckpointMixin):
         if cortex is not None:
             self.model.cortex = cortex
         self.cortex = self.model.cortex
-        self.config = config or CONFIGS["seed"]
+        self.config = config or CONFIGS["atulya_seed"]
         self.active_path: Path | None = None
 
     @classmethod
-    def from_config(cls, name: str = "seed") -> "NpDnaCore":
-        config = CONFIGS[name]
+    def from_config(cls, name: str = "atulya_seed") -> "NpDnaCore":
+        config = deepcopy(CONFIGS[name])
         tokenizer = AtulyaTokenizer(
             initial_capacity=config.initial_vocab,
             max_capacity=config.max_vocab,
@@ -196,18 +228,17 @@ class NpDnaCore(GenerationMixin, CheckpointMixin):
         model = NpDnaModel(config)
         cortex = MemoryCortex(config.cortex)
         logger.info(
-            "NpDnaCore created [%s]: %s params total, %s active | vocab=%d | %d layers × %d strands (top-%d)",
+            "NpDnaCore created [%s]: %s params total, %s active | vocab=%d | %d layers | %d strands total",
             name,
             f"{model.parameter_count():,}",
             f"{model.active_parameter_count():,}",
             tokenizer.vocab_size,
             config.num_layers,
-            config.mesh.num_strands,
-            config.mesh.top_k,
+            config.total_strands,
         )
         return cls(model=model, tokenizer=tokenizer, cortex=cortex, config=config)
 
-    # ── Encode / Decode ───────────────────────────────────────────────────────
+    # â”€â”€ Encode / Decode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def encode(self, text: str, allow_growth: bool = True) -> list[int]:
         old_cap = self.tokenizer.capacity
@@ -220,3 +251,4 @@ class NpDnaCore(GenerationMixin, CheckpointMixin):
         if isinstance(ids, Tensor):
             ids = ids.tolist()
         return self.tokenizer.decode(ids)
+
