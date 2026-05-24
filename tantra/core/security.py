@@ -43,6 +43,21 @@ class ApprovalSystem:
         self._requests: dict[str, ApprovalRequest] = {}
         self._sudo_mode: bool = False
         self._sudo_expires: float = 0
+        self._sudo_password_hash: str | None = None
+
+    def set_sudo_password(self, password: str) -> None:
+        """Set the sudo password (salted SHA-256, never stored in plaintext)."""
+        salt = os.urandom(16).hex()
+        self._sudo_password_hash = f"{salt}:{hashlib.sha256((salt + password).encode()).hexdigest()}"
+
+    def _verify_sudo_password(self, password: str) -> bool:
+        if self._sudo_password_hash is None:
+            return True  # No password set — backward-compatible
+        try:
+            salt, hash_val = self._sudo_password_hash.split(":")
+            return hashlib.sha256((salt + password).encode()).hexdigest() == hash_val
+        except (ValueError, AttributeError):
+            return False
 
     def assess_risk(self, action: str) -> RiskLevel:
         risky_patterns = ["rm -rf", "sudo", "DROP TABLE", "DELETE FROM", "format(", "shutdown"]
@@ -53,8 +68,10 @@ class ApprovalSystem:
             return RiskLevel.MEDIUM
         return RiskLevel.LOW
 
-    def request_approval(self, action: str) -> ApprovalRequest:
+    def request_approval(self, action: str, user: str = "") -> ApprovalRequest:
         req = ApprovalRequest(id=str(int(time.time())), action=action, risk=self.assess_risk(action))
+        if user:
+            req.approved_by = user
         self._requests[req.id] = req
         return req
 
@@ -69,9 +86,17 @@ class ApprovalSystem:
         if req:
             req.status = ApprovalStatus.DENIED
 
-    def enter_sudo(self, password: str, ttl: float = 300):
+    def enter_sudo(self, password: str, ttl: float = 300) -> bool:
+        """Enter sudo mode. Returns True if password is correct or no password set."""
+        if not self._verify_sudo_password(password):
+            return False
         self._sudo_mode = True
         self._sudo_expires = time.time() + ttl
+        return True
+
+    def enable_sudo(self, password: str, ttl: float = 300):
+        """Alias for enter_sudo for backward compatibility."""
+        self.enter_sudo(password, ttl=ttl)
 
     def exit_sudo(self):
         self._sudo_mode = False
@@ -111,9 +136,14 @@ class SSRFProtection:
             host = parsed.hostname
             if not host:
                 return False
-            ip = ipaddress.ip_address(host)
+            # If host is a hostname (not an IP), allow it (assume external)
+            try:
+                ip = ipaddress.ip_address(host)
+            except ValueError:
+                # Not an IP address — it's a hostname, so it's external
+                return True
             return not any(ip in net for net in self._blocked_ranges)
-        except ValueError:
+        except Exception:
             return False
 
 

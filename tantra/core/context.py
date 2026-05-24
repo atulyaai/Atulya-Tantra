@@ -22,8 +22,10 @@ class ContextWindowGuard:
         self.total_tokens = 0
 
     def add(self, message: ContextMessage) -> bool:
+        # Enforce max_messages — remove oldest when at capacity
         if len(self.messages) >= self.max_messages:
-            self._compact()
+            removed = self.messages.pop(0)
+            self.total_tokens -= removed.token_count
         if self.total_tokens + message.token_count > self.max_tokens:
             self._compact()
         self.messages.append(message)

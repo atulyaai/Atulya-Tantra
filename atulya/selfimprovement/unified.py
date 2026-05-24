@@ -76,10 +76,10 @@ class UnifiedSelfImprovement:
         chakra = self.chakras.get(chakra_name)
         if chakra:
             chakra.experience += amount
-            needed = chakra.level * 100
+            needed = (chakra.level + 1) * 100
             if chakra.experience >= needed and chakra.level < chakra.max_level:
                 chakra.level += 1
-                chakra.experience = 0
+                chakra.experience -= needed
             chakra.last_updated = time.time()
             self._save()
 

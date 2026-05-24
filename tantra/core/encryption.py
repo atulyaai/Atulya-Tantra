@@ -27,7 +27,7 @@ class EncryptedStorage:
         encrypted_bytes = bytes.fromhex(encrypted)
         key_bytes = hashlib.sha256(self._key.encode()).digest()
         decrypted = bytes(e ^ key_bytes[i % len(key_bytes)] for i, e in enumerate(encrypted_bytes))
-        return decrypted.decode()
+        return decrypted.decode("utf-8", errors="replace")
 
     def encrypt_db(self, db_path: str | Path):
         """Encrypt SQLite database by encrypting sensitive columns."""

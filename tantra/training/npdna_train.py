@@ -912,6 +912,31 @@ def train_npdna(
                 }) + "\n")
                 f.flush()
 
+            # Auto-tweak: check for hyperparameter adjustments from monitor
+            _auto_tweak_file = Path(output_dir) / "auto_tweak.json"
+            if _auto_tweak_file.exists():
+                try:
+                    _tweak = json.loads(_auto_tweak_file.read_text())
+                    _adjusted = []
+                    # Update learning rate
+                    _new_lr = _tweak.get("lr")
+                    if _new_lr is not None and _new_lr != optimizer.param_groups[0]["lr"]:
+                        optimizer.param_groups[0]["lr"] = _new_lr
+                        if scheduler is not None and hasattr(scheduler, "base_lrs"):
+                            scheduler.base_lrs = [_new_lr]
+                        _adjusted.append(f"LR={_new_lr:.2e}")
+                    # Update balance weight (immediately affects next forward pass)
+                    _new_bw = _tweak.get("balance_weight")
+                    if _new_bw is not None and _new_bw != core.config.mesh.balance_weight:
+                        _set_mesh_balance_weight(core, _new_bw)
+                        balance_weight = _new_bw  # update local for metadata
+                        _adjusted.append(f"balance={_new_bw:.3f}")
+                    if _adjusted:
+                        logger.info("Auto-tweak applied at step %d: %s", base_step + step, ", ".join(_adjusted))
+                    _auto_tweak_file.unlink(missing_ok=True)
+                except Exception as _ex:
+                    logger.warning("Failed to apply auto-tweak: %s", _ex)
+
             if any(e.event_type == "grow_strands" for e in events):
                 current_lr = optimizer.param_groups[0]["lr"]
                 new_optimizer, new_scheduler = build_optimizer(current_lr)

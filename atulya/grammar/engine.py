@@ -53,7 +53,7 @@ class GrammarEngine:
             # English rules
             LanguageRule("en_double_space", "en", r"  +", " ", "Remove double spaces"),
             LanguageRule("en_capital_i", "en", r"\bi\b", "I", "Capitalize pronoun I"),
-            LanguageRule("en_period_space", "en", r"\.\s*", ". ", "Ensure space after period"),
+            LanguageRule("en_period_space", "en", r"\.(?=[^\s.])", ". ", "Ensure space after period — not at line end"),
             LanguageRule("en_comma_space", "en", r",\s*", ", ", "Ensure space after comma"),
             LanguageRule("en_apostrophe", "en", r"(\w)'(\w)", r"\1'\2", "Fix apostrophe spacing"),
             # Hindi rules (Devanagari)

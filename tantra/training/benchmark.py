@@ -49,7 +49,8 @@ def measure_perplexity(
     """
     model = core.model
     model.eval()
-    device = next(model.parameters()).device
+    params = list(model.parameters())
+    device = params[0].device if params else torch.device("cpu")
     loss_fn = nn.CrossEntropyLoss(reduction="sum")
 
     total_loss = 0.0

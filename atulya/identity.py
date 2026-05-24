@@ -53,7 +53,8 @@ class Identity:
                     "what_i_am": "An AI assistant.",
                     "how_i_work": "NP-DNA sparse neural mesh",
                     "what_i_can_do": ["help with questions", "write code"],
-                    "what_i_cannot_do": ["browse web", "remember forever"]
+                    "what_i_cannot_do": ["browse web", "remember forever"],
+                    "languages": ["English", "Hindi", "Sanskrit"]
                 },
                 "privacy": {
                     "default_role": "user",

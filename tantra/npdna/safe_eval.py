@@ -119,7 +119,7 @@ def _eval_node(node: ast.AST) -> Any:
         if node.keywords:
             raise SafeExpressionError("keyword arguments are not allowed")
         args = [_eval_node(arg) for arg in node.args]
-        return func(args) if node.func.id == "sum" else func(*args)
+        return func(*args)
 
     if isinstance(node, (ast.Tuple, ast.List)):
         return [_eval_node(elt) for elt in node.elts]

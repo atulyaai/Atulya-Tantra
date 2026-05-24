@@ -106,7 +106,8 @@ class MemoryCortex(torch.nn.Module):
         keys = torch.stack([e.key for e in self.entries])  # (N, dim)
 
         # Cosine similarity
-        if query.dim() == 1:
+        is_1d = query.dim() == 1
+        if is_1d:
             query = query.unsqueeze(0)
 
         query_norm = torch.nn.functional.normalize(query, dim=-1)   # (B, dim)
@@ -138,7 +139,9 @@ class MemoryCortex(torch.nn.Module):
             self._last_top_indices = None
             self._last_top_scores = None
 
-        return top_values.squeeze(0), top_scores.squeeze(0)
+        if is_1d:
+            return top_values.squeeze(0), top_scores.squeeze(0)
+        return top_values, top_scores
 
     def augment(self, hidden: Tensor) -> Tensor:
         """Augment a hidden state with retrieved Cortex knowledge.

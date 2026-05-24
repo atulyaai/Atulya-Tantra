@@ -50,10 +50,17 @@ class NpDnaAgent:
         if values is None or values.shape[0] == 0:
             return "No matching memories found."
         items = []
+        last_indices = self.core.model.cortex._last_top_indices
+        entries = self.core.model.cortex.entries
         for i in range(values.shape[0]):
             score = float(scores[i].item())
-            entry = self.core.model.cortex.entries[i]
-            items.append(f"Match {i+1} (score={score:.3f}): {entry.source}")
+            # Use actual top_k index from retrieve result, not loop counter
+            entry_idx = int(last_indices[i].item()) if last_indices is not None and i < len(last_indices) else i
+            if 0 <= entry_idx < len(entries):
+                entry = entries[entry_idx]
+                items.append(f"Match {i+1} (score={score:.3f}): {entry.source}")
+            else:
+                items.append(f"Match {i+1} (score={score:.3f}): [invalid index {entry_idx}]")
         return "\n".join(items) if items else "No matching memories found."
 
     def _cortex_store(self, fact: str) -> str:

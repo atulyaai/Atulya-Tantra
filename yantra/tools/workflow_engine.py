@@ -43,6 +43,32 @@ class WorkflowTask:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
+def _task_to_dict(t: WorkflowTask) -> dict[str, Any]:
+    """Serialize a WorkflowTask to a JSON-compatible dict."""
+    d = {
+        "id": t.id,
+        "title": t.title,
+        "description": t.description,
+        "status": t.status.value,
+        "priority": t.priority.value,
+        "assignee": t.assignee,
+        "tool_name": t.tool_name,
+        "tool_args": t.tool_args,
+        "dependencies": t.dependencies,
+        "subtasks": t.subtasks,
+        "created_at": t.created_at,
+        "completed_at": t.completed_at,
+        "metadata": t.metadata,
+    }
+    if t.result is not None:
+        try:
+            json.dumps(t.result)
+            d["result"] = t.result
+        except (TypeError, ValueError):
+            d["result"] = str(t.result)
+    return d
+
+
 class WorkflowEngine:
     """Super-mind tool orchestration engine."""
 
@@ -59,6 +85,11 @@ class WorkflowEngine:
         if state_file.exists():
             data = json.loads(state_file.read_text())
             for t in data.get("tasks", []):
+                # Convert string values back to Enums
+                if isinstance(t.get("status"), str):
+                    t["status"] = TaskStatus(t["status"])
+                if isinstance(t.get("priority"), str):
+                    t["priority"] = TaskPriority(t["priority"])
                 task = WorkflowTask(**t)
                 self._tasks[task.id] = task
             self._workflows = data.get("workflows", {})
@@ -66,10 +97,16 @@ class WorkflowEngine:
     def _save(self):
         state_file = self.data_dir / "workflow_state.json"
         data = {
-            "tasks": [vars(t) for t in self._tasks.values()],
+            "tasks": [_task_to_dict(t) for t in self._tasks.values()],
             "workflows": self._workflows,
         }
         state_file.write_text(json.dumps(data, indent=2))
+
+    def get_task(self, task_id: str) -> WorkflowTask | None:
+        return self._tasks.get(task_id)
+
+    def get_workflow(self, workflow_id: str) -> list[str] | None:
+        return self._workflows.get(workflow_id)
 
     def create_task(self, title: str, tool_name: str = "", tool_args: dict | None = None,
                    priority: TaskPriority = TaskPriority.MEDIUM, dependencies: list[str] | None = None) -> str:

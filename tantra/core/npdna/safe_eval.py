@@ -32,12 +32,14 @@ _UNARY_OPS: dict[type[ast.unaryop], Callable[[Any], Any]] = {
     ast.USub: operator.neg,
 }
 
-
-def _safe_pow(a: Any, b: Any) -> Any:
-    """pow() wrapper that enforces the same exponent limit as the ** operator."""
-    if abs(b) > 12:
-        raise ValueError(f"Exponent too large: {b}")
-    return pow(a, b)
+def _safe_pow(base: Any, exp: Any, mod: Any = None) -> Any:
+    if not isinstance(exp, (int, float)):
+        raise SafeExpressionError("exponent must be a number")
+    if abs(exp) > 12:
+        raise SafeExpressionError("exponent is too large")
+    if mod is not None:
+        return pow(base, exp, mod)
+    return pow(base, exp)
 
 
 _FUNCTIONS: dict[str, Callable[..., Any]] = {
@@ -117,7 +119,7 @@ def _eval_node(node: ast.AST) -> Any:
         if node.keywords:
             raise SafeExpressionError("keyword arguments are not allowed")
         args = [_eval_node(arg) for arg in node.args]
-        return func(args) if node.func.id == "sum" else func(*args)
+        return func(*args)
 
     if isinstance(node, (ast.Tuple, ast.List)):
         return [_eval_node(elt) for elt in node.elts]

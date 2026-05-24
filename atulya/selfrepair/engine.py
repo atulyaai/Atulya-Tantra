@@ -40,11 +40,16 @@ class SelfRepairSystem:
         if state_file.exists():
             data = json.loads(state_file.read_text())
             self._error_patterns = data.get("error_patterns", {})
+            self._repair_log = [RepairAction(**a) for a in data.get("repair_log", [])]
 
     def _save(self):
         state_file = self.data_dir / "selfrepair_state.json"
-        data = {"error_patterns": self._error_patterns, "repair_count": len(self._repair_log)}
-        state_file.write_text(json.dumps(data, indent=2))
+        data = {
+            "error_patterns": self._error_patterns,
+            "repair_count": len(self._repair_log),
+            "repair_log": [vars(r) for r in self._repair_log],
+        }
+        state_file.write_text(json.dumps(data, indent=2, default=str))
 
     def analyze_error(self, error: Exception, tb: traceback.StackSummary | None = None) -> RepairAction:
         """Analyze an error and determine fix."""

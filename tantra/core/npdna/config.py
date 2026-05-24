@@ -155,13 +155,16 @@ def _estimate_params(cfg: NpDnaConfig) -> int:
     """Rough parameter estimate for a config."""
     embedding = cfg.initial_vocab * cfg.hidden_size
     genome = cfg.genome.param_estimate
+    # Strand weights per strand: gate, state, recurrent, output
     strand_weights = (
         cfg.hidden_size * cfg.state_size * 3  # gate, state, recurrent
         + cfg.state_size * cfg.hidden_size     # output
     )
-    # DNA generates strand weights, so actual stored params are just seeds + genome
     mesh_router = cfg.hidden_size * cfg.mesh.num_strands
-    per_layer = mesh_router
+    per_layer = mesh_router + strand_weights * cfg.mesh.num_strands
     lm_head = 0 if cfg.tie_embeddings else cfg.hidden_size * cfg.initial_vocab
     norm = cfg.hidden_size * 2 * (cfg.num_layers + 1)
-    return embedding + genome + per_layer * cfg.num_layers + lm_head + norm
+    # Cortex (rough estimate): router + slot embeddings
+    cortex = cfg.hidden_size * 64 + cfg.hidden_size * 128 if hasattr(cfg, 'cortex') else 0
+    total = embedding + genome + per_layer * cfg.num_layers + lm_head + norm + cortex
+    return total

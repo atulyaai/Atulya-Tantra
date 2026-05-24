@@ -20,7 +20,7 @@ class MultiProviderSearch:
     def __init__(self):
         self._providers = ["duckduckgo", "wikipedia", "arxiv"]
 
-    def search(self, query: str, max_results: int = 10) -> list[SearchResult]:
+    def search(self, query: str, max_results: int = 10, region: str = "wt-wt") -> list[SearchResult]:
         """Search with fallback providers."""
         results = []
 
@@ -67,3 +67,8 @@ class MultiProviderSearch:
 
     def get_providers(self) -> list[str]:
         return self._providers
+
+    @property
+    def stats(self) -> dict[str, Any]:
+        """Return usage statistics."""
+        return {"providers": len(self._providers), "configured_providers": list(self._providers)}
