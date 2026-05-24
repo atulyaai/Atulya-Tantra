@@ -1,14 +1,16 @@
 # Outputs & checkpoints
 *.pt
 *.safetensors
+outputs/
 
 # Generated data
-data/*.bin
+data/
 tantra/data/*.jsonl
 
 # Cache
 .pytest_cache/
 .cache/
+webui/node_modules/
 
 # Python
 __pycache__/
@@ -21,6 +23,7 @@ build/
 
 # Environment
 .env
+*.token*
 .venv/
 venv/
 env/
@@ -47,9 +50,6 @@ htmlcov/
 # Tantra outputs (model artifacts)
 tantra/outputs/
 tantra/runs/
-
-# Old webui (replaced by atulya/dashboard)
-webui/
 
 # Datasets should be committed separately
 tantra/data/categorized/

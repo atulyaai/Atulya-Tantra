@@ -1,4 +1,4 @@
-﻿"""NP-DNA training pipeline.
+"""NP-DNA training pipeline.
 
 Supports:
   - Full training (train all params)
@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import sys
 import time
 import gc
@@ -27,8 +26,8 @@ _ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from tantra.core.npdna import NpDnaCore, PlasticityEngine
-from tantra.training.dataset.build_dataset import build_seed_dataset, load_dataset
+from tantra.npdna import NpDnaCore, PlasticityEngine
+from tantra.training.datasets.build_dataset import build_seed_dataset, load_dataset
 
 logger = logging.getLogger(__name__)
 
@@ -450,7 +449,7 @@ def restore_optimizer_state(
 
 
 def train_npdna(
-    config_name: str = "seed",
+    config_name: str = "atulya_seed",
     max_steps: int = 50,
     lr: float = 2e-3,
     batch_size: int = 1,
@@ -478,7 +477,7 @@ def train_npdna(
     """Train an NP-DNA model.
 
     Args:
-        config_name: One of "seed", "nano", "micro", "small", "medium".
+        config_name: One of "atulya_seed", "atulya_small", "atulya_medium", "atulya_large".
         max_steps: Total training steps.
         lr: Learning rate.
         batch_size: Batch size (1 is fine for CPU).
@@ -516,7 +515,7 @@ def train_npdna(
         core = NpDnaCore.load(resume_from)
         
         # Prevent metadata config name mismatch by detecting configuration
-        from tantra.core.npdna.config import CONFIGS
+        from tantra.npdna.config import CONFIGS
         loaded_config_name = next(
             (n for n, c in CONFIGS.items() if c.hidden_size == core.config.hidden_size and c.num_layers == core.config.num_layers),
             "custom"
@@ -630,7 +629,7 @@ def train_npdna(
             f"Memory preflight blocked training: available "
             f"{memory_status['available_ram_gb']}GB, requires "
             f"{memory_status['required_free_ram_gb']}GB free. "
-            "Use seed/nano, lower seq_limit, reduce dataset packing, or close other apps."
+            "Use atulya_seed/atulya_small, lower seq_limit, reduce dataset packing, or close other apps."
         )
         logger.error(msg)
         _write_train_status(output_dir, "blocked_low_memory", error=msg, **memory_status)
@@ -1310,7 +1309,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="NP-DNA Training")
-    parser.add_argument("--config", default="seed", help="Config: seed/nano/micro/small/medium")
+    parser.add_argument("--config", default="atulya_seed", help="Config: atulya_seed/atulya_small/atulya_medium/atulya_large")
     parser.add_argument("--steps", type=int, default=50, help="Training steps")
     parser.add_argument("--lr", type=float, default=2e-3, help="Learning rate")
     parser.add_argument("--output", default="outputs/npdna", help="Output directory")
@@ -1369,3 +1368,4 @@ if __name__ == "__main__":
     except Exception as exc:
         _write_train_status(args.output, "error", error=str(exc))
         raise
+

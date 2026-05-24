@@ -1,8 +1,7 @@
-"""Memory orchestrator with pluggable providers."""
+﻿"""Memory orchestrator with pluggable providers."""
 from __future__ import annotations
 
-import asyncio
-import json
+import re
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -63,8 +62,14 @@ class MemoryOrchestrator:
         self.providers: dict[str, MemoryProvider] = {}
         self._context = ContextWindow()
 
-    def register_provider(self, provider: MemoryProvider):
-        name = provider.__class__.__name__.lower().replace("provider", "")
+    @staticmethod
+    def _provider_key(name: str) -> str:
+        name = name.replace("Provider", "").replace("provider", "")
+        name = re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
+        return re.sub(r"[^a-z0-9]+", "_", name).strip("_")
+
+    def register_provider(self, provider: MemoryProvider, name: str | None = None):
+        name = self._provider_key(name or provider.__class__.__name__)
         self.providers[name] = provider
 
     async def initialize_all(self):
@@ -72,14 +77,14 @@ class MemoryOrchestrator:
             await provider.initialize()
 
     async def store(self, entry: MemoryEntry) -> str:
-        provider = self.providers.get(entry.provider)
+        provider = self.providers.get(self._provider_key(entry.provider))
         if provider:
             return await provider.store(entry)
         raise ValueError(f"Unknown provider: {entry.provider}")
 
     async def search(self, query: str, provider: str | None = None, limit: int = 10) -> list[MemoryEntry]:
         if provider:
-            p = self.providers.get(provider)
+            p = self.providers.get(self._provider_key(provider))
             return await p.search(query, limit) if p else []
         results = []
         for p in self.providers.values():
@@ -104,3 +109,4 @@ class MemoryOrchestrator:
             "context_tokens": self._context.total_tokens,
             "context_entries": len(self._context.entries),
         }
+

@@ -1,14 +1,13 @@
-"""Obsidian Wiki export — Markdown with [[wikilinks]]."""
+﻿"""Obsidian Wiki export â€” Markdown with [[wikilinks]]."""
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 from typing import Any
 
 
 class ObsidianExporter:
-    def __init__(self, vault_dir: str | Path = "data/obsidian"):
+    def __init__(self, vault_dir: str | Path = "assets/obsidian"):
         self.vault_dir = Path(vault_dir)
         self.vault_dir.mkdir(parents=True, exist_ok=True)
 
@@ -59,4 +58,5 @@ class ObsidianExporter:
 
     @staticmethod
     def _slugify(text: str) -> str:
-        return re.sub(r'[^a-z0-9]+', '-', text.lower().strip('-'))
+        return re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-')
+

@@ -1,4 +1,4 @@
-"""Memory tree with hierarchical L0→L1→L2 summaries."""
+﻿"""Memory tree with hierarchical L0â†’L1â†’L2 summaries."""
 from __future__ import annotations
 
 import json
@@ -9,7 +9,7 @@ from typing import Any
 
 
 class MemoryTree:
-    def __init__(self, data_dir: str | Path = "data/memory"):
+    def __init__(self, data_dir: str | Path = "assets/memory"):
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.db_path = self.data_dir / "memory_tree.db"
@@ -75,8 +75,9 @@ class MemoryTree:
         combined = " ".join(f"{topic}: {summary[:200]}" for topic, summary in rows)
         global_summary = combined[:2000] + "..." if len(combined) > 2000 else combined
         conn = self._get_conn()
+        conn.execute("DELETE FROM l2_global")
         conn.execute(
-            "INSERT INTO l2_global (summary, created_at) VALUES (?, ?)",
+            "INSERT OR REPLACE INTO l2_global (id, summary, created_at) VALUES (1, ?, ?)",
             (global_summary, time.time()),
         )
         conn.commit()
@@ -118,3 +119,4 @@ class MemoryTree:
         l2_count = conn.execute("SELECT COUNT(*) FROM l2_global").fetchone()[0]
         conn.close()
         return {"l0_entries": l0_count, "l1_summaries": l1_count, "l2_global": l2_count}
+

@@ -1,0 +1,46 @@
+"""Compatibility exports for the unified channel system."""
+from __future__ import annotations
+
+from yantra.channels import (
+    ChannelBase,
+    ChannelMessage,
+    ChannelRegistry,
+    ChannelType,
+    ConsoleChannel,
+    DiscordChannel,
+    EmailChannel,
+    IRCChannel,
+    MatrixChannel,
+    Notification,
+    NotificationSystem,
+    SignalChannel,
+    SlackChannel,
+    TeamsChannel,
+    TelegramChannel,
+    WebChatChannel,
+    WebhookChannel,
+    WhatsAppChannel,
+    create_default_registry,
+)
+
+__all__ = [
+    "ChannelBase",
+    "ChannelMessage",
+    "ChannelRegistry",
+    "ChannelType",
+    "ConsoleChannel",
+    "DiscordChannel",
+    "EmailChannel",
+    "IRCChannel",
+    "MatrixChannel",
+    "Notification",
+    "NotificationSystem",
+    "SignalChannel",
+    "SlackChannel",
+    "TeamsChannel",
+    "TelegramChannel",
+    "WebChatChannel",
+    "WebhookChannel",
+    "WhatsAppChannel",
+    "create_default_registry",
+]

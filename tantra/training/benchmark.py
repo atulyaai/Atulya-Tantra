@@ -1,4 +1,4 @@
-﻿"""Benchmark suite for NP-DNA models.
+"""Benchmark suite for NP-DNA models.
 
 Measures:
   1. Perplexity on held-out data
@@ -31,8 +31,8 @@ _ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from tantra.core.npdna import CONFIGS, NpDnaCore, NpDnaModel
-from tantra.training.dataset.build_dataset import load_dataset
+from tantra.npdna import NpDnaCore, NpDnaModel
+from tantra.training.datasets.build_dataset import load_dataset
 
 logger = logging.getLogger(__name__)
 

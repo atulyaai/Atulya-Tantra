@@ -6,7 +6,7 @@ execution loop, allowing the model to run search and memory storage tools.
 from __future__ import annotations
 import re
 import logging
-from typing import Callable, Any
+from typing import Callable
 import torch
 from .model import NpDnaCore
 from .safe_eval import safe_expression_output

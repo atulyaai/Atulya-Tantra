@@ -1,10 +1,10 @@
-"""Memory Cortex — external knowledge store for NP-DNA.
+﻿"""Memory Cortex â€” external knowledge store for NP-DNA.
 
 Stores knowledge as vectors.  The model queries the Cortex during inference
 to retrieve relevant facts.  Adding knowledge = adding vectors (zero training).
 
 This is how a 50M param model accesses unlimited knowledge:
-  1M Cortex entries ≈ 100B params of stored factual knowledge.
+  1M Cortex entries â‰ˆ 100B params of stored factual knowledge.
 """
 
 from __future__ import annotations
@@ -31,6 +31,8 @@ class CortexEntry:
     key: Tensor            # Query/key vector (dim,)
     value: Tensor          # Value vector (dim,)
     topic: str = ""
+    topics: list[str] = field(default_factory=list)
+    related: list[str] = field(default_factory=list)
     source: str = ""
     created_at: float = field(default_factory=time.time)
     access_count: int = 0
@@ -48,11 +50,14 @@ class MemoryCortex(torch.nn.Module):
         self.config = config
         self.entries: list[CortexEntry] = []
 
-        # Projection layer: hidden_state → query vector
+        # Projection layer: hidden_state â†’ query vector
         self.query_proj = torch.nn.Linear(config.dim, config.dim, bias=False)
         self.value_proj = torch.nn.Linear(config.dim, config.dim, bias=False)
         self._last_top_indices = None
         self._last_top_scores = None
+        self._keys_cache: Tensor | None = None
+        self._values_cache: Tensor | None = None
+        self._cache_dirty = True
 
     @property
     def size(self) -> int:
@@ -72,13 +77,31 @@ class MemoryCortex(torch.nn.Module):
         key = key.detach().float()
         value = value.detach().float()
 
-        # Enforce max capacity — evict least-accessed entry
+        # Enforce max capacity â€” evict least-accessed entry
         if self.size >= self.config.max_entries:
             self._evict_least_used()
 
-        entry = CortexEntry(key=key, value=value, topic=topic, source=source)
+        entry = CortexEntry(key=key, value=value, topic=topic, topics=[topic] if topic else [], source=source)
         self.entries.append(entry)
+        self._invalidate_cache()
         return self.size - 1
+
+    def _invalidate_cache(self) -> None:
+        self._keys_cache = None
+        self._values_cache = None
+        self._cache_dirty = True
+
+    def _stacked_vectors(self, device: torch.device) -> tuple[Tensor, Tensor]:
+        if (
+            self._cache_dirty
+            or self._keys_cache is None
+            or self._values_cache is None
+            or self._keys_cache.device != device
+        ):
+            self._keys_cache = torch.stack([e.key for e in self.entries]).to(device)
+            self._values_cache = torch.stack([e.value for e in self.entries]).to(device)
+            self._cache_dirty = False
+        return self._keys_cache, self._values_cache
 
     def retrieve(self, query: Tensor, top_k: int | None = None) -> tuple[Tensor, Tensor]:
         """Find most relevant knowledge for a query.
@@ -88,7 +111,7 @@ class MemoryCortex(torch.nn.Module):
             top_k: Number of entries to retrieve.
 
         Returns:
-            (values, scores) — retrieved value vectors and similarity scores.
+            (values, scores) â€” retrieved value vectors and similarity scores.
         """
         if self.size == 0:
             if not self.training:
@@ -102,13 +125,11 @@ class MemoryCortex(torch.nn.Module):
 
         top_k = min(top_k or self.config.top_k, self.size)
 
-        # Stack all keys into a matrix
-        keys = torch.stack([e.key for e in self.entries])  # (N, dim)
-
         # Cosine similarity
         is_1d = query.dim() == 1
         if is_1d:
             query = query.unsqueeze(0)
+        keys, values = self._stacked_vectors(query.device)
 
         query_norm = torch.nn.functional.normalize(query, dim=-1)   # (B, dim)
         keys_norm = torch.nn.functional.normalize(keys, dim=-1)     # (N, dim)
@@ -116,8 +137,6 @@ class MemoryCortex(torch.nn.Module):
 
         top_scores, top_indices = torch.topk(scores, top_k, dim=-1)  # (B, k)
 
-        # Gather values
-        values = torch.stack([e.value for e in self.entries])  # (N, dim)
         # Expand indices for gather
         expanded = top_indices.unsqueeze(-1).expand(-1, -1, values.size(-1))
         top_values = torch.gather(
@@ -180,16 +199,46 @@ class MemoryCortex(torch.nn.Module):
         """Remove the least-accessed entry."""
         if not self.entries:
             return
-        min_idx = min(range(len(self.entries)), key=lambda i: self.entries[i].access_count)
+        min_idx = min(range(len(self.entries)), key=lambda i: self._importance_score(self.entries[i]))
         removed = self.entries.pop(min_idx)
+        self._invalidate_cache()
         logger.debug("Cortex evicted entry (topic=%s, accesses=%d)", removed.topic, removed.access_count)
+
+    @staticmethod
+    def _importance_score(entry: CortexEntry) -> float:
+        age_hours = max(0.0, (time.time() - entry.created_at) / 3600)
+        relationship_boost = len(entry.related) * 0.25
+        topic_boost = len(entry.topics) * 0.1
+        return entry.access_count + relationship_boost + topic_boost - age_hours * 0.01
+
+    def link_entries(self, source_idx: int, target_idx: int) -> None:
+        if not (0 <= source_idx < self.size and 0 <= target_idx < self.size):
+            return
+        source = self.entries[source_idx]
+        target = self.entries[target_idx]
+        target_id = str(target_idx)
+        source_id = str(source_idx)
+        if target_id not in source.related:
+            source.related.append(target_id)
+        if source_id not in target.related:
+            target.related.append(source_id)
+
+    def prune_by_importance(self, max_entries: int | None = None) -> int:
+        max_entries = max_entries or self.config.max_entries
+        if self.size <= max_entries:
+            return 0
+        before = self.size
+        self.entries.sort(key=self._importance_score, reverse=True)
+        self.entries = self.entries[:max_entries]
+        self._invalidate_cache()
+        return before - self.size
 
     def store_from_text(self, text: str, encoder_fn: Any, topic: str = "") -> int:
         """Convenience: encode text and store it.
 
         Args:
             text: Raw text to store.
-            encoder_fn: Callable that converts text → tensor (dim,).
+            encoder_fn: Callable that converts text â†’ tensor (dim,).
             topic: Topic label.
 
         Returns:
@@ -333,6 +382,7 @@ class MemoryCortex(torch.nn.Module):
                     self._is_sleeping = False
 
         self.entries = consolidated_entries
+        self._invalidate_cache()
         logger.info(
             "Cortex sleep consolidation complete: before=%d, after=%d, merged=%d, evicted=%d, active_writeback=%d",
             old_size, self.size, merged_count, evicted_count, consolidated_to_weights
@@ -359,6 +409,8 @@ class MemoryCortex(torch.nn.Module):
             meta = [
                 {
                     "topic": e.topic,
+                    "topics": e.topics,
+                    "related": e.related,
                     "source": e.source,
                     "created_at": e.created_at,
                     "access_count": e.access_count,
@@ -403,11 +455,59 @@ class MemoryCortex(torch.nn.Module):
                     key=keys[i],
                     value=values[i],
                     topic=m.get("topic", ""),
+                    topics=m.get("topics", []),
+                    related=m.get("related", []),
                     source=m.get("source", ""),
                     created_at=m.get("created_at", 0.0),
                     access_count=m.get("access_count", 0),
                 )
                 cortex.entries.append(entry)
+            cortex._invalidate_cache()
 
         logger.info("Cortex loaded: %d entries from %s", cortex.size, path)
         return cortex
+
+
+class CortexAutoStore:
+    """Auto-store intermediate representations during training."""
+
+    def __init__(self, data_dir: str | Path = "assets/cortex"):
+        self.data_dir = Path(data_dir)
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self._store: dict[str, dict[str, Any]] = {}
+        self._load()
+
+    def _load(self):
+        store_file = self.data_dir / "cortex_store.json"
+        if store_file.exists():
+            try:
+                self._store = json.loads(store_file.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError, OSError) as exc:
+                logger.warning("CortexAutoStore: corrupt store file %s - starting fresh (%s)", store_file, exc)
+                self._store = {}
+
+    def _save(self):
+        store_file = self.data_dir / "cortex_store.json"
+        store_file.write_text(json.dumps(self._store, indent=2), encoding="utf-8")
+
+    def auto_store(self, layer_name: str, representations: dict[str, Any], step: int):
+        key = f"{layer_name}_step_{step}"
+        self._store[key] = {
+            "layer": layer_name,
+            "step": step,
+            "timestamp": time.time(),
+            "representation_keys": list(representations.keys()),
+            "representation_sizes": {k: len(v) if hasattr(v, "__len__") else 1 for k, v in representations.items()},
+        }
+        if len(self._store) > 100:
+            oldest = sorted(self._store.keys(), key=lambda k: self._store[k].get("timestamp", 0))[:10]
+            for key in oldest:
+                del self._store[key]
+        self._save()
+
+    def retrieve(self, layer_name: str, step: int) -> dict[str, Any] | None:
+        return self._store.get(f"{layer_name}_step_{step}")
+
+    def get_stats(self) -> dict[str, Any]:
+        return {"entries": len(self._store), "layers": list({v.get("layer") for v in self._store.values()})}
+

@@ -21,7 +21,7 @@ class HealthCheck:
 
 
 class HeartbeatSystem:
-    def __init__(self, data_dir: str | Path = "data"):
+    def __init__(self, data_dir: str | Path = "assets"):
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self._checks: list[HealthCheck] = []
@@ -38,10 +38,15 @@ class HeartbeatSystem:
         self._running = False
 
     async def _run_checks(self):
-        self._checks.append(await self._memory_check())
-        self._checks.append(await self._disk_check())
-        self._checks.append(await self._task_check())
-        self._checks.append(await self._maintenance_check())
+        self._checks = [
+            await self._memory_check(),
+            await self._disk_check(),
+            await self._task_check(),
+            await self._maintenance_check(),
+            await self._model_check(),
+            await self._provider_check(),
+            await self._cortex_check(),
+        ]
         self._save_status()
 
     async def _memory_check(self) -> HealthCheck:
@@ -65,6 +70,39 @@ class HeartbeatSystem:
         except Exception as e:
             return HealthCheck("disk", "error", str(e))
 
+    async def _model_check(self) -> HealthCheck:
+        try:
+            from tantra.npdna import NpDnaCore
+            core = NpDnaCore.from_config("seed")
+            ids = core.encode("health", allow_growth=False)
+            if ids:
+                return HealthCheck("model", "ok", "NP-DNA encode check passed")
+            return HealthCheck("model", "warning", "NP-DNA returned no tokens")
+        except Exception as e:
+            return HealthCheck("model", "warning", str(e))
+
+    async def _provider_check(self) -> HealthCheck:
+        try:
+            from tantra.core.model_failover import ModelFailover
+            failover = ModelFailover(data_dir=str(self.data_dir))
+            statuses = failover.get_provider_status()
+            open_breakers = [k for k, v in statuses.items() if getattr(v, "circuit", "") == "open"]
+            if open_breakers:
+                return HealthCheck("provider", "warning", f"Circuit breakers open: {open_breakers}")
+            return HealthCheck("provider", "ok", f"All providers healthy ({len(statuses)} registered)")
+        except Exception as e:
+            return HealthCheck("provider", "warning", str(e))
+
+    async def _cortex_check(self) -> HealthCheck:
+        try:
+            cortex_dir = self.data_dir / "cortex"
+            if not cortex_dir.exists():
+                return HealthCheck("cortex", "info", "No cortex data directory yet")
+            last_write = max((p.stat().st_mtime for p in cortex_dir.rglob("*") if p.is_file()), default=0)
+            return HealthCheck("cortex", "ok", f"Last cortex write: {last_write:.0f}")
+        except Exception as e:
+            return HealthCheck("cortex", "warning", str(e))
+
     async def _task_check(self) -> HealthCheck:
         """Check for pending tasks from Kanban system."""
         try:
@@ -79,7 +117,7 @@ class HeartbeatSystem:
             if pending > 0:
                 return HealthCheck("tasks", "info", f"{pending} pending tasks")
             return HealthCheck("tasks", "ok", "No pending tasks")
-        except Exception as e:
+        except Exception:
             return HealthCheck("tasks", "ok", "No task system")
 
     async def _maintenance_check(self) -> HealthCheck:
@@ -107,7 +145,7 @@ class HeartbeatSystem:
         status_file = self.data_dir / "heartbeat_status.json"
         status_file.write_text(json.dumps({
             "last_check": time.time(),
-            "checks": [{"name": c.name, "status": c.status, "message": c.message} for c in self._checks[-4:]],
+            "checks": [{"name": c.name, "status": c.status, "message": c.message} for c in self._checks],
         }, indent=2))
 
     def get_status(self) -> dict[str, Any]:

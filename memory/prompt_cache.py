@@ -1,4 +1,4 @@
-"""Prompt cache with deferred invalidation."""
+﻿"""Prompt cache with deferred invalidation."""
 from __future__ import annotations
 
 import json
@@ -64,7 +64,14 @@ class PromptCacheProvider(MemoryProvider):
         entry = MemoryEntry(id=key, provider="prompt_cache", content=value,
                            metadata={"ttl": ttl, "expires": time.time() + ttl})
         import asyncio
-        asyncio.get_event_loop().run_until_complete(self.store(entry))
+        try:
+            loop = asyncio.get_running_loop()
+            if loop.is_running():
+                loop.create_task(self.store(entry))
+            else:
+                loop.run_until_complete(self.store(entry))
+        except RuntimeError:
+            asyncio.run(self.store(entry))
 
     def invalidate(self, key: str):
         self._invalidation_queue.append({"key": key, "queued_at": time.time()})
@@ -78,3 +85,4 @@ class PromptCacheProvider(MemoryProvider):
 
     async def compact(self):
         pass  # File-based cache, no compaction needed
+

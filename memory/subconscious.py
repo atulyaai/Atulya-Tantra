@@ -1,11 +1,9 @@
-"""Subconscious provider for background processing."""
+﻿"""Subconscious provider for background processing."""
 from __future__ import annotations
 
 import json
 import sqlite3
-import time
 from pathlib import Path
-from typing import Any
 
 from .orchestrator import MemoryProvider, MemoryEntry
 
@@ -86,3 +84,4 @@ class SubconsciousProvider(MemoryProvider):
         conn.execute("VACUUM")
         conn.commit()
         self._close_conn()
+

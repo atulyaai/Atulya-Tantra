@@ -1,4 +1,4 @@
-﻿"""Atulya Tantra CLI entry point."""
+"""Atulya Tantra CLI entry point."""
 
 from __future__ import annotations
 
@@ -31,7 +31,11 @@ def main() -> None:
     sub.add_parser("info", help="Show model info for a config")
     # --- train ---
     train_p = sub.add_parser("train", help="Train an NP-DNA model")
-    train_p.add_argument("--config", default="seed", help="Config name: seed/nano/micro/small/medium")
+    train_p.add_argument(
+        "--config",
+        default="atulya_seed",
+        help="Config name: atulya_seed/atulya_small/atulya_medium/atulya_large",
+    )
     train_p.add_argument("--steps", type=int, default=50, help="Training steps")
     train_p.add_argument("--lr", type=float, default=2e-3, help="Learning rate")
     train_p.add_argument("--output", default="outputs/npdna", help="Output directory")
@@ -77,18 +81,21 @@ def main() -> None:
 
 
 def _cmd_info() -> None:
-    from tantra.core.npdna import CONFIGS, NpDnaModel
+    from tantra.npdna import CONFIGS, NpDnaModel
+    from tantra.npdna.config import PREFERRED_CONFIG_NAMES
 
     print("\n  Atulya Tantra â€” NP-DNA Scaling Configs\n")
-    print(f"  {'Name':<10} {'Total':>12} {'Active':>12} {'Layers':>7} {'Strands':>8} {'Top-k':>6} {'Vocab':>8}")
-    print("  " + "-" * 70)
-    for name, cfg in CONFIGS.items():
+    print(f"  {'Name':<14} {'Total':>12} {'Active':>12} {'Layers':>7} {'Strands':>8} {'Top-k':>6} {'Vocab':>8}")
+    print("  " + "-" * 74)
+    for name in PREFERRED_CONFIG_NAMES:
+        cfg = CONFIGS[name]
         model = NpDnaModel(cfg)
         total = model.parameter_count()
         active = model.active_parameter_count()
+        top_k = max((spec.top_k for spec in cfg.mesh_specs), default=cfg.mesh.top_k)
         print(
-            f"  {name:<10} {total:>12,} {active:>12,} {cfg.num_layers:>7} "
-            f"{cfg.mesh.num_strands:>8} {cfg.mesh.top_k:>6} {cfg.initial_vocab:>8}"
+            f"  {name:<14} {total:>12,} {active:>12,} {cfg.num_layers:>7} "
+            f"{cfg.total_strands:>8} {top_k:>6} {cfg.initial_vocab:>8}"
         )
     print()
 
@@ -124,7 +131,7 @@ def _cmd_train(args: argparse.Namespace) -> None:
 
 
 def _cmd_generate(args: argparse.Namespace) -> None:
-    from tantra.core.npdna import NpDnaCore
+    from tantra.npdna import NpDnaCore
 
     core = NpDnaCore.load(args.model)
     print(f"\nPrompt: {args.prompt}")
@@ -134,3 +141,4 @@ def _cmd_generate(args: argparse.Namespace) -> None:
 
 if __name__ == "__main__":
     main()
+

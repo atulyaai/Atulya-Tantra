@@ -10,6 +10,7 @@ Monitors training metrics and adapts the architecture:
 from __future__ import annotations
 
 import logging
+import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
 
@@ -27,6 +28,46 @@ class PlasticityEvent:
     step: int
     event_type: str    # "grow_strand", "prune_strand", "grow_vocab", "plateau"
     details: str = ""
+
+
+@dataclass
+class PlasticityMetrics:
+    strand_load: float = 0.0
+    layer_loss_plateau: int = 0
+    cortex_unused: int = 0
+    last_check: float = field(default_factory=time.time)
+
+
+class PlasticityAutoScaler:
+    def __init__(self, config: dict | None = None):
+        self.config = config or {}
+        self._metrics = PlasticityMetrics()
+        self._actions: list[dict] = []
+
+    def check_and_scale(self, strand_capacity: float, loss_history: list[float], cortex_size: int, cortex_used: int) -> list[str]:
+        actions = []
+        self._metrics.strand_load = strand_capacity
+        self._metrics.cortex_unused = cortex_size - cortex_used
+        if strand_capacity > 0.9:
+            actions.append("add_strand")
+            self._actions.append({"action": "add_strand", "timestamp": time.time(), "reason": f"strand_load={strand_capacity}"})
+        if len(loss_history) >= 10:
+            recent = loss_history[-10:]
+            if max(recent) - min(recent) < 0.001:
+                actions.append("add_layer")
+                self._metrics.layer_loss_plateau += 1
+                self._actions.append({"action": "add_layer", "timestamp": time.time(), "reason": "loss_plateau"})
+        if cortex_size > 0 and (cortex_size - cortex_used) / cortex_size > 0.5:
+            actions.append("prune_cortex")
+            self._actions.append({"action": "prune_cortex", "timestamp": time.time(), "reason": f"unused={cortex_size - cortex_used}"})
+        self._metrics.last_check = time.time()
+        return actions
+
+    def get_metrics(self) -> dict:
+        return vars(self._metrics)
+
+    def get_action_history(self) -> list[dict]:
+        return self._actions[-50:]
 
 
 class PlasticityEngine:
@@ -55,6 +96,7 @@ class PlasticityEngine:
         grow_overloaded_strands: bool = True,
         grow_cooldown_checks: int = 3,
         reuse_dead_before_grow: bool = True,
+        auto_scale: bool = True,
     ):
         self.core = core
         self.check_interval = check_interval
@@ -66,6 +108,8 @@ class PlasticityEngine:
         self.grow_overloaded_strands = grow_overloaded_strands
         self.grow_cooldown_checks = grow_cooldown_checks
         self.reuse_dead_before_grow = reuse_dead_before_grow
+        self.auto_scale = auto_scale
+        self.autoscaler = PlasticityAutoScaler()
 
         self.events: list[PlasticityEvent] = []
         self.loss_history: list[float] = []
@@ -76,7 +120,7 @@ class PlasticityEngine:
     def record_loss(self, loss: float) -> None:
         """Record a training loss value. Rejects non-numeric and bool values."""
         if isinstance(loss, bool):
-            raise TypeError(f"loss must be numeric, got bool")
+            raise TypeError("loss must be numeric, got bool")
         if not isinstance(loss, (int, float)):
             raise TypeError(f"loss must be numeric, got {type(loss).__name__}")
         self.loss_history.append(loss)
@@ -109,7 +153,6 @@ class PlasticityEngine:
 
         for layer_i, mesh in enumerate(self.core.model.mesh_layers):
             stats = mesh.usage_stats
-            N = mesh.config.num_strands
 
             dead = [s_id for s_id, ratio in stats.items() if ratio < self.dead_threshold]
             overloaded = [s_id for s_id, ratio in stats.items() if ratio > self.overload_threshold]
@@ -149,13 +192,9 @@ class PlasticityEngine:
     def _reuse_dead_for_overload(self, step: int, layer_i: int, mesh, overloaded: list[int], dead: list[int]) -> bool:
         """Reuse dead strands to handle overloaded capacity instead of growing new ones.
         
-        Uses ``self._available_dead_strands`` as the single source of truth
-        for available dead strands (the ``dead`` parameter is only used
-        as a fallback when the tracked list is unexpectedly empty).
-
         Returns True if dead strands were successfully reused.
         """
-        available = self._available_dead_strands.get(layer_i, []) or dead
+        available = self._available_dead_strands.get(layer_i, [])
         if not available:
             return False
         
@@ -252,8 +291,30 @@ class PlasticityEngine:
                 )
                 logger.warning("Plasticity: %s", msg)
                 events.append(PlasticityEvent(step, "plateau", msg))
+                if self.auto_scale:
+                    action = self._handle_loss_plateau(step)
+                    if action:
+                        events.append(action)
 
         return events
+
+    def _handle_loss_plateau(self, step: int) -> PlasticityEvent | None:
+        if self._checks_since_growth < self.grow_cooldown_checks:
+            return None
+        current = self.core.model.config.mesh.num_strands
+        self.core.model.grow_strands(2)
+        self._checks_since_growth = 0
+        msg = f"loss plateau triggered strand growth {current} -> {self.core.model.config.mesh.num_strands}"
+        logger.info("Plasticity: %s", msg)
+        return PlasticityEvent(step, "plateau_grow_strands", msg)
+
+    def _prune_cortex(self, max_entries: int | None = None) -> int:
+        cortex = getattr(self.core, "cortex", None)
+        if cortex is None:
+            return 0
+        if hasattr(cortex, "prune_by_importance"):
+            return cortex.prune_by_importance(max_entries)
+        return 0
 
     def summary(self) -> str:
         """Human-readable summary of all plasticity events."""

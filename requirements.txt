@@ -2,3 +2,5 @@
 torch>=2.0
 numpy>=1.24
 psutil>=5.9
+cryptography>=42.0
+croniter>=2.0

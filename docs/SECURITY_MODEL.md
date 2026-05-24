@@ -1,7 +1,7 @@
 # Security Model
 
 This document describes the security controls that are enforced in the current
-`main` branch and the controls that are still planned.
+project state and the deeper operational hardening backlog.
 
 ## Enforced Today
 
@@ -16,7 +16,7 @@ This document describes the security controls that are enforced in the current
   regression tests.
 - Memory write-back and cortex operations are covered by unit tests.
 
-## Partial Controls
+## Hardening Backlog
 
 - Sandboxing is limited to restricted in-process controls and route-level
   validation. There is no repository-wide OS sandbox wrapper yet.
@@ -26,7 +26,7 @@ This document describes the security controls that are enforced in the current
   static scanner is not yet wired into CI on `main`.
 - Encryption at rest is not enforced uniformly for all local artifacts.
 
-## Planned Controls
+## Long-Term Controls
 
 - Signed first-party tool manifests with verification before loading.
 - Strong process or container sandboxing for tool execution.

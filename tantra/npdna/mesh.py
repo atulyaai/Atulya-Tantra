@@ -1,8 +1,8 @@
-"""Neural Mesh — sparse routing fabric for NP-DNA.
+﻿"""Neural Mesh â€” sparse routing fabric for NP-DNA.
 
 Routes each token to the top-k most relevant Strands out of N total.
-Only k Strands compute per token — the rest are skipped.  This gives
-N/k × compute savings (e.g., 8 strands, top-2 = 4× savings).
+Only k Strands compute per token â€” the rest are skipped.  This gives
+N/k Ã— compute savings (e.g., 8 strands, top-2 = 4Ã— savings).
 
 Includes load-balancing loss to prevent dead Strands (where all tokens
 route to the same few Strands and the rest are never used).
@@ -11,6 +11,7 @@ route to the same few Strands and the rest are never used).
 from __future__ import annotations
 
 import logging
+from collections import Counter
 
 import torch
 from torch import Tensor, nn
@@ -37,7 +38,7 @@ class NeuralMesh(nn.Module):
 
         H = config.strand.hidden_size
 
-        # Router: projects hidden state → strand scores
+        # Router: projects hidden state â†’ strand scores
         self.router = nn.Linear(H, config.num_strands, bias=False)
 
         # Create Strands (each gets a unique strand_id in the Genome)
@@ -56,6 +57,7 @@ class NeuralMesh(nn.Module):
         self.register_buffer("_last_router_entropy", torch.tensor(0.0), persistent=False)
         self._last_top_indices = None
         self._last_top_weights = None
+        self.activation_topics: dict[int, Counter[str]] = {}
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
         """Route tokens to top-k Strands and combine outputs.
@@ -86,7 +88,7 @@ class NeuralMesh(nn.Module):
         output = torch.zeros_like(x)
 
         # Gather all (batch, time, k_idx) triples and group by strand
-        # This replaces the O(K×N) nested loop with O(num_active_strands × avg_tokens_per_strand)
+        # This replaces the O(KÃ—N) nested loop with O(num_active_strands Ã— avg_tokens_per_strand)
         flat_indices = top_indices.reshape(B * T * K)  # (B*T*K,)
         flat_weights = top_weights.reshape(B * T * K, 1)  # (B*T*K, 1)
         flat_x = x.unsqueeze(2).expand(-1, -1, K, -1).reshape(B * T * K, -1)  # (B*T*K, H)
@@ -94,6 +96,10 @@ class NeuralMesh(nn.Module):
         # Find unique strand indices and their inverse mapping
         unique_strands, inverse = torch.unique(flat_indices, return_inverse=True)
         unique_strands = unique_strands.tolist()  # move to host for iteration
+        weight_cache = {
+            int(s_id): self.strands[int(s_id)].genome.generate_all(self.strands[int(s_id)].strand_id)
+            for s_id in unique_strands
+        }
 
         for s_id in unique_strands:
             mask = inverse == int(s_id)  # use the pre-computed inverse
@@ -105,7 +111,7 @@ class NeuralMesh(nn.Module):
             strand_weights = flat_weights[mask_flat]  # (M, 1)
 
             # Process through Strand
-            strand_output = self.strands[s_id](strand_tokens).squeeze(1)  # (M, H)
+            strand_output = self.strands[s_id](strand_tokens, weights=weight_cache[int(s_id)]).squeeze(1)  # (M, H)
 
             # Scatter back
             flat_indices_masked = torch.where(mask_flat)[0]
@@ -152,6 +158,18 @@ class NeuralMesh(nn.Module):
     def reset_usage(self) -> None:
         self._usage_counts.zero_()
 
+    def record_activation_topic(self, topic: str) -> None:
+        """Record which topic/category activated recently routed strands."""
+        if not topic or self._last_top_indices is None:
+            return
+        for local_idx in torch.unique(self._last_top_indices).tolist():
+            if 0 <= int(local_idx) < len(self.strands):
+                strand_id = int(self.strands[int(local_idx)].strand_id)
+                self.activation_topics.setdefault(strand_id, Counter())[topic] += 1
+
+    def specialization_stats(self) -> dict[int, dict[str, int]]:
+        return {sid: dict(counter) for sid, counter in self.activation_topics.items()}
+
     def add_strand(self, strand_id: int) -> None:
         """Add one routed Strand to this mesh and expand router/usage state."""
         H = self.config.strand.hidden_size
@@ -176,3 +194,4 @@ class NeuralMesh(nn.Module):
         new_counts[:old_n].copy_(old_counts)
         self.register_buffer("_usage_counts", new_counts, persistent=False)
         logger.info("NeuralMesh: added strand %d (%d -> %d)", strand_id, old_n, new_n)
+

@@ -1,10 +1,9 @@
-"""Security — approval system, sandbox, SSRF protection, injection guard, encryption."""
+"""Security - approval system, sandbox, SSRF protection, injection guard, encryption."""
 from __future__ import annotations
 
 import hashlib
 import hmac
 import ipaddress
-import json
 import os
 import re
 import time
@@ -34,16 +33,18 @@ class ApprovalRequest:
     risk: RiskLevel
     requested_at: float = field(default_factory=time.time)
     status: ApprovalStatus = ApprovalStatus.PENDING
+    requested_by: str = ""
     approved_by: str = ""
     notes: str = ""
 
 
 class ApprovalSystem:
-    def __init__(self):
+    def __init__(self, allow_no_password: bool = False):
         self._requests: dict[str, ApprovalRequest] = {}
         self._sudo_mode: bool = False
         self._sudo_expires: float = 0
         self._sudo_password_hash: str | None = None
+        self._allow_no_password = allow_no_password
 
     def set_sudo_password(self, password: str) -> None:
         """Set the sudo password (salted SHA-256, never stored in plaintext)."""
@@ -52,7 +53,7 @@ class ApprovalSystem:
 
     def _verify_sudo_password(self, password: str) -> bool:
         if self._sudo_password_hash is None:
-            return True  # No password set — backward-compatible
+            return self._allow_no_password
         try:
             salt, hash_val = self._sudo_password_hash.split(":")
             return hashlib.sha256((salt + password).encode()).hexdigest() == hash_val
@@ -69,34 +70,62 @@ class ApprovalSystem:
         return RiskLevel.LOW
 
     def request_approval(self, action: str, user: str = "") -> ApprovalRequest:
-        req = ApprovalRequest(id=str(int(time.time())), action=action, risk=self.assess_risk(action))
-        if user:
-            req.approved_by = user
+        req = ApprovalRequest(
+            id=str(int(time.time())),
+            action=action,
+            risk=self.assess_risk(action),
+            requested_by=user,
+        )
         self._requests[req.id] = req
         return req
 
-    def approve(self, request_id: str, approver: str = "admin"):
+    def approve(self, request_id: str | ApprovalRequest, approver: str = "admin") -> bool:
+        if isinstance(request_id, ApprovalRequest):
+            request_id = request_id.id
         req = self._requests.get(request_id)
         if req:
             req.status = ApprovalStatus.APPROVED
             req.approved_by = approver
+            return True
+        return False
 
-    def deny(self, request_id: str):
+    def deny(self, request_id: str | ApprovalRequest) -> bool:
+        if isinstance(request_id, ApprovalRequest):
+            request_id = request_id.id
         req = self._requests.get(request_id)
         if req:
             req.status = ApprovalStatus.DENIED
+            return True
+        return False
+
+    def get_request(self, request_id: str | ApprovalRequest) -> dict[str, Any] | None:
+        if isinstance(request_id, ApprovalRequest):
+            request_id = request_id.id
+        req = self._requests.get(request_id)
+        if not req:
+            return None
+        return {
+            "id": req.id,
+            "action": req.action,
+            "risk": req.risk.value,
+            "requested_at": req.requested_at,
+            "status": req.status.value,
+            "requested_by": req.requested_by,
+            "approved_by": req.approved_by,
+            "notes": req.notes,
+        }
 
     def enter_sudo(self, password: str, ttl: float = 300) -> bool:
-        """Enter sudo mode. Returns True if password is correct or no password set."""
+        """Enter sudo mode. Returns True only when password policy allows it."""
         if not self._verify_sudo_password(password):
             return False
         self._sudo_mode = True
         self._sudo_expires = time.time() + ttl
         return True
 
-    def enable_sudo(self, password: str, ttl: float = 300):
+    def enable_sudo(self, password: str, ttl: float = 300) -> bool:
         """Alias for enter_sudo for backward compatibility."""
-        self.enter_sudo(password, ttl=ttl)
+        return self.enter_sudo(password, ttl=ttl)
 
     def exit_sudo(self):
         self._sudo_mode = False
@@ -140,7 +169,7 @@ class SSRFProtection:
             try:
                 ip = ipaddress.ip_address(host)
             except ValueError:
-                # Not an IP address — it's a hostname, so it's external
+                # Not an IP address - it's a hostname, so it's external
                 return True
             return not any(ip in net for net in self._blocked_ranges)
         except Exception:
@@ -211,7 +240,11 @@ class SecurityManager:
         self.sandbox = SandboxManager()
         self.ssrf = SSRFProtection()
         self.injection = PromptInjectionGuard()
-        self.encryption = EncryptionManager()
+        self.encryption = (
+            EncryptionManager()
+            if os.environ.get("ATULYA_ENCRYPTION_KEY")
+            else None
+        )
         self._audit_log: list[dict[str, Any]] = []
 
     def check_url(self, url: str) -> bool:

@@ -1,13 +1,13 @@
-"""DNA Genome — weight generator for the NP-DNA architecture.
+﻿"""DNA Genome â€” weight generator for the NP-DNA architecture.
 
 The Genome is a small neural network (~2-5M params) that generates weight
 matrices for Strands on demand.  Like biological DNA encoding proteins,
 one Genome produces weights for all Strands in the system.
 
 Compression is achieved through low-rank factored generation:
-instead of storing a full (H_in × H_out) matrix, the Genome generates
-rank-r factors U (H_in × r) and V (r × H_out), giving r × (H_in + H_out)
-cost instead of H_in × H_out.
+instead of storing a full (H_in Ã— H_out) matrix, the Genome generates
+rank-r factors U (H_in Ã— r) and V (r Ã— H_out), giving r Ã— (H_in + H_out)
+cost instead of H_in Ã— H_out.
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ class Genome(nn.Module):
         # One learnable seed per Strand (this is what gets trained per-topic)
         self.seeds = nn.Parameter(torch.randn(config.max_strands, L) * 0.02)
 
-        # Shared encoder:  seed → latent
+        # Shared encoder:  seed â†’ latent
         self.encoder = nn.Sequential(
             nn.Linear(L, config.encoder_hidden),
             nn.GELU(),
@@ -56,7 +56,7 @@ class Genome(nn.Module):
             nn.LayerNorm(L),
         )
 
-        # Weight shape registry:  role → (rows, cols)
+        # Weight shape registry:  role â†’ (rows, cols)
         self._shapes: dict[str, tuple[int, int]] = {
             "gate": (H, S),
             "state": (H, S),
@@ -64,11 +64,11 @@ class Genome(nn.Module):
             "output": (S, H),
         }
 
-        # Per-role decoders: latent → low-rank factors U, V
+        # Per-role decoders: latent â†’ low-rank factors U, V
         self.decoders = nn.ModuleDict()
         for role, (rows, cols) in self._shapes.items():
-            # U factor: latent → rows × rank
-            # V factor: latent → rank × cols
+            # U factor: latent â†’ rows Ã— rank
+            # V factor: latent â†’ rank Ã— cols
             self.decoders[f"{role}_U"] = nn.Linear(L, rows * R)
             self.decoders[f"{role}_V"] = nn.Linear(L, R * cols)
 
@@ -111,24 +111,29 @@ class Genome(nn.Module):
         return self.config.max_strands
 
     def add_strand_capacity(self, count: int = 1) -> None:
-        """Grow seed bank to accommodate more Strands.
+        """Grow the seed bank while preserving the Parameter object."""
+        if count <= 0:
+            return
 
-        Grows the seeds tensor **in-place** so that the same Parameter
-        object is preserved.  This is important because optimizers track
-        state (momentum, Adam buffers) by parameter object identity —
-        replacing ``self.seeds`` with a brand-new ``nn.Parameter`` would
-        orphan those optimizer states and silently stop training the new
-        seeds.
-        """
         old_max = int(self.seeds.shape[0])
         new_max = old_max + count
-        device = self.seeds.device
-        # Resize the existing parameter's data in-place
-        self.seeds.data.resize_(new_max, self.config.latent_dim)
-        # Zero-init the newly-grown rows (conservative — don't assume
-        # a distribution scale that may interfere with the existing
-        # trained seeds).
         with torch.no_grad():
-            self.seeds.data[old_max:].normal_(mean=0.0, std=0.02)
+            grown = torch.randn(
+                count,
+                self.config.latent_dim,
+                device=self.seeds.device,
+                dtype=self.seeds.dtype,
+            ) * 0.02
+            self.seeds.data = torch.cat([self.seeds.data, grown], dim=0)
+            if self.seeds.grad is not None:
+                grad_pad = torch.zeros(
+                    count,
+                    self.config.latent_dim,
+                    device=self.seeds.grad.device,
+                    dtype=self.seeds.grad.dtype,
+                )
+                self.seeds.grad = torch.cat([self.seeds.grad, grad_pad], dim=0)
+
         self.config.max_strands = new_max
-        logger.info("Genome: expanded seed bank %d → %d", old_max, new_max)
+        logger.info("Genome: expanded seed bank %d -> %d", old_max, new_max)
+

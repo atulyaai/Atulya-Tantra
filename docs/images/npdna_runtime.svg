@@ -1,0 +1,100 @@
+<svg width="1200" height="420" viewBox="0 0 1200 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">NP-DNA runtime flow</title>
+  <desc id="desc">Animated flow from prompt tokens through tokenizer, genome, sparse mesh, memory cortex, plasticity, and output.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#0d1726"/>
+      <stop offset="0.5" stop-color="#10243a"/>
+      <stop offset="1" stop-color="#16251e"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" x2="1">
+      <stop offset="0" stop-color="#17263a"/>
+      <stop offset="1" stop-color="#1c332c"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#74d7c4"/>
+    </marker>
+    <style>
+      .title { font: 700 28px system-ui, -apple-system, Segoe UI, sans-serif; fill: #f4faf8; }
+      .label { font: 700 18px system-ui, -apple-system, Segoe UI, sans-serif; fill: #f7fbff; }
+      .small { font: 500 13px system-ui, -apple-system, Segoe UI, sans-serif; fill: #b7c9d4; }
+      .card { fill: url(#card); stroke: #4aa391; stroke-width: 1.4; rx: 14; }
+      .line { fill: none; stroke: #74d7c4; stroke-width: 3; marker-end: url(#arrow); opacity: 0.72; }
+      .pulse { fill: #f6d365; filter: drop-shadow(0 0 8px #f6d365); }
+      .strand { fill: #244761; stroke: #78b7e8; stroke-width: 1.2; rx: 8; }
+      .active { animation: glow 2.4s ease-in-out infinite; }
+      .dot1 { animation: travel1 5s linear infinite; }
+      .dot2 { animation: travel2 5s linear infinite; animation-delay: 0.9s; }
+      .dot3 { animation: travel3 5s linear infinite; animation-delay: 1.8s; }
+      @keyframes glow {
+        0%, 100% { opacity: 0.55; }
+        50% { opacity: 1; }
+      }
+      @keyframes travel1 {
+        0% { transform: translate(120px,210px); opacity: 0; }
+        8% { opacity: 1; }
+        88% { opacity: 1; }
+        100% { transform: translate(1010px,210px); opacity: 0; }
+      }
+      @keyframes travel2 {
+        0% { transform: translate(280px,210px); opacity: 0; }
+        8% { opacity: 1; }
+        88% { opacity: 1; }
+        100% { transform: translate(845px,110px); opacity: 0; }
+      }
+      @keyframes travel3 {
+        0% { transform: translate(455px,210px); opacity: 0; }
+        8% { opacity: 1; }
+        88% { opacity: 1; }
+        100% { transform: translate(845px,300px); opacity: 0; }
+      }
+    </style>
+  </defs>
+  <rect width="1200" height="420" fill="url(#bg)"/>
+  <text class="title" x="44" y="54">Atulya Tantra NP-DNA Runtime</text>
+  <text class="small" x="46" y="82">Tokens move through a compact genome, sparse specialist strands, external memory, and plasticity checks.</text>
+
+  <rect class="card" x="55" y="155" width="145" height="108"/>
+  <text class="label" x="83" y="196">Prompt</text>
+  <text class="small" x="80" y="223">text, chat, API</text>
+
+  <rect class="card" x="250" y="155" width="145" height="108"/>
+  <text class="label" x="281" y="196">Tokenizer</text>
+  <text class="small" x="273" y="223">EN/HI/SA + BPE</text>
+
+  <rect class="card" x="445" y="155" width="145" height="108"/>
+  <text class="label" x="487" y="196">Genome</text>
+  <text class="small" x="476" y="223">weight generator</text>
+
+  <rect class="card" x="645" y="95" width="180" height="228"/>
+  <text class="label" x="699" y="133">Mesh</text>
+  <rect class="strand active" x="675" y="160" width="120" height="26"/>
+  <rect class="strand" x="675" y="195" width="120" height="26"/>
+  <rect class="strand active" x="675" y="230" width="120" height="26"/>
+  <rect class="strand" x="675" y="265" width="120" height="26"/>
+  <text class="small" x="672" y="347">top-k specialist routing</text>
+
+  <rect class="card" x="875" y="65" width="165" height="98"/>
+  <text class="label" x="917" y="105">Cortex</text>
+  <text class="small" x="902" y="132">retrieval memory</text>
+
+  <rect class="card" x="875" y="255" width="165" height="98"/>
+  <text class="label" x="912" y="295">Plasticity</text>
+  <text class="small" x="906" y="322">grow, rebalance</text>
+
+  <rect class="card" x="1070" y="155" width="95" height="108"/>
+  <text class="label" x="1092" y="196">Output</text>
+  <text class="small" x="1091" y="223">tokens</text>
+
+  <path class="line" d="M200 209 L250 209"/>
+  <path class="line" d="M395 209 L445 209"/>
+  <path class="line" d="M590 209 L645 209"/>
+  <path class="line" d="M825 209 C850 170 850 125 875 114"/>
+  <path class="line" d="M825 209 C850 248 850 292 875 304"/>
+  <path class="line" d="M1040 114 C1060 137 1065 160 1070 186"/>
+  <path class="line" d="M1040 304 C1060 282 1065 250 1070 223"/>
+
+  <circle class="pulse dot1" cx="0" cy="0" r="8"/>
+  <circle class="pulse dot2" cx="0" cy="0" r="7"/>
+  <circle class="pulse dot3" cx="0" cy="0" r="7"/>
+</svg>
