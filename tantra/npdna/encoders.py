@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import struct
 from dataclasses import dataclass
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -39,7 +42,8 @@ class AudioEncoder:
                 n_frames = wf.getnframes()
                 duration = n_frames / sample_rate if sample_rate > 0 else 0
                 frames = wf.readframes(min(n_frames, 1000))
-        except Exception:
+        except Exception as e:
+            logger.warning("AudioEncoder: failed to read %s: %s", audio_path, e)
             sample_rate = 16000
             channels = 1
             duration = 0
@@ -76,7 +80,8 @@ class VisionEncoder:
             width, height = img.size
             channels = 3
             pixels = list(img.getdata())[:1000]  # Sample first 1000 pixels
-        except Exception:
+        except Exception as e:
+            logger.warning("VisionEncoder: failed to read %s: %s", image_path, e)
             width = 224
             height = 224
             channels = 3
