@@ -114,9 +114,8 @@ class MemoryCortex(torch.nn.Module):
             (values, scores) â€” retrieved value vectors and similarity scores.
         """
         if self.size == 0:
-            if not self.training:
-                self._last_top_indices = None
-                self._last_top_scores = None
+            self._last_top_indices = None
+            self._last_top_scores = None
             dim = self.config.dim
             k = top_k or self.config.top_k
             if query.dim() == 1:
