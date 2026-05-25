@@ -149,7 +149,6 @@ class PlasticityEngine:
         """Detect dead and overloaded Strands. Reuse dead strands before growing new ones."""
         events = []
         grew_this_check = False
-        dead_strands_by_layer: dict[int, list[int]] = {}
 
         for layer_i, mesh in enumerate(self.core.model.mesh_layers):
             stats = mesh.usage_stats
@@ -161,29 +160,44 @@ class PlasticityEngine:
                 msg = f"Layer {layer_i}: {len(dead)} dead strands {dead}"
                 logger.warning("Plasticity: %s", msg)
                 events.append(PlasticityEvent(step, "dead_strands", msg))
-                dead_strands_by_layer[layer_i] = dead
                 self._available_dead_strands[layer_i] = dead
-                if self.reinit_dead_strands:
-                    reinitialized = self._reinit_dead_strands(layer_i, mesh, dead)
-                    if reinitialized:
-                        reset_msg = f"Layer {layer_i}: reinitialized dead strands {reinitialized}"
-                        logger.info("Plasticity: %s", reset_msg)
-                        events.append(PlasticityEvent(step, "reinit_strands", reset_msg))
 
             if overloaded:
                 msg = f"Layer {layer_i}: {len(overloaded)} overloaded strands {overloaded}"
                 logger.warning("Plasticity: %s", msg)
                 events.append(PlasticityEvent(step, "overloaded_strands", msg))
-                if self.grow_overloaded_strands and not grew_this_check:
-                    reused = False
-                    if self.reuse_dead_before_grow:
-                        reused = self._reuse_dead_for_overload(step, layer_i, mesh, overloaded, dead_strands_by_layer.get(layer_i, []))
-                    if not reused:
-                        growth = self._grow_for_overload(step, msg)
-                        if growth:
-                            events.append(growth)
-                            self._checks_since_growth = 0
-                            grew_this_check = True
+
+            # Decide which dead strands to re-init vs reuse for overload
+            if dead and self.reinit_dead_strands:
+                if overloaded and self.reuse_dead_before_grow:
+                    # Split dead pool: some used for overload reuse, rest get normal reinit
+                    reuse_count = min(len(overloaded), len(dead))
+                    dead_for_reuse = dead[:reuse_count]
+                    dead_for_reinit = dead[reuse_count:]
+                else:
+                    dead_for_reuse = []
+                    dead_for_reinit = dead
+
+                if dead_for_reuse:
+                    reused = self._reuse_dead_for_overload(step, layer_i, mesh, overloaded, dead_for_reuse)
+                    if reused:
+                        self._checks_since_growth = 0
+                        grew_this_check = True
+
+                if dead_for_reinit:
+                    reinitialized = self._reinit_dead_strands(layer_i, mesh, dead_for_reinit)
+                    if reinitialized:
+                        reset_msg = f"Layer {layer_i}: reinitialized dead strands {reinitialized}"
+                        logger.info("Plasticity: %s", reset_msg)
+                        events.append(PlasticityEvent(step, "reinit_strands", reset_msg))
+
+            # If overload remains after reuse, grow new strands
+            if overloaded and self.grow_overloaded_strands and not grew_this_check:
+                growth = self._grow_for_overload(step, msg)
+                if growth:
+                    events.append(growth)
+                    self._checks_since_growth = 0
+                    grew_this_check = True
 
             mesh.reset_usage()
 
@@ -191,21 +205,24 @@ class PlasticityEngine:
 
     def _reuse_dead_for_overload(self, step: int, layer_i: int, mesh, overloaded: list[int], dead: list[int]) -> bool:
         """Reuse dead strands to handle overloaded capacity instead of growing new ones.
-        
+
+        Args:
+            dead: Pre-filtered list of dead strand IDs to reuse for overload relief.
+                  These will NOT also go through _reinit_dead_strands.
+
         Returns True if dead strands were successfully reused.
         """
-        available = self._available_dead_strands.get(layer_i, [])
-        if not available:
+        if not dead:
             return False
         
-        reuse_count = min(len(overloaded), len(available))
+        reuse_count = min(len(overloaded), len(dead))
         if reuse_count == 0:
             return False
         
         genome = self.core.model.genome
         with torch.no_grad():
             for i in range(reuse_count):
-                dead_id = available[i]
+                dead_id = dead[i]
                 global_id = int(mesh.strands[dead_id].strand_id)
                 
                 if 0 <= global_id < genome.seeds.shape[0]:
@@ -215,13 +232,13 @@ class PlasticityEngine:
                     mesh.router.weight[dead_id].normal_(mean=0.0, std=nn_init_std)
                 
                 key = (layer_i, dead_id)
-                self._last_dead_reinit.pop(key, None)
+                self._last_dead_reinit[key] = None
                 
                 msg = f"Layer {layer_i}: reused dead strand {dead_id} for overloaded capacity"
                 logger.info("Plasticity: %s", msg)
                 self.events.append(PlasticityEvent(step, "reuse_dead_strand", msg))
         
-        self._available_dead_strands[layer_i] = available[reuse_count:]
+        self._available_dead_strands[layer_i] = dead[reuse_count:]
         return True
 
     def _grow_for_overload(self, step: int, reason: str) -> PlasticityEvent | None:
