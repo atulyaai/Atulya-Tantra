@@ -128,9 +128,15 @@ class ContextCompressor:
         return re.sub(r'\n{3,}', '\n\n', text)
 
     def deduplicate_lines(self, text: str) -> str:
+        """Deduplicate lines while preserving order."""
         lines = text.split("\n")
-        seen = set()
-        return "\n".join(l for l in lines if l not in seen and not seen.add(l))
+        seen: set[str] = set()
+        deduped: list[str] = []
+        for line in lines:
+            if line not in seen:
+                seen.add(line)
+                deduped.append(line)
+        return "\n".join(deduped)
 
 
 class PromptCache:
