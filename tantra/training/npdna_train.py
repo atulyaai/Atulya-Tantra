@@ -83,7 +83,7 @@ def _initialize_new_token_embeddings(
 def _has_meaningful_info(metadata: dict) -> bool:
     """Check if a checkpoint/metadata has meaningful training information."""
     if not metadata:
-        return True
+        return False
     losses = metadata.get("losses") or metadata.get("train_losses") or []
     best_loss = metadata.get("best_loss") or metadata.get("train_best_loss")
     final_loss = metadata.get("final_loss") or metadata.get("train_final_loss")

@@ -33,8 +33,20 @@ EXPERIMENT_LOG = ROOT / "experiment_log.csv"
 IMPROVEMENT_FILE = ROOT / "improvement.json"
 
 
+def _fallback_test_texts() -> list[str]:
+    """Smoke-test fallback texts used when the dataset file is unavailable or empty."""
+    return [
+        "The quick brown fox jumps over the lazy dog.",
+        "Machine learning is a subset of artificial intelligence.",
+        "Python is a versatile programming language.",
+        "The Earth orbits the Sun at an average distance of 93 million miles.",
+    ]
+
+
 def load_test_texts(path: Path, n: int) -> list[str]:
     """Load up to `n` test samples from a JSONL dataset."""
+    if not path.exists():
+        return _fallback_test_texts()
     texts = []
     with open(path, encoding="utf-8") as f:
         for line in f:
@@ -49,12 +61,7 @@ def load_test_texts(path: Path, n: int) -> list[str]:
                 except json.JSONDecodeError:
                     pass
     if not texts:
-        texts = [
-            "The quick brown fox jumps over the lazy dog.",
-            "Machine learning is a subset of artificial intelligence.",
-            "Python is a versatile programming language.",
-            "The Earth orbits the Sun at an average distance of 93 million miles.",
-        ]
+        return _fallback_test_texts()
     return texts
 
 
