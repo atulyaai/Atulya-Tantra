@@ -114,9 +114,8 @@ class MemoryCortex(torch.nn.Module):
             (values, scores) â€” retrieved value vectors and similarity scores.
         """
         if self.size == 0:
-            if not self.training:
-                self._last_top_indices = None
-                self._last_top_scores = None
+            self._last_top_indices = None
+            self._last_top_scores = None
             dim = self.config.dim
             k = top_k or self.config.top_k
             if query.dim() == 1:
@@ -356,6 +355,7 @@ class MemoryCortex(torch.nn.Module):
                 
                 self._is_sleeping = True
                 try:
+                    was_training = model.training
                     model.train()
                     for entry in high_freq_entries:
                         try:
@@ -380,6 +380,8 @@ class MemoryCortex(torch.nn.Module):
                             logger.warning("Failed to consolidate fact '%s' to weights: %s", entry.source[:30], ex)
                 finally:
                     self._is_sleeping = False
+                    if not was_training:
+                        model.eval()
 
         self.entries = consolidated_entries
         self._invalidate_cache()
