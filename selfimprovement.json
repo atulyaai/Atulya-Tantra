@@ -1,5 +1,5 @@
 {
-  "last_scan": "2026-05-25T12:00:00Z",
+  "last_scan": "2026-05-26T00:00:00Z",
   "findings": [
     {
       "file": "tantra/npdna/model.py",
@@ -47,6 +47,62 @@
       "issue": "deduplicate_lines uses 'not seen.add(l)' anti-pattern — relies on set.add() returning None (falsy), confusing to read and implementation-dependent.",
       "fix": "Replaced with explicit for loop: check membership, add to set, append to result list.",
       "pr": "#18",
+      "severity": "🟢"
+    },
+    {
+      "file": "tantra/npdna/cortex.py",
+      "line": 266,
+      "issue": "sleep_cycle() computes full N×N cosine similarity matrix (keys_norm @ keys_norm.T). For 100K entries this is a 40GB float32 matrix — OOM crash on most hardware.",
+      "fix": "Replaced with chunked row-grouping: process 1024 rows at a time, compute (CHUNK, N) similarity matrices (~0.8GB peak). Remaining rows past the chunk boundary fall back to on-the-fly dot products (rare within each cluster discovery).",
+      "pr": "#21",
+      "severity": "🔴"
+    },
+    {
+      "file": "tantra/core/security.py",
+      "line": 54,
+      "issue": "_verify_sudo_password uses Python's == for hash comparison — vulnerable to timing side-channel attacks that leak the password hash byte by byte.",
+      "fix": "Replaced with hmac.compare_digest() for constant-time hash verification.",
+      "pr": "#21",
+      "severity": "🔴"
+    },
+    {
+      "file": "tantra/npdna/model.py",
+      "line": 182,
+      "issue": "torch.set_num_threads() restore is not guarded by try/finally. If mesh.forward() raises an exception, the thread count remains permanently changed for the entire remaining process lifetime.",
+      "fix": "Wrapped mesh.forward() in try/finally block that restores original thread count on both success and exception paths.",
+      "pr": "#21",
+      "severity": "🟡"
+    },
+    {
+      "file": "tantra/npdna/generation.py",
+      "line": 172,
+      "issue": "last_prompt_len is set to len(prompt_ids) before the BOS fallback. If encode() returns empty list, last_prompt_len=0 but ids=[BOS], causing routing telemetry to misclassify the BOS token as generated output.",
+      "fix": "Set last_prompt_len after the BOS fallback: len(ids) instead of len(prompt_ids).",
+      "pr": "#21",
+      "severity": "🟡"
+    },
+    {
+      "file": "tantra/core/model_failover.py",
+      "line": 236,
+      "issue": "streaming_completion never reads stderr (deadlock risk when stderr fills pipe buffer), has no timeout (infinite hang on hung process), and doesn't verify process return code (silently swallows errors).",
+      "fix": "Added background asyncio task to drain stderr, asyncio.wait_for for streaming timeout, and proc.returncode check on exit with stderr error reporting.",
+      "pr": "#21",
+      "severity": "🟡"
+    },
+    {
+      "file": "tantra/core/context.py",
+      "line": 160,
+      "issue": "process_invalidation() clears the invalidation queue without actually processing/evicting any entries — dead code that looks like it works but does nothing.",
+      "fix": "Changed to iterate the queue and call self._cache.pop(key, None) for each pending key before clearing.",
+      "pr": "#21",
+      "severity": "🟢"
+    },
+    {
+      "file": "tantra/npdna/plasticity.py",
+      "line": 128,
+      "issue": "PlasticityAutoScaler.check_and_scale() returns actions like 'prune_cortex', 'add_strand', 'add_layer' but PlasticityEngine.check() never calls the autoscaler — all auto-scaler heuristics are dead code.",
+      "fix": "Added autoscaler call in check() with _compute_strand_capacity(), loss_history, cortex_size/used. Actions are now dispatched to self._prune_cortex(), self.core.model.grow_strands(), and self.core.model.add_layer().",
+      "pr": "#21",
       "severity": "🟢"
     }
   ]
