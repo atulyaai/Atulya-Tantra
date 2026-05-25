@@ -1,0 +1,53 @@
+{
+  "last_scan": "2026-05-25T12:00:00Z",
+  "findings": [
+    {
+      "file": "tantra/npdna/model.py",
+      "line": 101,
+      "issue": "strand_id calculation in grow_strands() does not account for non-uniform layer specs — produces overlapping strand IDs when mesh_specs define different per-layer capacities (e.g. atulya_v1_small: layers with 10,4,4,4,8 strands). Also overwrites per-layer num_strands with old_n+count, destroying non-uniform configuration.",
+      "fix": "Strand ID formula uses cumulative prefix sum of per-layer counts. Per-layer num_strands now incremented (+= count) instead of overwritten.",
+      "pr": "#14",
+      "severity": "🔴"
+    },
+    {
+      "file": "tantra/npdna/plasticity.py",
+      "line": 148,
+      "issue": "Double reinitialization of dead strands in same check cycle: _reinit_dead_strands reinitializes dead strands, then _reuse_dead_for_overload reinitializes them again (wasted compute, potential seed overwrite). _grow_for_overload reads model.config.mesh.num_strands instead of per-layer layer_specs.",
+      "fix": "Partitioned dead strands — those consumed by overload reuse removed from _available_dead_strands, only unconsumed remainder reaches _reinit_dead_strands. _grow_for_overload now reads per-layer num_strands from layer_specs when available.",
+      "pr": "#17",
+      "severity": "🟡"
+    },
+    {
+      "file": "tantra/npdna/cortex.py",
+      "line": 357,
+      "issue": "sleep_cycle() calls model.train() but doesn't restore original training mode — if model was in eval() before sleep, it stays in train() mode afterward.",
+      "fix": "Save model.training state before sleep, restore via model.eval() if originally not training, in the finally block.",
+      "pr": "#19",
+      "severity": "🟡"
+    },
+    {
+      "file": "tantra/npdna/cortex.py",
+      "line": 116,
+      "issue": "retrieve() with empty cortex (size==0) only clears _last_top_indices when self.training is False. When training=True, stale indices from last retrieval persist.",
+      "fix": "Always set _last_top_indices and _last_top_scores to None when size==0, regardless of training mode.",
+      "pr": "#16",
+      "severity": "🟡"
+    },
+    {
+      "file": "tantra/core/compare_checkpoints.py",
+      "line": 142,
+      "issue": "Dead expression — tokens_generated / max(0.001, elapsed) computes a value that is immediately discarded (no assignment, no side effect).",
+      "fix": "Removed the no-op expression.",
+      "pr": "#15",
+      "severity": "🟢"
+    },
+    {
+      "file": "tantra/core/context.py",
+      "line": 133,
+      "issue": "deduplicate_lines uses 'not seen.add(l)' anti-pattern — relies on set.add() returning None (falsy), confusing to read and implementation-dependent.",
+      "fix": "Replaced with explicit for loop: check membership, add to set, append to result list.",
+      "pr": "#18",
+      "severity": "🟢"
+    }
+  ]
+}
