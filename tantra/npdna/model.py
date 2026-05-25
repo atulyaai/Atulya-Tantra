@@ -172,16 +172,28 @@ class NpDnaModel(nn.Module):
     def forward(
         self,
         input_ids: Tensor,
+        num_threads: int | None = None,  # inference CPU thread control per mesh layer
     ) -> tuple[Tensor, Tensor]:
         x = self.embedding(input_ids)
         total_balance_loss = torch.tensor(0.0, device=x.device)
 
         for mesh, norm in zip(self.mesh_layers, self.layer_norms):
+            # Optionally control CPU thread count per layer (inference only)
+            if num_threads is not None and not self.training:
+                original_threads = torch.get_num_threads()
+                torch.set_num_threads(num_threads)
+
             residual = x
-            if self.config.gradient_checkpointing and x.requires_grad:
-                mesh_out, bal = torch.utils.checkpoint.checkpoint(mesh.forward, x, use_reentrant=False)
-            else:
-                mesh_out, bal = mesh(x)
+            try:
+                if self.config.gradient_checkpointing and x.requires_grad:
+                    mesh_out, bal = torch.utils.checkpoint.checkpoint(mesh.forward, x, use_reentrant=False)
+                else:
+                    mesh_out, bal = mesh(x)
+            finally:
+                # Restore original thread count after each layer — even on exception
+                if num_threads is not None and not self.training:
+                    torch.set_num_threads(original_threads)
+
             x = norm(residual + mesh_out)
             total_balance_loss = total_balance_loss + bal
 

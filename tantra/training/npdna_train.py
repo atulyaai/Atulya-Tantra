@@ -473,6 +473,7 @@ def train_npdna(
     plasticity_dead_threshold: float = 0.01,
     plasticity_grow_cooldown: int = 1,
     plasticity_reuse_dead: bool = True,
+    no_plasticity: bool = False,
 ) -> tuple[NpDnaCore, list[float]]:
     """Train an NP-DNA model.
 
@@ -694,15 +695,17 @@ def train_npdna(
 
     optimizer, scheduler = build_optimizer(lr)
     loss_fn = nn.CrossEntropyLoss()
-    plasticity_check_interval = plasticity_interval or max(10, max_steps // 40)
-    plasticity = PlasticityEngine(
-        core,
-        check_interval=plasticity_check_interval,
-        dead_threshold=plasticity_dead_threshold,
-        overload_threshold=plasticity_overload_threshold,
-        grow_cooldown_checks=plasticity_grow_cooldown,
-        reuse_dead_before_grow=plasticity_reuse_dead,
-    )
+    plasticity_check_interval = plasticity_interval or (max(10, max_steps // 40) if not no_plasticity else 0)
+    plasticity: PlasticityEngine | None = None
+    if plasticity_check_interval > 0 and not no_plasticity:
+        plasticity = PlasticityEngine(
+            core,
+            check_interval=plasticity_check_interval,
+            dead_threshold=plasticity_dead_threshold,
+            overload_threshold=plasticity_overload_threshold,
+            grow_cooldown_checks=plasticity_grow_cooldown,
+            reuse_dead_before_grow=plasticity_reuse_dead,
+        )
     use_autocast = bool(bf16 and train_device.type == "cuda")
     if bf16 and not use_autocast:
         logger.info("bfloat16 autocast requested but disabled on %s for stability", train_device.type)
@@ -828,7 +831,7 @@ def train_npdna(
             loss_val = float(ce_loss.detach())
             balance_loss_val = float(balance_loss.detach())
             losses.append(loss_val)
-            plasticity.record_loss(loss_val)
+            plasticity and plasticity.record_loss(loss_val)
 
             step += 1
             tokens_seen += max(0, len(ids) - 1)
@@ -861,7 +864,7 @@ def train_npdna(
             
             # Plasticity check
             old_named_states = {}
-            if step % plasticity_check_interval == 0:
+            if plasticity and step % plasticity_check_interval == 0:
                 old_named_params = dict(model.named_parameters())
                 for name, param in old_named_params.items():
                     state = optimizer.state.get(param)
@@ -871,7 +874,7 @@ def train_npdna(
                             for k, v in state.items()
                         }
 
-            events = plasticity.check(base_step + step)
+            events = plasticity.check(base_step + step) if plasticity else []
             for e in events:
                 logger.info("âš¡ Plasticity [%s]: %s", e.event_type, e.details)
 
@@ -1199,7 +1202,7 @@ def train_npdna(
         elapsed,
     )
 
-    if plasticity.events:
+    if plasticity and plasticity.events:
         logger.info(plasticity.summary())
 
     # Send Slack notification if configured
@@ -1337,6 +1340,7 @@ if __name__ == "__main__":
     parser.add_argument("--plasticity-dead-threshold", type=float, default=0.01, help="Strand usage ratio that counts as dead")
     parser.add_argument("--plasticity-grow-cooldown", type=int, default=1, help="Plasticity checks to wait before growing strands again")
     parser.add_argument("--plasticity-reuse-dead", action="store_true", default=True, help="Reuse dead strands before growing new ones (default: enabled)")
+    parser.add_argument("--no-plasticity", action="store_true", default=False, help="Disable plasticity entirely (strand growth/dead detection)")
 
     args = parser.parse_args()
     try:
@@ -1364,6 +1368,7 @@ if __name__ == "__main__":
             plasticity_dead_threshold=args.plasticity_dead_threshold,
             plasticity_grow_cooldown=args.plasticity_grow_cooldown,
             plasticity_reuse_dead=args.plasticity_reuse_dead,
+            no_plasticity=args.no_plasticity,
     )
     except Exception as exc:
         _write_train_status(args.output, "error", error=str(exc))

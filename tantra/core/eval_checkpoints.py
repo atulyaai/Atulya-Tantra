@@ -14,7 +14,7 @@ from pathlib import Path
 import torch
 from torch import nn
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent.parent  # F:\Atulya Tantra\ (project root)
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -22,9 +22,9 @@ from tantra.npdna import NpDnaCore
 
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
 
-# â”€â”€ Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Config ──────────────────────────────────────────────────────────────────
 CHECKPOINT_DIR = ROOT / "tantra/outputs/npdna/checkpoints"
-TEST_DATA = ROOT / "data/all_datasets.jsonl"
+TEST_DATA = ROOT / "tantra/data/all_datasets.jsonl"
 NUM_EVAL_SAMPLES = 64  # texts from the test set
 GENERATE_TOKENS = 20   # tokens to generate for speed test
 MAX_SEQ = 128          # max sequence length for perplexity

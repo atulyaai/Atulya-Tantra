@@ -132,7 +132,6 @@ class GenerationMixin:
         repetition_penalty: float = 1.12,
         suppress_byte_tokens: bool = True,
         suppress_rare_unicode: bool = True,
-        context_window: int = 128,
         audio_inputs: Optional[Tensor] = None,
         image_inputs: Optional[Tensor] = None,
         system: Optional[str] = None,
@@ -147,7 +146,6 @@ class GenerationMixin:
                 repetition_penalty=repetition_penalty,
                 suppress_byte_tokens=suppress_byte_tokens,
                 suppress_rare_unicode=suppress_rare_unicode,
-                context_window=context_window,
                 audio_inputs=audio_inputs,
                 image_inputs=image_inputs,
                 system=system,
@@ -164,7 +162,6 @@ class GenerationMixin:
         repetition_penalty: float = 1.12,
         suppress_byte_tokens: bool = True,
         suppress_rare_unicode: bool = True,
-        context_window: int = 128,
         audio_inputs: Optional[Tensor] = None,
         image_inputs: Optional[Tensor] = None,
         system: Optional[str] = None,
@@ -172,8 +169,8 @@ class GenerationMixin:
         original_prompt = prompt
         prompt = _cache_prompt(_build_chat_prompt(prompt, system=system))
         prompt_ids = self.encode(prompt, allow_growth=False)
-        self.last_prompt_len = len(prompt_ids)
         ids = list(prompt_ids) or [self.tokenizer.token_to_id.get("<bos>", 2)]
+        self.last_prompt_len = len(ids)  # adjust in case BOS was injected
 
         device = self.model.embedding.weight.device
         valid_vocab = min(self.tokenizer.size, self.model.vocab_size)
@@ -186,8 +183,11 @@ class GenerationMixin:
         self.model.eval()
         with torch.no_grad():
             for _ in range(max_tokens):
+                # KV-cache equivalent: only pass the last token (T=1) since
+                # each token is processed independently in this architecture.
+                # context_window is ignored since v0.4.
                 input_ids = torch.tensor(
-                    [ids[-context_window:]], dtype=torch.long, device=device
+                    [[ids[-1]]], dtype=torch.long, device=device
                 )
                 logits, _ = self.model(input_ids=input_ids)
                 next_logits = logits[0, -1].clone()

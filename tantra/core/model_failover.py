@@ -247,11 +247,41 @@ class OpenCodeProvider(ModelProvider):
             stderr=asyncio.subprocess.PIPE,
         )
 
+        # Read stderr in background to prevent deadlock; collect for error reporting
+        stderr_lines: list[bytes] = []
+
+        async def _drain_stderr():
+            if proc.stderr:
+                async for line in proc.stderr:
+                    stderr_lines.append(line)
+
+        stderr_task = asyncio.create_task(_drain_stderr())
+
         if proc.stdout:
-            async for line in proc.stdout:
-                decoded = line.decode().strip()
-                if decoded:
-                    yield decoded
+            try:
+                async for line in asyncio.wait_for(
+                    proc.stdout.__aiter__(),
+                    timeout=self.config.timeout,
+                ):
+                    decoded = line.decode().strip()
+                    if decoded:
+                        yield decoded
+            except asyncio.TimeoutError:
+                proc.kill()
+                stderr = b"".join(stderr_lines).decode().strip()
+                raise RuntimeError(
+                    f"Streaming timed out after {self.config.timeout}s"
+                    + (f" — stderr: {stderr}" if stderr else "")
+                )
+
+        # Wait for process to finish
+        await asyncio.wait_for(proc.wait(), timeout=self.config.timeout)
+        await stderr_task
+
+        if proc.returncode != 0:
+            stderr = b"".join(stderr_lines).decode().strip()
+            if stderr:
+                raise RuntimeError(f"Streaming failed (exit {proc.returncode}): {stderr}")
 
     def classify_error(self, error: Exception) -> ErrorType:
         error_str = str(error).lower()

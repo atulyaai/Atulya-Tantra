@@ -142,8 +142,55 @@ class PlasticityEngine:
         # 3. Check for training plateau
         events.extend(self._check_plateau(step))
 
+        # 4. Auto-scaler (cross-cutting heuristics)
+        if self.auto_scale:
+            try:
+                cortex = getattr(self.core, "cortex", None)
+                cortex_size = cortex.config.max_entries if cortex else 0
+                cortex_used = cortex.size if cortex else 0
+                actions = self.autoscaler.check_and_scale(
+                    strand_capacity=self._compute_strand_capacity(),
+                    loss_history=self.loss_history,
+                    cortex_size=cortex_size,
+                    cortex_used=cortex_used,
+                )
+                for action in actions:
+                    if action == "prune_cortex":
+                        pruned = self._prune_cortex()
+                        msg = f"auto-scaler pruned {pruned} cortex entries"
+                        logger.info("Plasticity: %s", msg)
+                        events.append(PlasticityEvent(step, "prune_cortex", msg))
+                    elif action == "add_strand":
+                        if self._checks_since_growth >= self.grow_cooldown_checks:
+                            current = self.core.model.config.mesh.num_strands
+                            self.core.model.grow_strands(1)
+                            self._checks_since_growth = 0
+                            msg = f"auto-scaler strand growth {current} -> {self.core.model.config.mesh.num_strands}"
+                            logger.info("Plasticity: %s", msg)
+                            events.append(PlasticityEvent(step, "auto_grow_strands", msg))
+                    elif action == "add_layer":
+                        if self._checks_since_growth >= self.grow_cooldown_checks:
+                            self.core.model.add_layer()
+                            self._checks_since_growth = 0
+                            msg = f"auto-scaler added new layer"
+                            logger.info("Plasticity: %s", msg)
+                            events.append(PlasticityEvent(step, "auto_add_layer", msg))
+            except Exception as exc:
+                logger.warning("Plasticity: auto-scaler check failed: %s", exc)
+
         self.events.extend(events)
         return events
+
+    def _compute_strand_capacity(self) -> float:
+        """Average strand usage ratio across all mesh layers (0–1)."""
+        used = 0
+        total = 0
+        for mesh in self.core.model.mesh_layers:
+            stats = mesh.usage_stats
+            for s_id, ratio in stats.items():
+                used += ratio
+                total += 1
+        return used / max(total, 1)
 
     def _check_strand_usage(self, step: int) -> list[PlasticityEvent]:
         """Detect dead and overloaded Strands. Reuse dead strands before growing new ones."""

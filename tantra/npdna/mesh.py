@@ -58,6 +58,8 @@ class NeuralMesh(nn.Module):
         self._last_top_indices = None
         self._last_top_weights = None
         self.activation_topics: dict[int, Counter[str]] = {}
+        # Inference weight cache: avoids regenerating Genome weights every forward
+        self._weight_cache: dict[int, dict[str, tuple[Tensor, Tensor]]] = {}
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
         """Route tokens to top-k Strands and combine outputs.
@@ -84,44 +86,72 @@ class NeuralMesh(nn.Module):
             self._last_top_indices = None
             self._last_top_weights = None
 
-        # Compute outputs from selected Strands
-        output = torch.zeros_like(x)
-
         # Gather all (batch, time, k_idx) triples and group by strand
         # This replaces the O(KÃ—N) nested loop with O(num_active_strands Ã— avg_tokens_per_strand)
         flat_indices = top_indices.reshape(B * T * K)  # (B*T*K,)
         flat_weights = top_weights.reshape(B * T * K, 1)  # (B*T*K, 1)
         flat_x = x.unsqueeze(2).expand(-1, -1, K, -1).reshape(B * T * K, -1)  # (B*T*K, H)
 
-        # Find unique strand indices and their inverse mapping
-        unique_strands, inverse = torch.unique(flat_indices, return_inverse=True)
-        unique_strands = unique_strands.tolist()  # move to host for iteration
-        weight_cache = {
-            int(s_id): self.strands[int(s_id)].genome.generate_all(self.strands[int(s_id)].strand_id)
-            for s_id in unique_strands
-        }
+        # --- Pre-sort tokens by strand for contiguous memory access ---
+        # Sort flat_indices so all tokens assigned to the same strand sit in one
+        # contiguous block.  This replaces N individual masked gathers (one per
+        # active strand) with one sort + one gather, and similarly for the scatter.
+        token_pos = torch.arange(B * T * K, device=x.device) // K  # (B*T*K,) — flat -> (B*T) mapping
+        sort_order = torch.argsort(flat_indices)
+        sorted_strands = flat_indices[sort_order]  # (B*T*K,) — strand IDs in sorted order
+        sorted_x = flat_x[sort_order]  # (B*T*K, H) — tokens grouped by strand
+        sorted_weights = flat_weights[sort_order]  # (B*T*K, 1)
+        sorted_pos = token_pos[sort_order]  # (B*T*K,) — token positions reflipped
 
-        for s_id in unique_strands:
-            mask = inverse == int(s_id)  # use the pre-computed inverse
-            mask_flat = mask
-            if not mask_flat.any():
-                continue
+        # Find contiguous run boundaries (where strand ID changes)
+        strand_changes = torch.where(sorted_strands[1:] != sorted_strands[:-1])[0] + 1
+        run_starts = torch.cat([
+            torch.zeros(1, dtype=torch.long, device=x.device), strand_changes
+        ])
+        run_ends = torch.cat([
+            strand_changes,
+            torch.tensor([len(sorted_strands)], dtype=torch.long, device=x.device)
+        ])
 
-            strand_tokens = flat_x[mask_flat].unsqueeze(1)  # (M, 1, H)
-            strand_weights = flat_weights[mask_flat]  # (M, 1)
+        # Populate weight cache for all active strands (checked once before the loop)
+        active_sids = [int(s) for s in sorted_strands[run_starts].tolist()]
+        weight_cache: dict[int, dict[str, tuple[Tensor, Tensor]]] = {}
+        for sid in active_sids:
+            if not self.training and sid in self._weight_cache:
+                weight_cache[sid] = self._weight_cache[sid]
+            else:
+                w = self.strands[sid].genome.generate_all(self.strands[sid].strand_id)
+                weight_cache[sid] = w
+                if not self.training:
+                    self._weight_cache[sid] = w
+
+        # Pre-allocate sorted output buffer (contiguous writes)
+        sorted_output = torch.zeros_like(sorted_x)
+
+        # Process each strand's contiguous block — NO per-strand masked gathers
+        for i in range(len(run_starts)):
+            start = int(run_starts[i])
+            end = int(run_ends[i])
+            sid = int(sorted_strands[start])
+
+            # Contiguous block = best CPU cache locality
+            block = sorted_x[start:end].unsqueeze(1)  # (M, 1, H)
+            w = sorted_weights[start:end]  # (M, 1)
 
             # Process through Strand
-            strand_output = self.strands[s_id](strand_tokens, weights=weight_cache[int(s_id)]).squeeze(1)  # (M, H)
+            out = self.strands[sid](block, weights=weight_cache[sid]).squeeze(1)  # (M, H)
+            sorted_output[start:end] = out * w
 
-            # Scatter back
-            flat_indices_masked = torch.where(mask_flat)[0]
-            batch_idx = flat_indices_masked // (T * K)
-            remainder = flat_indices_masked % (T * K)
-            time_idx = remainder // K
-            output[batch_idx, time_idx] += strand_output * strand_weights
+            self._usage_counts[sid] += (end - start)
 
-            # Track usage
-            self._usage_counts[s_id] += mask_flat.sum().item()
+        # Reverse sort back to original flat order
+        rev = torch.argsort(sort_order)
+        final_out = sorted_output[rev]  # (B*T*K, H)
+
+        # Scatter to output — index_add_ handles K contributions per (B*T) position
+        flat_output = torch.zeros(B * T, H, device=x.device, dtype=x.dtype)
+        flat_output.index_add_(0, token_pos, final_out)
+        output = flat_output.view(B, T, H)
 
         # Load-balancing loss: encourage even distribution across Strands
         # Based on Switch Transformer's balance loss

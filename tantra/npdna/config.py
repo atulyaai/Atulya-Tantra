@@ -32,6 +32,7 @@ class StrandConfig:
 
     hidden_size: int = 128
     state_size: int = 64
+    int8_matmul: bool = False  # per-tensor symmetric int8 quantized matmul (memory-bandwidth opt)
 
 
 @dataclass

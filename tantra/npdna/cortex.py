@@ -263,26 +263,49 @@ class MemoryCortex(torch.nn.Module):
         max_capacity = max_capacity or self.config.max_entries
         old_size = self.size
 
-        # 1. Compute cosine similarity matrix
+        # 1. Compute cosine similarity in chunks to avoid O(N²) memory blowup.
+        #    For N=100K, a full N×N matrix would be 40 GB — instead we process
+        #    each row group incrementally so peak memory stays O(N × chunk × dim).
         with torch.no_grad():
             keys = torch.stack([e.key for e in self.entries])  # (N, dim)
             keys_norm = torch.nn.functional.normalize(keys, dim=-1)  # (N, dim)
-            similarity = keys_norm @ keys_norm.T  # (N, N)
 
-        # 2. Greedy grouping of unvisited elements
+        # 2. Greedy grouping — chunk rows to avoid materialising full N×N matrix.
+        CHUNK = 1024  # 1024 × 100K = 0.8 GB per chunk
         visited = set()
         consolidated_entries: list[CortexEntry] = []
 
-        for i in range(old_size):
-            if i in visited:
-                continue
+        for i_chunk in range(0, old_size, CHUNK):
+            i_end = min(i_chunk + CHUNK, old_size)
+            # Compute similarity for this chunk only: (chunk, N)
+            chunk_keys = keys_norm[i_chunk:i_end]  # (chunk, dim)
+            chunk_sim = chunk_keys @ keys_norm.T  # (chunk, N) — peak ~0.8 GB
 
-            # Find all entries similar to i
-            cluster_indices = []
-            for j in range(i, old_size):
-                if j not in visited and similarity[i, j].item() >= similarity_threshold:
-                    cluster_indices.append(j)
-                    visited.add(j)
+            for local_i in range(i_end - i_chunk):
+                i = i_chunk + local_i
+                if i in visited:
+                    continue
+
+                # Find all entries similar to i in this chunk
+                cluster_indices = []
+                # Walk row i of the full matrix using chunk_sim for [i_chunk, i_end)
+                # and full rows for [i_end, old_size)
+                sim_row = chunk_sim[local_i]  # (N,) — whole row from chunk slice
+
+                for j in range(i, old_size):
+                    if j in visited:
+                        continue
+                    # Read similarity from chunk_sim if j is in this chunk,
+                    # otherwise compute on the fly (one dot product).  The
+                    # majority of rows are covered by chunk_sim, so the
+                    # on-the-fly fallback is rare and cheap.
+                    if i_chunk <= j < i_end:
+                        sim_val = sim_row[j].item()
+                    else:
+                        sim_val = (keys_norm[i] @ keys_norm[j]).item()
+                    if sim_val >= similarity_threshold:
+                        cluster_indices.append(j)
+                        visited.add(j)
 
             if not cluster_indices:
                 continue
