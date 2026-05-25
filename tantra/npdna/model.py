@@ -99,22 +99,33 @@ class NpDnaModel(nn.Module):
     # â”€â”€ Growth / reshape â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def grow_strands(self, count: int = 1) -> None:
-        """Uniformly grow every mesh layer by `count` new strands."""
+        """Uniformly grow every mesh layer by `count` new strands.
+
+        For non-uniform layer specs (where each layer may have a different
+        number of strands), the per-layer counts are preserved and each
+        layer is grown by ``count``.
+        """
         if count <= 0:
             return
-        old_n = self.mesh_layers[0].config.num_strands if self.mesh_layers else self.config.mesh.num_strands
+        # Total existing strands across ALL layers — this is the base offset
+        # for the next batch of globally-unique strand IDs.
+        old_total = sum(spec.num_strands for spec in self.layer_specs)
         self.genome.add_strand_capacity(self.config.num_layers * count)
         for grow_i in range(count):
             for layer_i, mesh in enumerate(self.mesh_layers):
-                strand_id = old_n * self.config.num_layers + grow_i * self.config.num_layers + layer_i
+                strand_id = old_total + grow_i * self.config.num_layers + layer_i
                 mesh.add_strand(strand_id=strand_id)
-        new_n = old_n + count
-        self.config.mesh.num_strands = new_n
+        for spec in self.layer_specs:
+            spec.num_strands += count
+        new_total = sum(spec.num_strands for spec in self.layer_specs)
+        # Update the legacy uniform config field for downstream compatibility
+        if self.layer_specs:
+            self.config.mesh.num_strands = self.layer_specs[0].num_strands
         self.config.genome.max_strands = max(
             int(self.genome.seeds.shape[0]),
-            new_n * self.config.num_layers,
+            new_total,
         )
-        logger.info("NpDnaModel: strands/layer %d â†’ %d", old_n, new_n)
+        logger.info("NpDnaModel: strands/layer +%d (total %d)", count, new_total)
 
     def add_layer(
         self,
