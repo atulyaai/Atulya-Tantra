@@ -163,12 +163,6 @@ class PlasticityEngine:
                 events.append(PlasticityEvent(step, "dead_strands", msg))
                 dead_strands_by_layer[layer_i] = dead
                 self._available_dead_strands[layer_i] = dead
-                if self.reinit_dead_strands:
-                    reinitialized = self._reinit_dead_strands(layer_i, mesh, dead)
-                    if reinitialized:
-                        reset_msg = f"Layer {layer_i}: reinitialized dead strands {reinitialized}"
-                        logger.info("Plasticity: %s", reset_msg)
-                        events.append(PlasticityEvent(step, "reinit_strands", reset_msg))
 
             if overloaded:
                 msg = f"Layer {layer_i}: {len(overloaded)} overloaded strands {overloaded}"
@@ -184,6 +178,17 @@ class PlasticityEngine:
                             events.append(growth)
                             self._checks_since_growth = 0
                             grew_this_check = True
+
+            # Only reinit dead strands that were NOT consumed by reuse above.
+            if dead and self.reinit_dead_strands:
+                # After _reuse_dead_for_overload, strands still in
+                # _available_dead_strands are the ones NOT consumed.
+                reinit_targets = self._available_dead_strands.get(layer_i, [])
+                reinitialized = self._reinit_dead_strands(layer_i, mesh, reinit_targets)
+                if reinitialized:
+                    reset_msg = f"Layer {layer_i}: reinitialized dead strands {reinitialized}"
+                    logger.info("Plasticity: %s", reset_msg)
+                    events.append(PlasticityEvent(step, "reinit_strands", reset_msg))
 
             mesh.reset_usage()
 
@@ -226,7 +231,11 @@ class PlasticityEngine:
 
     def _grow_for_overload(self, step: int, reason: str) -> PlasticityEvent | None:
         model = self.core.model
-        current = model.config.mesh.num_strands
+        # Use per-layer specs if available, else fall back to config default
+        if model.layer_specs:
+            current = max(spec.num_strands for spec in model.layer_specs)
+        else:
+            current = model.config.mesh.num_strands
         max_per_layer = 64
         if current >= max_per_layer:
             return None
@@ -234,7 +243,9 @@ class PlasticityEngine:
             return None
 
         model.grow_strands(1)
-        msg = f"grew strands per layer {current} -> {model.config.mesh.num_strands}; reason: {reason}"
+        # Read updated value after growth
+        new_count = max(spec.num_strands for spec in model.layer_specs) if model.layer_specs else model.config.mesh.num_strands
+        msg = f"grew strands per layer {current} -> {new_count}; reason: {reason}"
         logger.info("Plasticity: %s", msg)
         return PlasticityEvent(step, "grow_strands", msg)
 
