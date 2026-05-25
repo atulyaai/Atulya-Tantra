@@ -139,7 +139,6 @@ def benchmark_core(core: NpDnaCore, test_texts: list[str], label: str) -> dict:
     result = core.generate("Hello world", max_tokens=GENERATE_TOKENS)
     elapsed = time.perf_counter() - start
     tokens_generated = len(core.encode(result, allow_growth=False))
-    tokens_generated / max(0.001, elapsed)
 
     # ── 5. Memory ───────────────────────────────────────────────────────────
     print(f"  [{label}] Measuring memory...", flush=True)
