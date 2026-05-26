@@ -94,8 +94,12 @@ class CheckpointMixin:
             state = torch.load(path / "model.pt", map_location="cpu", weights_only=True)
         elif cls._is_component_format(path):
             state = cls._load_components(path)
+        elif cls._is_sharded_format(path):
+            state = cls._load_sharded(path, cls._read_shard_index(path))
         else:
-            raise FileNotFoundError(f"Checkpoint at {path} has neither model.pt nor component model_index.json")
+            raise FileNotFoundError(
+                f"Checkpoint at {path} has neither model.pt nor component nor shard files"
+            )
 
         # Infer actual strand count from weights (beats stale metadata)
         inferred_strands = max(
@@ -198,6 +202,20 @@ class CheckpointMixin:
             return "component_files" in idx
         except Exception:
             return False
+
+    @staticmethod
+    def _is_sharded_format(path: Path) -> bool:
+        """Check if model_index.json points to shard files (v2)."""
+        try:
+            idx = json.loads((path / "model_index.json").read_text(encoding="utf-8"))
+            return "weight_files" in idx
+        except Exception:
+            return False
+
+    @staticmethod
+    def _read_shard_index(path: Path) -> dict:
+        """Read and return the model_index.json content for sharded format."""
+        return json.loads((path / "model_index.json").read_text(encoding="utf-8"))
 
     @staticmethod
     def _load_components(path: Path) -> dict[str, torch.Tensor]:
