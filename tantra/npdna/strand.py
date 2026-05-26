@@ -34,12 +34,12 @@ class Strand(nn.Module):
         config: Hidden/state size configuration.
     """
 
-    def __init__(self, genome: Genome, strand_id: int, config: StrandConfig):
+    def __init__(self, genome: Genome, strand_id: int, config: StrandConfig, device: torch.device | None = None):
         super().__init__()
         self.genome = genome
         self.strand_id = strand_id
         self.config = config
-        self.norm = nn.LayerNorm(config.hidden_size)
+        self.norm = nn.LayerNorm(config.hidden_size, device=device)
 
         # Usage tracking for Plasticity Engine
         self.usage_count: int = 0

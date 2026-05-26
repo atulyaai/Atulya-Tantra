@@ -170,17 +170,22 @@ class CheckpointMixin:
                 ]
                 model.restore_strand_id_map(inferred)
 
-        try:
-            model.load_state_dict(state, strict=False)
-        except RuntimeError as exc:
-            msg = str(exc)
-            if any(kw in msg for kw in ("size mismatch", "Missing key", "Unexpected key")):
-                raise RuntimeError(
-                    f"Checkpoint at {path} has mismatched architecture dimensions between metadata.json and model.pt. "
-                    f"Metadata: hidden={config.hidden_size}, layers={config.num_layers}, "
-                    f"strands={inferred_strands}. Original: {msg}"
-                ) from exc
-            raise
+        # Gracefully handle size mismatches — don't crash, just skip mismatched weights
+        # This lets users load checkpoints from different architectures (e.g. seed → nano)
+        # without deleting and re-copying files. Mismatched params keep their init values.
+        model_state = model.state_dict()
+        for key in list(state.keys()):
+            if key in model_state:
+                if state[key].shape != model_state[key].shape:
+                    logger.warning(
+                        "Size mismatch for '%s': checkpoint %s vs model %s. "
+                        "Skipping — weight will use random init instead of checkpoint.",
+                        key, list(state[key].shape), list(model_state[key].shape),
+                    )
+                    del state[key]
+            else:
+                logger.debug("Key '%s' in checkpoint not found in model. Skipping.", key)
+        model.load_state_dict(state, strict=False)
 
         tokenizer = AtulyaTokenizer.load(path / "tokenizer.json")
         cortex_path = path / "cortex"

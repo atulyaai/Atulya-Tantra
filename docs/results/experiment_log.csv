@@ -1,0 +1,3 @@
+timestamp,checkpoint,step,samples,loss,accuracy_pct,perplexity,gen_speed_tokps,train_steps,train_best_loss,train_final_loss,vs_previous_loss,vs_previous_acc,verdict
+2026-05-25 12:49:52,step_016000,16000,64,3.4949,15.37,32.95,2.2,500,2.482,2.6423,0.04150000000000009,-1.92,BAD
+2026-05-27 00:32:35,v2_20260526_222133,500,64,6.9790,5.35,1073.90,13.7,500,4.2452,8.5642,3.4841,-10.02,BAD

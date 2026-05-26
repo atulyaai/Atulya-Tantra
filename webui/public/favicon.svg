@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Atulya Tantra">
+  <rect width="64" height="64" rx="14" fill="#0d0f15"/>
+  <path d="M32 10 52 48H12L32 10Z" fill="#7c5cff"/>
+  <circle cx="32" cy="36" r="9" fill="#12c99b"/>
+  <path d="M24 48h16" stroke="#eef2ff" stroke-width="4" stroke-linecap="round"/>
+</svg>
