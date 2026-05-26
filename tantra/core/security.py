@@ -56,7 +56,8 @@ class ApprovalSystem:
             return self._allow_no_password
         try:
             salt, hash_val = self._sudo_password_hash.split(":")
-            return hashlib.sha256((salt + password).encode()).hexdigest() == hash_val
+            computed = hashlib.sha256((salt + password).encode()).hexdigest()
+            return hmac.compare_digest(computed, hash_val)
         except (ValueError, AttributeError):
             return False
 

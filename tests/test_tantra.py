@@ -564,6 +564,20 @@ class TestContextCompressor:
 import tempfile
 
 
+class TestPromptCache:
+    def test_process_invalidation_evicts_pending_key(self):
+        from tantra.core.context import PromptCache
+
+        cache = PromptCache()
+        cache.set("prompt", "old")
+        cache.invalidate("prompt")
+        cache.set("prompt", "reinserted-before-queue-processed")
+
+        cache.process_invalidation()
+
+        assert cache.get("prompt") is None
+
+
 class TestCortexAutoStore:
     """Tests for CortexAutoStore — auto-store and retrieve intermediate representations."""
 
@@ -986,9 +1000,9 @@ class TestGrammarEngine:
         fixed = engine.fix("i am here", language="en")
         assert "I" in fixed
 
-    def test_add_rule(self):
+    def test_add_rule(self, tmp_path):
         from tantra.core.grammar import GrammarEngine
-        engine = GrammarEngine()
+        engine = GrammarEngine(data_dir=tmp_path / "grammar")
         count_before = len(engine._rules)
         engine.add_rule("test_rule", "en", r"foo", "bar", "Test rule")
         assert len(engine._rules) == count_before + 1
@@ -1297,7 +1311,7 @@ from tantra.npdna import (
     NpDnaModel,
     Strand,
 )
-from tantra.npdna.config import CortexConfig, GenomeConfig, MeshConfig, NpDnaConfig, StrandConfig
+from tantra.npdna.config import CortexConfig, GenomeConfig, LayerSpec, MeshConfig, NpDnaConfig, StrandConfig
 
 
 # ---------------------------------------------------------------------------
@@ -1657,6 +1671,26 @@ class TestNpDnaModel:
         assert logits.shape == (1, 4, config.initial_vocab)
         assert balance_loss.ndim == 0
 
+    def test_growth_preserves_non_uniform_layers_and_unique_ids(self):
+        config = NpDnaConfig(
+            initial_vocab=128,
+            hidden_size=32,
+            state_size=16,
+            genome=GenomeConfig(latent_dim=64, rank=8, max_strands=12),
+            mesh_specs=[
+                LayerSpec(name="main", num_strands=3, top_k=1),
+                LayerSpec(name="cortex", num_strands=2, top_k=1),
+            ],
+        )
+        model = NpDnaModel(config)
+
+        model.grow_strands(2)
+
+        assert [spec.num_strands for spec in model.layer_specs] == [5, 4]
+        ids = [strand_id for layer in model.strand_id_map() for strand_id in layer]
+        assert len(ids) == len(set(ids))
+        assert max(ids) < model.genome.seeds.shape[0]
+
 
 # ---------------------------------------------------------------------------
 # NpDnaCore (integration)
@@ -1706,6 +1740,15 @@ class TestNpDnaCore:
         # Untrained model won't produce coherent text, but should not crash
         result = core.generate("Hello", max_tokens=5)
         assert isinstance(result, str)
+
+    def test_generate_tracks_injected_bos_as_prompt_token(self, tmp_path, monkeypatch):
+        core = NpDnaCore.from_config("seed")
+        core.encode = lambda *_args, **_kwargs: []
+        monkeypatch.setenv("ATULYA_DATA_DIR", str(tmp_path))
+
+        list(core.generate_stream("", max_tokens=0))
+
+        assert core.last_prompt_len == 1
 
     def test_training_step(self):
         """Verify a single training step runs without error."""
@@ -2402,6 +2445,41 @@ class TestPlasticityEngine:
         overload_events = [e for e in events if e.event_type == "overloaded_strands"]
         assert len(overload_events) >= 0  # May or may not grow depending on threshold
 
+    def test_reused_dead_strands_are_not_reinitialized_twice(self):
+        from tantra.npdna.plasticity import PlasticityEngine
+
+        core = NpDnaCore.from_config("seed")
+        mesh = core.model.mesh_layers[0]
+        mesh._usage_counts.zero_()
+        mesh._usage_counts[0] = 100
+        engine = PlasticityEngine(
+            core,
+            check_interval=1,
+            dead_threshold=0.01,
+            overload_threshold=0.8,
+            grow_overloaded_strands=True,
+            reuse_dead_before_grow=True,
+        )
+        reused = []
+        reinitialized = []
+        original_reuse = engine._reuse_dead_for_overload
+        original_reinit = engine._reinit_dead_strands
+
+        def track_reuse(step, layer_i, target_mesh, overloaded, dead):
+            reused.extend((layer_i, strand_id) for strand_id in dead[: min(len(overloaded), len(dead))])
+            return original_reuse(step, layer_i, target_mesh, overloaded, dead)
+
+        def track_reinit(layer_i, target_mesh, dead):
+            reinitialized.extend((layer_i, strand_id) for strand_id in dead)
+            return original_reinit(layer_i, target_mesh, dead)
+
+        engine._reuse_dead_for_overload = track_reuse
+        engine._reinit_dead_strands = track_reinit
+        engine.check(1)
+
+        assert reused
+        assert set(reused).isdisjoint(reinitialized)
+
 
 """Tests for PlasticityAutoScaler — strand/layer scaling, cortex pruning."""
 
@@ -2666,6 +2744,17 @@ class TestApprovalSystem:
         a = ApprovalSystem()
         assert a.enable_sudo("") is False
         assert a._sudo_mode is False
+
+    def test_sudo_password_uses_constant_time_comparison(self, monkeypatch):
+        from tantra.core import security
+
+        used = []
+        monkeypatch.setattr(security.hmac, "compare_digest", lambda left, right: used.append((left, right)) or True)
+        a = security.ApprovalSystem()
+        a.set_sudo_password("admin")
+
+        assert a.enable_sudo("admin") is True
+        assert used
 
 
 class TestSandboxManager:

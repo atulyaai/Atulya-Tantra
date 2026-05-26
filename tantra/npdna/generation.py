@@ -172,8 +172,8 @@ class GenerationMixin:
         original_prompt = prompt
         prompt = _cache_prompt(_build_chat_prompt(prompt, system=system))
         prompt_ids = self.encode(prompt, allow_growth=False)
-        self.last_prompt_len = len(prompt_ids)
         ids = list(prompt_ids) or [self.tokenizer.token_to_id.get("<bos>", 2)]
+        self.last_prompt_len = len(ids)
 
         device = self.model.embedding.weight.device
         valid_vocab = min(self.tokenizer.size, self.model.vocab_size)

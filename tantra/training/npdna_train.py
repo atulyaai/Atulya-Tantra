@@ -932,7 +932,7 @@ def train_npdna(
                 except Exception as _ex:
                     logger.warning("Failed to apply auto-tweak: %s", _ex)
 
-            if any(e.event_type == "grow_strands" for e in events):
+            if any(e.event_type in {"grow_strands", "plateau_grow_strands"} for e in events):
                 current_lr = optimizer.param_groups[0]["lr"]
                 new_optimizer, new_scheduler = build_optimizer(current_lr)
                 restore_optimizer_state(new_optimizer, old_named_states, model)

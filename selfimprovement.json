@@ -80,6 +80,54 @@
       "fix": "Added path.exists() check at function entry; falls back to _fallback_test_texts() when dataset file is missing.",
       "pr": "#22",
       "severity": "🟡"
+    },
+    {
+      "file": "tantra/npdna/cortex.py",
+      "line": 263,
+      "issue": "sleep_cycle() built a full N x N similarity tensor and could exhaust memory for large cortex stores.",
+      "fix": "Compute similarity rows in bounded blocks capped at roughly 32 MiB of temporary float32 values.",
+      "pr": "direct-main",
+      "severity": "high"
+    },
+    {
+      "file": "tantra/core/security.py",
+      "line": 54,
+      "issue": "Sudo password verification compared digest strings with a timing-sensitive equality operation.",
+      "fix": "Use hmac.compare_digest() for constant-time digest comparison.",
+      "pr": "direct-main",
+      "severity": "high"
+    },
+    {
+      "file": "tantra/core/model_failover.py",
+      "line": 229,
+      "issue": "OpenCode streaming could hang, leave stderr undrained, or hide non-zero child exit failures.",
+      "fix": "Drain stderr concurrently, bound reads and process waits by timeout, report failed exits, and reap unfinished children.",
+      "pr": "direct-main",
+      "severity": "medium"
+    },
+    {
+      "file": "tantra/npdna/generation.py",
+      "line": 173,
+      "issue": "An empty encoded prompt injected BOS after last_prompt_len was recorded, misclassifying BOS in telemetry.",
+      "fix": "Record prompt length after BOS fallback is applied.",
+      "pr": "direct-main",
+      "severity": "medium"
+    },
+    {
+      "file": "tantra/core/context.py",
+      "line": 160,
+      "issue": "process_invalidation() cleared queued cache invalidations without evicting keys reinserted before processing.",
+      "fix": "Pop each queued cache key while draining the invalidation queue.",
+      "pr": "direct-main",
+      "severity": "low"
+    },
+    {
+      "file": "tantra/training/npdna_train.py",
+      "line": 935,
+      "issue": "Plateau-triggered strand growth was not recognized by the optimizer rebuild path, leaving replaced router parameters out of optimization.",
+      "fix": "Rebuild and restore optimizer state for overload and plateau strand-growth events.",
+      "pr": "direct-main",
+      "severity": "high"
     }
   ]
 }

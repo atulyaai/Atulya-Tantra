@@ -158,4 +158,5 @@ class PromptCache:
         self._cache.pop(key, None)
 
     def process_invalidation(self):
-        self._invalidation_queue.clear()
+        while self._invalidation_queue:
+            self._cache.pop(self._invalidation_queue.pop(0), None)

@@ -87,6 +87,41 @@ class TestModelFailover:
             assert r["content"] == "ok"
         asyncio.run(run())
 
+    def test_opencode_stream_surfaces_process_error(self, monkeypatch):
+        import pytest
+        from tantra.core.model_failover import OpenCodeProvider, ProviderConfig
+
+        class Reader:
+            async def readline(self):
+                return b""
+
+            async def read(self):
+                return b"provider failed"
+
+        class FailedProcess:
+            stdout = Reader()
+            stderr = Reader()
+            returncode = 1
+
+            async def wait(self):
+                return self.returncode
+
+            def kill(self):
+                self.returncode = -1
+
+        async def create_process(*_args, **_kwargs):
+            return FailedProcess()
+
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", create_process)
+        provider = OpenCodeProvider(ProviderConfig(name="opencode", timeout=0.1))
+
+        async def run():
+            with pytest.raises(RuntimeError, match="provider failed"):
+                async for _ in provider.streaming_completion([]):
+                    pass
+
+        asyncio.run(run())
+
 
 # ===================================================================
 # MEMORY SYSTEM TESTS

@@ -263,74 +263,79 @@ class MemoryCortex(torch.nn.Module):
         max_capacity = max_capacity or self.config.max_entries
         old_size = self.size
 
-        # 1. Compute cosine similarity matrix
+        # Compute normalized keys once; similarity rows are produced in bounded blocks.
         with torch.no_grad():
             keys = torch.stack([e.key for e in self.entries])  # (N, dim)
             keys_norm = torch.nn.functional.normalize(keys, dim=-1)  # (N, dim)
-            similarity = keys_norm @ keys_norm.T  # (N, N)
 
-        # 2. Greedy grouping of unvisited elements
+        # Bound temporary similarity memory to roughly 32 MiB of float32 values.
+        row_block_size = max(1, min(1024, (8 * 1024 * 1024) // old_size))
         visited = set()
         consolidated_entries: list[CortexEntry] = []
 
-        for i in range(old_size):
-            if i in visited:
-                continue
+        for block_start in range(0, old_size, row_block_size):
+            block_end = min(block_start + row_block_size, old_size)
+            with torch.no_grad():
+                similarity_rows = keys_norm[block_start:block_end] @ keys_norm.T
 
-            # Find all entries similar to i
-            cluster_indices = []
-            for j in range(i, old_size):
-                if j not in visited and similarity[i, j].item() >= similarity_threshold:
-                    cluster_indices.append(j)
-                    visited.add(j)
+            for i in range(block_start, block_end):
+                if i in visited:
+                    continue
 
-            if not cluster_indices:
-                continue
+                row = similarity_rows[i - block_start]
+                cluster_indices = []
+                for j in range(i, old_size):
+                    if j not in visited and row[j].item() >= similarity_threshold:
+                        cluster_indices.append(j)
+                        visited.add(j)
 
-            if len(cluster_indices) == 1:
-                consolidated_entries.append(self.entries[i])
-                continue
+                if not cluster_indices:
+                    continue
 
-            # Merge cluster
-            clustered_entries = [self.entries[idx] for idx in cluster_indices]
+                if len(cluster_indices) == 1:
+                    consolidated_entries.append(self.entries[i])
+                    continue
+
+                # Merge cluster
+                clustered_entries = [self.entries[idx] for idx in cluster_indices]
             
-            # Key/Value is average
-            merged_key = torch.stack([e.key for e in clustered_entries]).mean(dim=0)
-            merged_value = torch.stack([e.value for e in clustered_entries]).mean(dim=0)
+                # Key/Value is average
+                merged_key = torch.stack([e.key for e in clustered_entries]).mean(dim=0)
+                merged_value = torch.stack([e.value for e in clustered_entries]).mean(dim=0)
             
-            # Topic is the most common non-generic topic, breaking ties by input order
-            topics = [e.topic for e in clustered_entries if e.topic and e.topic.lower() != "general"]
-            if topics:
-                counts = {}
-                for t in topics:
-                    counts[t] = counts.get(t, 0) + 1
-                merged_topic = max(counts, key=counts.get)
-            else:
-                merged_topic = clustered_entries[0].topic or "General"
+                # Topic is the most common non-generic topic, breaking ties by input order
+                topics = [e.topic for e in clustered_entries if e.topic and e.topic.lower() != "general"]
+                if topics:
+                    counts = {}
+                    for t in topics:
+                        counts[t] = counts.get(t, 0) + 1
+                    merged_topic = max(counts, key=counts.get)
+                else:
+                    merged_topic = clustered_entries[0].topic or "General"
                 
-            # Source: Concatenate unique text snippets or pick the longest one
-            sources = []
-            for e in clustered_entries:
-                if e.source and e.source not in sources:
-                    sources.append(e.source)
-            if sources:
-                # Pick the longest source snippet to retain detail
-                merged_source = max(sources, key=len)
-            else:
-                merged_source = ""
+                # Source: Concatenate unique text snippets or pick the longest one
+                sources = []
+                for e in clustered_entries:
+                    if e.source and e.source not in sources:
+                        sources.append(e.source)
+                if sources:
+                    # Pick the longest source snippet to retain detail
+                    merged_source = max(sources, key=len)
+                else:
+                    merged_source = ""
                 
-            merged_created = min(e.created_at for e in clustered_entries)
-            merged_access = sum(e.access_count for e in clustered_entries)
+                merged_created = min(e.created_at for e in clustered_entries)
+                merged_access = sum(e.access_count for e in clustered_entries)
 
-            merged_entry = CortexEntry(
-                key=merged_key,
-                value=merged_value,
-                topic=merged_topic,
-                source=merged_source,
-                created_at=merged_created,
-                access_count=merged_access,
-            )
-            consolidated_entries.append(merged_entry)
+                merged_entry = CortexEntry(
+                    key=merged_key,
+                    value=merged_value,
+                    topic=merged_topic,
+                    source=merged_source,
+                    created_at=merged_created,
+                    access_count=merged_access,
+                )
+                consolidated_entries.append(merged_entry)
 
         after_merge_size = len(consolidated_entries)
         merged_count = old_size - after_merge_size
