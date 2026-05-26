@@ -1,5 +1,5 @@
 {
-  "last_scan": "2026-05-26T12:00:00Z",
+  "last_scan": "2026-05-27T00:00:00Z",
   "findings": [
     {
       "file": "tantra/npdna/model.py",
@@ -128,6 +128,46 @@
       "fix": "Rebuild and restore optimizer state for overload and plateau strand-growth events.",
       "pr": "direct-main",
       "severity": "high"
+    },
+    {
+      "file": "tantra/npdna/cortex.py",
+      "line": 121,
+      "issue": "retrieve() returns CPU zero tensors when cortex is empty, regardless of query device — crashes GPU inference with device mismatch error.",
+      "fix": "Added device=query.device, dtype=query.dtype to all torch.zeros calls in the empty-cortex branch.",
+      "pr": "#23",
+      "severity": "🔴"
+    },
+    {
+      "file": "tantra/core/model_failover.py",
+      "line": 336,
+      "issue": "Four logger calls use f-string interpolation (always evaluated) instead of lazy %-formatting — wastes CPU cycles when log level suppresses the message.",
+      "fix": "Converted 4 logger.error/info/warning calls to %-style lazy formatting.",
+      "pr": "#24, #28",
+      "severity": "🟡"
+    },
+    {
+      "file": "tantra/npdna/generation.py",
+      "line": 30,
+      "issue": "_apply_repetition_penalty and _apply_top_p mutate their input tensor in-place, which is a dangerous API pattern — caller must remember to .clone() first.",
+      "fix": "Added logits.clone() at the start of both functions to prevent mutation of caller's tensor.",
+      "pr": "#25",
+      "severity": "🟡"
+    },
+    {
+      "file": "tantra/npdna/checkpoint.py",
+      "line": 96,
+      "issue": "load() only checks for model.pt and component format — sharded checkpoint loading (_load_sharded method) is unreachable, making v2 sharded checkpoints unloadable.",
+      "fix": "Added _is_sharded_format() detection and _read_shard_index() helper; load() now falls through to sharded loading before raising FileNotFoundError.",
+      "pr": "#26",
+      "severity": "🟡"
+    },
+    {
+      "file": "tantra/npdna/checkpoint.py",
+      "line": 147,
+      "issue": "config.genome.max_strands is set twice — once in GenomeConfig() constructor and once redundantly after NpDnaConfig construction — dead code with no effect.",
+      "fix": "Removed the redundant post-construction assignment.",
+      "pr": "#27",
+      "severity": "🟢"
     }
   ]
 }
