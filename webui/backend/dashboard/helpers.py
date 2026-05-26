@@ -12,7 +12,7 @@ from typing import Any
 
 from fastapi import Header, HTTPException
 
-from .state import ADMIN_TOKEN, DATASETS_DIR, DashboardState, OUTPUTS_DIR
+from .state import ADMIN_TOKEN, DATASETS_DIR, DashboardState, MODEL_OUTPUT_DIRS, OUTPUTS_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -27,20 +27,22 @@ def _check_request_origin() -> None:
 
 
 def _checkpoint_index() -> dict[str, Path]:
-    index = {}
-    versions = OUTPUTS_DIR / "versions"
-    newest: Path | None = None
-    if versions.exists():
-        items = [item for item in versions.iterdir() if item.is_dir() and (item / "metadata.json").exists()]
-        items.sort(key=lambda p: (p / "metadata.json").stat().st_mtime, reverse=True)
-        newest = items[0] if items else None
-        for item in items:
-            index[item.name] = item
-    if (OUTPUTS_DIR / "metadata.json").exists():
-        newest = newest or OUTPUTS_DIR
-        index[OUTPUTS_DIR.name] = OUTPUTS_DIR
-    if newest is not None:
-        index["latest"] = newest
+    index: dict[str, Path] = {}
+    candidates: list[tuple[int, float, Path]] = []
+    for output_dir in MODEL_OUTPUT_DIRS:
+        versions = output_dir / "versions"
+        if versions.exists():
+            items = [item for item in versions.iterdir() if item.is_dir() and (item / "metadata.json").exists()]
+            for item in items:
+                meta = _read_metadata(item)
+                index[item.name] = item
+                candidates.append((_checkpoint_step(item.name, meta), (item / "metadata.json").stat().st_mtime, item))
+        if (output_dir / "metadata.json").exists():
+            meta = _read_metadata(output_dir)
+            index[output_dir.name] = output_dir
+            candidates.append((_checkpoint_step(output_dir.name, meta), (output_dir / "metadata.json").stat().st_mtime, output_dir))
+    if candidates:
+        index["latest"] = max(candidates, key=lambda item: (item[0], item[1]))[2]
     return index
 
 

@@ -2205,6 +2205,74 @@ class TestTrainingModelManagement:
         assert data["metrics"][0]["step"] == 1
         assert data["metrics"][1]["loss"] == 1.4
 
+    def test_dashboard_latest_model_prefers_highest_progress_across_local_and_sample_outputs(self, tmp_path, monkeypatch):
+        import json
+        from webui.backend.dashboard import helpers
+
+        local = tmp_path / "npdna"
+        sample = tmp_path / "npdna_nano"
+        local.mkdir()
+        sample.mkdir()
+        (local / "metadata.json").write_text(json.dumps({"train_step": 12000}), encoding="utf-8")
+        (sample / "metadata.json").write_text(json.dumps({"train_step": 2390}), encoding="utf-8")
+
+        monkeypatch.setattr(helpers, "MODEL_OUTPUT_DIRS", (local, sample))
+
+        index = helpers._checkpoint_index()
+
+        assert index["npdna"] == local
+        assert index["npdna_nano"] == sample
+        assert index["latest"] == local
+
+    def test_api_training_metrics_limits_large_log_to_recent_window(self, tmp_path, monkeypatch):
+        import json
+        from fastapi.testclient import TestClient
+        from webui.backend.dashboard.app import app
+        from webui.backend.dashboard.routes import train
+        from webui.backend.dashboard import helpers
+
+        monkeypatch.setattr(train, "OUTPUTS_DIR", tmp_path)
+        monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")
+        metrics_file = tmp_path / "live_metrics.jsonl"
+        metrics_file.write_text(
+            "".join(json.dumps({"step": step, "loss": 1.0}) + "\n" for step in range(1, 506)),
+            encoding="utf-8",
+        )
+
+        response = TestClient(app).get("/api/training-metrics", headers={"X-Atulya-Token": "test_token"})
+
+        metrics = response.json()["metrics"]
+        assert response.status_code == 200
+        assert len(metrics) == train.METRICS_WINDOW
+        assert metrics[0]["step"] == 6
+        assert metrics[-1]["step"] == 505
+
+    def test_api_training_status_marks_stale_training_file_as_stopped(self, tmp_path, monkeypatch):
+        import json
+        from fastapi.testclient import TestClient
+        from webui.backend.dashboard.app import app
+        from webui.backend.dashboard.routes import train
+        from webui.backend.dashboard import helpers
+
+        monkeypatch.setattr(train, "OUTPUTS_DIR", tmp_path)
+        monkeypatch.setattr(train, "PID_FILE", tmp_path / "train.pid")
+        monkeypatch.setattr(train, "LOG_FILE", tmp_path / "training.log")
+        monkeypatch.setattr(helpers, "OUTPUTS_DIR", tmp_path)
+        monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")
+        (tmp_path / "train_status.json").write_text(
+            json.dumps({"phase": "training", "step": 19403, "loss": 2.68}),
+            encoding="utf-8",
+        )
+
+        response = TestClient(app).get("/api/training-status", headers={"X-Atulya-Token": "test_token"})
+
+        data = response.json()
+        assert response.status_code == 200
+        assert data["running"] is False
+        assert data["phase"] == "stopped"
+        assert data["status"]["phase"] == "stopped"
+        assert data["last"]["step"] == 19403
+
 
     def test_api_run_plasticity_check(self, tmp_path, monkeypatch):
         from fastapi.testclient import TestClient

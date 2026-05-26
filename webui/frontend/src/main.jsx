@@ -170,7 +170,7 @@ function Training({ bootstrap, load, toast }) {
         </div>
         <div className="metrics">
           <Metric label="Phase" value={status?.status?.phase} />
-          <Metric label="Step" value={status?.last?.run_step || status?.last?.step} />
+          <Metric label="Step" value={status?.last?.step ?? status?.last?.run_step} />
           <Metric label="Loss" value={status?.last?.loss?.toFixed?.(4)} />
           <Metric label="Backend Python" value={status?.train_python || 'current'} />
         </div>

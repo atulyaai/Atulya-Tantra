@@ -24,6 +24,7 @@ router = APIRouter()
 
 PID_FILE = OUTPUTS_DIR / "train.pid"
 LOG_FILE = OUTPUTS_DIR / "training.log"
+METRICS_WINDOW = 500
 
 
 def _read_pid() -> int | None:
@@ -46,7 +47,7 @@ def api_training_metrics(_admin: str | None = Header(default=None, alias="X-Atul
         metrics_file = _latest_metrics_path() or metrics_file
     metrics = []
     if metrics_file.exists():
-        for line in metrics_file.read_text(encoding="utf-8").splitlines():
+        for line in _tail_lines(metrics_file, max_lines=METRICS_WINDOW):
             if line.strip():
                 try:
                     metrics.append(json.loads(line))
@@ -64,8 +65,9 @@ def api_training_status(_admin: str | None = Header(default=None, alias="X-Atuly
     phase = status.get("phase") or status.get("status") or ("running" if running else "idle")
     log_tail = _tail_lines(LOG_FILE, max_lines=120)
 
-    if pid and not running and PID_FILE.exists():
-        phase = "stopped" if phase not in {"completed", "error"} else phase
+    if not running and phase in {"running", "training"}:
+        phase = "stopped"
+    status = {**status, "phase": phase}
 
     return {
         "running": running,
