@@ -124,10 +124,19 @@ class NeuralMesh(nn.Module):
             self._usage_counts[s_id] += mask_flat.sum().item()
 
         # Load-balancing loss: encourage even distribution across Strands
-        # Based on Switch Transformer's balance loss
-        routing_probs = torch.softmax(scores, dim=-1).mean(dim=(0, 1))  # (N,)
-        balance_loss = N * (routing_probs * routing_probs).sum()  # Penalise concentration
-        entropy = -(routing_probs * routing_probs.clamp_min(1e-9).log()).sum()
+        # Standard Switch Transformer formulation: N * sum(f_i * P_i)
+        # where f_i = fraction of tokens routed to expert i and P_i = avg probability
+        routing_probs_all = torch.softmax(scores, dim=-1)  # (B, T, N) — full probability
+        probs_mean = routing_probs_all.mean(dim=(0, 1))  # (N,) — P_i
+
+        # f_i: fraction of top-k routing decisions assigned to each expert
+        f_i = torch.zeros(N, device=scores.device, dtype=scores.dtype)
+        f_i.scatter_add_(0, flat_indices, torch.ones_like(flat_indices, dtype=scores.dtype))
+        f_i = f_i / (B * T * K)  # normalize to fraction
+
+        balance_loss = N * (f_i * probs_mean).sum()
+
+        entropy = -(probs_mean * probs_mean.clamp_min(1e-9).log()).sum()
         entropy = entropy / torch.log(torch.tensor(max(1.0, float(N)), device=scores.device))
         self._last_balance_loss.copy_(balance_loss.detach())
         self._last_router_entropy.copy_(entropy.detach())

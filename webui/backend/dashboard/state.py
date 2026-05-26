@@ -6,7 +6,7 @@ import secrets
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parents[3]
-OUTPUTS_DIR = _ROOT / "tantra" / "outputs" / "npdna"
+OUTPUTS_DIR = _ROOT / "tantra" / "outputs" / "npdna_nano"
 DATASETS_DIR = _ROOT / "tantra" / "training" / "datasets"
 MAX_PROMPT_CHARS = 20_000
 MAX_CHAT_TOKENS = 512

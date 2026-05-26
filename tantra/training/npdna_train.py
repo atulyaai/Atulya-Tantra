@@ -83,7 +83,7 @@ def _initialize_new_token_embeddings(
 def _has_meaningful_info(metadata: dict) -> bool:
     """Check if a checkpoint/metadata has meaningful training information."""
     if not metadata:
-        return True
+        return False
     losses = metadata.get("losses") or metadata.get("train_losses") or []
     best_loss = metadata.get("best_loss") or metadata.get("train_best_loss")
     final_loss = metadata.get("final_loss") or metadata.get("train_final_loss")
@@ -194,10 +194,6 @@ def _backup_and_rotate_latest(output_dir: str | Path, max_backups: int = 3) -> N
         latest_meta = json.loads(latest_meta_path.read_text(encoding="utf-8"))
     except Exception as e:
         logger.warning("Failed to read metadata: %s", e)
-        return
-    
-    if not _has_meaningful_info(latest_meta):
-        logger.info("Skipping backup: latest model has no meaningful training information")
         return
     
     current_info = _extract_version_info(latest_meta)
