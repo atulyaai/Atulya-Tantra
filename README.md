@@ -1,8 +1,13 @@
 # Atulya Tantra
 
-Atulya Tantra is a local-first AI workspace built around **NP-DNA**: a NeuroPlastic DNA Network that keeps a compact genome, generates neural weights on demand, routes tokens through specialist strands, and connects model training, memory, WebUI, and automation in one repo.
+![Atulya Tantra - Local-first AI workspace](docs/images/atulya_tantra_hero.webp)
 
-![Atulya Tantra architecture](docs/images/architecture.png)
+[![Status: Experimental](https://img.shields.io/badge/status-experimental-f59e0b)](#project-status)
+[![Runtime: Local First](https://img.shields.io/badge/runtime-local--first-10b981)](#quick-start)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-2563eb)](#quick-start)
+[![License: MIT](https://img.shields.io/badge/license-MIT-14b8a6)](LICENSE)
+
+Atulya Tantra is a local-first AI workspace built around **NP-DNA**: a NeuroPlastic DNA Network that keeps a compact genome, generates neural weights on demand, routes tokens through specialist strands, and connects model training, memory, WebUI, and automation in one repo.
 
 ## What This Is
 
@@ -18,15 +23,17 @@ Atulya Tantra is a local-first AI workspace built around **NP-DNA**: a NeuroPlas
 
 The goal is a local AI system that can train, grow, remember, inspect itself, automate tasks, and expose controls through a dashboard.
 
-![Four pillars](docs/images/four_pillars.png)
+![Atulya Tantra architecture](docs/images/architecture.svg)
 
-## NP-DNA In One Picture
+## Four Building Blocks
+
+![NP-DNA building blocks](docs/images/four_pillars.svg)
+
+## NP-DNA Runtime
 
 ![Animated NP-DNA runtime](docs/images/npdna_runtime.svg)
 
 NP-DNA uses a compact **genome** to generate strand weights. A sparse **mesh** routes each token to the most relevant specialist strands. The **cortex** stores external memory, and the **plasticity engine** watches load, dead strands, vocabulary pressure, and training behavior so the model can rebalance or grow.
-
-![DNA compression](docs/images/dna_compression.png)
 
 Core ideas:
 
@@ -36,6 +43,12 @@ Core ideas:
 - **Memory cortex**: external vector memory for facts, state, and retrieval.
 - **Plasticity**: vocabulary and strand growth hooks for adaptation during training.
 - **Frozen codecs**: audio/image/video can become tokenizer-like streams without storing codec weights inside NP-DNA.
+
+![Genome-generated weight concept](docs/images/dna_compression.svg)
+
+## Project Status
+
+NP-DNA is an experimental architecture implemented in this repository. Performance, model-size reduction, and quality comparisons should be treated as research questions until supported by reproducible benchmarks and released checkpoints.
 
 **Mesh routing breakdown**:
 
@@ -189,7 +202,7 @@ When `All Datasets` is selected in the WebUI, `Training Steps` means total optim
 
 ## Config Presets
 
-![Scaling comparison](docs/images/scaling_comparison.png)
+![NP-DNA configuration presets](docs/images/scaling_comparison.svg)
 
 | Config | Vocab | Hidden | State | Layers | Mesh |
 |---|---:|---:|---:|---:|---|

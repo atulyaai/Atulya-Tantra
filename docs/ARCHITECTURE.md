@@ -125,11 +125,11 @@ V = self.decoders["gate_V"](latent)    # → (rank × state,)  → reshape (rank
 W_gate = U @ V                         # (hidden, rank) × (rank, state) = (hidden, state)
 ```
 
-**Compression math:**
-- Direct: `hidden × state = 256 × 128 = 32,768` params per weight
-- DNA: `seed(256) + shared_genome` → generates same `32,768` values
-- Shared genome is amortized across ALL strands
-- Net compression: **10-100x** depending on strand count
+**Storage tradeoff:**
+- Direct storage keeps each strand weight matrix explicitly.
+- NP-DNA stores per-strand seed vectors and a shared generator, then reconstructs strand weights when needed.
+- The shared generator cost is amortized across strands.
+- Any net size reduction depends on configuration and must be reported from reproducible measurements.
 
 **Key invariant:** Different seeds → different weights. Same seed → same weights (deterministic).
 
