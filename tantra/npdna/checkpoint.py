@@ -144,9 +144,8 @@ class CheckpointMixin:
             genome=genome_cfg,
             cortex=cortex_cfg,
         )
-        config.genome.max_strands = meta.get("genome_max_strands", inferred_strands * meta["num_layers"])
 
-        # Avoid circular import â€” import NpDnaModel here
+        # Avoid circular import — import NpDnaModel here
         from .model import NpDnaModel
         model = NpDnaModel(config)
 
