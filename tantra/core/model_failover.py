@@ -528,7 +528,7 @@ class ModelFailover:
         if name not in self._providers:
             raise ValueError(f"Unknown provider: {name}")
         self._current_provider = name
-        logger.info(f"Manual provider switch: {name}")
+        logger.info("Manual provider switch: %s", name)
 
 
 def create_failover_from_config(config: dict[str, Any]) -> ModelFailover:
