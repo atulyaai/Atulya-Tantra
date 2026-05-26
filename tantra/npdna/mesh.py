@@ -195,7 +195,11 @@ class NeuralMesh(nn.Module):
             nn.init.normal_(new_router.weight[old_n], mean=0.0, std=scale)
         self.router = new_router
 
-        self.strands.append(Strand(self.strands[0].genome, strand_id=strand_id, config=self.config.strand))
+        ref_device = self.strands[0].norm.weight.device if self.strands else None
+        self.strands.append(Strand(
+            self.strands[0].genome, strand_id=strand_id,
+            config=self.config.strand, device=ref_device,
+        ))
         self.config.num_strands = new_n
 
         old_counts = self._usage_counts
