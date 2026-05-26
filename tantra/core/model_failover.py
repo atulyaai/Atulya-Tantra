@@ -333,7 +333,7 @@ class ModelFailover:
                 await self._check_all_health()
                 await self._select_best_provider()
             except Exception as e:
-                logger.error(f"Health check loop error: {e}")
+                logger.error("Health check loop error: %s", e)
             await asyncio.sleep(self._health_check_interval)
 
     async def _check_all_health(self):
@@ -402,7 +402,7 @@ class ModelFailover:
             candidates.sort(key=lambda x: (x[0], x[2]))
             best = candidates[0][1]
             if self._current_provider != best:
-                logger.info(f"Switching provider: {self._current_provider} -> {best}")
+                logger.info("Switching provider: %s -> %s", self._current_provider, best)
                 self._current_provider = best
 
     @property
@@ -461,7 +461,7 @@ class ModelFailover:
                     "error": str(e),
                     "error_type": error_type.value,
                 })
-                logger.warning(f"Provider {name} failed ({error_type.value}): {e}")
+                logger.warning("Provider %s failed (%s): %s", name, error_type.value, e)
                 if error_type == ErrorType.AUTH:
                     break
 
