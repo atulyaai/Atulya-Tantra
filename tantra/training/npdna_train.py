@@ -196,10 +196,6 @@ def _backup_and_rotate_latest(output_dir: str | Path, max_backups: int = 3) -> N
         logger.warning("Failed to read metadata: %s", e)
         return
     
-    if not _has_meaningful_info(latest_meta):
-        logger.info("Skipping backup: latest model has no meaningful training information")
-        return
-    
     current_info = _extract_version_info(latest_meta)
     
     existing_backups = []

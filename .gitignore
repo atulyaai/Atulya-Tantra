@@ -1,7 +1,7 @@
 # Outputs & checkpoints
 *.pt
 *.safetensors
-outputs/
+/outputs/
 
 # Generated data
 data/
@@ -10,6 +10,7 @@ tantra/data/*.jsonl
 # Cache
 .pytest_cache/
 .cache/
+.ruff_cache/
 webui/node_modules/
 
 # Python
@@ -46,9 +47,19 @@ _archive/
 *.log
 .coverage
 htmlcov/
+temp/
 
-# Tantra outputs (model artifacts)
-tantra/outputs/
+# Tantra outputs (model artifacts); publish only the small sample checkpoint.
+tantra/outputs/*
+!tantra/outputs/npdna_nano/
+tantra/outputs/npdna_nano/*
+!tantra/outputs/npdna_nano/README.md
+!tantra/outputs/npdna_nano/model.pt
+!tantra/outputs/npdna_nano/metadata.json
+!tantra/outputs/npdna_nano/tokenizer.json
+!tantra/outputs/npdna_nano/cortex/
+tantra/outputs/npdna_nano/cortex/*
+!tantra/outputs/npdna_nano/cortex/cortex_projections.pt
 tantra/runs/
 
 # Datasets should be committed separately
