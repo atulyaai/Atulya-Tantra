@@ -508,9 +508,35 @@ def train_npdna(
     if resume_from:
         logger.info("Resuming from %s", resume_from)
         _write_train_status(output_dir, "loading_checkpoint", resume_from=resume_from)
+        
+        # Detect config from metadata FIRST — before even calling NpDnaCore.load()
+        # This prevents size mismatches when the checkpoint was trained with a different config.
+        resume_path = Path(resume_from)
+        meta_path = resume_path / "metadata.json"
+        if meta_path.exists():
+            try:
+                with open(meta_path, encoding="utf-8") as f:
+                    meta = json.load(f)
+                from tantra.npdna.config import CONFIGS
+                detected_config_name = next(
+                    (n for n, c in CONFIGS.items()
+                     if c.hidden_size == meta["hidden_size"] and c.num_layers == meta["num_layers"]),
+                    "custom"
+                )
+                if detected_config_name != "custom" and detected_config_name != config_name:
+                    logger.warning(
+                        "Checkpoint metadata indicates %s (hidden=%d, layers=%d), "
+                        "but requested config is %s. Auto-switching to %s.",
+                        detected_config_name, meta["hidden_size"], meta["num_layers"],
+                        config_name, detected_config_name,
+                    )
+                    config_name = detected_config_name
+            except (json.JSONDecodeError, KeyError, OSError):
+                logger.warning("Could not read metadata.json — will attempt loading as-is")
+        
         core = NpDnaCore.load(resume_from)
         
-        # Prevent metadata config name mismatch by detecting configuration
+        # Also detect config from the loaded model (backup detection)
         from tantra.npdna.config import CONFIGS
         loaded_config_name = next(
             (n for n, c in CONFIGS.items() if c.hidden_size == core.config.hidden_size and c.num_layers == core.config.num_layers),
