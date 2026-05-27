@@ -134,7 +134,7 @@
       "line": 121,
       "issue": "retrieve() returns CPU zero tensors when cortex is empty, regardless of query device — crashes GPU inference with device mismatch error.",
       "fix": "Added device=query.device, dtype=query.dtype to all torch.zeros calls in the empty-cortex branch.",
-      "pr": "#23",
+      "pr": "#23 → applied via #31",
       "severity": "🔴"
     },
     {
@@ -142,7 +142,7 @@
       "line": 336,
       "issue": "Four logger calls use f-string interpolation (always evaluated) instead of lazy %-formatting — wastes CPU cycles when log level suppresses the message.",
       "fix": "Converted 4 logger.error/info/warning calls to %-style lazy formatting.",
-      "pr": "#24, #28",
+      "pr": "#24, #28 → applied via #31",
       "severity": "🟡"
     },
     {
@@ -150,7 +150,7 @@
       "line": 30,
       "issue": "_apply_repetition_penalty and _apply_top_p mutate their input tensor in-place, which is a dangerous API pattern — caller must remember to .clone() first.",
       "fix": "Added logits.clone() at the start of both functions to prevent mutation of caller's tensor.",
-      "pr": "#25",
+      "pr": "#25 → applied via #31",
       "severity": "🟡"
     },
     {
@@ -158,7 +158,7 @@
       "line": 96,
       "issue": "load() only checks for model.pt and component format — sharded checkpoint loading (_load_sharded method) is unreachable, making v2 sharded checkpoints unloadable.",
       "fix": "Added _is_sharded_format() detection and _read_shard_index() helper; load() now falls through to sharded loading before raising FileNotFoundError.",
-      "pr": "#26",
+      "pr": "#26 → applied via #31",
       "severity": "🟡"
     },
     {
@@ -166,7 +166,31 @@
       "line": 147,
       "issue": "config.genome.max_strands is set twice — once in GenomeConfig() constructor and once redundantly after NpDnaConfig construction — dead code with no effect.",
       "fix": "Removed the redundant post-construction assignment.",
-      "pr": "#27",
+      "pr": "#27 → applied via #31",
+      "severity": "🟢"
+    },
+    {
+      "file": "tantra/core/eval_checkpoints.py",
+      "line": 207,
+      "issue": "Dead expression — list of f-strings created and immediately discarded with no assignment or side effect (e.g., summary line never rendered in output).",
+      "fix": "Removed the no-op list literal.",
+      "pr": "#31",
+      "severity": "🟢"
+    },
+    {
+      "file": "tantra/core/context.py",
+      "line": 96,
+      "issue": "Dedup false positive in compress(): when _apply_pattern_rules redacts different lines to '[REDACTED]', the dedup check (using 'stripped' which is now '[REDACTED]') collapses all redacted lines into one, losing information.",
+      "fix": "Use original_stripped (before pattern rules) as dedup key instead of the post-redaction stripped value.",
+      "pr": "#31",
+      "severity": "🟡"
+    },
+    {
+      "file": "tantra/npdna/generation.py",
+      "line": 223,
+      "issue": "_record_strand_specialization creates a new TaskClassifier() instance on every generate_stream() call, which wastes allocation and import time.",
+      "fix": "Cache instance on self._classifier using hasattr pattern.",
+      "pr": "#31",
       "severity": "🟢"
     }
   ]
