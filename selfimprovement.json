@@ -192,6 +192,46 @@
       "fix": "Cache instance on self._classifier using hasattr pattern.",
       "pr": "#31",
       "severity": "🟢"
+    },
+    {
+      "file": "tantra/npdna/model.py",
+      "line": 152,
+      "issue": "resize_embeddings() creates nn.Embedding and nn.Linear without device= parameter, so new layers always land on CPU even when the model is on GPU. Causes device mismatch errors when encode() triggers vocab growth during training.",
+      "fix": "Pass device=self.embedding.weight.device and device=self.lm_head.weight.device to constructors.",
+      "pr": "#32",
+      "severity": "🔴"
+    },
+    {
+      "file": "tantra/npdna/generation.py",
+      "line": 138,
+      "issue": "audio_inputs and image_inputs parameters accepted in generate() and generate_stream() but never consumed by generate_stream(). Misleading API surface.",
+      "fix": "Removed the dead parameters from both method signatures.",
+      "pr": "#33",
+      "severity": "🟢"
+    },
+    {
+      "file": "tantra/core/encryption.py",
+      "line": 57,
+      "issue": "decrypt_value() v1 path assigns salt = b'' from the raw bytes but never uses it — dead variable.",
+      "fix": "Removed the unused unpacking of salt from the v1 path.",
+      "pr": "#33",
+      "severity": "🟢"
+    },
+    {
+      "file": "tantra/core/grammar.py",
+      "line": 139,
+      "issue": "FluencyEnhancer.enhance() imports 'import random' inside a for-loop body on every 3rd sentence — unnecessary repeated import.",
+      "fix": "Moved 'import random' to module level.",
+      "pr": "#33",
+      "severity": "🟢"
+    },
+    {
+      "file": "tantra/npdna/autonomy.py",
+      "line": 77,
+      "issue": "_web_search() imports urllib.request, urllib.parse, and uses __import__('json') inside the method body instead of at module level.",
+      "fix": "Moved all three imports to module level and replaced __import__('json') with proper json.loads().",
+      "pr": "#33",
+      "severity": "🟢"
     }
   ]
 }
