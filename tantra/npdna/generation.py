@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 def _apply_repetition_penalty(logits: Tensor, seen_ids: list[int], penalty: float) -> Tensor:
     if penalty <= 1.0:
         return logits
+    logits = logits.clone()
     for tok_id in set(seen_ids[-128:]):
         if 0 <= tok_id < logits.numel():
             logits[tok_id] /= penalty
@@ -48,6 +49,7 @@ def _apply_top_k(logits: Tensor, k: int) -> Tensor:
 def _apply_top_p(logits: Tensor, p: float) -> Tensor:
     if p >= 1.0:
         return logits
+    logits = logits.clone()
     sorted_logits, sorted_indices = torch.sort(logits, descending=True)
     cum_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
     remove = cum_probs > p
@@ -222,7 +224,9 @@ class GenerationMixin:
         try:
             from tantra.core.task_classifier import TaskClassifier
 
-            topic = TaskClassifier().classify(prompt).category.value
+            if not hasattr(self, "_classifier"):
+                self._classifier = TaskClassifier()
+            topic = self._classifier.classify(prompt).category.value
             for mesh in self.model.mesh_layers:
                 if hasattr(mesh, "record_activation_topic"):
                     mesh.record_activation_topic(topic)

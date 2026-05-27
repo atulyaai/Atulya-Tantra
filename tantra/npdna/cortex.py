@@ -119,8 +119,8 @@ class MemoryCortex(torch.nn.Module):
             dim = self.config.dim
             k = top_k or self.config.top_k
             if query.dim() == 1:
-                return torch.zeros(k, dim), torch.zeros(k)
-            return torch.zeros(query.size(0), k, dim), torch.zeros(query.size(0), k)
+                return torch.zeros(k, dim, device=query.device, dtype=query.dtype), torch.zeros(k, device=query.device, dtype=query.dtype)
+            return torch.zeros(query.size(0), k, dim, device=query.device, dtype=query.dtype), torch.zeros(query.size(0), k, device=query.device, dtype=query.dtype)
 
         top_k = min(top_k or self.config.top_k, self.size)
 

@@ -81,8 +81,8 @@ class ContextCompressor:
         rules = dict(self._builtin_rules)
 
         for line in lines:
-            stripped = line.strip()
-            custom = self._apply_pattern_rules(stripped)
+            original_stripped = line.strip()
+            custom = self._apply_pattern_rules(original_stripped)
             if custom is None:
                 continue
             stripped = custom
@@ -93,10 +93,11 @@ class ContextCompressor:
                     result.append("")
                 continue
 
-            # Deduplicate
-            if rules.get("deduplicate") and stripped in seen:
+            # Deduplicate (use original_stripped to avoid false positives when
+            # pattern rules redact different lines to the same "[REDACTED]" string)
+            if rules.get("deduplicate") and original_stripped in seen:
                 continue
-            seen.add(stripped)
+            seen.add(original_stripped)
 
             # URL shortening
             if rules.get("url_shorten"):
