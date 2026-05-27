@@ -149,8 +149,8 @@ class NpDnaModel(nn.Module):
             return
         old_n = self.vocab_size
         H = self.config.hidden_size
-        new_emb = nn.Embedding(new_vocab, H)
-        new_head = nn.Linear(H, new_vocab, bias=False)
+        new_emb = nn.Embedding(new_vocab, H, device=self.embedding.weight.device)
+        new_head = nn.Linear(H, new_vocab, bias=False, device=self.lm_head.weight.device)
         with torch.no_grad():
             new_emb.weight[:old_n].copy_(self.embedding.weight)
             if not self.config.tie_embeddings:
