@@ -811,13 +811,15 @@ def train_npdna(
             try:
                 if use_autocast:
                     with torch.autocast(device_type=train_device.type, dtype=torch.bfloat16):
+                        with torch.autograd.set_detect_anomaly(True):
+                            logits, balance_loss = model(input_ids)
+                            ce_loss = loss_fn(logits.reshape(-1, logits.shape[-1]), labels.reshape(-1))
+                            loss = ce_loss + balance_loss
+                else:
+                    with torch.autograd.set_detect_anomaly(True):
                         logits, balance_loss = model(input_ids)
                         ce_loss = loss_fn(logits.reshape(-1, logits.shape[-1]), labels.reshape(-1))
                         loss = ce_loss + balance_loss
-                else:
-                    logits, balance_loss = model(input_ids)
-                    ce_loss = loss_fn(logits.reshape(-1, logits.shape[-1]), labels.reshape(-1))
-                    loss = ce_loss + balance_loss
 
                 optimizer.zero_grad()
                 loss.backward()

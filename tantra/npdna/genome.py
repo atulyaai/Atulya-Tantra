@@ -111,7 +111,7 @@ class Genome(nn.Module):
         return self.config.max_strands
 
     def add_strand_capacity(self, count: int = 1) -> None:
-        """Grow the seed bank while preserving the Parameter object."""
+        """Grow the seed bank, replacing the Parameter to bump autograd's version counter."""
         if count <= 0:
             return
 
@@ -124,7 +124,8 @@ class Genome(nn.Module):
                 device=self.seeds.device,
                 dtype=self.seeds.dtype,
             ) * 0.02
-            self.seeds.data = torch.cat([self.seeds.data, grown], dim=0)
+            new_data = torch.cat([self.seeds.data, grown], dim=0)
+            new_param = nn.Parameter(new_data, requires_grad=self.seeds.requires_grad)
             if self.seeds.grad is not None:
                 grad_pad = torch.zeros(
                     count,
@@ -132,7 +133,8 @@ class Genome(nn.Module):
                     device=self.seeds.grad.device,
                     dtype=self.seeds.grad.dtype,
                 )
-                self.seeds.grad = torch.cat([self.seeds.grad, grad_pad], dim=0)
+                new_param.grad = torch.cat([self.seeds.grad, grad_pad], dim=0)
+            self.seeds = new_param
 
         self.config.max_strands = new_max
         logger.info("Genome: expanded seed bank %d -> %d", old_max, new_max)

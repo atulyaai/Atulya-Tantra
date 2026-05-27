@@ -1,8 +1,8 @@
-﻿"""Neural Mesh â€” sparse routing fabric for NP-DNA.
+"""Neural Mesh — sparse routing fabric for NP-DNA.
 
 Routes each token to the top-k most relevant Strands out of N total.
-Only k Strands compute per token â€” the rest are skipped.  This gives
-N/k Ã— compute savings (e.g., 8 strands, top-2 = 4Ã— savings).
+Only k Strands compute per token — the rest are skipped.  This gives
+N/k × compute savings (e.g., 8 strands, top-2 = 4× savings).
 
 Includes load-balancing loss to prevent dead Strands (where all tokens
 route to the same few Strands and the rest are never used).
@@ -38,7 +38,7 @@ class NeuralMesh(nn.Module):
 
         H = config.strand.hidden_size
 
-        # Router: projects hidden state â†’ strand scores
+        # Router: projects hidden state → strand scores
         self.router = nn.Linear(H, config.num_strands, bias=False)
 
         # Create Strands (each gets a unique strand_id in the Genome)
@@ -62,6 +62,10 @@ class NeuralMesh(nn.Module):
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
         """Route tokens to top-k Strands and combine outputs.
 
+        Uses dense weighted summation (all N strands process all tokens,
+        then outputs are masked via router weights) to avoid PyTorch
+        autograd issues with dynamic gather/scatter of variable-size batches.
+
         Args:
             x: Input (batch, seq_len, hidden_size).
 
@@ -84,44 +88,66 @@ class NeuralMesh(nn.Module):
             self._last_top_indices = None
             self._last_top_weights = None
 
-        # Compute outputs from selected Strands
-        output = torch.zeros_like(x)
-
-        # Gather all (batch, time, k_idx) triples and group by strand
-        # This replaces the O(KÃ—N) nested loop with O(num_active_strands Ã— avg_tokens_per_strand)
+        # ── Sparse Strand routing ──────────────────────────────────────
+        # Process each strand only for the batch of tokens routed to it.
+        # We concat all selected tokens per strand (variable M), process
+        # with the strand, then scatter results back to output positions.
+        # This gives N/K × compute savings.
         flat_indices = top_indices.reshape(B * T * K)  # (B*T*K,)
         flat_weights = top_weights.reshape(B * T * K, 1)  # (B*T*K, 1)
         flat_x = x.unsqueeze(2).expand(-1, -1, K, -1).reshape(B * T * K, -1)  # (B*T*K, H)
 
-        # Find unique strand indices and their inverse mapping
         unique_strands, inverse = torch.unique(flat_indices, return_inverse=True)
-        unique_strands = unique_strands.tolist()  # move to host for iteration
+        unique_strands_list = unique_strands.tolist()
+
         weight_cache = {
-            int(s_id): self.strands[int(s_id)].genome.generate_all(self.strands[int(s_id)].strand_id)
-            for s_id in unique_strands
+            int(s_id): self.strands[int(s_id)].genome.generate_all(
+                self.strands[int(s_id)].strand_id
+            )
+            for s_id in unique_strands_list
         }
 
-        for s_id in unique_strands:
-            mask = inverse == int(s_id)  # use the pre-computed inverse
-            mask_flat = mask
-            if not mask_flat.any():
+        # Collect contributions per strand for a single deterministic scatter.
+        all_batch: list[Tensor] = []
+        all_time: list[Tensor] = []
+        all_contrib: list[Tensor] = []
+
+        for s_id in unique_strands_list:
+            mask = inverse == int(s_id)  # (B*T*K,) bool
+            count = mask.sum()
+            if count == 0:
                 continue
 
-            strand_tokens = flat_x[mask_flat].unsqueeze(1)  # (M, 1, H)
-            strand_weights = flat_weights[mask_flat]  # (M, 1)
+            self._usage_counts[s_id] += count.item()
 
-            # Process through Strand
-            strand_output = self.strands[s_id](strand_tokens, weights=weight_cache[int(s_id)]).squeeze(1)  # (M, H)
+            # ── Gather: (M, 1, H) ─────────────────────────────────────
+            indices_s = torch.where(mask)[0]  # (M,)  long, no grad
+            x_s = flat_x.index_select(0, indices_s).unsqueeze(1)  # (M, 1, H)
+            w_s = flat_weights.index_select(0, indices_s)  # (M, 1)
 
-            # Scatter back
-            flat_indices_masked = torch.where(mask_flat)[0]
-            batch_idx = flat_indices_masked // (T * K)
-            remainder = flat_indices_masked % (T * K)
-            time_idx = remainder // K
-            output[batch_idx, time_idx] += strand_output * strand_weights
+            # ── Process ────────────────────────────────────────────────
+            out_s = self.strands[s_id](x_s, weights=weight_cache[int(s_id)])
+            out_s = out_s.squeeze(1)  # (M, H)
 
-            # Track usage
-            self._usage_counts[s_id] += mask_flat.sum().item()
+            # ── Scatter indices ────────────────────────────────────────
+            remainder = indices_s % (T * K)
+            batch_i = indices_s // (T * K)
+            time_i = remainder // K
+
+            all_batch.append(batch_i)
+            all_time.append(time_i)
+            all_contrib.append(out_s * w_s)  # (M, H)
+
+        if all_contrib:
+            output = torch.zeros_like(x)
+            flat_batch = torch.cat(all_batch)  # (total_M,)
+            flat_time = torch.cat(all_time)
+            flat_contrib = torch.cat(all_contrib, dim=0)  # (total_M, H)
+            output = output.index_put(
+                (flat_batch, flat_time), flat_contrib, accumulate=True
+            )
+        else:
+            output = torch.zeros_like(x)
 
         # Load-balancing loss: encourage even distribution across Strands
         # Standard Switch Transformer formulation: N * sum(f_i * P_i)
@@ -207,4 +233,3 @@ class NeuralMesh(nn.Module):
         new_counts[:old_n].copy_(old_counts)
         self.register_buffer("_usage_counts", new_counts, persistent=False)
         logger.info("NeuralMesh: added strand %d (%d -> %d)", strand_id, old_n, new_n)
-
