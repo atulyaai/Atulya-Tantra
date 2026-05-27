@@ -135,8 +135,6 @@ class GenerationMixin:
         suppress_byte_tokens: bool = True,
         suppress_rare_unicode: bool = True,
         context_window: int = 128,
-        audio_inputs: Optional[Tensor] = None,
-        image_inputs: Optional[Tensor] = None,
         system: Optional[str] = None,
     ) -> str:
         return "".join(
@@ -150,8 +148,6 @@ class GenerationMixin:
                 suppress_byte_tokens=suppress_byte_tokens,
                 suppress_rare_unicode=suppress_rare_unicode,
                 context_window=context_window,
-                audio_inputs=audio_inputs,
-                image_inputs=image_inputs,
                 system=system,
             )
         )
@@ -167,8 +163,6 @@ class GenerationMixin:
         suppress_byte_tokens: bool = True,
         suppress_rare_unicode: bool = True,
         context_window: int = 128,
-        audio_inputs: Optional[Tensor] = None,
-        image_inputs: Optional[Tensor] = None,
         system: Optional[str] = None,
     ) -> Generator[str, None, None]:
         original_prompt = prompt

@@ -54,7 +54,7 @@ class EncryptedStorage:
             key = self._derive_encryption_key(salt)
         else:
             raw = bytes.fromhex(encrypted)
-            salt, nonce, cipher = b"", raw[:12], raw[12:]
+            nonce, cipher = raw[:12], raw[12:]
             key = hashlib.sha256(self._master_key).digest()
         decrypted = AESGCM(key).decrypt(nonce, cipher, None)
         return decrypted.decode("utf-8")
