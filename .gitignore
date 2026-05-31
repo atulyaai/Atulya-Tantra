@@ -1,25 +1,33 @@
 # Outputs & checkpoints
 *.pt
 *.safetensors
-/outputs/
 
 # Generated data
 data/
 tantra/data/*.jsonl
+assets/conversations/
+!assets/conversations/.keep
+assets/memory/
+!assets/memory/.keep
+assets/audio/
+!assets/audio/.keep
+tantra/assets/
+yantra/selfimprovement/data/
+!yantra/selfimprovement/data/.keep
 
 # Cache
 .pytest_cache/
 .cache/
 .ruff_cache/
-webui/node_modules/
+drishti/node_modules/
 
 # Python
 __pycache__/
 *.pyc
 *.pyo
 *.egg-info/
-dist/
-build/
+drishti/dist/
+drishti/build/
 .eggs/
 
 # Environment
@@ -28,6 +36,9 @@ build/
 .venv/
 venv/
 env/
+
+# Local TLS material
+config/ssl/*.pem
 
 # IDE
 .vscode/
@@ -45,9 +56,12 @@ _archive/
 
 # Misc
 *.log
+*.bak
+*.backup
 .coverage
 htmlcov/
 temp/
+training_output.txt
 
 # Tantra outputs (model artifacts); publish only the small sample checkpoint.
 tantra/outputs/*

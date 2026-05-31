@@ -3,7 +3,10 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
+import urllib.parse
+import urllib.request
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -12,6 +15,31 @@ from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+async def _post_json(url: str, payload: dict[str, Any], timeout: float = 10.0) -> tuple[int, dict[str, Any]]:
+    import asyncio
+
+    def request() -> tuple[int, dict[str, Any]]:
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            body = response.read().decode("utf-8") or "{}"
+            return response.status, json.loads(body)
+
+    return await asyncio.to_thread(request)
+
+
+async def _get_json(url: str, params: dict[str, Any], timeout: float = 10.0) -> tuple[int, dict[str, Any]]:
+    import asyncio
+
+    def request() -> tuple[int, dict[str, Any]]:
+        query = urllib.parse.urlencode(params)
+        with urllib.request.urlopen(f"{url}?{query}", timeout=timeout) as response:
+            body = response.read().decode("utf-8") or "{}"
+            return response.status, json.loads(body)
+
+    return await asyncio.to_thread(request)
 
 
 class ChannelType(Enum):
@@ -111,36 +139,56 @@ class TelegramChannel(ChannelBase):
     type = ChannelType.TELEGRAM
     name = "Telegram"
 
+    def __init__(self):
+        super().__init__()
+        self._histories: dict[str, list[dict[str, str]]] = {}
+
     async def send(self, message: str, chat_id: str = "", **kwargs: Any) -> bool:
-        token = self.config.get("bot_token") or self.config.get("token")
-        target = chat_id or self.config.get("chat_id", "")
+        token = self.config.get("bot_token") or self.config.get("token") or os.environ.get("ATULYA_TELEGRAM_BOT_TOKEN")
+        target = chat_id or self.config.get("chat_id", "") or os.environ.get("ATULYA_TELEGRAM_CHAT_ID", "")
         if not token or not target:
             logger.warning("Telegram not configured")
             return False
         try:
-            import aiohttp
             url = f"https://api.telegram.org/bot{token}/sendMessage"
-            async with aiohttp.ClientSession() as session:
-                response = await session.post(url, json={"chat_id": target, "text": message})
-                return response.status < 400
-        except ImportError:
-            logger.warning("aiohttp not installed; Telegram send unavailable")
+            payload = {"chat_id": target, "text": message}
+            parse_mode = kwargs.get("parse_mode") or self.config.get("parse_mode")
+            if parse_mode:
+                payload["parse_mode"] = parse_mode
+            if kwargs.get("reply_markup"):
+                payload["reply_markup"] = kwargs["reply_markup"]
+            status, _ = await _post_json(url, payload)
+            return status < 400
+        except Exception as exc:
+            logger.warning("Telegram send failed: %s", exc)
+            return False
+
+    async def send_photo(self, photo_url: str, caption: str = "", chat_id: str = "", **kwargs: Any) -> bool:
+        token = self.config.get("bot_token") or self.config.get("token") or os.environ.get("ATULYA_TELEGRAM_BOT_TOKEN")
+        target = chat_id or self.config.get("chat_id", "") or os.environ.get("ATULYA_TELEGRAM_CHAT_ID", "")
+        if not token or not target:
+            logger.warning("Telegram not configured")
+            return False
+        try:
+            url = f"https://api.telegram.org/bot{token}/sendPhoto"
+            status, _ = await _post_json(url, {"chat_id": target, "photo": photo_url, "caption": caption})
+            return status < 400
+        except Exception as exc:
+            logger.warning("Telegram sendPhoto failed: %s", exc)
             return False
 
     async def receive(self) -> list[ChannelMessage]:
-        token = self.config.get("bot_token") or self.config.get("token")
+        token = self.config.get("bot_token") or self.config.get("token") or os.environ.get("ATULYA_TELEGRAM_BOT_TOKEN")
         if not token:
             return []
         offset = self.config.get("offset", 0)
         try:
-            import aiohttp
             url = f"https://api.telegram.org/bot{token}/getUpdates"
-            async with aiohttp.ClientSession() as session:
-                response = await session.get(url, params={"offset": offset, "timeout": 0})
-                if response.status >= 400:
-                    return []
-                payload = await response.json()
-        except ImportError:
+            status, payload = await _get_json(url, {"offset": offset, "timeout": 0})
+            if status >= 400:
+                return []
+        except Exception as exc:
+            logger.warning("Telegram receive failed: %s", exc)
             return []
         messages: list[ChannelMessage] = []
         for update in payload.get("result", []):
@@ -160,6 +208,69 @@ class TelegramChannel(ChannelBase):
             ))
         return messages
 
+    def is_allowed(self, sender_id: str) -> bool:
+        allowlist = self.config.get("allowlist") or self.config.get("allowed_users") or os.environ.get("ATULYA_TELEGRAM_ALLOWLIST", "")
+        if isinstance(allowlist, str):
+            allowed = {item.strip() for item in allowlist.split(",") if item.strip()}
+        else:
+            allowed = {str(item).strip() for item in allowlist if str(item).strip()}
+        return not allowed or str(sender_id) in allowed
+
+    async def handle_message(self, message: ChannelMessage, llm: Any | None = None) -> str:
+        text = message.content.strip()
+        chat_id = str(message.metadata.get("chat_id") or "")
+        if not self.is_allowed(message.sender):
+            await self.send("Access denied. Ask the owner to add your Telegram user id to ATULYA_TELEGRAM_ALLOWLIST.", chat_id)
+            return "denied"
+        if text in {"/start", "/help"}:
+            await self.send("Atulya is online. Use /ask <question>, /status, or /help.", chat_id)
+            return "help"
+        if text == "/status":
+            await self.send("Atulya Telegram bridge is running. LLM fallback is free-first.", chat_id)
+            return "status"
+        if text.startswith("/ask"):
+            prompt = text[4:].strip()
+        else:
+            prompt = text
+        if not prompt:
+            await self.send("Send /ask followed by a question.", chat_id)
+            return "empty"
+        if llm is None:
+            from atulya.llm import AtulyaLLM
+            llm = AtulyaLLM()
+        history = self._histories.setdefault(str(message.sender), [])
+        response = await llm.ask(prompt, history=history)
+        history.extend([
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": response.text},
+        ])
+        del history[:-20]
+        await self.send(response.text[:3900], chat_id, parse_mode=self.config.get("parse_mode", "HTML"))
+        return "answered"
+
+    async def poll_and_reply(self, llm: Any | None = None) -> int:
+        count = 0
+        for message in await self.receive():
+            await self.handle_message(message, llm=llm)
+            count += 1
+        return count
+
+    async def handle_webhook(self, update: dict[str, Any], llm: Any | None = None) -> str:
+        msg = update.get("message") or {}
+        chat = msg.get("chat", {})
+        sender = msg.get("from", {})
+        text = msg.get("text", "")
+        if not text:
+            return "ignored"
+        message = ChannelMessage(
+            id=str(update.get("update_id", "")),
+            channel=self.type.value,
+            sender=str(sender.get("id", chat.get("id", ""))),
+            content=text,
+            metadata={"chat_id": chat.get("id"), "raw": update},
+        )
+        return await self.handle_message(message, llm=llm)
+
 
 class WebhookChannel(ChannelBase):
     type = ChannelType.WEBHOOK
@@ -171,12 +282,10 @@ class WebhookChannel(ChannelBase):
             logger.warning("Webhook not configured")
             return False
         try:
-            import aiohttp
-            async with aiohttp.ClientSession() as session:
-                response = await session.post(url, json={"message": message, "timestamp": time.time(), **kwargs})
-                return response.status < 400
-        except ImportError:
-            logger.warning("aiohttp not installed; webhook send unavailable")
+            status, _ = await _post_json(url, {"message": message, "timestamp": time.time(), **kwargs})
+            return status < 400
+        except Exception as exc:
+            logger.warning("Webhook send failed: %s", exc)
             return False
 
 

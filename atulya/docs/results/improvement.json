@@ -1,0 +1,13 @@
+{
+  "checkpoint": "step_006000",
+  "step": 500,
+  "accuracy_pct": 13.42,
+  "accuracy_improvement": 8.07,
+  "loss": 3.475,
+  "perplexity": 32.3,
+  "gen_speed_tokps": 0.5,
+  "previous_checkpoint": "v2_20260526_222133",
+  "previous_accuracy": 5.35,
+  "previous_loss": 6.979,
+  "timestamp": "2026-05-27 13:15:19"
+}

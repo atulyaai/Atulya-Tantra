@@ -82,12 +82,12 @@ This release establishes the unified, multi-package autonomous framework, transf
 - **Event Bus (`yantra/events.py`)**: Lightweight async event bus for decoupled inter-system communication.
 - **Channel System (`yantra/channels.py`)**: Unified multi-channel inbound/outbound communication replacing separate notify/saarthi modules.
 - **Dispatch Layer (`yantra/dispatch.py`)**: Smart dispatch engine integrating TaskClassifier, ModelFailover, ToolRegistry, and PluginRegistry into a single agent entry point.
-- **Dashboard API Routes (`webui/backend/dashboard/`)**: Full FastAPI backend with 8 route modules — auth, system, model, train, chat, cortex, automation, openai — all wired to production frontend.
+- **Dashboard API Routes (`drishti/backend/dashboard/`)**: Full FastAPI backend with 8 route modules — auth, system, model, train, chat, cortex, automation, openai — all wired to production frontend.
 - **Production Dashboard UX**: Token persistence across restarts, background model warm-up, training subprocess watchdog, memory guard, streaming chat SSE.
 - **Unified Config (`atulya/config.py`)**: Centralized `AtulyaConfig` dataclass loaded from `.env` + config.json, single source of truth for all data directories.
 
 ### Changed
-- **Modular Packaging**: Consolidated directories into clear packages (`tantra`, `yantra`, `memory`, `atulya`, `webui`), declared in `pyproject.toml`.
+- **Modular Packaging**: Consolidated directories into clear packages (`tantra`, `yantra`, `memory`, `atulya`, `drishti`), declared in `pyproject.toml`.
 - **System Versioning**: Aligned package version to `0.3.0` across configurations.
 - **Safety Approvals**: Integrated manual validation workflows requiring superuser checks for critical shell-execution commands.
 - **Moved `tantra/core/npdna/` → `tantra/npdna/`**: The NP-DNA model is the system centrepiece, not an infrastructure utility.

@@ -1,0 +1,66 @@
+{
+  "servers": [
+    {
+      "name": "filesystem",
+      "enabled": false,
+      "timeout": 5,
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    },
+    {
+      "name": "git",
+      "enabled": false,
+      "timeout": 5,
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-git"]
+    },
+    {
+      "name": "playwright",
+      "enabled": false,
+      "timeout": 5,
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp"]
+    },
+    {
+      "name": "google_drive",
+      "enabled": false,
+      "timeout": 5,
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-google-drive"]
+    },
+    {
+      "name": "gmail",
+      "enabled": false,
+      "timeout": 5,
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-gmail"]
+    },
+    {
+      "name": "spotify",
+      "enabled": false,
+      "timeout": 5,
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-spotify"]
+    },
+    {
+      "name": "telegram",
+      "enabled": false,
+      "timeout": 5,
+      "transport": "http",
+      "url": "http://127.0.0.1:4000/mcp/rpc"
+    },
+    {
+      "name": "browser",
+      "enabled": false,
+      "timeout": 5,
+      "transport": "http",
+      "url": "http://127.0.0.1:4001/mcp/rpc"
+    }
+  ]
+}

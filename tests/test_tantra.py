@@ -2075,7 +2075,7 @@ class TestAutonomy:
 
 class TestPipeline:
     def test_harvest_common_crawl(self):
-        from tantra.training.dataset.harvest_data import harvest_common_crawl
+        from tantra.training.datasets.harvest_data import harvest_common_crawl
         samples = harvest_common_crawl(limit=2)
         assert len(samples) >= 1
         for s in samples:
@@ -2175,12 +2175,12 @@ class TestTrainingModelManagement:
 
     def test_api_training_metrics_route(self, tmp_path, monkeypatch):
         from fastapi.testclient import TestClient
-        from webui.backend.dashboard.app import app
+        from drishti.dashboard.app import app
         import json
         
         # Mock OUTPUTS_DIR in the routes and ADMIN_TOKEN in helpers
-        from webui.backend.dashboard.routes import train
-        from webui.backend.dashboard import helpers
+        from drishti.dashboard.routes import train
+        from drishti.dashboard import helpers
         monkeypatch.setattr(train, "OUTPUTS_DIR", tmp_path)
         monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")
         
@@ -2207,7 +2207,7 @@ class TestTrainingModelManagement:
 
     def test_dashboard_latest_model_prefers_highest_progress_across_local_and_sample_outputs(self, tmp_path, monkeypatch):
         import json
-        from webui.backend.dashboard import helpers
+        from drishti.dashboard import helpers
 
         local = tmp_path / "npdna"
         sample = tmp_path / "npdna_nano"
@@ -2227,9 +2227,9 @@ class TestTrainingModelManagement:
     def test_api_training_metrics_limits_large_log_to_recent_window(self, tmp_path, monkeypatch):
         import json
         from fastapi.testclient import TestClient
-        from webui.backend.dashboard.app import app
-        from webui.backend.dashboard.routes import train
-        from webui.backend.dashboard import helpers
+        from drishti.dashboard.app import app
+        from drishti.dashboard.routes import train
+        from drishti.dashboard import helpers
 
         monkeypatch.setattr(train, "OUTPUTS_DIR", tmp_path)
         monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")
@@ -2250,9 +2250,9 @@ class TestTrainingModelManagement:
     def test_api_training_status_marks_stale_training_file_as_stopped(self, tmp_path, monkeypatch):
         import json
         from fastapi.testclient import TestClient
-        from webui.backend.dashboard.app import app
-        from webui.backend.dashboard.routes import train
-        from webui.backend.dashboard import helpers
+        from drishti.dashboard.app import app
+        from drishti.dashboard.routes import train
+        from drishti.dashboard import helpers
 
         monkeypatch.setattr(train, "OUTPUTS_DIR", tmp_path)
         monkeypatch.setattr(train, "PID_FILE", tmp_path / "train.pid")
@@ -2276,7 +2276,7 @@ class TestTrainingModelManagement:
 
     def test_api_run_plasticity_check(self, tmp_path, monkeypatch):
         from fastapi.testclient import TestClient
-        from webui.backend.dashboard.app import app
+        from drishti.dashboard.app import app
         from tantra.npdna import NpDnaCore
         
         # Create and save a minimal model instance to a temp path
@@ -2285,8 +2285,8 @@ class TestTrainingModelManagement:
         core.save(model_path, losses=[1.5, 1.4])
         
         # Mock index, token and endpoints in routes
-        from webui.backend.dashboard.routes import model
-        from webui.backend.dashboard import helpers
+        from drishti.dashboard.routes import model
+        from drishti.dashboard import helpers
         
         monkeypatch.setattr(model, "_checkpoint_index", lambda: {"latest": model_path})
         monkeypatch.setattr(helpers, "_checkpoint_index", lambda: {"latest": model_path})
@@ -2313,9 +2313,9 @@ class TestTrainingModelManagement:
 
     def test_openai_models_lists_checkpoints(self, monkeypatch):
         from fastapi.testclient import TestClient
-        from webui.backend.dashboard.app import app
-        from webui.backend.dashboard import helpers
-        from webui.backend.dashboard.routes import openai
+        from drishti.dashboard.app import app
+        from drishti.dashboard import helpers
+        from drishti.dashboard.routes import openai
 
         monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")
         monkeypatch.setattr(openai, "_model_registry", lambda: [
@@ -2332,9 +2332,9 @@ class TestTrainingModelManagement:
 
     def test_chat_rejects_raw_model_paths(self, tmp_path, monkeypatch):
         from fastapi.testclient import TestClient
-        from webui.backend.dashboard.app import app
-        from webui.backend.dashboard import helpers
-        from webui.backend.dashboard.routes import chat
+        from drishti.dashboard.app import app
+        from drishti.dashboard import helpers
+        from drishti.dashboard.routes import chat
 
         raw_model_path = tmp_path / "raw_model"
         raw_model_path.mkdir()

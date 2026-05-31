@@ -83,15 +83,15 @@ class HeartbeatSystem:
 
     async def _provider_check(self) -> HealthCheck:
         try:
-            from tantra.core.model_failover import ModelFailover
-            failover = ModelFailover(data_dir=str(self.data_dir))
-            statuses = failover.get_provider_status()
-            open_breakers = [k for k, v in statuses.items() if getattr(v, "circuit", "") == "open"]
-            if open_breakers:
-                return HealthCheck("provider", "warning", f"Circuit breakers open: {open_breakers}")
-            return HealthCheck("provider", "ok", f"All providers healthy ({len(statuses)} registered)")
+            from atulya.intelligence import ProviderRouter
+            router = ProviderRouter()
+            available = [p.name() for p in router.providers if p.is_available()]
+            if not available:
+                return HealthCheck("provider", "warning", "No intelligence providers are available")
+            return HealthCheck("provider", "ok", f"Available providers: {', '.join(available)}")
         except Exception as e:
             return HealthCheck("provider", "warning", str(e))
+
 
     async def _cortex_check(self) -> HealthCheck:
         try:

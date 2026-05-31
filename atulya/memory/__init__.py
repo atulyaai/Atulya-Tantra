@@ -1,2 +1,31 @@
-"""Compatibility wrappers for the top-level memory package."""
-from memory import *  # noqa: F401,F403
+﻿"""Memory - Persistent memory, knowledge graphs, and context management."""
+from .orchestrator import (
+    ContextWindow,
+    MemoryEntry,
+    MemoryOrchestrator,
+    MemoryProvider,
+    MemoryProviderType,
+)
+from .tree import MemoryTree
+from .manager import MemoryManager
+from .obsidian import ObsidianExporter
+from .subconscious import SubconsciousProvider
+from .session_search import SessionSearchProvider
+from .prompt_cache import PromptCacheProvider
+from .reflection import ReflectionProvider
+
+__all__ = [
+    "ContextWindow",
+    "MemoryEntry",
+    "MemoryOrchestrator",
+    "MemoryProvider",
+    "MemoryProviderType",
+    "MemoryTree",
+    "MemoryManager",
+    "ObsidianExporter",
+    "SubconsciousProvider",
+    "SessionSearchProvider",
+    "PromptCacheProvider",
+    "ReflectionProvider",
+]
+

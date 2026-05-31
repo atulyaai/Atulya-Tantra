@@ -13,6 +13,7 @@ import asyncio
 import json
 import logging
 import time
+import urllib.request
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -102,12 +103,8 @@ class MCPClient:
         self._writer = self._process.stdin
 
     async def _connect_http(self):
-        """Set up HTTP session (lazy init â€” requests made on demand)."""
-        try:
-            import aiohttp
-            self._http_session = aiohttp.ClientSession()
-        except ImportError:
-            raise RuntimeError("aiohttp required for HTTP MCP transport: pip install aiohttp")
+        """HTTP transport uses stdlib requests on a worker thread."""
+        self._http_session = True
 
     async def _request(self, method: str, params: dict[str, Any] = None) -> dict[str, Any]:
         """Send a JSON-RPC 2.0 request and return the result."""
@@ -146,13 +143,21 @@ class MCPClient:
         """Send request over HTTP POST."""
         if not self._http_session:
             raise RuntimeError("Not connected")
-        url = self.config.url.rstrip("/") + "/mcp/rpc"
-        async with self._http_session.post(url, json=request, timeout=self.config.timeout) as resp:
-            response = await resp.json()
-            err = response.get("error")
-            if err is not None:
-                raise RuntimeError(f"MCP error: {err.get('message', 'unknown') if isinstance(err, dict) else err}")
-            return response.get("result", {})
+        url = self.config.url.rstrip("/")
+        if not url.endswith("/mcp/rpc"):
+            url += "/mcp/rpc"
+
+        def post() -> dict[str, Any]:
+            payload = json.dumps(request).encode("utf-8")
+            req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+            with urllib.request.urlopen(req, timeout=self.config.timeout) as resp:
+                return json.loads(resp.read().decode("utf-8") or "{}")
+
+        response = await asyncio.to_thread(post)
+        err = response.get("error")
+        if err is not None:
+            raise RuntimeError(f"MCP error: {err.get('message', 'unknown') if isinstance(err, dict) else err}")
+        return response.get("result", {})
 
     async def list_tools(self) -> list[dict[str, Any]]:
         return self._tools.copy()
@@ -183,7 +188,7 @@ class MCPClient:
             except asyncio.TimeoutError:
                 self._process.kill()
         if self._http_session:
-            await self._http_session.close()
+            self._http_session = None
         self.status = MCPServerStatus.DISCONNECTED
 
     def get_info(self) -> dict[str, Any]:
@@ -205,18 +210,25 @@ class MCPClientManager:
     def __init__(self):
         self._clients: dict[str, MCPClient] = {}
 
-    async def add_stdio(self, name: str, command: str, args: list[str] = None, env: dict[str, str] = None) -> MCPClient:
+    async def add_stdio(
+        self,
+        name: str,
+        command: str,
+        args: list[str] = None,
+        env: dict[str, str] = None,
+        timeout: float = 30.0,
+    ) -> MCPClient:
         """Add and connect to a stdio-based MCP server."""
-        config = MCPClientConfig(name=name, transport="stdio", command=command, args=args or [], env=env or {})
+        config = MCPClientConfig(name=name, transport="stdio", command=command, args=args or [], env=env or {}, timeout=timeout)
         client = MCPClient(config)
         success = await client.connect()
         if success:
             self._clients[name] = client
         return client
 
-    async def add_http(self, name: str, url: str) -> MCPClient:
+    async def add_http(self, name: str, url: str, timeout: float = 30.0) -> MCPClient:
         """Add and connect to an HTTP MCP server."""
-        config = MCPClientConfig(name=name, transport="http", url=url)
+        config = MCPClientConfig(name=name, transport="http", url=url, timeout=timeout)
         client = MCPClient(config)
         success = await client.connect()
         if success:

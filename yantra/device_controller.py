@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -98,17 +99,20 @@ class DeviceController:
     async def _send_wifi(self, device: Device, command: str, params: dict | None) -> dict[str, Any]:
         """Send WiFi command (HTTP/MQTT over WiFi)."""
         try:
-            import aiohttp
+            import asyncio
             url = f"http://{device.address}:{device.port or 80}/api/{command}"
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=params or {}) as resp:
-                    data = await resp.json()
-                    device.last_seen = time.time()
-                    device.state["last_response"] = data
-                    self._save()
-                    return {"success": resp.status == 200, "protocol": "wifi", "data": data}
-        except ImportError:
-            return {"success": False, "error": "aiohttp not installed"}
+
+            def post() -> tuple[int, dict[str, Any]]:
+                payload = json.dumps(params or {}).encode("utf-8")
+                req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    return resp.status, json.loads(resp.read().decode("utf-8") or "{}")
+
+            status, data = await asyncio.to_thread(post)
+            device.last_seen = time.time()
+            device.state["last_response"] = data
+            self._save()
+            return {"success": status == 200, "protocol": "wifi", "data": data}
         except Exception as e:
             return {"success": False, "error": str(e)}
 

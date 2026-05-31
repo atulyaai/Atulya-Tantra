@@ -52,6 +52,10 @@ class PluginRegistry:
         if manifest.exists():
             data = json.loads(manifest.read_text())
             for p in data.get("plugins", []):
+                if isinstance(p.get("trust_level"), str):
+                    p["trust_level"] = TrustLevel(p["trust_level"])
+                if isinstance(p.get("state"), str):
+                    p["state"] = PluginState(p["state"])
                 info = PluginInfo(**p)
                 self._plugins[info.name] = info
 
@@ -91,3 +95,64 @@ class PluginRegistry:
                 result["warnings"].append(f"Found dangerous pattern: {pattern}")
                 result["safe"] = False
         return result
+
+    def install_skill(self, skill_path: str | Path) -> PluginInfo:
+        """Install a local SKILL.md-style skill as metadata only."""
+        path = Path(skill_path)
+        if path.is_dir():
+            path = path / "SKILL.md"
+        if not path.exists():
+            raise FileNotFoundError(f"Skill file not found: {path}")
+        text = path.read_text(encoding="utf-8")
+        name = _extract_heading(text) or path.parent.name or path.stem
+        description = _extract_description(text)
+        info = PluginInfo(
+            name=name,
+            version="0.1.0",
+            description=description,
+            author="local",
+            trust_level=TrustLevel.COMMUNITY,
+            state=PluginState.LOADED,
+            hooks=["skill"],
+            tools=[],
+        )
+        self._plugins[info.name] = info
+        self._save_manifest()
+        return info
+
+    def route_skill(self, prompt: str) -> PluginInfo | None:
+        text = prompt.lower()
+        for plugin in self._plugins.values():
+            haystack = f"{plugin.name} {plugin.description}".lower()
+            if plugin.name.lower() in text or any(word and word in haystack for word in text.split()):
+                return plugin
+        return None
+
+    def _save_manifest(self) -> None:
+        manifest = self.plugins_dir / "plugins.json"
+        manifest.write_text(
+            json.dumps({"plugins": [_plugin_to_json(plugin) for plugin in self._plugins.values()]}, indent=2),
+            encoding="utf-8",
+        )
+
+
+def _plugin_to_json(plugin: PluginInfo) -> dict[str, Any]:
+    data = vars(plugin).copy()
+    data["trust_level"] = plugin.trust_level.value
+    data["state"] = plugin.state.value
+    return data
+
+
+def _extract_heading(text: str) -> str:
+    for line in text.splitlines():
+        if line.startswith("# "):
+            return line[2:].strip()
+    return ""
+
+
+def _extract_description(text: str) -> str:
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#"):
+            return stripped[:240]
+    return "Local Atulya skill"

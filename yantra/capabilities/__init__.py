@@ -33,8 +33,11 @@ class Tool(ABC):
 class ToolRegistry:
     def __init__(self):
         self._tools: dict[str, Tool] = {}
+        self._duplicate_names: set[str] = set()
 
     def register(self, tool: Tool):
+        if tool.name in self._tools:
+            self._duplicate_names.add(tool.name)
         self._tools[tool.name] = tool
 
     async def execute(self, name: str, **kwargs: Any) -> ToolResult:
@@ -51,6 +54,9 @@ class ToolRegistry:
 
     def filter_tools(self, categories: list[str]) -> list[Tool]:
         return [t for t in self._tools.values() if any(c in t.name for c in categories)]
+
+    def duplicate_names(self) -> list[str]:
+        return sorted(self._duplicate_names)
 
 
 class FileReadTool(Tool):
@@ -224,9 +230,27 @@ class MemorySearchTool(Tool):
 
 
 def create_default_registry(data_dir: str | Path = ".") -> ToolRegistry:
+    from yantra.capabilities.business_automation import (
+        HRAttendancePayrollTool,
+        DataScrubberTool,
+        GSTReconciliationTool,
+        AccountingERPTool,
+        SAPAutomationTool
+    )
+    from yantra.capabilities.office_tools import (
+        CalendarTool,
+        CSVAnalyzeTool,
+        ChartGenerateTool,
+        CodeExecuteTool,
+        EmailDraftTool,
+        PDFReadTool,
+    )
     registry = ToolRegistry()
     for tool_class in [FileReadTool, FileWriteTool, FileEditTool, FileSearchTool, GrepTool,
                        ExecTool, WebSearchTool, WebFetchTool, TodoCreateTool, TodoListTool,
-                       MemoryStoreTool, MemorySearchTool]:
+                       MemoryStoreTool, MemorySearchTool, HRAttendancePayrollTool,
+                       DataScrubberTool, GSTReconciliationTool, AccountingERPTool,
+                       SAPAutomationTool, CodeExecuteTool, PDFReadTool, CSVAnalyzeTool,
+                       CalendarTool, EmailDraftTool, ChartGenerateTool]:
         registry.register(tool_class())
     return registry

@@ -1,4 +1,4 @@
-﻿"""Grammar & Language Quality â€” trilingual fluency, human not robotic."""
+"""Grammar & Language Quality â€” trilingual fluency, human not robotic."""
 from __future__ import annotations
 
 import json
@@ -30,7 +30,7 @@ class GrammarCheck:
 class GrammarEngine:
     """Grammar and language quality for Hindi, English, Sanskrit."""
 
-    def __init__(self, data_dir: str | Path = "config/grammar"):
+    def __init__(self, data_dir: str | Path = "tantra/config/grammar"):
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self._rules: list[LanguageRule] = []

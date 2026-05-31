@@ -1,39 +1,29 @@
 # Atulya Tantra
 
-![Atulya Tantra - Local-first AI workspace](docs/images/atulya_tantra_hero.webp)
+Atulya Tantra is a local-first AI workspace built around **NP-DNA**: a NeuroPlastic DNA Network that keeps a compact genome, generates neural weights on demand, routes tokens through specialist strands, and connects model training, memory, Drishti, and automation in one repo.
 
-[![Status: Experimental](https://img.shields.io/badge/status-experimental-f59e0b)](#project-status)
-[![Runtime: Local First](https://img.shields.io/badge/runtime-local--first-10b981)](#quick-start)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-2563eb)](#quick-start)
-[![License: MIT](https://img.shields.io/badge/license-MIT-14b8a6)](LICENSE)
-
-Atulya Tantra is a local-first AI workspace built around **NP-DNA**: a NeuroPlastic DNA Network that keeps a compact genome, generates neural weights on demand, routes tokens through specialist strands, and connects model training, memory, WebUI, and automation in one repo.
+![Atulya Tantra architecture](atulya/docs/images/architecture.png)
 
 ## What This Is
 
 | Area | Folder | Purpose |
 |---|---|---|
-| Tantra | `tantra/` | NP-DNA model package, tokenizer, checkpoints, training, datasets |
-| Memory | `memory/` | Shared memory providers, prompt cache, tree summaries, Obsidian export |
-| Atulya | `atulya/` | Application AI: persona, heartbeat, observability, CLI |
-| WebUI | `webui/` | React dashboard, FastAPI backend, dashboard API routes |
-| Yantra | `yantra/` | Automation: capabilities, channels, MCP, dispatch, plugins, assistant |
-| Docs | `docs/` | architecture, security, contribution guide, project map, images |
-| Tests | `tests/` | Split Tantra, Yantra, Atulya, and integration suites |
+| Atulya | `atulya/` | Personality, memory, identity, assistant brain, docs, Atulya-owned tests |
+| Tantra | `tantra/` | NP-DNA model package, tokenizer, checkpoints, training, datasets, model tests |
+| Yantra | `yantra/` | Actions, tools, automation, browser/device/camera/voice systems, action tests |
+| Drishti | `drishti/` | Mobile/desktop experience: Live Mode, chat, dashboard, backend APIs, frontend build |
 
 The goal is a local AI system that can train, grow, remember, inspect itself, automate tasks, and expose controls through a dashboard.
 
-![Atulya Tantra architecture](docs/images/architecture.svg)
+![Four pillars](atulya/docs/images/four_pillars.png)
 
-## Four Building Blocks
+## NP-DNA In One Picture
 
-![NP-DNA building blocks](docs/images/four_pillars.svg)
-
-## NP-DNA Runtime
-
-![Animated NP-DNA runtime](docs/images/npdna_runtime.svg)
+![Animated NP-DNA runtime](atulya/docs/images/npdna_runtime.svg)
 
 NP-DNA uses a compact **genome** to generate strand weights. A sparse **mesh** routes each token to the most relevant specialist strands. The **cortex** stores external memory, and the **plasticity engine** watches load, dead strands, vocabulary pressure, and training behavior so the model can rebalance or grow.
+
+![DNA compression](atulya/docs/images/dna_compression.png)
 
 Core ideas:
 
@@ -43,12 +33,6 @@ Core ideas:
 - **Memory cortex**: external vector memory for facts, state, and retrieval.
 - **Plasticity**: vocabulary and strand growth hooks for adaptation during training.
 - **Frozen codecs**: audio/image/video can become tokenizer-like streams without storing codec weights inside NP-DNA.
-
-![Genome-generated weight concept](docs/images/dna_compression.svg)
-
-## Project Status
-
-NP-DNA is an experimental architecture implemented in this repository. Performance, model-size reduction, and quality comparisons should be treated as research questions until supported by reproducible benchmarks and released checkpoints.
 
 **Mesh routing breakdown**:
 
@@ -65,29 +49,38 @@ NP-DNA is an experimental architecture implemented in this repository. Performan
 
 ```text
 Atulya Tantra/
-|-- assets/                     # app config cache (prompt_cache)
+|-- assets/                     # runtime-local app state: audio, temp files, scheduler state
 |-- atulya/
-|   |-- memory/                 # compatibility imports for memory/
+|   |-- docs/                   # architecture, security, contribution guide, project map, images
+|   |-- memory/                 # memory providers, tree, reflection, Obsidian export
+|   |-- observability/          # usage, metrics, tracing, error tracking
+|   |-- tests/                  # Atulya and integration tests
 |   |-- persona.py
 |   |-- identity.py             # compatibility wrapper
 |   `-- cli.py
-|-- memory/                     # memory providers, tree, reflection, Obsidian export
+|-- config/                     # cross-package static configuration
+|-- outputs/                    # generated reports, invoices, benchmark artifacts
 |-- tantra/
 |   |-- npdna/                  # model, genome, mesh, tokenizer, cortex, checkpointing
 |   |-- core/                   # security, context, encryption, task classification
 |   |-- training/               # trainer, benchmark, dataset builders, RAG
 |   |   `-- datasets/           # identity.json and tokenizer.json live here
+|   |-- assets/                 # model-adjacent generated support assets
 |   |-- data/                   # training data examples, health scans
-|   `-- outputs/                # generated model outputs and checkpoints
-|-- webui/
+|   |-- outputs/                # generated model outputs and checkpoints
+|   `-- tests/                  # Tantra model/training tests
+|-- drishti/
 |   |-- frontend/src/           # editable React frontend
 |   |-- backend/dashboard/      # FastAPI app, helpers, state, routes
-|   |-- api/                    # WebUI route wrappers
+|   |-- api/                    # Drishti route wrappers
 |   |-- dist/                   # built frontend assets
+|   |-- build/                  # alternate generated frontend build artifacts
+|   |-- tests/                  # Drishti tests
 |   |-- package.json
 |   `-- vite.config.js
 |-- yantra/
 |   |-- capabilities/           # gated tools, workflow, browser, voice, web search (canonical)
+|   |-- harness.py              # canonical agents, skills, slash commands, safety, duplicate reports
 |   |-- tools/                  # compatibility re-exports from capabilities/
 |   |-- mcp/                    # MCP server/client/transport/manifest
 |   |-- assistant/              # channels, sources, cron, task brain
@@ -98,26 +91,15 @@ Atulya Tantra/
 |   |-- events.py               # event bus
 |   |-- device_controller.py    # CPU-first device management
 |   |-- notify/                 # notification system
-|   `-- plugins/                # plugin SDK with trust levels
-|-- docs/
-|   |-- images/                 # architecture, compression, scaling, runtime visuals
-|   |-- ARCHITECTURE.md
-|   |-- CONTRIBUTING.md
-|   |-- IMPROVEMENT_TRACKER.md
-|   |-- PROJECT_MAP.md
-|   |-- SECURITY_MODEL.md
-|   `-- WEBUI_RECOMMENDATIONS.md
-|-- tests/
-|   |-- tantra/
-|   |-- yantra/
-|   |-- atulya/
-|   `-- integration/
-|-- start_dashboard.bat
+|   |-- plugins/                # plugin SDK with trust levels
+|   `-- tests/                  # Yantra action/tool tests
+|-- start.bat
 |-- pyproject.toml
 `-- requirements.txt
 ```
 
-More ownership detail lives in [docs/PROJECT_MAP.md](docs/PROJECT_MAP.md).
+More ownership detail lives in [atulya/docs/PROJECT_MAP.md](atulya/docs/PROJECT_MAP.md).
+Root folder drift is checked by `python -m yantra.assistant.structure_audit`.
 
 ## Quick Start
 
@@ -131,7 +113,7 @@ python -m pip install -e .
 Build the dashboard frontend:
 
 ```powershell
-cd webui
+cd drishti
 npm install
 npm run build
 cd ..
@@ -140,13 +122,13 @@ cd ..
 Start the dashboard:
 
 ```powershell
-start_dashboard.bat
+start.bat
 ```
 
 Or run the backend directly:
 
 ```powershell
-python -u -m webui.backend.app
+python -u -m drishti.backend.app
 ```
 
 Open:
@@ -157,20 +139,78 @@ http://localhost:8501
 
 First startup can take 30-60 seconds because FastAPI/Pydantic and Torch-related native modules load slowly.
 
-## Environment
+## Environment & Pluggable Brains
 
-`.env` is read by `start_dashboard.bat`.
+Create a `.env` file in the root directory (based on `.env.example`). The dashboard reads these configurations on startup to configure path execution, binding configurations, and local/cloud intelligence fallback providers.
 
 ```text
+# Host and port binding (Set host to 0.0.0.0 for mobile/local network access)
+ATULYA_HOST=127.0.0.1
+ATULYA_PORT=8501
+
+# Python path configuration
 ATULYA_BACKEND_PYTHON=\Python311\python.exe
 ATULYA_TRAIN_PYTHON=\Python311\python.exe
-ATULYA_DASHBOARD_MAX_STEPS=50000
-ATULYA_MAX_DATASET_UPLOAD_GB=20
-ATULYA_KEEP_CHECKPOINTS=10
-ATULYA_DATASET_ROOTS=
+
+# Pluggable cloud/local providers fallback chain
+OPENAI_API_KEY=sk-proj-...
+GEMINI_API_KEY=AIzaSy...
+OPENROUTER_API_KEY=sk-or-v1-...
+NVIDIA_API_KEY=nvapi-...
+ATULYA_OLLAMA_HOST=http://localhost:11434
+ATULYA_OLLAMA_MODEL=llama3
+
+# Dashboard API authentication
+ATULYA_DASHBOARD_TOKEN=my_secure_session_token
 ```
 
-Use the same Python family for backend and training so Torch, FastAPI, and project imports resolve consistently.
+### Fallback Failover Order
+When you submit a request, the `ProviderRouter` scans the list of configured keys and automatically failovers in this order:
+1. **Tantra (Local NP-DNA)**: Running entirely offline on CPU/GPU.
+2. **OpenAI**: Cloud-based GPT engines.
+3. **Gemini**: Standard Gemini models.
+4. **OpenRouter**: Cloud-based aggregator models.
+5. **NVIDIA NIM**: Pluggable microservice containers.
+6. **Ollama**: Local containerized LLMs.
+7. **OpenCode Zen**: Offline rule-based voice fallback if all endpoints are offline or keys are missing.
+
+---
+
+## Mobile Access (Like Siri or Gemini)
+
+Atulya Tantra is built mobile-first. You can access the voice cockpit, real-time cameras, memory galaxies, and planning modules on your smartphone or tablet with the feeling of a native OS assistant (like Siri or Gemini).
+
+### Step 1: Bind Server to Local Network
+Configure your `.env` file to expose the server to the local network:
+```text
+ATULYA_HOST=0.0.0.0
+ATULYA_PORT=8501
+```
+Start the dashboard using `start.bat`.
+
+### Step 2: Open on Mobile
+1. Find your computer's local IP address (e.g., `192.168.1.15`).
+2. Open Safari (iOS) or Chrome (Android) on your mobile device.
+3. Navigate to: `http://192.168.1.15:8501`.
+4. Enter your session token (`ATULYA_DASHBOARD_TOKEN`) to authenticate.
+
+### Step 3: Add to Home Screen (PWA Mode)
+- **iOS (Safari)**: Tap the **Share** button at the bottom, scroll down, and select **Add to Home Screen**.
+- **Android (Chrome)**: Tap the **three-dot menu** at the top right and select **Add to Home screen** or **Install App**.
+
+This places a native launcher icon on your smartphone home screen. Opening it hides browser navigation controls and launches Atulya in full-screen immersion mode.
+
+### Step 4: Engage Hands-Free Voice Cycle
+1. Click **ENGAGE ORACLE** to grant microphone permission.
+2. Check the **HANDS-FREE** checkbox.
+3. The interface will open the microphone, listen for voice input, process thoughts across the digital nervous system, vocalize responses via edge-tts, and automatically re-open the mic for continuous conversation.
+
+### Step 5: Remote Mobile Access (Anywhere in the World)
+To talk to Atulya outside your home WiFi network:
+- **Tailscale (Recommended)**: Install Tailscale on your host computer and your phone. You can access Atulya from anywhere using the private Tailscale IP (e.g., `http://100.x.y.z:8501`) securely, without opening public ports.
+- **ngrok**: Expose local port 8501 securely to a public ngrok domain: `ngrok http 8501`.
+
+---
 
 ## Training
 
@@ -198,11 +238,11 @@ Evaluate checkpoints:
 python -m tantra.core.eval_checkpoints
 ```
 
-When `All Datasets` is selected in the WebUI, `Training Steps` means total optimizer steps across the combined dataset stream, not steps per dataset.
+When `All Datasets` is selected in the Drishti, `Training Steps` means total optimizer steps across the combined dataset stream, not steps per dataset.
 
 ## Config Presets
 
-![NP-DNA configuration presets](docs/images/scaling_comparison.svg)
+![Scaling comparison](atulya/docs/images/scaling_comparison.png)
 
 | Config | Vocab | Hidden | State | Layers | Mesh |
 |---|---:|---:|---:|---:|---|
@@ -277,12 +317,12 @@ Layer design examples:
 | `tool_use` | command and function planning | fewer strands, `top_k=1` |
 | `sentiment` / `bias` | style and affect control | small strands, `top_k=1` |
 
-## WebUI Development
+## Drishti Development
 
 Run the Vite dev server:
 
 ```powershell
-cd webui
+cd drishti
 npm run dev
 ```
 
@@ -291,14 +331,14 @@ The dev server proxies `/api` and `/ws` to `http://127.0.0.1:8501`.
 Build production assets:
 
 ```powershell
-cd webui
+cd drishti
 npm run build
 ```
 
 Backend entrypoint:
 
 ```powershell
-python -u -m webui.backend.app
+python -u -m drishti.backend.app
 ```
 
 ## Real Checkpoint Example
@@ -348,7 +388,7 @@ The second `main` layer was not pre-created. It appears in v3 because training r
 
 ```mermaid
 flowchart LR
-    Browser["Browser / WebUI"] --> Backend["webui.backend.app"]
+    Browser["Browser / Drishti"] --> Backend["drishti.backend.app"]
     Backend --> App["FastAPI dashboard"]
     App --> Train["training APIs"]
     App --> Chat["chat APIs"]
@@ -360,15 +400,23 @@ flowchart LR
 Important Yantra locations:
 
 - `yantra/capabilities/`: file read/write/edit, gated shell execution, web search/fetch, todo, memory, browser, voice, and workflow capabilities (canonical)
+- `yantra/harness.py`: ECC-inspired command surface for agents, skills, commands, safety checks, and duplicate reports. Add new Jarvis-style behavior here first, then route into existing capabilities instead of creating parallel folders.
 - `yantra/tools/`: compatibility re-exports from capabilities/ for older callers
 - `yantra/channels.py`: unified 14-channel system (Discord, Telegram, Slack, Email, Webhook, WhatsApp, Signal, Matrix, Teams, IRC, WebChat, Console, Log, Twitter)
 - `yantra/mcp/`: MCP server, transport, manifest signing, external client, dashboard bridge
 - `yantra/assistant/`: channels, sources, cron scheduler, task brain
 - `yantra/selfimprovement/`: unified self-improvement (bridge functionality merged into unified.py, original bridge.py deleted)
 
+Yantra harness pattern:
+
+- Agents define who should handle work: planner, coder, researcher, memory manager, safety checker, self-improvement, and automation operator.
+- Skills define reusable abilities and point to one canonical tool name.
+- Slash commands such as `/remember`, `/recall`, `/research`, `/scan-project`, `/scrub-data`, `/payroll`, `/gst`, `/invoice`, and `/sap` resolve through the harness before dispatch.
+- Duplicate cleanup is handled by canonical registration: aliases map to one command or skill, and `YantraHarness.report_duplicates()` shows duplicate tool registration attempts.
+
 ## Memory And Identity
 
-Atulya application memory lives in top-level `memory/`; `atulya/memory/` is a compatibility import package.
+Atulya application memory lives in `atulya/memory/`. Memory is part of the assistant brain, not a fifth top-level product folder.
 
 | Module | Purpose |
 |---|---|
@@ -434,7 +482,7 @@ Invoke-RestMethod http://127.0.0.1:8501/api/train/start `
 ## Verification
 
 ```powershell
-python -m pytest tests/integration/test_unified_systems.py tests/tantra/test_npdna.py -q
+python -m pytest atulya/tests tantra/tests yantra/tests drishti/tests -q
 python -m pytest -q  # current suite: 413 passing tests
 python -m atulya.cli info
 ```
@@ -443,6 +491,6 @@ python -m atulya.cli info
 
 - Do not commit `.env`; it can contain secrets.
 - Do not commit `tantra/outputs/`, generated checkpoints, `__pycache__`, or large local datasets unless intentionally publishing data elsewhere.
-- `webui/node_modules` can exist locally for development, but should not be treated as source.
+- `drishti/node_modules` can exist locally for development, but should not be treated as source.
 - `assets/` replaces the old root `data/` directory for app config cache (prompt_cache).
 - Training data and generated datasets live in `tantra/data/` or are passed via CLI args.

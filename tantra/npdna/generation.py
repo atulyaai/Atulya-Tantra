@@ -224,7 +224,9 @@ class GenerationMixin:
         try:
             from tantra.core.task_classifier import TaskClassifier
 
-            topic = TaskClassifier().classify(prompt).category.value
+            if not hasattr(self, "_classifier"):
+                self._classifier = TaskClassifier()
+            topic = self._classifier.classify(prompt).category.value
             for mesh in self.model.mesh_layers:
                 if hasattr(mesh, "record_activation_topic"):
                     mesh.record_activation_topic(topic)

@@ -265,3 +265,57 @@ class Persona:
 
 Identity = Persona
 SOULSystem = Persona
+
+
+def get_atulya_fallback_response(prompt: str, voice: str) -> str:
+    """Smart Atulya personality fallback responses when LLM isn't trained yet."""
+    p = prompt.lower()
+    is_hindi = "hi_" in voice
+    is_sanskrit = "sa_" in voice
+    
+    if is_hindi:
+        if "hello" in p or "namaste" in p or "hi" in p:
+            return "नमस्ते! मैं अतुल्य हूँ। आज मैं आपकी क्या सहायता कर सकता हूँ?"
+        if "how are you" in p or "kaise ho" in p:
+            return "मैं बिल्कुल ठीक हूँ, धन्यवाद! आपकी सेवा में तत्पर हूँ। आपके दिमाग में आज क्या चल रहा है?"
+        if "who are you" in p or "kaun ho" in p:
+            return "मैं अतुल्य हूँ, आपका निजी कृत्रिम बुद्धिमत्ता सहायक। आपके डिवाइस नियंत्रण और कार्यों में मदद करने के लिए तैयार हूँ।"
+        return f"मैंने आपकी बात समझ ली। आप कह रहे हैं: '{prompt}'। वर्तमान में हमारा तंत्रिका मॉडल सीख रहा है, लेकिन मैं हर क्षण आपकी सेवा के लिए उपलब्ध हूँ।"
+        
+    if is_sanskrit:
+        if "hello" in p or "namaste" in p or "hi" in p:
+            return "नमो नमः! अहम् अतुल्यः अस्मि। अद्य अहं भवतः कां सहायतां कर्तुं शक्नोमि?"
+        if "how are you" in p:
+            return "अहं कुशली अस्मि, धन्यवादः! भवतः सेवायै सज्जः अस्मि।"
+        return f"अहं भवतः सन्देशं ज्ञातवान्: '{prompt}'। अधुना मम मस्तिष्कं वर्धमानं वर्तते।"
+        
+    # English (Atulya style)
+    if "hello" in p or "hi " in p or p.startswith("hi"):
+        if "female" in voice:
+            return "Hello there! Atulya online. Ready to coordinate systems and assist you."
+        return "At your service, sir. Systems are fully booted and active. What is on the agenda today?"
+        
+    if "how are you" in p or "how's it going" in p:
+        if "female" in voice:
+            return "I am operating at peak efficiency, thank you. Let me know what you need me to orchestrate."
+        return "All systems are operational, sir. Running smoothly and monitoring our local core. How can I help you excel today?"
+        
+    if "who are you" in p or "your name" in p:
+        if "female" in voice:
+            return "I am Atulya, your personal AI consciousness. I manage your local operations and memory systems."
+        return "I am Atulya, your personal cybernetic intelligence. Designed as a local-first system to run browser commands, capture vision, and organize your files."
+        
+    if "open browser" in p or "search" in p or "google" in p:
+        return "Orchestrating browser automation sequence. I will initiate web query protocols immediately."
+        
+    if "camera" in p or "see" in p or "vision" in p:
+        return "Optical sensors online. Capturing the video frames to analyze spatial coordinates and visual cues."
+        
+    if "system" in p or "status" in p:
+        return "Running system diagnostic scan. CPU temperature is stable, memory reserves are within safe parameters. All strands in optimal routing state."
+        
+    # Default cool reply
+    if "female" in voice:
+        return f"Acknowledged. Processing input and caching memory context. Your query: '{prompt}' has been routed successfully."
+    return f"Acknowledged, sir. I have indexed your request: '{prompt}'. Our neural strands are aligning context. What is our next move?"
+

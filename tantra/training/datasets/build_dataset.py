@@ -118,7 +118,7 @@ def load_dataset(path: str | Path, limit: int | None = None, append_eos: bool = 
         path = build_seed_dataset(path)
 
     texts = []
-    with open(path, encoding="utf-8-sig") as f:
+    with open(path, encoding="utf-8-sig", errors="replace") as f:
         for line in f:
             line = line.strip()
             if not line:

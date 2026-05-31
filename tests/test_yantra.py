@@ -2,30 +2,76 @@
 
 
 
+class TestProductAlignmentAuditor:
+    """Tests for product direction alignment automation."""
+
+    def test_alignment_audit_reports_score(self):
+        from yantra.assistant.product_alignment import ProductAlignmentAuditor
+
+        auditor = ProductAlignmentAuditor(".")
+        report = auditor.run()
+
+        assert 0 <= report["score"] <= 1
+        assert report["findings"]
+        assert "next_actions" in report
+
+    def test_alignment_report_can_be_written(self, tmp_path):
+        from yantra.assistant.product_alignment import ProductAlignmentAuditor
+
+        auditor = ProductAlignmentAuditor(".")
+        path = auditor.write_report(tmp_path / "alignment.json")
+
+        assert path.exists()
+        assert "score" in path.read_text(encoding="utf-8")
+
+
+class TestRepoStructureAuditor:
+    """Tests for root and package structure governance."""
+
+    def test_structure_audit_reports_root_dirs(self):
+        from yantra.assistant.structure_audit import RepoStructureAuditor
+
+        report = RepoStructureAuditor(".").run()
+
+        assert "atulya" in report["root_dirs"]
+        assert "tantra" in report["root_dirs"]
+        assert "yantra" in report["root_dirs"]
+        assert "drishti" in report["root_dirs"]
+        assert report["status"] in {"clean", "needs_fix"}
+
+    def test_structure_report_can_be_written(self, tmp_path):
+        from yantra.assistant.structure_audit import RepoStructureAuditor
+
+        path = RepoStructureAuditor(".").write_report(tmp_path / "structure.json")
+
+        assert path.exists()
+        assert "root_dirs" in path.read_text(encoding="utf-8")
+
+
 class TestBrowserAutomation:
     """Tests for BrowserAutomation (non-network, structural tests)."""
 
     def test_initialization_defaults(self):
-        from yantra.tools.browser_automation import BrowserAutomation
+        from yantra.capabilities.browser_automation import BrowserAutomation
         ba = BrowserAutomation()
         assert ba.headless is True
         assert len(ba._history) == 0
 
     def test_initialization_custom(self):
-        from yantra.tools.browser_automation import BrowserAutomation
+        from yantra.capabilities.browser_automation import BrowserAutomation
         ba = BrowserAutomation(headless=False)
         assert ba.headless is False
 
     def test_get_stats_empty(self):
-        from yantra.tools.browser_automation import BrowserAutomation
+        from yantra.capabilities.browser_automation import BrowserAutomation
         ba = BrowserAutomation()
         stats = ba.get_stats()
         assert stats["pages_visited"] == 0
         assert stats["last_url"] == ""
 
     def test_get_stats_after_history(self):
-        from yantra.tools.browser_automation import BrowserAutomation
-        from yantra.tools.browser_automation import BrowserResult
+        from yantra.capabilities.browser_automation import BrowserAutomation
+        from yantra.capabilities.browser_automation import BrowserResult
         ba = BrowserAutomation()
         ba._history.append(BrowserResult(success=True, url="https://example.com",
                                           title="Example", content="...", links=[]))
@@ -34,7 +80,7 @@ class TestBrowserAutomation:
         assert stats["last_url"] == "https://example.com"
 
     def test_browser_result_dataclass(self):
-        from yantra.tools.browser_automation import BrowserResult
+        from yantra.capabilities.browser_automation import BrowserResult
         result = BrowserResult(
             success=True, url="http://test.com", title="Test",
             content="Hello", links=[{"text": "link", "href": "http://test.com/page"}],
@@ -44,7 +90,7 @@ class TestBrowserAutomation:
         assert len(result.links) == 1
 
     def test_browser_result_error(self):
-        from yantra.tools.browser_automation import BrowserResult
+        from yantra.capabilities.browser_automation import BrowserResult
         result = BrowserResult(success=False, url="http://bad.com",
                                metadata={"error": "Connection refused"})
         assert result.success is False
@@ -615,14 +661,14 @@ class TestTextToSpeech:
     """Tests for TextToSpeech (no actual network calls)."""
 
     def test_initialization(self):
-        from yantra.tools.voice_pipeline import TextToSpeech
+        from yantra.capabilities.voice_pipeline import TextToSpeech
         with tempfile.TemporaryDirectory() as tmp:
             tts = TextToSpeech(output_dir=tmp)
             assert tts.output_dir.exists()
             assert tts.get_history() == []
 
     def test_voices_defined(self):
-        from yantra.tools.voice_pipeline import TextToSpeech
+        from yantra.capabilities.voice_pipeline import TextToSpeech
         assert "en_male" in TextToSpeech.VOICES
         assert "en_female" in TextToSpeech.VOICES
         assert "hi_male" in TextToSpeech.VOICES
@@ -630,12 +676,12 @@ class TestTextToSpeech:
         assert "sa_male" in TextToSpeech.VOICES
 
     def test_voice_config(self):
-        from yantra.tools.voice_pipeline import TextToSpeech
+        from yantra.capabilities.voice_pipeline import TextToSpeech
         voice = TextToSpeech.VOICES["hi_male"]
         assert voice["language"] == "hi"
 
     def test_get_stats_empty(self):
-        from yantra.tools.voice_pipeline import TextToSpeech
+        from yantra.capabilities.voice_pipeline import TextToSpeech
         with tempfile.TemporaryDirectory() as tmp:
             tts = TextToSpeech(output_dir=tmp)
             stats = tts.get_stats()
@@ -647,7 +693,7 @@ class TestSpeechToText:
     """Tests for SpeechToText (no actual network calls)."""
 
     def test_initialization(self):
-        from yantra.tools.voice_pipeline import SpeechToText
+        from yantra.capabilities.voice_pipeline import SpeechToText
         with tempfile.TemporaryDirectory() as tmp:
             stt = SpeechToText(output_dir=tmp)
             assert stt.output_dir.exists()
@@ -655,7 +701,7 @@ class TestSpeechToText:
 
     def test_transcribe_no_input_returns_error(self):
         """transcribe() with no input returns a structured STT error result."""
-        from yantra.tools.voice_pipeline import SpeechToText
+        from yantra.capabilities.voice_pipeline import SpeechToText
         import asyncio
         with tempfile.TemporaryDirectory() as tmp:
             stt = SpeechToText(output_dir=tmp)
@@ -668,14 +714,14 @@ class TestVoicePipeline:
     """Tests for combined VoicePipeline."""
 
     def test_initialization(self):
-        from yantra.tools.voice_pipeline import VoicePipeline
+        from yantra.capabilities.voice_pipeline import VoicePipeline
         with tempfile.TemporaryDirectory() as tmp:
             pipeline = VoicePipeline(tts_dir=f"{tmp}/tts", stt_dir=f"{tmp}/stt")
             assert pipeline.tts is not None
             assert pipeline.stt is not None
 
     def test_get_stats_empty(self):
-        from yantra.tools.voice_pipeline import VoicePipeline
+        from yantra.capabilities.voice_pipeline import VoicePipeline
         with tempfile.TemporaryDirectory() as tmp:
             pipeline = VoicePipeline(tts_dir=f"{tmp}/tts", stt_dir=f"{tmp}/stt")
             stats = pipeline.get_stats()
@@ -692,7 +738,7 @@ class TestWebSearch:
     """Tests for MultiProviderSearch (web search tool, safe/mocked)."""
 
     def test_basic_search(self):
-        from yantra.tools.web_search import MultiProviderSearch
+        from yantra.capabilities.web_search import MultiProviderSearch
         ws = MultiProviderSearch()
         results = ws.search("test query", max_results=3)
         assert isinstance(results, list)
@@ -700,13 +746,13 @@ class TestWebSearch:
         assert len(results) >= 0
 
     def test_search_with_region(self):
-        from yantra.tools.web_search import MultiProviderSearch
+        from yantra.capabilities.web_search import MultiProviderSearch
         ws = MultiProviderSearch()
         results = ws.search("python programming", max_results=5, region="us-en")
         assert isinstance(results, list)
 
     def test_stats_property(self):
-        from yantra.tools.web_search import MultiProviderSearch
+        from yantra.capabilities.web_search import MultiProviderSearch
         ws = MultiProviderSearch()
         stats = ws.stats
         assert isinstance(stats, dict)
@@ -725,7 +771,7 @@ class TestWorkflowEngine:
 
     def _make_engine(self):
         """Create a WorkflowEngine with a temp directory."""
-        from yantra.tools.workflow_engine import WorkflowEngine
+        from yantra.capabilities.workflow_engine import WorkflowEngine
         tmp = tempfile.mkdtemp()
         return WorkflowEngine(data_dir=tmp), tmp
 
@@ -862,3 +908,56 @@ class TestWorkflowEngine:
             assert result.status.value == "blocked"
         finally:
             import shutil; shutil.rmtree(tmp, ignore_errors=True)
+
+
+class TestYantraHarness:
+    """Tests for the ECC-inspired Yantra harness layer."""
+
+    def test_default_catalog_has_core_surfaces(self):
+        from yantra.harness import YantraHarness
+
+        with tempfile.TemporaryDirectory() as tmp:
+            harness = YantraHarness(data_dir=tmp)
+            catalog = harness.catalog()
+
+            assert any(agent["name"] == "planner" for agent in catalog["agents"])
+            assert any(skill["name"] == "remember" for skill in catalog["skills"])
+            assert any(command["name"] == "/recall" for command in catalog["commands"])
+
+    def test_duplicate_tool_registration_is_reported(self):
+        from yantra.capabilities import Tool, ToolRegistry, ToolResult
+        from yantra.harness import YantraHarness
+
+        class SameNameTool(Tool):
+            name = "same"
+            description = "same"
+
+            async def execute(self, **kwargs):
+                return ToolResult(success=True)
+
+        registry = ToolRegistry()
+        registry.register(SameNameTool())
+        registry.register(SameNameTool())
+        harness = YantraHarness(tools=registry)
+
+        assert harness.report_duplicates()["tool_names"] == ["same"]
+
+    def test_memory_command_routes_to_existing_memory_tool(self):
+        from yantra.harness import YantraHarness
+
+        with tempfile.TemporaryDirectory() as tmp:
+            harness = YantraHarness(data_dir=tmp)
+            result = asyncio.run(harness.run("/remember", content="Use harness skills", tags="test"))
+
+            assert result.tool_result.success is True
+            assert "Stored memory" in result.tool_result.output
+
+    def test_safety_blocks_dangerous_prompt(self):
+        from yantra.harness import YantraHarness
+
+        with tempfile.TemporaryDirectory() as tmp:
+            harness = YantraHarness(data_dir=tmp)
+            result = asyncio.run(harness.run("/research", prompt="please run rm -rf /"))
+
+            assert result.tool_result.success is False
+            assert result.metadata["blocked"] is True

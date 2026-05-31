@@ -1,4 +1,4 @@
-﻿"""Checkpoint mixin for NpDnaCore.
+"""Checkpoint mixin for NpDnaCore.
 
 Extracted from model.py to keep that file focused on architecture.
 Handles: save, load, metadata construction.
@@ -95,11 +95,20 @@ class CheckpointMixin:
         elif cls._is_component_format(path):
             state = cls._load_components(path)
         elif cls._is_sharded_format(path):
-            state = cls._load_sharded(path, cls._read_shard_index(path))
+            index = json.loads((path / "model_index.json").read_text(encoding="utf-8"))
+            state = cls._load_sharded(path, index)
         else:
-            raise FileNotFoundError(
-                f"Checkpoint at {path} has neither model.pt nor component nor shard files"
-            )
+            raise FileNotFoundError(f"Checkpoint at {path} has neither model.pt nor component model_index.json")
+
+        # Check for mismatched architecture dimensions between metadata.json and model.pt
+        if "embedding.weight" in state:
+            saved_hidden_size = state["embedding.weight"].shape[1]
+            meta_hidden_size = meta.get("hidden_size")
+            if meta_hidden_size is not None and saved_hidden_size != meta_hidden_size:
+                raise RuntimeError(
+                    f"Checkpoint at {path} has mismatched architecture dimensions between metadata.json and model.pt "
+                    f"(metadata hidden_size {meta_hidden_size} vs model.pt hidden_size {saved_hidden_size})"
+                )
 
         # Infer actual strand count from weights (beats stale metadata)
         inferred_strands = max(
@@ -209,17 +218,12 @@ class CheckpointMixin:
 
     @staticmethod
     def _is_sharded_format(path: Path) -> bool:
-        """Check if model_index.json points to shard files (v2)."""
+        """Check if model_index.json points to shard files (v2) vs component files (v3)."""
         try:
             idx = json.loads((path / "model_index.json").read_text(encoding="utf-8"))
             return "weight_files" in idx
         except Exception:
             return False
-
-    @staticmethod
-    def _read_shard_index(path: Path) -> dict:
-        """Read and return the model_index.json content for sharded format."""
-        return json.loads((path / "model_index.json").read_text(encoding="utf-8"))
 
     @staticmethod
     def _load_components(path: Path) -> dict[str, torch.Tensor]:

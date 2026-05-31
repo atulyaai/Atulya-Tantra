@@ -445,7 +445,7 @@ def restore_optimizer_state(
 
 
 def train_npdna(
-    config_name: str = "atulya_seed",
+    config_name: str = "seed",
     max_steps: int = 50,
     lr: float = 2e-3,
     batch_size: int = 1,
@@ -473,7 +473,7 @@ def train_npdna(
     """Train an NP-DNA model.
 
     Args:
-        config_name: One of "atulya_seed", "atulya_small", "atulya_medium", "atulya_large".
+        config_name: One of CONFIGS keys (seed, nano, micro, small, medium, large).
         max_steps: Total training steps.
         lr: Learning rate.
         batch_size: Batch size (1 is fine for CPU).
@@ -651,7 +651,7 @@ def train_npdna(
             f"Memory preflight blocked training: available "
             f"{memory_status['available_ram_gb']}GB, requires "
             f"{memory_status['required_free_ram_gb']}GB free. "
-            "Use atulya_seed/atulya_small, lower seq_limit, reduce dataset packing, or close other apps."
+            "Use seed/small, lower seq_limit, reduce dataset packing, or close other apps."
         )
         logger.error(msg)
         _write_train_status(output_dir, "blocked_low_memory", error=msg, **memory_status)
@@ -722,8 +722,9 @@ def train_npdna(
         check_interval=plasticity_check_interval,
         dead_threshold=plasticity_dead_threshold,
         overload_threshold=plasticity_overload_threshold,
-        grow_cooldown_checks=plasticity_grow_cooldown,
-        reuse_dead_before_grow=plasticity_reuse_dead,
+        reinit_dead_strands=False,      # NEVER wipe knowledge — diagnostic only
+        grow_overloaded_strands=False,   # Start with enough strands (v2: 100+)
+        auto_scale=False,                # Use /goal system for layer stacking
     )
     use_autocast = bool(bf16 and train_device.type == "cuda")
     if bf16 and not use_autocast:
@@ -811,13 +812,15 @@ def train_npdna(
             try:
                 if use_autocast:
                     with torch.autocast(device_type=train_device.type, dtype=torch.bfloat16):
+                        with torch.autograd.set_detect_anomaly(True):
+                            logits, balance_loss = model(input_ids)
+                            ce_loss = loss_fn(logits.reshape(-1, logits.shape[-1]), labels.reshape(-1))
+                            loss = ce_loss + balance_loss
+                else:
+                    with torch.autograd.set_detect_anomaly(True):
                         logits, balance_loss = model(input_ids)
                         ce_loss = loss_fn(logits.reshape(-1, logits.shape[-1]), labels.reshape(-1))
                         loss = ce_loss + balance_loss
-                else:
-                    logits, balance_loss = model(input_ids)
-                    ce_loss = loss_fn(logits.reshape(-1, logits.shape[-1]), labels.reshape(-1))
-                    loss = ce_loss + balance_loss
 
                 optimizer.zero_grad()
                 loss.backward()
@@ -904,8 +907,8 @@ def train_npdna(
             layer_balance_losses = {}
             layer_router_entropies = {}
             for layer_i, mesh in enumerate(model.mesh_layers):
-                layer_balance_losses[f"L{layer_i}"] = mesh.last_balance_loss
-                layer_router_entropies[f"L{layer_i}"] = mesh.last_router_entropy
+                layer_balance_losses[f"L{layer_i}"] = getattr(mesh, 'last_balance_loss', getattr(mesh, '_last_balance_loss', 0.0))
+                layer_router_entropies[f"L{layer_i}"] = getattr(mesh, 'last_router_entropy', getattr(mesh, '_last_router_entropy', 0.0))
                 for strand_id, ratio in mesh.usage_stats.items():
                     usage[f"L{layer_i}-S{strand_id}"] = ratio
             avg_router_entropy = (
@@ -1329,9 +1332,10 @@ def train_topic(
 
 if __name__ == "__main__":
     import argparse
+    from tantra.npdna.config import CONFIGS
 
     parser = argparse.ArgumentParser(description="NP-DNA Training")
-    parser.add_argument("--config", default="atulya_seed", help="Config: atulya_seed/atulya_small/atulya_medium/atulya_large")
+    parser.add_argument("--config", default="seed", help=f"Config: {list(CONFIGS.keys())}")
     parser.add_argument("--steps", type=int, default=50, help="Training steps")
     parser.add_argument("--lr", type=float, default=2e-3, help="Learning rate")
     parser.add_argument("--output", default="outputs/npdna", help="Output directory")

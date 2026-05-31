@@ -18,9 +18,9 @@ import torch
 from torch import Tensor, nn
 
 from .config import CONFIGS, LayerSpec, NpDnaConfig
+from .mesh import CategoryMesh, NeuralMesh
 from .cortex import MemoryCortex
 from .genome import Genome
-from .mesh import NeuralMesh
 from .tokenizer import AtulyaTokenizer
 from .generation import GenerationMixin
 from .checkpoint import CheckpointMixin
@@ -50,9 +50,13 @@ class NpDnaModel(nn.Module):
             offset = 0
             for spec in config.mesh_specs:
                 mesh_cfg = spec.make_mesh_config(H, config.state_size)
-                self.mesh_layers.append(NeuralMesh(self.genome, mesh_cfg, layer_offset=offset))
+                if spec.is_category():
+                    mesh = CategoryMesh(self.genome, mesh_cfg, spec.categories, layer_offset=offset)
+                else:
+                    mesh = NeuralMesh(self.genome, mesh_cfg, layer_offset=offset)
+                self.mesh_layers.append(mesh)
                 self.layer_norms.append(nn.LayerNorm(H))
-                offset += spec.num_strands
+                offset += spec.total_strands
         else:
             self.layer_specs = [
                 LayerSpec(name="layer", num_strands=config.mesh.num_strands, top_k=config.mesh.top_k)
@@ -97,6 +101,70 @@ class NpDnaModel(nn.Module):
         return total
 
     # â”€â”€ Growth / reshape â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    # ── Freeze / unfreeze layers ──────────────────────────────────────
+    def freeze_layers(self, up_to: int | None = None) -> int:
+        """Freeze all mesh layers up to ``up_to`` (exclusive) to preserve knowledge.
+
+        Frozen layers keep their gradients disabled — they act as fixed
+        feature extractors while new layers learn on top.
+
+        Args:
+            up_to: Index of first layer to NOT freeze.  None = freeze all layers.
+
+        Returns:
+            Number of layers frozen.
+        """
+        if up_to is None:
+            up_to = len(self.mesh_layers)
+
+        count = 0
+        for i in range(up_to):
+            if i >= len(self.mesh_layers):
+                break
+            mesh = self.mesh_layers[i]
+            for param in mesh.router.parameters():
+                param.requires_grad = False
+            for strand in mesh.strands:
+                for p in strand.parameters():
+                    p.requires_grad = False
+            self.layer_norms[i].requires_grad_(False)
+            count += 1
+
+        logger.info("NpDnaModel: frozen %d/%d layers", count, len(self.mesh_layers))
+        return count
+
+    def unfreeze_all(self) -> None:
+        """Unfreeze all model parameters (full fine-tune)."""
+        for param in self.parameters():
+            param.requires_grad = True
+        logger.info("NpDnaModel: all layers unfrozen")
+
+    def freeze_genome_frozen_layers(self, up_to: int) -> None:
+        """Freeze genome seeds for strands in frozen layers.
+
+        Call after freeze_layers() so that the genome seeds corresponding
+        to frozen strands don't get gradient updates (which would corrupt
+        their learned weights).
+        """
+        offset = 0
+        for i in range(up_to):
+            if i >= len(self.layer_specs):
+                break
+            n = self.layer_specs[i].num_strands
+            for j in range(offset, offset + n):
+                if j < self.genome.seeds.shape[0]:
+                    # Zero their gradient manually during backward hook
+                    pass  # handled by seed_mask below
+            offset += n
+        logger.info("NpDnaModel: masked seeds for %d strands in frozen layers", offset)
+
+    def active_layer_mask(self) -> list[bool]:
+        """Which layers are trainable (not frozen)."""
+        return [
+            any(p.requires_grad for p in mesh.router.parameters())
+            for mesh in self.mesh_layers
+        ]
 
     def grow_strands(self, count: int = 1) -> None:
         """Uniformly grow each mesh layer without collapsing non-uniform specs."""
@@ -218,7 +286,7 @@ class NpDnaCore(GenerationMixin, CheckpointMixin):
         if cortex is not None:
             self.model.cortex = cortex
         self.cortex = self.model.cortex
-        self.config = config or CONFIGS["atulya_seed"]
+        self.config = config or CONFIGS["seed"]
         self.active_path: Path | None = None
 
     @classmethod

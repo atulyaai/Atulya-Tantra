@@ -15,6 +15,7 @@ dependencies = [
     "psutil>=5.9",
     "cryptography>=42.0",
     "croniter>=2.0",
+    "edge-tts>=6.1",
 ]
 
 [project.optional-dependencies]
@@ -32,7 +33,7 @@ all = [
 atulya = "atulya.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["atulya*", "tantra*", "yantra*", "webui*", "memory*"]
+include = ["atulya*", "tantra*", "yantra*", "drishti*"]
 
 [tool.ruff]
 line-length = 100
@@ -41,3 +42,4 @@ target-version = "py310"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+addopts = "-p no:cacheprovider"

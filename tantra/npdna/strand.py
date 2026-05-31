@@ -24,21 +24,27 @@ from .genome import Genome
 class Strand(nn.Module):
     """Causal gated state-space processing unit with DNA-generated weights.
 
-    Does NOT store its own weights â€” they come from the Genome.  This means
+    Does NOT store its own weights — they come from the Genome.  This means
     adding a new Strand costs only 256 params (one new seed in the Genome),
     not a full set of weight matrices.
+
+    Each Strand has an optional category tag — when set, it only trains on
+    data matching that category.
 
     Args:
         genome: Shared DNA weight generator.
         strand_id: This Strand's index in the Genome seed bank.
         config: Hidden/state size configuration.
+        category: Optional category name (e.g., "math", "code", "conversation").
     """
 
-    def __init__(self, genome: Genome, strand_id: int, config: StrandConfig, device: torch.device | None = None):
+    def __init__(self, genome: Genome, strand_id: int, config: StrandConfig,
+                 category: str | None = None, device: torch.device | None = None):
         super().__init__()
         self.genome = genome
         self.strand_id = strand_id
         self.config = config
+        self.category: str | None = category  # "math", "code", "conversation", etc.
         self.norm = nn.LayerNorm(config.hidden_size, device=device)
 
         # Usage tracking for Plasticity Engine

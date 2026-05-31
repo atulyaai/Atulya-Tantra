@@ -201,13 +201,7 @@ def format_table_entry(results: list[dict]) -> str:
             # lower is better means negative diff is good
             return f"{direction}{abs(pct):.1f}% {'ðŸŸ¢' if diff < 0 else 'ðŸ”´'}"
         else:
-            return f"{direction}{abs(pct):.1f}% {'ðŸŸ¢' if diff > 0 else 'ðŸ”´'}"
-
-    # Summary line
-    [
-        f"Checkpoint: **{latest['label']}**",
-        f"Train Steps: {latest.get('train_loss', {}).get('total_steps', '?')}",
-    ]
+            return f"{direction}{abs(pct):.1f}% {'🟢' if diff > 0 else '🔴'}"
 
     # Build markdown table
     header = "| Metric | Value | vs Previous |"

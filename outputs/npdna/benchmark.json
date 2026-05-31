@@ -1,0 +1,111 @@
+{
+  "benchmark_meta": {
+    "model_path": null,
+    "model_mtime": null,
+    "metadata_mtime": null,
+    "config_name": "seed",
+    "train_step": null,
+    "train_final_loss": null,
+    "train_best_loss": null,
+    "vocab_size": 563,
+    "vocab_capacity": 4096,
+    "eval_data": "built_in_smoke_set",
+    "eval_samples": 10,
+    "tokenizer_growth_allowed": false
+  },
+  "perplexity": 4687976681091.9,
+  "compression": {
+    "npdna_total": 1099552,
+    "npdna_active": 431264,
+    "dense_equivalent": 589888,
+    "compression_ratio": 0.5364803119816071,
+    "active_ratio": 2.549603027379981
+  },
+  "strand_utilization": {
+    "layer_0": {
+      "usage_percent": {
+        "0": 13.174332765474164,
+        "1": 8.574673480976719,
+        "2": 16.80863145939807,
+        "3": 13.174332765474164,
+        "4": 8.688245315161842,
+        "5": 9.369676320272575,
+        "6": 14.196479273140264,
+        "7": 16.013628620102217
+      },
+      "dead_strands": [],
+      "overloaded_strands": [],
+      "utilization_score": 1.0
+    },
+    "layer_1": {
+      "usage_percent": {
+        "0": 8.006814310051109,
+        "1": 8.574673480976717,
+        "2": 11.584327086882453,
+        "3": 4.372515616127201,
+        "4": 16.013628620102217,
+        "5": 15.786484951731971,
+        "6": 15.502555366269167,
+        "7": 20.15900056785917
+      },
+      "dead_strands": [],
+      "overloaded_strands": [],
+      "utilization_score": 1.0
+    },
+    "layer_2": {
+      "usage_percent": {
+        "0": 24.020442930153322,
+        "1": 24.24758659852357,
+        "2": 6.3600227143668375,
+        "3": 7.552526973310621,
+        "4": 8.801817149346963,
+        "5": 8.290743895513913,
+        "6": 19.42078364565588,
+        "7": 1.3060760931289042
+      },
+      "dead_strands": [],
+      "overloaded_strands": [],
+      "utilization_score": 1.0
+    },
+    "layer_3": {
+      "usage_percent": {
+        "0": 30.83475298126065,
+        "1": 6.5587734241908,
+        "2": 0.0,
+        "3": 40.971039182282794,
+        "4": 17.206132879045995,
+        "5": 4.429301533219761
+      },
+      "dead_strands": [
+        2
+      ],
+      "overloaded_strands": [],
+      "utilization_score": 0.8333333333333334
+    },
+    "layer_4": {
+      "usage_percent": {
+        "0": 41.48211243611585,
+        "1": 43.4412265758092,
+        "2": 5.195911413969336,
+        "3": 7.069846678023851,
+        "4": 0.4258943781942079,
+        "5": 2.3850085178875644
+      },
+      "dead_strands": [
+        4
+      ],
+      "overloaded_strands": [],
+      "utilization_score": 0.8333333333333334
+    }
+  },
+  "generation_speed": {
+    "tokens_generated": 50,
+    "time_seconds": 32.726,
+    "tokens_per_second": 1.5
+  },
+  "memory": {
+    "rss_mb": 245.8,
+    "param_memory_mb": 4.2,
+    "total_params": 1099552
+  }
+}

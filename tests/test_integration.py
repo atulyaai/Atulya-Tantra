@@ -254,7 +254,7 @@ class TestUnifiedSelfImprovementIntegration:
 
 class TestToolRegistry:
     def test_register_and_execute(self):
-        from yantra.tools import ToolRegistry, FileWriteTool, FileReadTool
+        from yantra.capabilities import ToolRegistry, FileWriteTool, FileReadTool
         async def run():
             reg = ToolRegistry()
             with tempfile.TemporaryDirectory() as tmp:
@@ -267,7 +267,7 @@ class TestToolRegistry:
         asyncio.run(run())
 
     def test_tool_not_found(self):
-        from yantra.tools import ToolRegistry
+        from yantra.capabilities import ToolRegistry
         async def run():
             reg = ToolRegistry()
             r = await reg.execute("nonexistent")
@@ -704,6 +704,6 @@ class TestSourceIngestion:
 
 class TestMultiProviderSearch:
     def test_get_providers(self):
-        from yantra.tools.web_search import MultiProviderSearch
+        from yantra.capabilities.web_search import MultiProviderSearch
         s = MultiProviderSearch()
         assert len(s.get_providers()) >= 1
