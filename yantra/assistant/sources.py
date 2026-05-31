@@ -91,8 +91,11 @@ class GitRepoIngestor:
         try:
             import tempfile
             with tempfile.TemporaryDirectory() as tmp:
-                subprocess.run(["git", "clone", "--depth", "1", "-b", branch, repo_url, tmp],
+                result = subprocess.run(["git", "clone", "--depth", "1", "-b", branch, repo_url, tmp],
                              capture_output=True, timeout=60)
+                if result.returncode != 0:
+                    logger.warning("git clone failed for %s: %s", repo_url, result.stderr.decode(errors="replace"))
+                    return []
                 # Read README and key files
                 for name in ["README.md", "CONTRIBUTING.md", "docs/overview.md"]:
                     filepath = Path(tmp) / name

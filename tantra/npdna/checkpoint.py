@@ -83,7 +83,7 @@ class CheckpointMixin:
         logger.info("NpDnaCore saved â†’ %s (%s params)", path, f"{self.model.parameter_count():,}")
 
     @classmethod
-    def load(cls, path: str | Path) -> "CheckpointMixin":
+    def load(cls, path: str | Path) -> "NpDnaCore":
         from .config import CONFIGS, CortexConfig, GenomeConfig, LayerSpec, MeshConfig, NpDnaConfig, StrandConfig
         from .cortex import MemoryCortex
         from .tokenizer import AtulyaTokenizer

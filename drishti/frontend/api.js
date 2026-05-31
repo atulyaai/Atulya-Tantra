@@ -65,6 +65,7 @@ async function request(path, options = {}) {
 export const api = {
   get: (path) => request(path),
   post: (path, body) => request(path, { method: 'POST', body: JSON.stringify(body || {}) }),
+  delete: (path) => request(path, { method: 'DELETE' }),
   async getVoices() {
     return this.get('/api/voice/voices');
   },
@@ -102,7 +103,12 @@ export const api = {
           for (const event of events) {
             const line = event.split('\n').find((item) => item.startsWith('data: '));
             if (!line) continue;
-            const data = JSON.parse(line.slice(6));
+            let data;
+            try {
+              data = JSON.parse(line.slice(6));
+            } catch {
+              continue;
+            }
             if (data.error) {
               errored = true;
               onError(new Error(data.error));

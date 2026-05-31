@@ -554,7 +554,10 @@ def create_failover_from_config(config: dict[str, Any]) -> ModelFailover:
             cost_per_1k_input=config.get("openai_input_cost", 0.15),
             cost_per_1k_output=config.get("openai_output_cost", 0.60),
         )
-        from .model_providers import OpenAICompatibleProvider
-        providers.append((OpenAICompatibleProvider(openai_cfg), openai_cfg))
+        try:
+            from .model_providers import OpenAICompatibleProvider
+            providers.append((OpenAICompatibleProvider(openai_cfg), openai_cfg))
+        except ImportError:
+            logger.warning("model_providers module not found, OpenAI provider unavailable")
 
     return ModelFailover(providers)

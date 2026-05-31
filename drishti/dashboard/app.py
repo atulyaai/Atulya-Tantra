@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from drishti.dashboard.helpers import _checkpoint_index, _load_cached_model
@@ -79,6 +80,13 @@ async def _connect_mcp_servers(app: FastAPI) -> None:
 
 
 app = FastAPI(title="Atulya Tantra Dashboard", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 for module in (auth, system, model, train, chat, cortex, automation, openai, voice):
     app.include_router(module.router)

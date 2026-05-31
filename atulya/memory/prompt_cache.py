@@ -57,21 +57,17 @@ class PromptCacheProvider(MemoryProvider):
     def get(self, key: str) -> str | None:
         filepath = self.cache_dir / f"{key}.json"
         if filepath.exists():
-            return json.loads(filepath.read_text()).get("content")
+            data = json.loads(filepath.read_text())
+            expires = data.get("metadata", {}).get("expires")
+            if expires is not None and time.time() > expires:
+                return None
+            return data.get("content")
         return None
 
-    def set(self, key: str, value: str, ttl: float = 3600):
+    async def set(self, key: str, value: str, ttl: float = 3600):
         entry = MemoryEntry(id=key, provider="prompt_cache", content=value,
                            metadata={"ttl": ttl, "expires": time.time() + ttl})
-        import asyncio
-        try:
-            loop = asyncio.get_running_loop()
-            if loop.is_running():
-                loop.create_task(self.store(entry))
-            else:
-                loop.run_until_complete(self.store(entry))
-        except RuntimeError:
-            asyncio.run(self.store(entry))
+        await self.store(entry)
 
     def invalidate(self, key: str):
         self._invalidation_queue.append({"key": key, "queued_at": time.time()})

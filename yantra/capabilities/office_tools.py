@@ -21,6 +21,12 @@ class CodeExecuteTool(Tool):
     async def execute(self, code: str, timeout: int = 10, **kwargs: Any) -> ToolResult:
         if len(code) > 12000:
             return ToolResult(success=False, error="Code too large")
+        import logging
+        logger = logging.getLogger(__name__)
+        blocked_modules = {"socket", "http", "urllib", "requests", "aiohttp", "NETWORK"}
+        for module in blocked_modules:
+            if f"import {module}" in code or f"from {module}" in code:
+                logger.warning("Blocked module '%s' detected in code_execute", module)
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "snippet.py"
             path.write_text(code, encoding="utf-8")
@@ -28,7 +34,7 @@ class CodeExecuteTool(Tool):
                 [sys.executable, str(path)],
                 capture_output=True,
                 text=True,
-                timeout=max(1, min(int(timeout), 30)),
+                timeout=max(1, min(int(timeout), 15)),
                 cwd=tmp,
             )
         return ToolResult(

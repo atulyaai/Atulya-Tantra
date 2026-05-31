@@ -1,4 +1,4 @@
-const CACHE_NAME = 'atulya-tantra-cache-v1';
+const CACHE_NAME = 'atulya-tantra-cache-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -33,6 +33,19 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   // Avoid intercepting backend API or websocket routes
   if (event.request.url.includes('/api/') || event.request.url.includes('/ws')) {
+    return;
+  }
+
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', copy));
+          return response;
+        })
+        .catch(() => caches.match('/index.html'))
+    );
     return;
   }
   

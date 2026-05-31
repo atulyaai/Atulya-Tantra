@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { api, getUser } from '../api.js';
+import { api, getUser, getToken } from '../api.js';
 
 export function UserManagement({ toast }) {
   const [users, setUsers] = useState([]);
@@ -54,7 +54,7 @@ export function UserManagement({ toast }) {
     }
   }
 
-  async function handleDelete(username) {
+  async function handleCreate(e) {
     if (username.toLowerCase() === currentUser?.username?.toLowerCase()) {
       toast('error', 'Cannot delete your own account');
       return;
@@ -63,32 +63,7 @@ export function UserManagement({ toast }) {
       return;
     }
     try {
-      const res = await api.post(`/api/users/${username}`, {}, { method: 'DELETE' }); // api.js post can handle DELETE or we can use custom if api.js wraps request
-      // Let's check api.js:
-      // api.post: (path, body) => request(path, { method: 'POST', body: JSON.stringify(body || {}) })
-      // Let's check if we can make a DELETE request or use fetch directly. Since api.js request is not exported, we can just do a custom fetch or write a small request wrapper.
-      // Wait! Let's check fetch in api.js: request() is a private helper, but we can do a request or add DELETE to api.js.
-      // Let's check api.js again. Ah, request is not exported. But we can make a direct fetch or modify api.js to support delete!
-      // Let's see: we can edit api.js to add a delete method, or just call fetch inside UserManagement.jsx. Calling fetch is fine, but adding it to api.js is cleaner.
-      // Let's do a direct fetch with the token inside UserManagement.jsx, or add it to api.js. Let's check api.js: it does:
-      // const token = getToken();
-      // fetch('/api/users/' + username, { method: 'DELETE', headers: { 'X-Atulya-Token': token } })
-    } catch (err) {
-      toast('error', err.message);
-    }
-  }
-
-  // To be safe, let's write a deletion function using fetch:
-  async function performDelete(username) {
-    if (username.toLowerCase() === currentUser?.username?.toLowerCase()) {
-      toast('error', 'Cannot delete your own account');
-      return;
-    }
-    if (!confirm(`Are you sure you want to delete user "${username}"?`)) {
-      return;
-    }
-    try {
-      const token = localStorage.getItem('atulya-dashboard-token') || '';
+      const token = getToken();
       const response = await fetch(`/api/users/${encodeURIComponent(username)}`, {
         method: 'DELETE',
         headers: {
@@ -114,7 +89,7 @@ export function UserManagement({ toast }) {
           <h2>User Registry</h2>
           <button onClick={fetchUsers} disabled={loading}>{loading ? 'Refreshing...' : 'Refresh'}</button>
         </div>
-        <div className="table">
+        <div className="table user-table">
           <div className="row table-header" style={{ fontWeight: 'bold', borderBottom: '1px solid var(--border)' }}>
             <span>Display Name</span>
             <span>Username</span>

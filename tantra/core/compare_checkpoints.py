@@ -257,16 +257,23 @@ if __name__ == "__main__":
     results = []
     for cp, label in [(CHECKPOINT_A, "step_017728"), (CHECKPOINT_B, "step_018228")]:
         print(f"\n[{label}] Loading checkpoint...", flush=True)
-        core = NpDnaCore.load(str(cp))
-        core.model.to(DEVICE)
-        print(f"  Model: {core.model.parameter_count():,} params, device={DEVICE}", flush=True)
-        res = benchmark_core(core, test_texts, label)
-        results.append(res)
-        print(f"  [{label}] Done. Perplexity={res['perplexity']}, Speed={res['gen_speed_tokps']} tok/s", flush=True)
-        # free memory
-        del core
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        core = None
+        try:
+            core = NpDnaCore.load(str(cp))
+            core.model.to(DEVICE)
+            print(f"  Model: {core.model.parameter_count():,} params, device={DEVICE}", flush=True)
+            res = benchmark_core(core, test_texts, label)
+            results.append(res)
+            print(f"  [{label}] Done. Perplexity={res['perplexity']}, Speed={res['gen_speed_tokps']} tok/s", flush=True)
+        except Exception as e:
+            print(f"  [{label}] ERROR: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
+        finally:
+            if core is not None:
+                del core
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     print("\n" + "=" * 70, flush=True)
     print(comparison_table(*results), flush=True)

@@ -20,7 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 serve = ["fastapi", "uvicorn", "jinja2", "python-multipart"]
-dev = ["pytest>=7.0", "ruff"]
+dev = ["pytest>=7.0", "pytest-asyncio>=0.23", "anyio>=4.0", "PyYAML>=6.0", "ruff"]
 chakra = ["GitPython>=3.1"]
 yantra = ["scapy", "zeroconf", "broadlink"]
 all = [

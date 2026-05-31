@@ -4,6 +4,7 @@ import json
 from fastapi import APIRouter, Header, Request
 from fastapi.responses import StreamingResponse
 
+from drishti.dashboard import chat_history
 from drishti.dashboard.helpers import _checkpoint_index, _require_auth
 from drishti.dashboard.state import MAX_CHAT_TOKENS, MAX_PROMPT_CHARS
 
@@ -19,7 +20,7 @@ def _resolve_model_id(model_id: str):
 
 @router.post("/api/chat")
 async def api_chat(request: Request, body: dict, token: str | None = Header(default=None, alias="X-Atulya-Token")):
-    _require_auth(token)
+    user = _require_auth(token)
     model_id = str(body.get("model_id") or "latest")
     if "\\" in model_id or "/" in model_id:
         _, error = _resolve_model_id(model_id)
@@ -32,7 +33,9 @@ async def api_chat(request: Request, body: dict, token: str | None = Header(defa
         prompt,
         history=body.get("history") or [],
         approved_tool_call=body.get("approved_tool") or None,
+        provider=str(body.get("provider") or model_id),
     )
+    chat_history.append_exchange(user, prompt, response.text, provider=response.provider)
     return {
         "response": response.text[:MAX_CHAT_TOKENS * 8],
         "model_id": model_id,
@@ -45,7 +48,7 @@ async def api_chat(request: Request, body: dict, token: str | None = Header(defa
 
 @router.post("/api/chat/stream")
 async def api_chat_stream(request: Request, body: dict, token: str | None = Header(default=None, alias="X-Atulya-Token")):
-    _require_auth(token)
+    user = _require_auth(token)
     model_id = str(body.get("model_id") or "latest")
     prompt = str(body.get("prompt") or "")[:MAX_PROMPT_CHARS]
     if "\\" in model_id or "/" in model_id:
@@ -60,16 +63,25 @@ async def api_chat_stream(request: Request, body: dict, token: str | None = Head
 
         try:
             llm = getattr(request.app.state, "llm", None) or get_default_llm()
+            response_parts: list[str] = []
             async for event in llm.stream(
                 prompt,
                 history=body.get("history") or [],
                 approved_tool_call=body.get("approved_tool") or None,
+                provider=str(body.get("provider") or model_id),
             ):
                 if event.type == "token":
+                    response_parts.append(event.content)
                     yield f"data: {json.dumps({'token': event.content})}\n\n"
                 elif event.type == "tool":
                     yield f"data: {json.dumps({'tool': event.metadata})}\n\n"
                 elif event.type == "done":
+                    chat_history.append_exchange(
+                        user,
+                        prompt,
+                        "".join(response_parts),
+                        provider=str(event.metadata.get("provider") or ""),
+                    )
                     payload = {"done": True, "model_id": model_id, **event.metadata}
                     yield f"data: {json.dumps(payload)}\n\n"
         except Exception as exc:
@@ -77,3 +89,16 @@ async def api_chat_stream(request: Request, body: dict, token: str | None = Head
             yield f"data: {json.dumps({'done': True})}\n\n"
 
     return StreamingResponse(events(), media_type="text/event-stream")
+
+
+@router.get("/api/chat/history")
+async def api_chat_history(token: str | None = Header(default=None, alias="X-Atulya-Token")):
+    user = _require_auth(token)
+    return {"messages": chat_history.list_messages(user)}
+
+
+@router.delete("/api/chat/history")
+async def api_chat_history_clear(token: str | None = Header(default=None, alias="X-Atulya-Token")):
+    user = _require_auth(token)
+    chat_history.clear_messages(user)
+    return {"ok": True}

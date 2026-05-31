@@ -92,6 +92,8 @@ class MemoryCortex(torch.nn.Module):
         self._cache_dirty = True
 
     def _stacked_vectors(self, device: torch.device) -> tuple[Tensor, Tensor]:
+        if not self.entries:
+            return torch.empty(0, self.key_dim, device=device), torch.empty(0, self.key_dim, device=device)
         if (
             self._cache_dirty
             or self._keys_cache is None
@@ -146,9 +148,8 @@ class MemoryCortex(torch.nn.Module):
 
         # Update access counts
         if not getattr(self, "_is_sleeping", False):
-            for idx_row in top_indices:
-                for idx in idx_row:
-                    self.entries[idx.item()].access_count += 1
+            for idx in top_indices.unique():
+                self.entries[idx.item()].access_count += 1
 
         if not self.training:
             self._last_top_indices = top_indices.detach().cpu()
@@ -354,39 +355,43 @@ class MemoryCortex(torch.nn.Module):
             high_freq_entries = [e for e in consolidated_entries if e.access_count >= 5 and e.source]
             if high_freq_entries:
                 model = core.model
-                # Temporary optimizer for local fine-tuning
-                opt = torch.optim.SGD(model.parameters(), lr=1e-3)
-                loss_fn = torch.nn.CrossEntropyLoss()
-                
-                self._is_sleeping = True
-                try:
-                    was_training = model.training
-                    model.train()
-                    for entry in high_freq_entries:
-                        try:
-                            token_ids = core.encode(entry.source, allow_growth=False)
-                            if len(token_ids) > 1:
-                                input_ids = torch.tensor([token_ids[:-1]], dtype=torch.long, device=model.embedding.weight.device)
-                                target_ids = torch.tensor([token_ids[1:]], dtype=torch.long, device=model.embedding.weight.device)
-                                
-                                # 3 steps of local weight updates
-                                for _ in range(3):
-                                    opt.zero_grad()
-                                    logits, balance_loss = model(input_ids)
-                                    loss = loss_fn(logits.view(-1, logits.size(-1)), target_ids.view(-1))
-                                    total_loss = loss + balance_loss * 0.05
-                                    total_loss.backward()
-                                    opt.step()
+                # Temporary optimizer for local fine-tuning (only trainable params)
+                trainable_params = [p for p in model.parameters() if p.requires_grad]
+                if not trainable_params:
+                    logger.debug("Cortex sleep_cycle: no trainable parameters, skipping active write-back")
+                else:
+                    opt = torch.optim.SGD(trainable_params, lr=1e-3)
+                    loss_fn = torch.nn.CrossEntropyLoss()
+                    
+                    self._is_sleeping = True
+                    try:
+                        was_training = model.training
+                        model.train()
+                        for entry in high_freq_entries:
+                            try:
+                                token_ids = core.encode(entry.source, allow_growth=False)
+                                if len(token_ids) > 1:
+                                    input_ids = torch.tensor([token_ids[:-1]], dtype=torch.long, device=model.embedding.weight.device)
+                                    target_ids = torch.tensor([token_ids[1:]], dtype=torch.long, device=model.embedding.weight.device)
                                     
-                                # Decay access count since it's consolidated
-                                entry.access_count = max(0, entry.access_count - 5)
-                                consolidated_to_weights += 1
-                        except Exception as ex:
-                            logger.warning("Failed to consolidate fact '%s' to weights: %s", entry.source[:30], ex)
-                finally:
-                    self._is_sleeping = False
-                    if not was_training:
-                        model.eval()
+                                    # 3 steps of local weight updates
+                                    for _ in range(3):
+                                        opt.zero_grad()
+                                        logits, balance_loss = model(input_ids)
+                                        loss = loss_fn(logits.view(-1, logits.size(-1)), target_ids.view(-1))
+                                        total_loss = loss + balance_loss * 0.05
+                                        total_loss.backward()
+                                        opt.step()
+                                    
+                                    # Decay access count since it's consolidated
+                                    entry.access_count = max(0, entry.access_count - 5)
+                                    consolidated_to_weights += 1
+                            except Exception as ex:
+                                logger.warning("Failed to consolidate fact '%s' to weights: %s", entry.source[:30], ex)
+                    finally:
+                        self._is_sleeping = False
+                        if not was_training:
+                            model.eval()
 
         self.entries = consolidated_entries
         self._invalidate_cache()
@@ -472,6 +477,273 @@ class MemoryCortex(torch.nn.Module):
             cortex._invalidate_cache()
 
         logger.info("Cortex loaded: %d entries from %s", cortex.size, path)
+        return cortex
+
+
+# ── Hierarchical Memory Cortex ────────────────────────────────────────────────
+
+@dataclass
+class CortexTierConfig:
+    """Configuration for a single memory tier."""
+    max_entries: int = 512
+    decay_rate: float = 0.0       # 0 = no decay, 0.01 = slow decay
+    consolidation_threshold: int = 5  # access_count to promote to next tier
+
+
+@dataclass
+class HierarchicalCortexConfig:
+    """Configuration for three-tier hierarchical memory."""
+    dim: int = 256
+    top_k: int = 8
+    working: CortexTierConfig = field(default_factory=lambda: CortexTierConfig(
+        max_entries=512, decay_rate=0.0, consolidation_threshold=3
+    ))
+    short_term: CortexTierConfig = field(default_factory=lambda: CortexTierConfig(
+        max_entries=10_000, decay_rate=0.001, consolidation_threshold=10
+    ))
+    long_term: CortexTierConfig = field(default_factory=lambda: CortexTierConfig(
+        max_entries=1_000_000, decay_rate=0.0, consolidation_threshold=999
+    ))
+
+
+class HierarchicalMemoryCortex(torch.nn.Module):
+    """Brain-like three-tier memory cortex.
+
+    Three tiers mirror human memory:
+      L1 (Working):    512 entries,  no decay,    current session
+      L2 (Short-term): 10K entries,  slow decay,  recent interactions
+      L3 (Long-term):  1M entries,   no decay,    consolidated knowledge
+
+    Consolidation: important L2 entries promote to L3 automatically.
+    This mirrors hippocampal-to-cortex consolidation in humans.
+
+    Key insight: 1M long-term entries at dim=256 float16
+                 = 1M × 256 × 2 bytes = 512MB
+                 ≈ equivalent to ~100B parameters of factual knowledge
+                 WITHOUT any model retraining.
+    """
+
+    def __init__(self, config: HierarchicalCortexConfig):
+        super().__init__()
+        self.config = config
+
+        # Three tiers
+        self._working: list[CortexEntry] = []    # hot, fast
+        self._short_term: list[CortexEntry] = [] # warm
+        self._long_term: list[CortexEntry] = []  # cold, large
+
+        # Projections (shared across tiers)
+        self.query_proj = torch.nn.Linear(config.dim, config.dim, bias=False)
+        self.value_proj = torch.nn.Linear(config.dim, config.dim, bias=False)
+
+        # Cache invalidation flags
+        self._working_dirty = True
+        self._st_dirty = True
+        self._lt_dirty = True
+
+        self._working_keys: Tensor | None = None
+        self._st_keys: Tensor | None = None
+        self._lt_keys: Tensor | None = None
+
+    @property
+    def size(self) -> int:
+        return len(self._working) + len(self._short_term) + len(self._long_term)
+
+    def store(self, key: Tensor, value: Tensor | None = None,
+              topic: str = "", source: str = "", tier: str = "working") -> int:
+        """Store to specific tier. Default: working memory."""
+        entry = CortexEntry(
+            key=key.detach().float(),
+            value=(value if value is not None else key).detach().float(),
+            topic=topic,
+            topics=[topic] if topic else [],
+            source=source,
+        )
+        tier_map = {
+            "working": (self._working, self.config.working),
+            "short_term": (self._short_term, self.config.short_term),
+            "long_term": (self._long_term, self.config.long_term),
+        }
+        store_list, tier_cfg = tier_map[tier]
+        store_list.append(entry)
+        self._invalidate_cache(tier)
+
+        # Evict if over capacity (least-accessed first)
+        if len(store_list) > tier_cfg.max_entries:
+            store_list.sort(key=lambda e: e.access_count)
+            store_list.pop(0)
+
+        return len(store_list) - 1
+
+    def consolidate(self) -> int:
+        """Promote frequently-accessed entries to next tier. Call periodically."""
+        promoted = 0
+
+        # Working → Short-term
+        for entry in list(self._working):
+            if entry.access_count >= self.config.working.consolidation_threshold:
+                self.store(entry.key, entry.value, entry.topic, entry.source, "short_term")
+                self._working.remove(entry)
+                promoted += 1
+
+        # Short-term → Long-term
+        for entry in list(self._short_term):
+            if entry.access_count >= self.config.short_term.consolidation_threshold:
+                self.store(entry.key, entry.value, entry.topic, entry.source, "long_term")
+                self._short_term.remove(entry)
+                promoted += 1
+
+        return promoted
+
+    def _invalidate_cache(self, tier: str) -> None:
+        if tier == "working":
+            self._working_dirty = True
+        elif tier == "short_term":
+            self._st_dirty = True
+        else:
+            self._lt_dirty = True
+
+    def retrieve(self, query: Tensor, top_k: int | None = None) -> tuple[Tensor, Tensor]:
+        """Retrieve from all tiers (working first = highest priority)."""
+        if not self._working and not self._short_term and not self._long_term:
+            dim = self.config.dim
+            k = top_k or self.config.top_k
+            if query.dim() == 1:
+                return torch.zeros(k, dim, device=query.device), torch.zeros(k, device=query.device)
+            return torch.zeros(query.size(0), k, dim, device=query.device), torch.zeros(query.size(0), k, device=query.device)
+
+        top_k = min(top_k or self.config.top_k, self.size)
+
+        is_1d = query.dim() == 1
+        if is_1d:
+            query = query.unsqueeze(0)
+
+        # Retrieve from each tier
+        all_values = []
+        all_scores = []
+
+        for tier_entries in [self._working, self._short_term, self._long_term]:
+            if not tier_entries:
+                continue
+            keys = torch.stack([e.key for e in tier_entries]).to(query.device)  # (N, dim)
+            query_norm = torch.nn.functional.normalize(query, dim=-1)
+            keys_norm = torch.nn.functional.normalize(keys, dim=-1)
+            scores = query_norm @ keys_norm.T  # (B, N)
+
+            k = min(top_k, len(tier_entries))
+            top_scores, top_indices = torch.topk(scores, k, dim=-1)
+
+            values = torch.stack([e.value for e in tier_entries]).to(query.device)
+            expanded = top_indices.unsqueeze(-1).expand(-1, -1, values.size(-1))
+            top_values = torch.gather(values.unsqueeze(0).expand(query.size(0), -1, -1), dim=1, index=expanded)
+
+            # Update access counts
+            for idx in top_indices.unique():
+                tier_entries[idx.item()].access_count += 1
+
+            all_values.append(top_values)
+            all_scores.append(top_scores)
+
+        if not all_values:
+            if is_1d:
+                return torch.zeros(top_k, self.config.dim, device=query.device), torch.zeros(top_k, device=query.device)
+            return torch.zeros(query.size(0), top_k, self.config.dim, device=query.device), torch.zeros(query.size(0), top_k, device=query.device)
+
+        # Combine results from all tiers
+        values = torch.cat(all_values, dim=1)  # (B, total_k, dim)
+        scores = torch.cat(all_scores, dim=1)  # (B, total_k)
+
+        # Take top_k overall
+        if scores.shape[1] > top_k:
+            top_scores, top_idx = torch.topk(scores, top_k, dim=-1)
+            expanded = top_idx.unsqueeze(-1).expand(-1, -1, values.size(-1))
+            values = torch.gather(values, dim=1, index=expanded)
+        else:
+            top_scores = scores
+
+        if is_1d:
+            return values.squeeze(0), top_scores.squeeze(0)
+        return values, top_scores
+
+    def augment(self, hidden: Tensor) -> Tensor:
+        """Augment hidden states with retrieved hierarchical memory."""
+        if self.size == 0:
+            return hidden
+
+        squeeze_seq = False
+        if hidden.dim() == 2:
+            hidden = hidden.unsqueeze(1)
+            squeeze_seq = True
+
+        B, T, D = hidden.shape
+        query = self.query_proj(hidden.reshape(-1, D))  # (B*T, D)
+        values, scores = self.retrieve(query)           # (B*T, k, dim), (B*T, k)
+
+        # Soft attention over retrieved values
+        attn = torch.softmax(scores, dim=-1).unsqueeze(-1)  # (B*T, k, 1)
+        context = (values * attn).sum(dim=1)                 # (B*T, D)
+        context = self.value_proj(context)
+
+        augmented = hidden + context.reshape(B, T, D)
+
+        if squeeze_seq:
+            augmented = augmented.squeeze(1)
+
+        return augmented
+
+    def save(self, path: str | Path) -> None:
+        """Save all tiers to disk."""
+        path = Path(path)
+        path.mkdir(parents=True, exist_ok=True)
+
+        for tier_name, tier_entries in [("working", self._working), ("short_term", self._short_term), ("long_term", self._long_term)]:
+            if tier_entries:
+                keys = torch.stack([e.key for e in tier_entries])
+                values = torch.stack([e.value for e in tier_entries])
+                torch.save({"keys": keys, "values": values}, path / f"cortex_{tier_name}_vectors.pt")
+
+                meta = [
+                    {"topic": e.topic, "source": e.source, "created_at": e.created_at, "access_count": e.access_count}
+                    for e in tier_entries
+                ]
+                (path / f"cortex_{tier_name}_meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+
+        # Save projections
+        torch.save({
+            "query_proj": self.query_proj.state_dict(),
+            "value_proj": self.value_proj.state_dict(),
+        }, path / "cortex_projections.pt")
+        logger.info("HierarchicalCortex saved: %d entries to %s", self.size, path)
+
+    @classmethod
+    def load(cls, path: str | Path, config: HierarchicalCortexConfig) -> "HierarchicalMemoryCortex":
+        """Load from disk."""
+        path = Path(path)
+        cortex = cls(config)
+
+        proj_path = path / "cortex_projections.pt"
+        if proj_path.exists():
+            state = torch.load(proj_path, map_location="cpu", weights_only=True)
+            cortex.query_proj.load_state_dict(state["query_proj"])
+            cortex.value_proj.load_state_dict(state["value_proj"])
+
+        for tier_name, tier_list in [("working", cortex._working), ("short_term", cortex._short_term), ("long_term", cortex._long_term)]:
+            vec_path = path / f"cortex_{tier_name}_vectors.pt"
+            meta_path = path / f"cortex_{tier_name}_meta.json"
+            if vec_path.exists() and meta_path.exists():
+                vecs = torch.load(vec_path, map_location="cpu", weights_only=True)
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                keys = vecs["keys"]
+                values = vecs["values"]
+                for i, m in enumerate(meta):
+                    entry = CortexEntry(
+                        key=keys[i], value=values[i],
+                        topic=m.get("topic", ""), source=m.get("source", ""),
+                        created_at=m.get("created_at", 0.0), access_count=m.get("access_count", 0),
+                    )
+                    tier_list.append(entry)
+
+        logger.info("HierarchicalCortex loaded: %d entries from %s", cortex.size, path)
         return cortex
 
 

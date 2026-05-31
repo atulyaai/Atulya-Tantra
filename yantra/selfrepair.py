@@ -116,6 +116,8 @@ class SelfRepairSystem:
                 module = fix_description.split("pip install ")[-1]
                 if not module or module == "<module_name>":
                     return False
+                if not re.match(r'^[a-zA-Z0-9_.-]+$', module):
+                    return False
                 subprocess.check_call([sys.executable, "-m", "pip", "install", module])
                 return True
             if not path.exists():
@@ -136,15 +138,11 @@ class SelfRepairSystem:
                     path.write_text(content)
                     return True
             elif "KeyError" in fix_description:
-                # Add .get() instead of direct access
-                content = content.replace("[key]", ".get(key, None)")
-                path.write_text(content)
-                return True
+                logger.warning("KeyError fix requires manual intervention: %s", fix_description)
+                return False
             elif "IndexError" in fix_description:
-                # Add bounds check
-                content = content.replace("list[i]", "list[i] if i < len(list) else None")
-                path.write_text(content)
-                return True
+                logger.warning("IndexError fix requires manual intervention: %s", fix_description)
+                return False
         except Exception as e:
             logger.error(f"Failed to apply fix: {e}")
         return False
@@ -185,8 +183,8 @@ class CodeEvolver:
         proposal = {
             "id": f"evolve_{int(time.time())}",
             "file": file_path,
-            "old_code": old_code[:200],
-            "new_code": new_code[:200],
+            "old_code": old_code,
+            "new_code": new_code,
             "reason": reason,
             "timestamp": time.time(),
             "approved": False,
@@ -200,8 +198,13 @@ class CodeEvolver:
             if proposal["id"] == proposal_id and proposal.get("approved"):
                 path = self.base_dir / proposal["file"]
                 if path.exists():
-                    path.write_text(proposal["new_code"])
-                    return True
+                    content = path.read_text()
+                    old_code = proposal["old_code"]
+                    new_code = proposal["new_code"]
+                    if old_code in content:
+                        content = content.replace(old_code, new_code, 1)
+                        path.write_text(content)
+                        return True
         return False
 
     def get_stats(self) -> dict[str, Any]:

@@ -27,6 +27,70 @@ function renderMarkdown(text) {
   });
 }
 
+const CHAT_CACHE_KEY = 'atulya-chat-messages';
+const LIVE_CACHE_KEY = 'atulya-live-messages';
+const DEFAULT_LIVE_MESSAGES = [
+  { role: 'assistant', text: 'Atulya OS online. Systems configured at peak efficiency. Ready to orchestrate, sir.' },
+];
+const WAKE_PHRASES = ['hey atulya', 'atulya'];
+
+function loadCachedMessages(key, fallback = []) {
+  try {
+    const raw = localStorage.getItem(key);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed) ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function cacheMessages(key, messages) {
+  try {
+    localStorage.setItem(key, JSON.stringify(messages.slice(-120)));
+  } catch {}
+}
+
+function normalizeHistoryMessages(messages = []) {
+  return messages
+    .filter((msg) => msg && (msg.role === 'user' || msg.role === 'assistant') && msg.text)
+    .map((msg, idx) => ({
+      id: msg.id || `${msg.created_at || 'history'}-${idx}`,
+      role: msg.role,
+      text: msg.text,
+      provider: msg.provider,
+      surface: msg.surface,
+      created_at: msg.created_at,
+    }));
+}
+
+function classifyIntent(text) {
+  const input = String(text || '').toLowerCase();
+  const candidates = [
+    { label: 'Forge Syntax Synthesis', agent: 'FORGE', words: ['code', 'build', 'fix', 'bug', 'website', 'app', 'function', 'script', 'test'] },
+    { label: 'Visual Object Assessment', agent: 'VISION', words: ['see', 'camera', 'look', 'image', 'photo', 'frame', 'scan', 'visual'] },
+    { label: 'Yantra System Command', agent: 'ATHENA', words: ['open', 'run', 'search', 'start', 'stop', 'device', 'automation', 'control'] },
+    { label: 'Memory Retrieval', agent: 'MEMORY', words: ['remember', 'history', 'previous', 'recall', 'memory', 'saved'] },
+    { label: 'General Reasoning Context', agent: 'ORACLE', words: [] },
+  ];
+  const scored = candidates.map((item) => ({
+    ...item,
+    score: item.words.reduce((total, word) => total + (input.includes(word) ? 1 : 0), 0),
+  })).sort((a, b) => b.score - a.score);
+  const winner = scored[0].score > 0 ? scored[0] : candidates[candidates.length - 1];
+  return {
+    label: winner.label,
+    agent: winner.agent,
+    confidence: Math.min(98, 72 + winner.score * 8 + Math.min(10, Math.floor(input.length / 24))),
+  };
+}
+
+function stripWakePhrase(text) {
+  const trimmed = String(text || '').trim();
+  const lower = trimmed.toLowerCase();
+  const phrase = WAKE_PHRASES.find((item) => lower.startsWith(item));
+  return phrase ? trimmed.slice(phrase.length).replace(/^[,.:;\s-]+/, '').trim() : trimmed;
+}
+
 function Dashboard({ bootstrap, load }) {
   const system = bootstrap?.system || {};
   const runs = bootstrap?.history?.runs || [];
@@ -235,14 +299,197 @@ function lineClass(line) {
   return 'log-line';
 }
 
+const VORTEX_NODES = ['ECHO', 'ORACLE', 'ATHENA', 'VISION', 'FORGE', 'MEMORY'];
+
+function HolographicVortex({ activeAgent, status, mode, onNodeSelect }) {
+  const canvasRef = useRef(null);
+  const particlesRef = useRef([]);
+  const mouseRef = useRef({ x: 0.5, y: 0.5 });
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+    const ctx = canvas.getContext('2d');
+    let raf = 0;
+    let frame = 0;
+
+    function resize() {
+      const parent = canvas.parentElement;
+      const rect = parent?.getBoundingClientRect();
+      canvas.width = Math.max(320, Math.floor(rect?.width || 720));
+      canvas.height = Math.max(280, Math.floor(rect?.height || 520));
+      if (!particlesRef.current.length) {
+        particlesRef.current = Array.from({ length: 1800 }, () => {
+          const radius = 18 + Math.random() * 235;
+          return {
+            angle: Math.random() * Math.PI * 2,
+            radius,
+            baseRadius: radius,
+            speed: (0.0015 + Math.random() * 0.0045) * (Math.random() > 0.5 ? 1 : -1),
+            size: 0.45 + Math.random() * 1.35,
+            alpha: 0.25 + Math.random() * 0.7,
+            phase: Math.random() * Math.PI * 2,
+            layer: Math.random(),
+          };
+        });
+      }
+    }
+
+    function colorFor(particle) {
+      if (mode === 'dna') {
+        return `rgba(${220 + particle.layer * 35}, ${90 + particle.layer * 80}, 20, ${particle.alpha})`;
+      }
+      if (mode === 'chaos') {
+        const r = Math.floor(120 + 100 * Math.sin(frame * 0.012 + particle.phase));
+        const g = Math.floor(90 + 120 * particle.layer);
+        const b = Math.floor(190 + 55 * Math.cos(frame * 0.01 + particle.phase));
+        return `rgba(${r}, ${g}, ${b}, ${particle.alpha})`;
+      }
+      const heat = particle.radius / 255;
+      const r = Math.floor(190 + 65 * Math.min(1, heat));
+      const g = Math.floor(90 + 120 * Math.max(0, 1 - heat * 0.8));
+      const b = Math.floor(45 + 120 * Math.max(0, 0.55 - heat));
+      return `rgba(${r}, ${g}, ${b}, ${particle.alpha})`;
+    }
+
+    function draw() {
+      raf = window.requestAnimationFrame(draw);
+      frame += 1;
+      const width = canvas.width;
+      const height = canvas.height;
+      const cx = width / 2;
+      const cy = height / 2;
+      const mouse = mouseRef.current;
+      const statusBoost = status === 'thinking' ? 1.8 : status === 'speaking' ? 1.45 : status === 'listening' ? 1.25 : 1;
+      const mouseX = (mouse.x - 0.5) * 70;
+      const mouseY = (mouse.y - 0.5) * 45;
+
+      ctx.fillStyle = 'rgba(2, 4, 10, 0.16)';
+      ctx.fillRect(0, 0, width, height);
+
+      const glow = ctx.createRadialGradient(cx + mouseX * 0.25, cy + mouseY * 0.25, 0, cx, cy, 230);
+      glow.addColorStop(0, mode === 'gold' ? 'rgba(255, 196, 64, 0.26)' : mode === 'dna' ? 'rgba(255, 110, 30, 0.22)' : 'rgba(124, 92, 255, 0.24)');
+      glow.addColorStop(0.45, 'rgba(0, 245, 255, 0.07)');
+      glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 235, 0, Math.PI * 2);
+      ctx.fill();
+
+      for (let ring = 0; ring < 4; ring += 1) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, 70 + ring * 58 + Math.sin(frame * 0.018 + ring) * 5, 0, Math.PI * 2);
+        ctx.strokeStyle = ring % 2 ? 'rgba(168, 85, 247, 0.16)' : 'rgba(0, 245, 255, 0.15)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+
+      particlesRef.current.forEach((particle) => {
+        particle.angle += particle.speed * statusBoost;
+        if (mode === 'dna') {
+          particle.radius = particle.baseRadius + Math.sin(frame * 0.025 + particle.phase) * 35;
+        } else {
+          particle.radius += (particle.baseRadius - particle.radius) * 0.035 + Math.sin(frame * 0.012 + particle.phase) * 0.45;
+        }
+        const pull = 1 / Math.max(1, particle.radius / 72);
+        const x = cx + Math.cos(particle.angle) * particle.radius + mouseX * pull;
+        const y = cy + Math.sin(particle.angle) * particle.radius * 0.66 + mouseY * pull;
+        ctx.beginPath();
+        ctx.arc(x, y, particle.size, 0, Math.PI * 2);
+        ctx.fillStyle = colorFor(particle);
+        ctx.fill();
+      });
+
+      if (mode === 'dna') {
+        for (let i = 0; i < 48; i += 1) {
+          const t = i / 47;
+          const x = cx - 145 + t * 290;
+          const y1 = cy + Math.sin(t * Math.PI * 4 + frame * 0.035) * 46;
+          const y2 = cy + Math.sin(t * Math.PI * 4 + frame * 0.035 + Math.PI) * 46;
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+          ctx.beginPath();
+          ctx.moveTo(x, y1);
+          ctx.lineTo(x, y2);
+          ctx.stroke();
+          ctx.fillStyle = 'rgba(255, 170, 0, 0.72)';
+          ctx.beginPath();
+          ctx.arc(x, y1, 2.4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(0, 245, 255, 0.68)';
+          ctx.beginPath();
+          ctx.arc(x, y2, 2.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      VORTEX_NODES.forEach((name, index) => {
+        const angle = frame * 0.004 + index * ((Math.PI * 2) / VORTEX_NODES.length);
+        const x = cx + Math.cos(angle) * Math.min(width * 0.34, 270);
+        const y = cy + Math.sin(angle) * Math.min(height * 0.26, 165);
+        const active = name === activeAgent;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(x, y);
+        ctx.strokeStyle = active ? 'rgba(0, 245, 255, 0.42)' : 'rgba(124, 92, 255, 0.13)';
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(x, y, active ? 11 : 7, 0, Math.PI * 2);
+        ctx.fillStyle = active ? 'rgba(0, 245, 255, 0.82)' : 'rgba(168, 85, 247, 0.48)';
+        ctx.fill();
+        ctx.fillStyle = active ? '#ffffff' : 'rgba(218, 226, 255, 0.68)';
+        ctx.font = '700 9px Orbitron, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(name, x, y + 25);
+      });
+    }
+
+    resize();
+    window.addEventListener('resize', resize);
+    raf = window.requestAnimationFrame(draw);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.removeEventListener('resize', resize);
+    };
+  }, [activeAgent, mode, status]);
+
+  function handlePointerMove(event) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    mouseRef.current = {
+      x: (event.clientX - rect.left) / rect.width,
+      y: (event.clientY - rect.top) / rect.height,
+    };
+  }
+
+  function handleClick(event) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const rx = (event.clientX - rect.left) / rect.width;
+    const ry = (event.clientY - rect.top) / rect.height;
+    const angle = Math.atan2(ry - 0.5, rx - 0.5);
+    const normalized = (angle + Math.PI * 2) % (Math.PI * 2);
+    const index = Math.round(normalized / ((Math.PI * 2) / VORTEX_NODES.length)) % VORTEX_NODES.length;
+    onNodeSelect?.(VORTEX_NODES[index]);
+  }
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className={`webui-vortex-canvas ${mode}`}
+      onPointerMove={handlePointerMove}
+      onClick={handleClick}
+      aria-label="Interactive holographic particle field"
+    />
+  );
+}
+
 function LiveMode({ bootstrap, toast }) {
   const checkpoints = bootstrap?.checkpoints || [];
+  const providerOptions = bootstrap?.providers || [{ id: 'auto', name: 'Auto Provider', available: true }];
   const [showTelemetry, setShowTelemetry] = useState(false);
-  const [model, setModel] = useState('latest');
+  const [telemetry, setTelemetry] = useState(null);
+  const [provider, setProvider] = useState('auto');
+  const [vortexMode, setVortexMode] = useState('gold');
   const [prompt, setPrompt] = useState('');
-  const [messages, setMessages] = useState([
-    { role: 'assistant', text: 'Atulya OS online. Systems configured at peak efficiency. Ready to orchestrate, sir.' },
-  ]);
+  const [messages, setMessages] = useState(() => loadCachedMessages(LIVE_CACHE_KEY, DEFAULT_LIVE_MESSAGES));
   const [events, setEvents] = useState([
     { id: 1, label: 'Oracle Active Core online', state: 'ready' },
     { id: 2, label: 'Nervous system strands energized', state: 'standby' },
@@ -293,6 +540,19 @@ function LiveMode({ bootstrap, toast }) {
   ];
 
   useEffect(() => {
+    cacheMessages(LIVE_CACHE_KEY, messages);
+  }, [messages]);
+
+  useEffect(() => {
+    api.get('/api/chat/history')
+      .then((res) => {
+        const liveMessages = normalizeHistoryMessages(res.messages || []).filter((msg) => msg.surface === 'live');
+        if (liveMessages.length) setMessages(liveMessages.slice(-20));
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     async function loadVoices() {
       try {
         const res = await api.getVoices();
@@ -318,6 +578,43 @@ function LiveMode({ bootstrap, toast }) {
       ...prev
     ].slice(0, 10));
   }
+
+  function normalizeTelemetryEvent(item, idx) {
+    const now = new Date();
+    return {
+      time: item.time || telemetry?.updated_at?.split(' ')?.[1] || now.toTimeString().split(' ')[0],
+      title: item.title || `Telemetry ${idx + 1}`,
+      desc: item.desc || item.label || 'No telemetry details reported.',
+      type: item.type || item.state || 'ready',
+    };
+  }
+
+  useEffect(() => {
+    if (!showTelemetry) return undefined;
+    let cancelled = false;
+
+    async function loadTelemetry() {
+      try {
+        const res = await api.get('/api/telemetry');
+        if (!cancelled) setTelemetry(res);
+      } catch (err) {
+        if (!cancelled) {
+          setTelemetry((prev) => ({
+            ...(prev || {}),
+            error: err.message,
+            events: [{ title: 'Telemetry Offline', desc: err.message, type: 'error' }],
+          }));
+        }
+      }
+    }
+
+    loadTelemetry();
+    const interval = window.setInterval(loadTelemetry, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [showTelemetry]);
 
   async function startCamera() {
     if (cameraOn) return;
@@ -484,7 +781,18 @@ function LiveMode({ bootstrap, toast }) {
       setPrompt(text);
       if (event.results[event.results.length - 1].isFinal) {
         recognition.stop();
-        sendLive(text);
+        const lower = text.trim().toLowerCase();
+        if (continuous && !WAKE_PHRASES.some((phrase) => lower.includes(phrase))) {
+          addEvent('Wake word not detected. Standing by...', 'ready');
+          addMindStep('Wake Word Gate', 'Hands-free mode ignored ambient speech without wake phrase.', 'ready');
+          setStatus('ready');
+          setActiveAgent('NONE');
+          setTimeout(() => {
+            if (continuous && !busy) startListening();
+          }, 700);
+          return;
+        }
+        sendLive(continuous ? stripWakePhrase(text) : text);
       }
     };
     
@@ -529,19 +837,59 @@ function LiveMode({ bootstrap, toast }) {
     }
   }
 
+  function activateNode(agent, label, desc) {
+    setActiveAgent(agent);
+    addEvent(`${label} node selected`, 'ready');
+    addMindStep(label, desc, 'ready');
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: 'assistant',
+        text: `${label} online. ${desc}`,
+        id: `${Date.now()}-${agent}`,
+      },
+    ].slice(-40));
+  }
+
+  function handleVortexNode(agent) {
+    const descriptions = {
+      ORACLE: 'Research and general reasoning prompts route through this strand.',
+      ATHENA: 'Planning state is active; requests will show routing and execution steps.',
+      FORGE: 'Synthesis state is active after provider responses and tool results.',
+      MEMORY: 'Persistent chat history is available; vector memory remains a deeper backend upgrade.',
+      VISION: 'Camera capture can be opened from Start Vision; model vision analysis is limited.',
+      ECHO: 'Voice input and speech output controls are available from the mic and hands-free controls.',
+    };
+    activateNode(agent, agent, descriptions[agent] || 'Node selected.');
+  }
+
+  function cycleVortexMode() {
+    const modes = ['gold', 'dna', 'chaos'];
+    const next = modes[(modes.indexOf(vortexMode) + 1) % modes.length];
+    setVortexMode(next);
+    addEvent(`Hologram mode set to ${next.toUpperCase()}`, 'ready');
+    addMindStep('Hologram Mode', `Particle field renderer switched to ${next.toUpperCase()} mode.`, 'ready');
+  }
+
   // The Digital Nervous System Sequential State Stimulation Flow
   function sendLive(voiceText) {
     const text = (voiceText || prompt).trim();
     if (!text || busy) return;
     const id = Date.now();
     const cameraNote = capturedFrame ? '\n\nCamera frame is captured in the Live Mode panel. Use vision when vision processing is active.' : '';
+    const intent = classifyIntent(text);
     
     setPrompt('');
     setBusy(true);
     setStatus('thinking');
-    setIntentDetected('Detecting intent...');
-    setIntentConfidence(0);
+    setIntentDetected(intent.label);
+    setIntentConfidence(intent.confidence);
     replyRef.current = '';
+    setMessages((prev) => [
+      ...prev,
+      { role: 'user', text, id: `${id}-user` },
+      { role: 'assistant', text: '', id },
+    ]);
 
     // Step 1: Echo inputs
     setActiveAgent('ECHO');
@@ -560,36 +908,27 @@ function LiveMode({ bootstrap, toast }) {
         
         // Step 4: Routing to Oracle Research Strand after 1200ms
         setTimeout(() => {
-          setActiveAgent('ORACLE');
-          
-          // Determine realistic intent classification
-          let detected = "General Reasoning Context";
-          let confidence = 94;
-          const lowText = text.toLowerCase();
-          if (lowText.includes('code') || lowText.includes('website') || lowText.includes('build')) {
-            detected = "Forge Syntax Synthesis";
-            confidence = 98;
-          } else if (lowText.includes('see') || lowText.includes('camera') || lowText.includes('look')) {
-            detected = "Visual Object Assessment";
-            confidence = 97;
-          } else if (lowText.includes('open') || lowText.includes('search') || lowText.includes('run')) {
-            detected = "Yantra System Command";
-            confidence = 96;
-          }
-          
-          setIntentDetected(detected);
-          setIntentConfidence(confidence);
-          addMindStep('Intent Determined', `Classified as ${detected} (${confidence}% confidence)`, 'process');
+          setActiveAgent(intent.agent);
+          addMindStep('Intent Determined', `Classified as ${intent.label} (${intent.confidence}% confidence)`, 'process');
           addMindStep('Oracle Logic Mapping', 'Oracle strand querying local knowledge core.', 'process');
           
           // Step 5: Execute API route after 1600ms
           setTimeout(() => {
             addEvent('Routing command to brain strand...', 'thinking');
             
-            api.post('/api/voice/chat', { prompt: `${text}${cameraNote}`, voice: selectedVoice, model_id: model })
+            api.post('/api/voice/chat', {
+              prompt: `${text}${cameraNote}`,
+              voice: selectedVoice,
+              model_id: provider,
+              provider,
+              history: messages
+                .filter((msg) => msg.text)
+                .slice(-10)
+                .map((msg) => ({ role: msg.role, content: msg.text })),
+            })
               .then((res) => {
                 setBusy(false);
-                if (res.error) throw new Error(res.error);
+                if (res.error && !res.response_text) throw new Error(res.error);
                 
                 replyRef.current = res.response_text || "";
                 setMessages((prev) => prev.map((msg) => msg.id === id ? { ...msg, text: res.response_text } : msg));
@@ -632,6 +971,7 @@ function LiveMode({ bootstrap, toast }) {
                       speakBrowserFallback(replyRef.current);
                     });
                   } else {
+                    if (res.error) addEvent(res.error, 'error');
                     speakBrowserFallback(replyRef.current);
                   }
                 }, 400);
@@ -655,7 +995,175 @@ function LiveMode({ bootstrap, toast }) {
   }
 
   if (!showTelemetry) {
-    const recentMessages = messages.slice(-3); // Get last 3 exchanges
+    const visibleStream = mindStream.slice(0, 8);
+    const galaxyPreviewNodes = galaxyNodes.slice(0, 8);
+    const readyProviderCount = providerOptions.filter((item) => item.available && item.id !== 'auto').length;
+    return (
+      <div className="v3-shell">
+        <header className="v3-topbar">
+          <div className="v3-logo">ATULYA <span>NEURAL OS v3</span></div>
+          <nav className="v3-topnav">
+            <button className="on" type="button">Neural Core</button>
+            <button type="button" onClick={() => setShowTelemetry(true)}>Telemetry</button>
+            <button type="button" onClick={cycleVortexMode}>Hologram</button>
+          </nav>
+          <div className="v3-topright">
+            <span>Gesture: {listening ? 'Listening' : 'Ready'}</span>
+            <span>Providers: {readyProviderCount}</span>
+            <span>Model: {provider.toUpperCase()}</span>
+            <span className="v3-user-pill">{bootstrap?.user?.role?.toUpperCase?.() || 'USER'}</span>
+          </div>
+        </header>
+
+        <main className="v3-main">
+          <aside className="v3-panel v3-left-panel">
+            <div className="v3-panel-hdr">
+              <span>Consciousness Stream</span>
+              <strong>{busy ? 'Active' : 'Ready'}</strong>
+            </div>
+            <div className="v3-stream-list">
+              {visibleStream.map((item, idx) => (
+                <button type="button" className={`v3-stream-item ${item.type}`} key={`${item.time}-${idx}`}>
+                  <small>[{item.time}]</small>
+                  <b>{item.title}</b>
+                  <span>{item.desc}</span>
+                </button>
+              ))}
+            </div>
+            <div className="v3-gesture-panel">
+              <div className="v3-subtitle">Gesture Control Map</div>
+              <div className="v3-gesture-grid">
+                {[
+                  ['Open Palm', 'Expand Orb'],
+                  ['Fist', 'Collapse'],
+                  ['Point', 'Select Node'],
+                  ['Peace', 'Oracle Mode'],
+                  ['Pinch', 'Zoom Core'],
+                  ['OK Sign', 'Confirm'],
+                ].map(([name, action]) => (
+                  <button type="button" key={name} onClick={cycleVortexMode}>
+                    <b>{name}</b>
+                    <span>{action}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </aside>
+
+          <section className="v3-holo-center">
+            {cameraOn && <video className="v3-camera-feed" ref={videoRef} autoPlay playsInline muted />}
+            <HolographicVortex activeAgent={activeAgent} status={status} mode={vortexMode} onNodeSelect={handleVortexNode} />
+            <div className="v3-scan-line" />
+            <div className="v3-corner tl" />
+            <div className="v3-corner tr" />
+            <div className="v3-corner bl" />
+            <div className="v3-corner br" />
+
+            <div className="v3-hud tl"><span>ATULYA OS v3.0</span><span>Neural Mesh: Active</span><span>Particles: 1800</span></div>
+            <div className="v3-hud tr"><span>Status: {status.toUpperCase()}</span><span>Vortex: {vortexMode.toUpperCase()}</span><span>Provider: {provider.toUpperCase()}</span></div>
+            <div className="v3-hud bl"><span>Node: {activeAgent}</span><span>Intent: {intentDetected || 'Standby'}</span></div>
+            <div className="v3-hud br"><span>Wake: {continuous ? 'Hey Atulya' : 'Manual'}</span><span>Voice: {selectedVoice}</span></div>
+
+            <div className="v3-float-panel oracle"><b>Oracle</b><span>Research: {activeAgent === 'ORACLE' ? 'Active' : 'Idle'}</span><span>Depth: {messages.length}</span></div>
+            <div className="v3-float-panel neural"><b>Neural</b><span>Signal: {busy ? 'Routing' : 'Stable'}</span><span>Intent: {intentConfidence || '--'}%</span></div>
+            <div className="v3-float-panel forge"><b>Forge</b><span>Output: {status === 'speaking' ? 'Vocal' : 'Text'}</span><span>Queue: {busy ? 1 : 0}</span></div>
+            <div className="v3-float-panel echo"><b>Echo</b><span>Mic: {listening ? 'Live' : 'Idle'}</span><span>Wake: {continuous ? 'Ready' : 'Off'}</span></div>
+
+            <div className="v3-node-ring">
+              {VORTEX_NODES.map((node) => (
+                <button key={node} type="button" className={activeAgent === node ? 'active' : ''} onClick={() => handleVortexNode(node)}>
+                  {node}
+                </button>
+              ))}
+            </div>
+
+            <button type="button" className={`v3-core ${status}`} onClick={toggleVoice} aria-label="Toggle voice input"><span /></button>
+
+            <div className="v3-engage-bar">
+              <button type="button" onClick={() => handleVortexNode('ORACLE')}>Engage Oracle</button>
+              <button type="button" onClick={toggleVoice}>{listening ? 'Stop Mic' : 'Enable Voice'}</button>
+              <button type="button" onClick={cameraOn ? stopCamera : startCamera}>{cameraOn ? 'Close Lens' : 'Neural Lens'}</button>
+              <button type="button" onClick={captureFrame} disabled={!cameraOn}>Scan</button>
+              <button type="button" onClick={cycleVortexMode}>Vortex</button>
+              <select value={provider} onChange={(event) => setProvider(event.target.value)}>
+                {providerOptions.map((item) => (
+                  <option key={item.id} value={item.id}>{item.available ? 'Ready - ' : 'Off - '}{item.name}</option>
+                ))}
+              </select>
+              <select value={selectedVoice} onChange={(event) => setSelectedVoice(event.target.value)}>
+                {voiceList.map((voice) => <option key={voice.id} value={voice.id}>{voice.name}</option>)}
+              </select>
+            </div>
+          </section>
+
+          <aside className="v3-panel v3-right-panel">
+            <section className="v3-vision-wrap">
+              <div className="v3-panel-hdr"><span>Vision / Hand Track</span><strong>{cameraOn ? 'Live' : capturedFrame ? 'Captured' : 'Standby'}</strong></div>
+              <div className="v3-vision-inner" onClick={(event) => {
+                const rect = event.currentTarget.getBoundingClientRect();
+                const x = Math.round(((event.clientX - rect.left) / rect.width) * 100);
+                const y = Math.round(((event.clientY - rect.top) / rect.height) * 100);
+                addMindStep('Vision Coordinate', `Scanner coordinate selected at X ${x}%, Y ${y}%.`, 'seeing');
+              }}>
+                {cameraOn ? <video ref={videoRef} autoPlay playsInline muted /> : capturedFrame ? <img src={capturedFrame} alt="Captured visual frame" /> : <div className="v3-vision-empty">Optical System Standby</div>}
+                <div className="v3-vision-overlay"><span className="box one">User</span><span className="box two">Display</span><span className="box three">Input</span></div>
+                <canvas ref={canvasRef} hidden />
+              </div>
+            </section>
+
+            <section className="v3-memory-wrap">
+              <div className="v3-panel-hdr"><span>Memory Galaxy</span><strong>{galaxyPreviewNodes.length} Stars</strong></div>
+              <div className="v3-memory-canvas">
+                <svg viewBox="0 0 360 220" role="img" aria-label="Memory galaxy">
+                  <circle cx="180" cy="110" r="8" className="core" />
+                  {galaxyPreviewNodes.map((node) => (
+                    <g key={node.id} onMouseEnter={() => setSelectedGalaxyNode(node)} onClick={() => {
+                      setSelectedGalaxyNode(node);
+                      setPrompt(`Recall memory node: ${node.name}. ${node.desc}`);
+                      addMindStep('Memory Node Retrieved', `${node.name}: ${node.desc}`, 'ready');
+                    }}>
+                      <line x1="180" y1="110" x2={node.x} y2={node.y} />
+                      <circle cx={node.x} cy={node.y} r={selectedGalaxyNode?.id === node.id ? 7 : 5} />
+                      <text x={node.x} y={node.y - 9} textAnchor="middle">{node.name}</text>
+                    </g>
+                  ))}
+                </svg>
+                <div className="v3-memory-info">{selectedGalaxyNode ? `${selectedGalaxyNode.name}: ${selectedGalaxyNode.desc}` : 'Hover or click a memory node to inspect'}</div>
+              </div>
+            </section>
+
+            <section className="v3-chat-wrap">
+              <div className="v3-panel-hdr">
+                <span>Atulya Chat</span>
+                <div><strong>{busy ? 'Thinking' : 'Ready'}</strong><button type="button" onClick={() => setMessages(DEFAULT_LIVE_MESSAGES)}>CLR</button></div>
+              </div>
+              <div className="v3-chat-msgs">
+                {messages.map((msg, idx) => (
+                  <div className={`v3-msg ${msg.role}`} key={msg.id || idx}>
+                    <div>{renderMarkdown(msg.text || (msg.role === 'assistant' ? 'Atulya is thinking...' : ''))}</div>
+                    <small>{msg.role === 'user' ? 'USER' : 'ATULYA'}</small>
+                  </div>
+                ))}
+                {busy && <div className="v3-msg assistant thinking"><div>Atulya is thinking...</div></div>}
+              </div>
+              <form className="v3-chat-input" onSubmit={(event) => { event.preventDefault(); sendLive(); }}>
+                <input value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={continuous ? 'Say or type: Hey Atulya...' : 'Neural query...'} disabled={busy} />
+                <button type="submit" disabled={busy || !prompt.trim()}>{busy ? '...' : 'Send'}</button>
+              </form>
+            </section>
+          </aside>
+        </main>
+
+        <footer className="v3-bottom">
+          <div><b>System Matrix</b><span>CPU {telemetry?.system?.cpu_pct ?? '--'}%</span><span>RAM {telemetry?.system?.ram_pct ?? '--'}%</span><span>Node {activeAgent}</span></div>
+          <div className={`v3-waveform ${status}`}>{Array.from({ length: 22 }).map((_, idx) => <span key={idx} />)}</div>
+          <div><b>Quick Actions</b><button type="button" onClick={() => setPrompt('Save this as a memory: ')}>+ Mem</button><button type="button" onClick={cycleVortexMode}>Vortex</button><label><input type="checkbox" checked={continuous} onChange={(e) => setContinuous(e.target.checked)} /> Hands-Free</label></div>
+        </footer>
+      </div>
+    );
+  }
+
+  if (false && !showTelemetry) {
     return (
       <div className="webui-immersive-viewport">
         {/* Top Header */}
@@ -667,20 +1175,6 @@ function LiveMode({ bootstrap, toast }) {
             📊 TELEMETRY COCKPIT
           </button>
         </header>
-
-        {/* Floating Bubble Overlays */}
-        <div className="webui-conversation-overlay">
-          {recentMessages.map((msg, idx) => (
-            <div className={`webui-bubble ${msg.role}`} key={msg.id || idx}>
-              {msg.text || (msg.role === 'assistant' ? 'Atulya aligning neural mesh strands...' : 'Listening...')}
-            </div>
-          ))}
-          {busy && messages[messages.length - 1]?.role !== 'assistant' && (
-            <div className="webui-bubble assistant">
-              Atulya aligning neural mesh strands...
-            </div>
-          )}
-        </div>
 
         {/* Floating Camera optics overlay */}
         {(cameraOn || capturedFrame) && (
@@ -694,9 +1188,18 @@ function LiveMode({ bootstrap, toast }) {
           </div>
         )}
 
-        {/* Center Hologram System */}
-        <div className="webui-hologram-stage">
-          <div className="webui-orbit-system">
+        <section className="webui-live-grid">
+          <div className="webui-hologram-stage">
+            <HolographicVortex activeAgent={activeAgent} status={status} mode={vortexMode} onNodeSelect={handleVortexNode} />
+            <div className="webui-holo-hud webui-holo-hud-left">
+              <span>MODE {vortexMode.toUpperCase()}</span>
+              <span>NODE {activeAgent}</span>
+            </div>
+            <div className="webui-holo-hud webui-holo-hud-right">
+              <span>STATUS {status.toUpperCase()}</span>
+              <span>PROVIDER {provider.toUpperCase()}</span>
+            </div>
+            <div className="webui-orbit-system">
             
             {/* Strands */}
             <svg className="webui-pulse-strands" viewBox="0 0 400 400">
@@ -709,27 +1212,27 @@ function LiveMode({ bootstrap, toast }) {
             </svg>
 
             {/* Orbiting nodes */}
-            <div className={`webui-node webui-node-oracle ${activeAgent === 'ORACLE' ? 'active' : ''}`} onClick={() => setActiveAgent('ORACLE')}>
+            <div className={`webui-node webui-node-oracle ${activeAgent === 'ORACLE' ? 'active' : ''}`} onClick={() => activateNode('ORACLE', 'ORACLE', 'Research and general reasoning prompts route through this strand.')} title="Routes research and general reasoning prompts.">
               <span>ORACLE</span>
               <small>Research</small>
             </div>
-            <div className={`webui-node webui-node-athena ${activeAgent === 'ATHENA' ? 'active' : ''}`} onClick={() => setActiveAgent('ATHENA')}>
+            <div className={`webui-node webui-node-athena ${activeAgent === 'ATHENA' ? 'active' : ''}`} onClick={() => activateNode('ATHENA', 'ATHENA', 'Planning state is active; requests will show routing and execution steps.')} title="Shows planning state while a request is running.">
               <span>ATHENA</span>
               <small>Planning</small>
             </div>
-            <div className={`webui-node webui-node-forge ${activeAgent === 'FORGE' ? 'active' : ''}`} onClick={() => setActiveAgent('FORGE')}>
+            <div className={`webui-node webui-node-forge ${activeAgent === 'FORGE' ? 'active' : ''}`} onClick={() => activateNode('FORGE', 'FORGE', 'Synthesis state is active after provider responses and tool results.')} title="Shows synthesis state after provider response.">
               <span>FORGE</span>
               <small>Synthesis</small>
             </div>
-            <div className={`webui-node webui-node-memory ${activeAgent === 'MEMORY' ? 'active' : ''}`} onClick={() => setActiveAgent('MEMORY')}>
+            <div className={`webui-node webui-node-memory ${activeAgent === 'MEMORY' ? 'active' : ''}`} onClick={() => activateNode('MEMORY', 'MEMORY', 'Persistent chat history is available; vector memory remains a deeper backend upgrade.')} title="Memory persistence is basic chat history in this build.">
               <span>MEMORY</span>
               <small>Cognition</small>
             </div>
-            <div className={`webui-node webui-node-vision ${activeAgent === 'VISION' ? 'active' : ''}`} onClick={() => setActiveAgent('VISION')}>
+            <div className={`webui-node webui-node-vision ${activeAgent === 'VISION' ? 'active' : ''}`} onClick={() => activateNode('VISION', 'VISION', 'Camera capture can be opened from Start Vision; model vision analysis is limited.')} title="Camera capture is available; model vision analysis is limited.">
               <span>VISION</span>
               <small>Perception</small>
             </div>
-            <div className={`webui-node webui-node-echo ${activeAgent === 'ECHO' ? 'active' : ''}`} onClick={() => setActiveAgent('ECHO')}>
+            <div className={`webui-node webui-node-echo ${activeAgent === 'ECHO' ? 'active' : ''}`} onClick={() => activateNode('ECHO', 'ECHO', 'Voice input and speech output controls are available from the mic and hands-free controls.')} title="Voice input/output state.">
               <span>ECHO</span>
               <small>Vocalize</small>
             </div>
@@ -744,9 +1247,29 @@ function LiveMode({ bootstrap, toast }) {
                 <div className="webui-hologram-ring webui-ring-3" />
               </div>
             </div>
-
+            </div>
           </div>
-        </div>
+
+          <section className="webui-chat-panel" aria-label="Atulya conversation">
+            <div className="webui-chat-title">
+              <div>
+                <strong>Atulya Chat</strong>
+                <span>{busy ? 'Thinking...' : 'Ready'}</span>
+              </div>
+              <button type="button" onClick={() => setMessages(DEFAULT_LIVE_MESSAGES)}>Clear</button>
+            </div>
+            <div className="webui-message-list">
+              {messages.map((msg, idx) => (
+                <div className={`webui-message ${msg.role}`} key={msg.id || idx}>
+                  {renderMarkdown(msg.text || (msg.role === 'assistant' ? 'Atulya is thinking...' : ''))}
+                </div>
+              ))}
+              {busy && (
+                <div className="webui-message assistant thinking">Atulya is thinking...</div>
+              )}
+            </div>
+          </section>
+        </section>
 
         {/* Bottom controls and Visualizer */}
         <div className="webui-bottom-bar">
@@ -763,6 +1286,18 @@ function LiveMode({ bootstrap, toast }) {
             <span className="webui-bar sb-10" />
           </div>
 
+          <form className="webui-text-composer" onSubmit={(event) => { event.preventDefault(); sendLive(); }}>
+            <input
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+              placeholder={continuous ? 'Say or type: Hey Atulya...' : 'Type to Atulya...'}
+              disabled={busy}
+            />
+            <button type="submit" disabled={busy || !prompt.trim()}>
+              {busy ? 'Thinking...' : 'Send'}
+            </button>
+          </form>
+
           <div className="webui-controls-container">
             <button className={`webui-mic-glow-btn ${listening ? 'active' : ''}`} onClick={toggleVoice}>
               {listening ? '🎤' : '🎙️'}
@@ -778,8 +1313,16 @@ function LiveMode({ bootstrap, toast }) {
               </button>
             )}
 
-            <select className="webui-select" value={model} onChange={(e) => setModel(e.target.value)}>
-              {checkpoints.map((item) => <option key={item.id} value={item.id}>{item.label || item.id}</option>)}
+            <button className="webui-select" onClick={cycleVortexMode}>
+              Vortex: {vortexMode.toUpperCase()}
+            </button>
+
+            <select className="webui-select" value={provider} onChange={(e) => setProvider(e.target.value)}>
+              {providerOptions.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.available ? 'Ready - ' : 'Off - '}{item.name}
+                </option>
+              ))}
             </select>
 
             <select className="webui-select" value={selectedVoice} onChange={(e) => setSelectedVoice(e.target.value)}>
@@ -802,16 +1345,23 @@ function LiveMode({ bootstrap, toast }) {
         <h2>Telemetry Cockpit</h2>
         <button onClick={() => setShowTelemetry(false)} className="primary">✨ ENTER HOLOGRAM MODE</button>
       </header>
+      <div className="telemetry-metrics-strip">
+        <Metric label="CPU" value={`${telemetry?.system?.cpu_pct ?? '--'}%`} />
+        <Metric label="RAM" value={`${telemetry?.system?.ram_pct ?? '--'}%`} />
+        <Metric label="Disk Free" value={`${telemetry?.system?.disk_free_gb ?? '--'} GB`} />
+        <Metric label="Uptime" value={telemetry?.system?.uptime || '--'} />
+        <Metric label="Providers" value={`${(telemetry?.providers || providerOptions).filter((item) => item.available && item.id !== 'auto').length} ready`} />
+      </div>
       <div className="cockpit-grid">
         
         {/* LEFT PANEL: Consciousness Stream */}
         <div className="panel consciousness-stream-panel">
           <div className="panel-title">
             <h2>Consciousness Stream</h2>
-            <div className="flow-badge"><span className="pulse-indicator"></span>ACTIVE FLOW</div>
+            <div className="flow-badge"><span className="pulse-indicator"></span>{telemetry?.error ? 'DEGRADED' : 'LIVE FLOW'}</div>
           </div>
           <div className="mind-flow-container">
-            {mindStream.map((item, idx) => (
+            {(telemetry?.events?.length ? telemetry.events.map(normalizeTelemetryEvent) : mindStream).map((item, idx) => (
               <div className={`mind-step ${item.type}`} key={idx}>
                 <span className="mind-time">[{item.time}]</span>
                 <div className="mind-marker">
@@ -915,8 +1465,12 @@ function LiveMode({ bootstrap, toast }) {
             </button>
             <button type="button" onClick={captureFrame} disabled={!cameraOn}>SCAN FRAME</button>
             
-            <select value={model} onChange={(e) => setModel(e.target.value)}>
-              {checkpoints.map((item) => <option key={item.id} value={item.id}>{item.label || item.id}</option>)}
+            <select value={provider} onChange={(e) => setProvider(e.target.value)}>
+              {providerOptions.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.available ? 'Ready - ' : 'Off - '}{item.name}
+                </option>
+              ))}
             </select>
             
             <select value={selectedVoice} onChange={(e) => {
@@ -1076,16 +1630,29 @@ function LiveMode({ bootstrap, toast }) {
 }
 
 function Chat({ bootstrap }) {
-  const checkpoints = bootstrap?.checkpoints || [];
-  const [model, setModel] = useState('latest');
+  const providerOptions = bootstrap?.providers || [{ id: 'auto', name: 'Auto Provider', available: true }];
+  const [provider, setProvider] = useState('auto');
   const [prompt, setPrompt] = useState('');
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(() => loadCachedMessages(CHAT_CACHE_KEY, []));
   const [toolSteps, setToolSteps] = useState([]);
   const [pendingApproval, setPendingApproval] = useState(null);
   const [busy, setBusy] = useState(false);
   const endRef = useRef(null);
 
   useEffect(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), [messages]);
+
+  useEffect(() => {
+    cacheMessages(CHAT_CACHE_KEY, messages);
+  }, [messages]);
+
+  useEffect(() => {
+    api.get('/api/chat/history')
+      .then((res) => {
+        const chatMessages = normalizeHistoryMessages(res.messages || []).filter((msg) => msg.surface !== 'live');
+        if (chatMessages.length) setMessages(chatMessages);
+      })
+      .catch(() => {});
+  }, []);
 
   function historyPayload(items = messages) {
     return items
@@ -1105,7 +1672,7 @@ function Chat({ bootstrap }) {
     setToolSteps([]);
     setMessages(nextMessages);
     api.streamChat(
-      { prompt: text, model_id: model, max_tokens: 256, temperature: 0.7, history: historyPayload(messages) },
+      { prompt: text, model_id: provider, provider, max_tokens: 256, temperature: 0.7, history: historyPayload(messages) },
       (token) => setMessages((prev) => prev.map((msg) => msg.id === id ? { ...msg, text: msg.text + token } : msg)),
       (done) => {
         if (done?.steps) setToolSteps(done.steps);
@@ -1130,10 +1697,26 @@ function Chat({ bootstrap }) {
   return (
     <section className="panel chat">
       <div className="panel-title">
-        <h2>Neural Playground</h2>
-        <select value={model} onChange={(e) => setModel(e.target.value)}>
-          {checkpoints.map((item) => <option key={item.id} value={item.id}>{item.label || item.id}</option>)}
-        </select>
+        <h2>Atulya Chat</h2>
+        <div className="panel-actions">
+          <button
+            type="button"
+            onClick={() => {
+              api.delete('/api/chat/history').catch(() => {});
+              setMessages([]);
+              setToolSteps([]);
+            }}
+          >
+            Clear
+          </button>
+          <select value={provider} onChange={(e) => setProvider(e.target.value)}>
+            {providerOptions.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.available ? 'Ready - ' : 'Off - '}{item.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
       <div className="messages">
         {toolSteps.map((step, idx) => (
@@ -1168,7 +1751,8 @@ function Chat({ bootstrap }) {
                   api.streamChat(
                     {
                       prompt: approved,
-                      model_id: model,
+                      model_id: provider,
+                      provider,
                       history: historyPayload(),
                       approved_tool: pendingApproval.pending_tool,
                     },

@@ -80,6 +80,9 @@ class WorkflowEngine:
         self._tool_registry = None
         self._load()
 
+    def set_tool_registry(self, registry):
+        self._tool_registry = registry
+
     def _load(self):
         state_file = self.data_dir / "workflow_state.json"
         if state_file.exists():
@@ -134,7 +137,9 @@ class WorkflowEngine:
         # Check dependencies
         for dep_id in task.dependencies:
             dep = self._tasks.get(dep_id)
-            if dep and dep.status != TaskStatus.DONE:
+            if dep is None:
+                raise ValueError(f"Dependency not found: {dep_id}")
+            if dep.status != TaskStatus.DONE:
                 task.status = TaskStatus.BLOCKED
                 self._save()
                 return task

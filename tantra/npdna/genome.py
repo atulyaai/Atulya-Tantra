@@ -48,7 +48,7 @@ class Genome(nn.Module):
         # One learnable seed per Strand (this is what gets trained per-topic)
         self.seeds = nn.Parameter(torch.randn(config.max_strands, L) * 0.02)
 
-        # Shared encoder:  seed â†’ latent
+        # Shared encoder:  seed → latent
         self.encoder = nn.Sequential(
             nn.Linear(L, config.encoder_hidden),
             nn.GELU(),
@@ -56,7 +56,7 @@ class Genome(nn.Module):
             nn.LayerNorm(L),
         )
 
-        # Weight shape registry:  role â†’ (rows, cols)
+        # Weight shape registry:  role → (rows, cols)
         self._shapes: dict[str, tuple[int, int]] = {
             "gate": (H, S),
             "state": (H, S),
@@ -64,11 +64,11 @@ class Genome(nn.Module):
             "output": (S, H),
         }
 
-        # Per-role decoders: latent â†’ low-rank factors U, V
+        # Per-role decoders: latent → low-rank factors U, V
         self.decoders = nn.ModuleDict()
         for role, (rows, cols) in self._shapes.items():
-            # U factor: latent â†’ rows Ã— rank
-            # V factor: latent â†’ rank Ã— cols
+            # U factor: latent → rows × rank
+            # V factor: latent → rank × cols
             self.decoders[f"{role}_U"] = nn.Linear(L, rows * R)
             self.decoders[f"{role}_V"] = nn.Linear(L, R * cols)
 
@@ -76,6 +76,10 @@ class Genome(nn.Module):
         self.bias_decoders = nn.ModuleDict()
         for role, (_, cols) in self._shapes.items():
             self.bias_decoders[role] = nn.Linear(L, cols)
+
+        # Weight cache for inference (cleared on train mode switch)
+        self._weight_cache: dict[int, dict] = {}
+        self._cache_enabled: bool = False
 
     def generate(self, strand_id: int, role: WeightRole) -> tuple[Tensor, Tensor]:
         """Generate a weight matrix and bias for a specific Strand and role.
@@ -103,15 +107,41 @@ class Genome(nn.Module):
         return weight, bias
 
     def generate_all(self, strand_id: int) -> dict[str, tuple[Tensor, Tensor]]:
-        """Generate all weight matrices for a Strand in one call."""
-        return {role: self.generate(strand_id, role) for role in _ROLES}
+        """Generate all weight matrices for a Strand in one call.
+
+        During inference with cache enabled: returns cached weights (free after first call).
+        During training: always recomputes (gradients flow through seeds).
+        """
+        # Cache hit during inference
+        if self._cache_enabled and not self.training and strand_id in self._weight_cache:
+            return self._weight_cache[strand_id]
+
+        # Generate weights
+        result = {role: self.generate(strand_id, role) for role in _ROLES}
+
+        # Cache during inference
+        if self._cache_enabled and not self.training:
+            self._weight_cache[strand_id] = result
+
+        return result
+
+    def enable_inference_cache(self) -> None:
+        """Call before inference to cache generated weights.
+        Weights don't change during inference — no need to recompute."""
+        self._cache_enabled = True
+        self._weight_cache.clear()
+
+    def disable_inference_cache(self) -> None:
+        """Call before training to ensure fresh weight generation."""
+        self._cache_enabled = False
+        self._weight_cache.clear()
 
     @property
     def num_active_strands(self) -> int:
         return self.config.max_strands
 
     def add_strand_capacity(self, count: int = 1) -> None:
-        """Grow the seed bank, replacing the Parameter to bump autograd's version counter."""
+        """Grow the seed bank in-place, preserving the Parameter object for autograd."""
         if count <= 0:
             return
 
@@ -125,16 +155,7 @@ class Genome(nn.Module):
                 dtype=self.seeds.dtype,
             ) * 0.02
             new_data = torch.cat([self.seeds.data, grown], dim=0)
-            new_param = nn.Parameter(new_data, requires_grad=self.seeds.requires_grad)
-            if self.seeds.grad is not None:
-                grad_pad = torch.zeros(
-                    count,
-                    self.config.latent_dim,
-                    device=self.seeds.grad.device,
-                    dtype=self.seeds.grad.dtype,
-                )
-                new_param.grad = torch.cat([self.seeds.grad, grad_pad], dim=0)
-            self.seeds = new_param
+            self.seeds.data = new_data
 
         self.config.max_strands = new_max
         logger.info("Genome: expanded seed bank %d -> %d", old_max, new_max)

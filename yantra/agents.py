@@ -59,6 +59,7 @@ class CronAgent:
         self.runs: list[dict[str, Any]] = []
 
     async def run(self, command: str, prompt: str = "", **kwargs: Any) -> dict[str, Any]:
+        kwargs.pop("prompt", None)
         result = await self.harness.run(command, prompt=prompt or command, **kwargs)
         record = {
             "agent": self.name,

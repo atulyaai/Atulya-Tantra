@@ -72,8 +72,8 @@ class AutomationRunner:
             return job
         try:
             response = await self.llm.ask(command, tools_enabled=True)
-            job["last_result"] = response.text[:2000]
-            job["last_provider"] = response.provider
+            job["last_result"] = (response.text or "")[:2000] if response.text is not None else ""
+            job["last_provider"] = response.provider if response.provider is not None else ""
             job["last_error"] = ""
         except Exception as exc:
             job["last_error"] = str(exc)

@@ -26,7 +26,10 @@ class AtulyaConfig:
         path = Path(config_path or os.environ.get("ATULYA_CONFIG", root / "config.json"))
         values: dict[str, Any] = {}
         if path.exists():
-            values = json.loads(path.read_text(encoding="utf-8"))
+            try:
+                values = json.loads(path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                values = {}
 
         def resolve(name: str, default: str) -> Path:
             env_name = f"ATULYA_{name.upper()}"

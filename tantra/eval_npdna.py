@@ -65,7 +65,7 @@ def read_previous_log(path: Path) -> dict | None:
         "checkpoint": last[1],
         "step": int(last[2]),
         "samples": int(last[3]),
-        "loss": float(last[4]),
+        "avg_loss": float(last[4]),
         "accuracy_pct": float(last[5]),
         "perplexity": float(last[6]),
         "gen_speed_tokps": float(last[7]),
@@ -151,12 +151,12 @@ def benchmark_core(core: NpDnaCore, test_texts: list[str], label: str) -> dict:
 def format_results(latest: dict, prev: dict | None) -> str:
     # Comparison metrics
     if prev:
-        loss_diff = latest["avg_loss"] - prev["loss"]
+        loss_diff = latest["avg_loss"] - prev["avg_loss"]
         acc_diff = latest["accuracy_pct"] - prev["accuracy_pct"]
         ppl_diff = latest["perplexity"] - prev["perplexity"]
         speed_diff = latest["gen_speed_tokps"] - prev["gen_speed_tokps"]
 
-        loss_pct = (loss_diff / max(0.001, prev["loss"])) * 100
+        loss_pct = (loss_diff / max(0.001, prev["avg_loss"])) * 100
         acc_pct = (acc_diff / max(0.001, prev["accuracy_pct"])) * 100 if prev["accuracy_pct"] > 0 else 0
         ppl_pct = (ppl_diff / max(0.001, prev["perplexity"])) * 100
         speed_pct = (speed_diff / max(0.001, prev["gen_speed_tokps"])) * 100
@@ -208,7 +208,7 @@ def format_results(latest: dict, prev: dict | None) -> str:
 
     if prev:
         lines.append(f"\n**Comparison with {prev['checkpoint']}:**")
-        lines.append(f"- Loss: {prev['loss']:.4f} → {latest['avg_loss']:.4f} ({loss_diff:+.4f})")
+        lines.append(f"- Loss: {prev['avg_loss']:.4f} → {latest['avg_loss']:.4f} ({loss_diff:+.4f})")
         lines.append(f"- Accuracy: {prev['accuracy_pct']:.2f}% → {latest['accuracy_pct']:.2f}% ({acc_diff:+.2f}%)")
         lines.append(f"- Perplexity: {prev['perplexity']:.2f} → {latest['perplexity']:.2f} ({ppl_diff:+.2f})")
 
@@ -233,7 +233,7 @@ def save_experiment_log(latest: dict, prev: dict | None, path: Path):
     train_final = tl.get("final", "")
 
     if prev:
-        v_loss_diff = round(loss - prev["loss"], 4)
+        v_loss_diff = round(loss - prev["avg_loss"], 4)
         v_acc_diff = round(acc - prev["accuracy_pct"], 2)
         verdict = "GOOD" if v_acc_diff >= 0 else "BAD"
     else:
@@ -268,7 +268,7 @@ def write_improvement_json(latest: dict, prev: dict | None, path: Path):
         "gen_speed_tokps": latest["gen_speed_tokps"],
         "previous_checkpoint": prev["checkpoint"],
         "previous_accuracy": prev["accuracy_pct"],
-        "previous_loss": prev["loss"],
+        "previous_loss": prev["avg_loss"],
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
     with open(path, "w", encoding="utf-8") as f:

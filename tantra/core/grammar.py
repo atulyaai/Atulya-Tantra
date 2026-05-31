@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import random
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -136,7 +137,6 @@ class FluencyEnhancer:
         trans_list = transitions.get(language, transitions["en"])
         for i, sentence in enumerate(sentences[1:], 1):
             if i % 3 == 0 and naturalness > 0.3:
-                import random
                 transition = random.choice(trans_list)
                 enhanced.append(f"{transition}, {sentence}")
             else:

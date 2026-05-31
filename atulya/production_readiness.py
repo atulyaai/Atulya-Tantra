@@ -67,7 +67,7 @@ def _check_free_provider() -> ReadinessCheck:
     return ReadinessCheck(
         "Free inference",
         "fail",
-        "Configure Ollama locally or set one free-tier key: GROQ_API_KEY, OPENROUTER_API_KEY, or GEMINI_API_KEY",
+        "Configure Ollama locally or set one free-tier key. Prefer OPENROUTER_API_KEY or GROQ_API_KEY; GEMINI_API_KEY is a rare fallback.",
     )
 
 

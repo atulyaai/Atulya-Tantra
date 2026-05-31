@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import platform
+import time
 
 import psutil
 from fastapi import APIRouter, Header
@@ -13,10 +14,12 @@ from drishti.dashboard.helpers import (
     _require_admin,
     _require_auth,
     _run_history,
+    _read_status_file,
 )
 from drishti.dashboard.state import ADMIN_TOKEN_SOURCE, OUTPUTS_DIR
 
 router = APIRouter()
+START_TIME = time.time()
 
 
 def _config_summary(name: str) -> dict:
@@ -42,7 +45,9 @@ def _config_summary(name: str) -> dict:
 
 def _system_payload() -> dict:
     mem = psutil.virtual_memory()
-    disk = psutil.disk_usage(str(OUTPUTS_DIR.parent))
+    disk_root = OUTPUTS_DIR.parent
+    disk_root.mkdir(parents=True, exist_ok=True)
+    disk = psutil.disk_usage(str(disk_root))
     return {
         "cpu_pct": psutil.cpu_percent(interval=0.0),
         "cpu_count": psutil.cpu_count(logical=True),
@@ -56,10 +61,90 @@ def _system_payload() -> dict:
     }
 
 
+def _format_uptime(seconds: float) -> str:
+    total = max(0, int(seconds))
+    hours, remainder = divmod(total, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h {minutes}m"
+    if minutes:
+        return f"{minutes}m {secs}s"
+    return f"{secs}s"
+
+
+def _provider_registry() -> list[dict]:
+    try:
+        from atulya.intelligence import ProviderRouter
+
+        providers = []
+        for provider in ProviderRouter().providers:
+            name = provider.name()
+            provider_id = name.split(" ", 1)[0].lower()
+            providers.append({
+                "id": provider_id,
+                "name": name,
+                "available": bool(provider.is_available()),
+            })
+        return [{"id": "auto", "name": "Auto Provider", "available": True}] + providers
+    except Exception:
+        return [{"id": "auto", "name": "Auto Provider", "available": True}]
+
+
+def _telemetry_events(system: dict, providers: list[dict]) -> list[dict]:
+    status = _read_status_file()
+    phase = status.get("phase") or status.get("status") or "idle"
+    ready_providers = [item["name"] for item in providers if item.get("available") and item.get("id") != "auto"]
+    events = [
+        {
+            "title": "System Telemetry",
+            "desc": f"CPU {system['cpu_pct']}%, RAM {system['ram_pct']}%, disk free {system['disk_free_gb']} GB.",
+            "type": "ready" if system["cpu_pct"] < 85 and system["ram_pct"] < 90 else "warning",
+        },
+        {
+            "title": "Provider Router",
+            "desc": f"{len(ready_providers)} provider(s) available: {', '.join(ready_providers[:4]) or 'local/offline fallback only'}.",
+            "type": "ready" if ready_providers else "standby",
+        },
+        {
+            "title": "Training Monitor",
+            "desc": f"Training phase: {phase}.",
+            "type": "process" if phase in {"running", "training"} else "ready",
+        },
+    ]
+    if status.get("last") or status.get("last_metric"):
+        last = status.get("last") or status.get("last_metric") or {}
+        loss = last.get("loss") or last.get("train_loss")
+        step = last.get("step") or last.get("run_step")
+        if loss is not None or step is not None:
+            events.append({
+                "title": "Latest Training Metric",
+                "desc": f"Step {step or '--'}, loss {loss or '--'}.",
+                "type": "process",
+            })
+    return events
+
+
 @router.get("/api/system")
 def api_system(_admin: str | None = Header(default=None, alias="X-Atulya-Token")):
     _require_admin(_admin)
     return _system_payload()
+
+
+@router.get("/api/telemetry")
+def api_telemetry(token: str | None = Header(default=None, alias="X-Atulya-Token")):
+    _require_auth(token)
+    system = _system_payload()
+    providers = _provider_registry()
+    return {
+        "system": {
+            **system,
+            "uptime_seconds": int(time.time() - START_TIME),
+            "uptime": _format_uptime(time.time() - START_TIME),
+        },
+        "providers": providers,
+        "events": _telemetry_events(system, providers),
+        "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
 
 
 @router.get("/api/configs")
@@ -96,6 +181,7 @@ def api_dashboard_bootstrap(token: str | None = Header(default=None, alias="X-At
             "history": {"runs": _run_history()},
             "models": models,
             "checkpoints": checkpoints,
+            "providers": _provider_registry(),
             "datasets": _dataset_registry(),
             "checkpoint_ids": checkpoint_ids,
         }
@@ -103,5 +189,6 @@ def api_dashboard_bootstrap(token: str | None = Header(default=None, alias="X-At
         return {
             "user": user,
             "checkpoints": checkpoints,
+            "providers": _provider_registry(),
             "checkpoint_ids": checkpoint_ids,
         }

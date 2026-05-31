@@ -32,6 +32,7 @@ class BrowserAutomation:
         self._browser = None
         self._context = None
         self._page = None
+        self._playwright = None
         self._history: list[BrowserResult] = []
 
     async def start(self):
@@ -50,7 +51,7 @@ class BrowserAutomation:
         """Stop browser."""
         if self._browser:
             await self._browser.close()
-        if hasattr(self, "_playwright"):
+        if self._playwright:
             await self._playwright.stop()
 
     async def navigate(self, url: str, wait_until: str = "domcontentloaded") -> BrowserResult:

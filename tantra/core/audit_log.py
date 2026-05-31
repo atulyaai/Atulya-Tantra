@@ -33,6 +33,8 @@ class TamperEvidentLog:
         chunk_size = min(4096, self.log_path.stat().st_size)
         with open(self.log_path, "rb") as f:
             f.seek(-chunk_size, os.SEEK_END)
+            if f.tell() > 0:
+                f.readline()  # Skip potentially incomplete first line
             tail = f.read().decode("utf-8").strip()
         for line in reversed(tail.splitlines()):
             line = line.strip()

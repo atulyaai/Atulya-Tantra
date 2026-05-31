@@ -1,6 +1,7 @@
 # Outputs & checkpoints
 *.pt
 *.safetensors
+outputs/
 
 # Generated data
 data/

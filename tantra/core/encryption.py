@@ -81,7 +81,7 @@ class EncryptedStorage:
                 )
                 rows = cursor.fetchall()
                 for rowid, value in rows:
-                    if not value.startswith("enc:"):
+                    if value and not value.startswith("enc:"):
                         encrypted = self.encrypt_value(value)
                         cursor.execute(
                             f"UPDATE \"{table}\" SET \"{col}\" = ? WHERE rowid = ?",

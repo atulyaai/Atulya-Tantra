@@ -415,10 +415,16 @@ class ProviderRouter(IntelligenceProvider):
     def is_available(self) -> bool:
         return True
         
-    async def chat(self, prompt: str, system_prompt: str = "") -> str:
+    async def chat(self, prompt: str, system_prompt: str = "", preferred_provider: str = "") -> str:
         """Route request through priority chain and failover automatically."""
         attempted = []
-        for provider in self.providers:
+        providers = self.providers
+        preferred = (preferred_provider or "").strip().lower()
+        if preferred and preferred not in {"auto", "latest"}:
+            preferred_matches = [p for p in providers if preferred in p.name().lower()]
+            providers = preferred_matches + [p for p in providers if p not in preferred_matches]
+
+        for provider in providers:
             if provider.is_available():
                 try:
                     logger.info(f"Atulya OS routing request to provider: {provider.name()}")

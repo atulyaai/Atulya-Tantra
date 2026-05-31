@@ -95,6 +95,7 @@ def test_telegram_webhook_routes_message():
         async def ask(self, prompt, history=None):
             class Response:
                 text = f"reply:{prompt}"
+                provider = "fake"
             return Response()
 
     async def run():

@@ -118,16 +118,23 @@ class DeviceController:
 
     async def _send_bluetooth(self, device: Device, command: str, params: dict | None) -> dict[str, Any]:
         """Send Bluetooth command."""
-        try:
+        import asyncio
+
+        def _bluetooth_io():
             import bluetooth
-            # Connect and send
             sock = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
-            sock.connect((device.address, device.port or 1))
-            sock.send(json.dumps({"command": command, "params": params}))
-            response = sock.recv(1024)
-            sock.close()
+            try:
+                sock.connect((device.address, device.port or 1))
+                sock.send(json.dumps({"command": command, "params": params}))
+                response = sock.recv(1024)
+                return response.decode()
+            finally:
+                sock.close()
+
+        try:
+            response = await asyncio.to_thread(_bluetooth_io)
             device.last_seen = time.time()
-            return {"success": True, "protocol": "bluetooth", "response": response.decode()}
+            return {"success": True, "protocol": "bluetooth", "response": response}
         except ImportError:
             return {"success": True, "protocol": "bluetooth", "note": "pybluez not installed, simulated"}
 

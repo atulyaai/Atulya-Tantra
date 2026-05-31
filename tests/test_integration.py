@@ -379,11 +379,8 @@ class TestSSRFProtectionIntegration:
         s = SSRFProtection()
         # example.com resolves to public IP, but DNS lookup may fail in tests
         # So we just test that the method doesn't crash
-        try:
-            result = s.check_url("https://example.com")
-            assert isinstance(result, bool)
-        except Exception:
-            pass  # DNS resolution may fail in test env
+        result = s.check_url("https://example.com")
+        assert isinstance(result, bool)
 
 
 class TestPromptInjectionGuard:

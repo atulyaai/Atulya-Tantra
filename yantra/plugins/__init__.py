@@ -89,7 +89,7 @@ class PluginRegistry:
             result["warnings"].append("Plugin file not found")
             return result
         content = plugin_path.read_text()
-        dangerous_patterns = ["os.system(", "subprocess.call(", "__import__('os'", "eval(", "exec("]
+        dangerous_patterns = ["os.system(", "subprocess.call(", "__import__('os'", "eval(", "exec(", "getattr(", "__import__(", "compile(", "execfile(", "subprocess", "popen(", "os.popen(", "shell=True"]
         for pattern in dangerous_patterns:
             if pattern in content:
                 result["warnings"].append(f"Found dangerous pattern: {pattern}")

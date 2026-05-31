@@ -1,6 +1,7 @@
 ﻿"""Subconscious provider for background processing."""
 from __future__ import annotations
 
+import asyncio
 import json
 import sqlite3
 from pathlib import Path
@@ -20,51 +21,67 @@ class SubconsciousProvider(MemoryProvider):
             self._conn.execute("PRAGMA journal_mode=WAL")
         return self._conn
 
+    def __del__(self):
+        try:
+            if self._conn:
+                self._conn.close()
+                self._conn = None
+        except Exception:
+            pass
+
     async def initialize(self):
-        conn = self._get_conn()
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS decisions (
-                id TEXT PRIMARY KEY, content TEXT, metadata TEXT,
-                tags TEXT, created_at REAL, outcome TEXT
-            )
-        """)
-        conn.commit()
+        def _do():
+            conn = self._get_conn()
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS decisions (
+                    id TEXT PRIMARY KEY, content TEXT, metadata TEXT,
+                    tags TEXT, created_at REAL, outcome TEXT
+                )
+            """)
+            conn.commit()
+        await asyncio.to_thread(_do)
 
     async def store(self, entry: MemoryEntry) -> str:
-        conn = self._get_conn()
-        conn.execute(
-            "INSERT OR REPLACE INTO decisions (id, content, metadata, tags, created_at, outcome) VALUES (?, ?, ?, ?, ?, ?)",
-            (entry.id, entry.content, json.dumps(entry.metadata), json.dumps(entry.tags),
-             entry.created_at, entry.metadata.get("outcome", "pending")),
-        )
-        conn.commit()
-        return entry.id
+        def _do():
+            conn = self._get_conn()
+            conn.execute(
+                "INSERT OR REPLACE INTO decisions (id, content, metadata, tags, created_at, outcome) VALUES (?, ?, ?, ?, ?, ?)",
+                (entry.id, entry.content, json.dumps(entry.metadata), json.dumps(entry.tags),
+                 entry.created_at, entry.metadata.get("outcome", "pending")),
+            )
+            conn.commit()
+            return entry.id
+        return await asyncio.to_thread(_do)
 
     async def search(self, query: str, limit: int = 10) -> list[MemoryEntry]:
-        conn = self._get_conn()
-        rows = conn.execute(
-            "SELECT id, content, metadata, tags, created_at FROM decisions WHERE content LIKE ? LIMIT ?",
-            (f"%{query}%", limit),
-        ).fetchall()
-        return [
-            MemoryEntry(id=r[0], provider="subconscious", content=r[1],
-                       metadata=json.loads(r[2]) if r[2] else {},
-                       tags=json.loads(r[3]) if r[3] else [], created_at=r[4])
-            for r in rows
-        ]
+        def _do():
+            conn = self._get_conn()
+            rows = conn.execute(
+                "SELECT id, content, metadata, tags, created_at FROM decisions WHERE content LIKE ? LIMIT ?",
+                (f"%{query}%", limit),
+            ).fetchall()
+            return [
+                MemoryEntry(id=r[0], provider="subconscious", content=r[1],
+                           metadata=json.loads(r[2]) if r[2] else {},
+                           tags=json.loads(r[3]) if r[3] else [], created_at=r[4])
+                for r in rows
+            ]
+        return await asyncio.to_thread(_do)
 
     async def get_recent(self, limit: int = 10) -> list[MemoryEntry]:
-        conn = self._get_conn()
-        rows = conn.execute(
-            "SELECT id, content, metadata, tags, created_at FROM decisions ORDER BY created_at DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
-        return [
-            MemoryEntry(id=r[0], provider="subconscious", content=r[1],
-                       metadata=json.loads(r[2]) if r[2] else {},
-                       tags=json.loads(r[3]) if r[3] else [], created_at=r[4])
-            for r in rows
-        ]
+        def _do():
+            conn = self._get_conn()
+            rows = conn.execute(
+                "SELECT id, content, metadata, tags, created_at FROM decisions ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return [
+                MemoryEntry(id=r[0], provider="subconscious", content=r[1],
+                           metadata=json.loads(r[2]) if r[2] else {},
+                           tags=json.loads(r[3]) if r[3] else [], created_at=r[4])
+                for r in rows
+            ]
+        return await asyncio.to_thread(_do)
 
     async def log_decision(self, decision_id: str, content: str, outcome: str = "success"):
         entry = MemoryEntry(id=decision_id, provider="subconscious", content=content,
@@ -72,9 +89,11 @@ class SubconsciousProvider(MemoryProvider):
         await self.store(entry)
 
     async def compact(self):
-        conn = self._get_conn()
-        conn.execute("VACUUM")
-        conn.commit()
+        def _do():
+            conn = self._get_conn()
+            conn.execute("VACUUM")
+            conn.commit()
+        await asyncio.to_thread(_do)
 
     async def close(self):
         if self._conn:

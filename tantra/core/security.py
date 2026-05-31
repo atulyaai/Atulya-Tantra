@@ -7,6 +7,7 @@ import ipaddress
 import os
 import re
 import time
+import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -72,7 +73,7 @@ class ApprovalSystem:
 
     def request_approval(self, action: str, user: str = "") -> ApprovalRequest:
         req = ApprovalRequest(
-            id=str(int(time.time())),
+            id=uuid.uuid4().hex[:12],
             action=action,
             risk=self.assess_risk(action),
             requested_by=user,

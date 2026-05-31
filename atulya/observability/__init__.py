@@ -1,4 +1,6 @@
 """Observability system - usage tracking, metrics, traces, error tracking."""
+# NOTE: All observability data is intentionally kept in-memory only (no disk persistence).
+# This is by design — lightweight telemetry without storage overhead.
 from __future__ import annotations
 
 import time

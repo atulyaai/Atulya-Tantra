@@ -80,6 +80,11 @@ class TextToSpeech:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self._history: list[TTSResult] = []
 
+    @staticmethod
+    def _edge_rate(speed: float) -> str:
+        percent = int(round((float(speed) - 1.0) * 100))
+        return f"{percent:+d}%"
+
     async def synthesize(
         self, text: str, voice: str = "en_male", speed: float = 1.0,
         format: AudioFormat = AudioFormat.MP3, save: bool = True,
@@ -89,7 +94,7 @@ class TextToSpeech:
             import edge_tts
             voice_config = self.VOICES.get(voice, self.VOICES["en_male"])
             tts_voice = voice_config["voice"]
-            rate = f"{int((speed - 1) * 100)}%"
+            rate = self._edge_rate(speed)
 
             communicate = edge_tts.Communicate(text, tts_voice, rate=rate)
             audio_bytes = b""
@@ -111,7 +116,7 @@ class TextToSpeech:
         except ImportError:
             # Fallback: return text as-is with metadata
             return TTSResult(
-                id=f"fallback_{hash(text)}", provider="fallback",
+                id=f"fallback_{hashlib.sha256(text.encode()).hexdigest()[:16]}", provider="fallback",
                 metadata={"text": text, "voice": voice, "note": "edge-tts not installed"},
             )
 
@@ -121,7 +126,7 @@ class TextToSpeech:
         """Stream audio chunks."""
         import edge_tts
         voice_config = self.VOICES.get(voice, self.VOICES["en_male"])
-        communicate = edge_tts.Communicate(text, voice_config["voice"], rate=f"{int((speed-1)*100)}%")
+        communicate = edge_tts.Communicate(text, voice_config["voice"], rate=self._edge_rate(speed))
         async for chunk in communicate.stream():
             if chunk["type"] == "audio":
                 yield chunk["data"]
@@ -204,9 +209,15 @@ class SpeechToText:
     def _save_temp_audio(self, audio_base64: str) -> str:
         import tempfile
         audio_bytes = base64.b64decode(audio_base64)
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+        f = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+        try:
             f.write(audio_bytes)
+            f.close()
             return f.name
+        except Exception:
+            import os
+            os.unlink(f.name)
+            raise
 
     def get_stats(self) -> dict[str, Any]:
         return {"total_transcribed": len(self._history)}

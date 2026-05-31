@@ -743,7 +743,6 @@ class TestWebSearch:
         results = ws.search("test query", max_results=3)
         assert isinstance(results, list)
         # Should always return a result list (may be empty if no network)
-        assert len(results) >= 0
 
     def test_search_with_region(self):
         from yantra.capabilities.web_search import MultiProviderSearch

@@ -135,7 +135,7 @@ class Persona:
     @property
     def soul(self) -> SoulConfig:
         data = self._config.get("soul", {})
-        return SoulConfig(name=self.name, **{k: v for k, v in data.items() if k != "name"})
+        return SoulConfig(name=self.name, **{k: v for k, v in data.items() if k in SoulConfig.__dataclass_fields__ and k != "name"})
 
     def privacy_filter(self, role: str = "user") -> list[str]:
         privacy = self._config.get("privacy", {})

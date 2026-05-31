@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -12,6 +13,8 @@ try:
     from croniter import croniter
 except ImportError:  # pragma: no cover - dependency fallback
     croniter = None
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -93,9 +96,12 @@ class CronScheduler:
         for job in self._jobs.values():
             if job.enabled and job.next_run <= now:
                 await self._run_job(job)
+        self._save()
 
     async def _run_job(self, job: CronJob):
         callback = self._callbacks.get(job.callback)
+        if callback is None:
+            logger.warning("No callback registered for %s", job.callback)
         if callback:
             try:
                 if hasattr(callback, "__await__"):
@@ -107,7 +113,6 @@ class CronScheduler:
                 job.next_run = self._next_run(job.schedule)
             except Exception as e:
                 job.metadata["last_error"] = str(e)
-        self._save()
 
     def _parse_schedule(self, schedule: str) -> float:
         """Parse schedule string to interval in seconds."""

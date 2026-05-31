@@ -12,8 +12,7 @@ Atulya Tantra/
 ├── tantra/          LLM Engine: NP-DNA models, training configs, datasets
 ├── yantra/          Automation: MCP tools, agents, capabilities, plugins
 ├── drishti/           User-Facing Interface
-│   ├── frontend/    React + Vite (holographic UI, styles, API client)
-│   ├── backend/     FastAPI server (API routes + serves built frontend)
+│   ├── dashboard/   FastAPI server (API routes + serves built frontend)
 │   ├── public/      PWA assets (service worker, manifest, favicon)
 │   └── dist/        Production build (auto-generated)
 ├── start.bat        Single entry point — runs everything
@@ -47,7 +46,7 @@ start.bat automatically:
 ### Developer Mode (Hot Reload)
 ```bash
 # Terminal 1: Backend
-python -m drishti.backend.app
+python -m drishti.app
 
 # Terminal 2: Frontend with hot reload
 cd drishti
@@ -89,12 +88,13 @@ npm run dev
 Atulya tries providers in order until one responds:
 
 1. **Local NP-DNA** (no key needed, uses local checkpoint)
-2. **OpenAI** (`OPENAI_API_KEY`)
-3. **Gemini** (`GEMINI_API_KEY`)
+2. **Ollama** (local, `ATULYA_OLLAMA_HOST`)
+3. **Groq** (`GROQ_API_KEY`)
 4. **OpenRouter** (`OPENROUTER_API_KEY`)
-5. **NVIDIA NIM** (`NVIDIA_API_KEY`)
-6. **Ollama** (local, `ATULYA_OLLAMA_HOST`)
-7. **OpenCode Zen** (offline fallback, always works)
+5. **Gemini** (`GEMINI_API_KEY`)
+6. **OpenAI** (`OPENAI_API_KEY`)
+7. **NVIDIA NIM** (`NVIDIA_API_KEY`)
+8. **OpenCode Zen** (offline fallback, always works)
 
 ---
 
@@ -115,7 +115,7 @@ Atulya tries providers in order until one responds:
 - PWA (manifest + service worker + Add to Home Screen)
 - Digital Nervous System with stimulated strand animations
 - Memory Galaxy constellation visualization
-- 432 tests passing
+- 413+ tests passing
 
 ### Missing / TODO 🚧
 
@@ -146,7 +146,7 @@ Atulya tries providers in order until one responds:
 
 ```bash
 python -m pytest
-# 432 passed
+# 413+ passed
 ```
 
 ---

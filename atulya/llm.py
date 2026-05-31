@@ -64,6 +64,7 @@ class AtulyaLLM:
         history: list[dict[str, str]] | None = None,
         tools_enabled: bool = True,
         approved_tool_call: dict[str, Any] | None = None,
+        provider: str = "",
     ) -> LLMResponse:
         system_prompt = self._build_system_prompt(history or [])
         working_prompt = self._compose_prompt(prompt, history or [])
@@ -81,17 +82,17 @@ class AtulyaLLM:
             )
 
         for _ in range(self.max_tool_iterations if tools_enabled else 1):
-            text, provider = await self.router.chat(working_prompt, system_prompt)
+            text, provider_name = await self.router.chat(working_prompt, system_prompt, preferred_provider=provider)
             tool_call = self._extract_tool_call(text)
             if not tool_call or not tools_enabled:
-                return LLMResponse(text=self._strip_tool_blocks(text).strip(), provider=provider, tool_steps=steps)
+                return LLMResponse(text=self._strip_tool_blocks(text).strip(), provider=provider_name, tool_steps=steps)
 
             tool_calls = self._normalize_tool_calls(tool_call)
             risky = [call for call in tool_calls if call["tool"] in RISKY_TOOLS]
             if risky:
                 return LLMResponse(
                     text="Approval required before running this tool.",
-                    provider=provider,
+                    provider=provider_name,
                     tool_steps=steps,
                     needs_approval=True,
                     pending_tool=risky[0],
@@ -146,12 +147,14 @@ class AtulyaLLM:
         history: list[dict[str, str]] | None = None,
         tools_enabled: bool = True,
         approved_tool_call: dict[str, Any] | None = None,
+        provider: str = "",
     ) -> AsyncIterator[LLMEvent]:
         response = await self.ask(
             prompt,
             history=history,
             tools_enabled=tools_enabled,
             approved_tool_call=approved_tool_call,
+            provider=provider,
         )
         for step in response.tool_steps:
             yield LLMEvent("tool", metadata=step)

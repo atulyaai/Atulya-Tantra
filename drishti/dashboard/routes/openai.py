@@ -11,7 +11,10 @@ router = APIRouter()
 def _require_bearer(authorization: str | None) -> None:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Unauthorized")
-    token = authorization.split(" ")[1]
+    parts = authorization.split(" ")
+    if len(parts) != 2:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    token = parts[1]
     if token == helpers.ADMIN_TOKEN:
         return
     from drishti.dashboard import users

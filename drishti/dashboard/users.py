@@ -1,7 +1,7 @@
 """User store and session management for Atulya Drishti.
 
 Stores users in a JSON file at {project_root}/config/users.json.
-Passwords are hashed with SHA-256 + per-user salt.
+Passwords are hashed with PBKDF2-HMAC-SHA256 + per-user salt.
 Sessions are in-memory dicts that reset on server restart.
 """
 
@@ -13,6 +13,7 @@ import logging
 import os
 import secrets
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -28,14 +29,13 @@ _lock = threading.Lock()
 _sessions: dict[str, dict[str, Any]] = {}
 
 
-# ─── Password Hashing ────────────────────────────────────────────────
 
 def _hash_password(password: str, salt: str | None = None) -> tuple[str, str]:
-    """Hash a password with SHA-256 + salt. Returns (hash, salt)."""
+    """Hash a password with PBKDF2-HMAC-SHA256 + salt. Returns (hash, salt)."""
     if salt is None:
         salt = secrets.token_hex(16)
-    hashed = hashlib.sha256(f"{salt}:{password}".encode()).hexdigest()
-    return hashed, salt
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100_000)
+    return dk.hex(), salt
 
 
 def _verify_password(password: str, stored_hash: str, salt: str) -> bool:
@@ -44,7 +44,6 @@ def _verify_password(password: str, stored_hash: str, salt: str) -> bool:
     return secrets.compare_digest(computed, stored_hash)
 
 
-# ─── File I/O ─────────────────────────────────────────────────────────
 
 def _read_store() -> dict:
     """Read the users JSON file."""
@@ -69,7 +68,6 @@ def _write_store(data: dict) -> None:
     )
 
 
-# ─── User CRUD ────────────────────────────────────────────────────────
 
 def create_user(
     username: str,
@@ -177,24 +175,24 @@ def user_exists(username: str) -> bool:
     return username.strip().lower() in store["users"]
 
 
-# ─── Session Management ──────────────────────────────────────────────
 
 def create_session(username: str) -> str:
     """Create a session token for a user. Returns the token."""
     username = username.strip().lower()
     with _lock:
         store = _read_store()
-    user = store["users"].get(username)
-    if not user:
-        raise ValueError(f"User {username} not found")
+        user = store["users"].get(username)
+        if not user:
+            raise ValueError(f"User {username} not found")
 
-    token = secrets.token_urlsafe(32)
-    _sessions[token] = {
-        "username": username,
-        "role": user["role"],
-        "display_name": user["display_name"],
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
+        token = secrets.token_urlsafe(32)
+        _sessions[token] = {
+            "username": username,
+            "role": user["role"],
+            "display_name": user["display_name"],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "expires_at": time.time() + 86400,
+        }
     return token
 
 
@@ -202,7 +200,13 @@ def get_session(token: str | None) -> dict | None:
     """Look up a session by token. Returns user info or None."""
     if not token:
         return None
-    return _sessions.get(token)
+    session = _sessions.get(token)
+    if session is None:
+        return None
+    if time.time() > session.get("expires_at", 0):
+        _sessions.pop(token, None)
+        return None
+    return session
 
 
 def kill_session(token: str) -> None:
@@ -218,13 +222,12 @@ def kill_user_sessions(username: str) -> None:
         _sessions.pop(t, None)
 
 
-# ─── Auto-seed ────────────────────────────────────────────────────────
 
 def seed_default_admin() -> None:
     """Create a default admin user if no users exist.
 
     Uses ATULYA_DASHBOARD_TOKEN env var as default admin password,
-    or generates a random one and prints it to console.
+    or generates a random one and writes it to assets/admin_token.txt.
     """
     with _lock:
         store = _read_store()
@@ -236,11 +239,24 @@ def seed_default_admin() -> None:
     password = os.environ.get("ATULYA_DASHBOARD_TOKEN") or secrets.token_urlsafe(12)
     create_user("admin", password, role="admin", display_name="Admin")
 
-    print(f"\n  ┌──────────────────────────────────────────┐")
-    print(f"  │  Default admin account created:           │")
-    print(f"  │                                          │")
-    print(f"  │  Username: admin                         │")
-    print(f"  │  Password: {password:<29s}│")
-    print(f"  │                                          │")
-    print(f"  │  Change this after first login!          │")
-    print(f"  └──────────────────────────────────────────┘\n")
+    if not os.environ.get("ATULYA_DASHBOARD_TOKEN"):
+        token_file = _ROOT / "assets" / "admin_token.txt"
+        token_file.parent.mkdir(parents=True, exist_ok=True)
+        token_file.write_text(password, encoding="utf-8")
+        print("\n  +------------------------------------------+")
+        print("  |  Default admin account created:          |")
+        print("  |                                          |")
+        print("  |  Username: admin                         |")
+        print(f"  |  Password written to: {str(token_file):<15s}|")
+        print("  |                                          |")
+        print("  |  Change this after first login!          |")
+        print("  +------------------------------------------+\n")
+    else:
+        print("\n  +------------------------------------------+")
+        print("  |  Default admin account created:          |")
+        print("  |                                          |")
+        print("  |  Username: admin                         |")
+        print("  |  Password: (from env var)                |")
+        print("  |                                          |")
+        print("  |  Change this after first login!          |")
+        print("  +------------------------------------------+\n")

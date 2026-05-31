@@ -850,8 +850,8 @@ def train_npdna(
                 )
                 break
 
-            loss_val = float(ce_loss.detach())
-            balance_loss_val = float(balance_loss.detach())
+            loss_val = ce_loss.detach().item()
+            balance_loss_val = balance_loss.detach().item()
             losses.append(loss_val)
             plasticity.record_loss(loss_val)
 
@@ -895,8 +895,10 @@ def train_npdna(
                             k: (v.clone() if isinstance(v, torch.Tensor) else v)
                             for k, v in state.items()
                         }
+                events = plasticity.check(base_step + step)
+            else:
+                events = []
 
-            events = plasticity.check(base_step + step)
             for e in events:
                 logger.info("âš¡ Plasticity [%s]: %s", e.event_type, e.details)
 
@@ -1084,9 +1086,7 @@ def train_npdna(
                 else:
                     logger.info("Checkpoint saved: %s", ckpt_path)
 
-            for _var in ("input_ids", "labels", "logits", "balance_loss", "ce_loss", "loss"):
-                if _var in locals():
-                    del locals()[_var]
+            input_ids = labels = logits = balance_loss = ce_loss = loss = None
             if step % 50 == 0:
                 gc.collect()
                 if train_device.type == "cuda":

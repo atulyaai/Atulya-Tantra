@@ -115,7 +115,10 @@ class MemoryTree:
         self.close()
 
     def __del__(self):
-        self.close()
+        try:
+            self.close()
+        except (AttributeError, TypeError):
+            pass
 
     def stats(self) -> dict[str, Any]:
         conn = self._get_conn()

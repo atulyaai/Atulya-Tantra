@@ -11,8 +11,6 @@ import os
 
 
 
-app = None
-
 __all__ = ["main"]
 
 

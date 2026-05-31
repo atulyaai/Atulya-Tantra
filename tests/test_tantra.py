@@ -296,7 +296,7 @@ class TestBenchmark:
                 return 0
 
         result = measure_compression(MockModel())
-        assert result["active_ratio"] == float("inf") or result["active_ratio"] > 0
+        assert result["active_ratio"] > 0
 
     def test_measure_memory_structured(self):
         """Verify memory returns dict with expected keys (be careful about psutil)."""
@@ -313,7 +313,7 @@ class TestBenchmark:
             model = MockModel()
 
         import sys
-        if "psutil" in sys.modules or True:
+        if "psutil" in sys.modules:
             try:
                 result = measure_memory(MockCore())
                 assert isinstance(result, dict)
@@ -553,7 +553,7 @@ class TestContextCompressor:
         c = ContextCompressor()
         result = c.compress("hello <script>alert('xss')</script> world")
         # HTML tags are stripped by the html_strip rule
-        assert "<script>" not in result or "<script>" in result
+        assert "<script>" not in result
         # Both content words survive
         assert "hello" in result
         assert "world" in result
@@ -980,13 +980,13 @@ class TestGrammarEngine:
         from tantra.core.grammar import GrammarEngine
         engine = GrammarEngine()
         result = engine.check("à¤¯à¤¹  à¤à¤•  à¤ªà¤°à¥€à¤•à¥à¤·à¤£  à¤¹à¥ˆà¥¤", language="hi")
-        assert len(result.issues) >= 0
+        assert isinstance(result.issues, list)
 
     def test_check_sanskrit(self):
         from tantra.core.grammar import GrammarEngine
         engine = GrammarEngine()
         result = engine.check("à¤¸à¤‚à¤¸à¥à¤•à¥ƒà¤¤  à¤­à¤¾à¤·à¤¾", language="sa")
-        assert len(result.issues) >= 0
+        assert isinstance(result.issues, list)
 
     def test_fix_english(self):
         from tantra.core.grammar import GrammarEngine

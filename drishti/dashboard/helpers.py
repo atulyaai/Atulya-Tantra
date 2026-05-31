@@ -34,10 +34,6 @@ def _require_admin(token: str | None = Header(default=None, alias="X-Atulya-Toke
     return user
 
 
-def _check_request_origin() -> None:
-    return None
-
-
 def _checkpoint_index() -> dict[str, Path]:
     index: dict[str, Path] = {}
     candidates: list[tuple[int, float, Path]] = []
@@ -74,8 +70,11 @@ def _checkpoint_step(name: str, meta: dict) -> int:
 
 def _model_best_loss(meta: dict) -> float:
     losses = meta.get("losses") or []
-    values = [x for x in [meta.get("best_loss"), meta.get("train_best_loss"), min(losses) if losses else None] if x is not None]
-    return float(min(values)) if values else 999.0
+    try:
+        values = [x for x in [meta.get("best_loss"), meta.get("train_best_loss"), min(losses) if losses else None] if x is not None]
+        return float(min(values)) if values else 999.0
+    except (TypeError, ValueError):
+        return 999.0
 
 
 def _model_final_loss(meta: dict) -> float | None:
@@ -115,9 +114,10 @@ def _load_cached_model(model_path: Path):
 def _dataset_index() -> dict[str, Path]:
     if not DATASETS_DIR.exists():
         return {}
-    files = []
-    for pattern in ("*.jsonl", "*.json"):
-        files.extend(DATASETS_DIR.glob(pattern))
+    files = list(DATASETS_DIR.glob("*.jsonl"))
+    identity = DATASETS_DIR / "identity.json"
+    if identity.exists():
+        files.append(identity)
     return {p.name: p for p in sorted(files)}
 
 
@@ -162,13 +162,17 @@ def _dataset_records(path: Path, limit: int = 3) -> tuple[int | None, list[Any]]
 def _dataset_registry() -> list[dict]:
     datasets = []
     for dataset_id, path in _dataset_index().items():
+        try:
+            stat = path.stat()
+        except FileNotFoundError:
+            continue
         count, samples = _dataset_records(path, limit=1)
         datasets.append({
             "id": dataset_id,
             "name": path.stem,
             "path": str(path),
-            "size": path.stat().st_size,
-            "size_label": _file_size_label(path.stat().st_size),
+            "size": stat.st_size,
+            "size_label": _file_size_label(stat.st_size),
             "rows": count,
             "sample": samples[0] if samples else None,
         })

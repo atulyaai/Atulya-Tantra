@@ -106,6 +106,8 @@ def _cache_prompt(prompt: str) -> str:
         if cached is None:
             cache.set(key, prompt)
         return cached or prompt
+    except ImportError:
+        return prompt
     except Exception as exc:
         logger.debug("Prompt cache unavailable: %s", exc)
         return prompt

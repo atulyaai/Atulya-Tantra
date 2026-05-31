@@ -8,7 +8,6 @@ import json
 import logging
 import os
 import sys
-import tempfile
 import threading
 import time
 from pathlib import Path
@@ -24,7 +23,8 @@ FREE_DEFAULTS = {
     "ATULYA_OLLAMA_HOST": "http://localhost:11434",
     "ATULYA_OLLAMA_MODEL": "llama3",
     "ATULYA_GROQ_MODEL": "llama-3.3-70b-versatile",
-    "ATULYA_OPENROUTER_MODEL": "google/gemini-2.5-flash",
+    "ATULYA_OPENROUTER_MODEL": "openrouter/free",
+    "ATULYA_PREFER_TANTRA": "0",
     "ATULYA_GEMINI_MODEL": "gemini-1.5-flash",
     "ATULYA_TELEGRAM_ALLOWLIST": "",
 }
@@ -147,12 +147,19 @@ def _print_table(headers: list[str], rows: Iterable[Iterable[object]]) -> None:
     widths = [len(header) for header in headers]
     for row in materialized:
         for idx, cell in enumerate(row):
-            widths[idx] = max(widths[idx], len(cell))
+            if idx < len(widths):
+                widths[idx] = max(widths[idx], len(cell))
+            else:
+                widths.append(len(cell))
     line = "  " + "  ".join("-" * width for width in widths)
     print("  " + "  ".join(header.ljust(widths[idx]) for idx, header in enumerate(headers)))
     print(line)
     for row in materialized:
-        print("  " + "  ".join(cell.ljust(widths[idx]) for idx, cell in enumerate(row)))
+        cells = []
+        for idx, cell in enumerate(row):
+            w = widths[idx] if idx < len(widths) else len(cell)
+            cells.append(cell.ljust(w))
+        print("  " + "  ".join(cells))
     print()
 
 
@@ -160,7 +167,7 @@ def _session_dir() -> Path:
     configured = os.environ.get("ATULYA_CLI_SESSION_DIR") or os.environ.get("ATULYA_DATA_DIR")
     if configured:
         return Path(configured) / "sessions"
-    return Path(tempfile.gettempdir()) / "atulya" / "sessions"
+    return Path(os.environ.get("TEMP", os.environ.get("TMP", str(Path.home())))) / "atulya" / "sessions"
 
 
 def _safe_session_name(name: str) -> str:

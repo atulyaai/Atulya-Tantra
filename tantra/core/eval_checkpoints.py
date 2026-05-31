@@ -332,6 +332,7 @@ if __name__ == "__main__":
     for cp in checkpoints_to_run:
         label = cp.name
         print(f"\n[{label}] Loading checkpoint...", flush=True)
+        core = None
         try:
             core = NpDnaCore.load(str(cp))
             core.model.to(DEVICE)
@@ -345,7 +346,8 @@ if __name__ == "__main__":
             import traceback
             traceback.print_exc()
         finally:
-            del core
+            if core is not None:
+                del core
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
 

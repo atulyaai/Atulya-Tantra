@@ -95,6 +95,7 @@ class MemoryOrchestrator:
         return results[:limit]
 
     async def get_context(self) -> ContextWindow:
+        self._context = ContextWindow()
         for name, p in self.providers.items():
             recent = await p.get_recent(limit=5)
             for entry in recent:

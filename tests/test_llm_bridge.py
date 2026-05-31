@@ -155,6 +155,7 @@ def test_telegram_ask_routes_to_llm():
         async def ask(self, prompt, history=None):
             class Response:
                 text = f"reply:{prompt}"
+                provider = "fake"
             return Response()
 
     async def run():
@@ -188,6 +189,7 @@ def test_telegram_preserves_sender_history():
 
             class Response:
                 text = f"reply:{prompt}"
+                provider = "fake"
             return Response()
 
     async def run():
@@ -205,5 +207,34 @@ def test_telegram_preserves_sender_history():
             {"role": "user", "content": "first"},
             {"role": "assistant", "content": "reply:first"},
         ]
+
+    asyncio.run(run())
+
+
+def test_telegram_can_show_response_provider():
+    from yantra.channels import ChannelMessage, TelegramChannel
+
+    class FakeLLM:
+        async def ask(self, prompt, history=None):
+            class Response:
+                text = f"reply:{prompt}"
+                provider = "Tantra (Local NP-DNA)"
+            return Response()
+
+    async def run():
+        channel = TelegramChannel()
+        await channel.connect({"allowlist": "123", "chat_id": "1", "bot_token": "token", "show_provider": True})
+        sent = []
+
+        async def fake_send(message, chat_id="", **kwargs):
+            sent.append(message)
+            return True
+
+        channel.send = fake_send
+        await channel.handle_message(
+            ChannelMessage("1", "telegram", "123", "/ask hi", metadata={"chat_id": "1"}),
+            llm=FakeLLM(),
+        )
+        assert sent == ["reply:hi\n\nvia Tantra (Local NP-DNA)"]
 
     asyncio.run(run())

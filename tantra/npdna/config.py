@@ -6,6 +6,7 @@ each category is one layer in the stack with N strands that auto-specialize.
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass, field
 
 
@@ -69,9 +70,10 @@ class LayerSpec:
         return self.num_strands
 
     def make_mesh_config(self, hidden_size: int, state_size: int) -> MeshConfig:
-        self.strand.hidden_size = hidden_size
-        self.strand.state_size = state_size
-        return MeshConfig(num_strands=self.total_strands, top_k=self.top_k, strand=self.strand)
+        strand_copy = deepcopy(self.strand)
+        strand_copy.hidden_size = hidden_size
+        strand_copy.state_size = state_size
+        return MeshConfig(num_strands=self.total_strands, top_k=self.top_k, strand=strand_copy)
 
     def is_dense(self) -> bool:
         return self.dense

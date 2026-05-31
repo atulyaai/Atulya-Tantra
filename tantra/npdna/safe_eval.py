@@ -35,8 +35,6 @@ _UNARY_OPS: dict[type[ast.unaryop], Callable[[Any], Any]] = {
 def _safe_pow(base: Any, exp: Any, mod: Any = None) -> Any:
     if not isinstance(exp, (int, float)):
         raise SafeExpressionError("exponent must be a number")
-    if abs(exp) > 12:
-        raise SafeExpressionError("exponent is too large")
     if mod is not None:
         return pow(base, exp, mod)
     return pow(base, exp)

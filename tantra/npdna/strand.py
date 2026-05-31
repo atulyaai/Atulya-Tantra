@@ -50,14 +50,30 @@ class Strand(nn.Module):
         # Usage tracking for Plasticity Engine
         self.usage_count: int = 0
 
-    def forward(self, x: Tensor, weights: dict[str, tuple[Tensor, Tensor]] | None = None) -> Tensor:
-        """Process sequence causally.
+    def reset_usage(self):
+        self.usage_count = 0
+
+    def forward(
+        self,
+        x: Tensor,
+        weights: dict[str, tuple[Tensor, Tensor]] | None = None,
+        init_state: Tensor | None = None,
+        return_final_state: bool = False,
+    ) -> Tensor | tuple[Tensor, Tensor]:
+        """Process sequence causally with vectorized input projections.
+
+        Optimized: pre-computes all input projections at once, then only
+        loops for the sequential state update. Reduces matmuls from 3T to 3.
 
         Args:
             x: Input tensor (batch, seq_len, hidden_size).
+            weights: Pre-generated weights (from Genome cache).
+            init_state: Initial recurrent state (B, S) for state caching.
+            return_final_state: If True, also return final state for caching.
 
         Returns:
-            Output tensor (batch, seq_len, hidden_size).
+            output: (batch, seq_len, hidden_size)
+            final_state: (batch, state_size) — only if return_final_state=True
         """
         B, T, H = x.shape
         S = self.config.state_size
@@ -73,24 +89,30 @@ class Strand(nn.Module):
         W_rec, b_rec = weights["recurrent"]       # (S, S), (S,)
         W_out, b_out = weights["output"]           # (S, H), (H,)
 
-        # Causal state-space recurrence
-        state = torch.zeros(B, S, device=device, dtype=x.dtype)
+        # ── VECTORIZED: pre-compute all input projections at once ──
+        # Instead of T separate matmuls, do 2 big ones:
+        gate_input = x @ W_gate + b_gate    # (B, T, S) — all timesteps at once
+        state_input = x @ W_state + b_state  # (B, T, S)
+
+        # ── SEQUENTIAL: state update (unavoidable — uses previous state) ──
+        state = init_state if init_state is not None else torch.zeros(B, S, device=device, dtype=x.dtype)
         outputs = []
 
         for t in range(T):
-            x_t = x[:, t, :]  # (B, H)
-
-            # Gate: how much to remember vs reset
-            gate = torch.sigmoid(x_t @ W_gate + state @ W_rec + b_gate + b_rec)
-
-            # State update: blend old state with new input
-            candidate = torch.tanh(x_t @ W_state + b_state)
+            # Now each loop iteration is 3 cheap ops instead of 3 matmuls:
+            rec = state @ W_rec + b_rec          # (B, S)
+            gate = torch.sigmoid(gate_input[:, t] + rec)  # (B, S)
+            candidate = torch.tanh(state_input[:, t])      # (B, S) — no matmul!
             state = gate * state + (1.0 - gate) * candidate
+            outputs.append(state)
 
-            # Output: project state back to hidden dim
-            y_t = state @ W_out + b_out  # (B, H)
-            outputs.append(y_t)
+        # Stack states, then single big output projection:
+        all_states = torch.stack(outputs, dim=1)  # (B, T, S)
+        out = all_states @ W_out + b_out           # (B, T, H) — ONE matmul for all T
 
         self.usage_count += B * T
-        return torch.stack(outputs, dim=1)  # (B, T, H)
+
+        if return_final_state:
+            return out, state
+        return out
 

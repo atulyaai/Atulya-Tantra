@@ -39,10 +39,23 @@ def test_tantra_benchmark_gate_accepts_thresholds(tmp_path, monkeypatch):
     assert _benchmark_allows_tantra(tmp_path) is True
 
 
-def test_provider_router_keeps_tantra_behind_free_api_options():
+def test_provider_router_keeps_gemini_as_rare_fallback(monkeypatch):
     from atulya.intelligence import GeminiProvider, GroqProvider, OpenRouterProvider, ProviderRouter, TantraProvider
 
+    monkeypatch.delenv("ATULYA_PREFER_TANTRA", raising=False)
     providers = ProviderRouter().providers
     tantra_index = next(i for i, provider in enumerate(providers) if isinstance(provider, TantraProvider))
-    for provider_type in (GroqProvider, OpenRouterProvider, GeminiProvider):
+    for provider_type in (GroqProvider, OpenRouterProvider):
         assert next(i for i, provider in enumerate(providers) if isinstance(provider, provider_type)) < tantra_index
+    gemini_index = next(i for i, provider in enumerate(providers) if isinstance(provider, GeminiProvider))
+    assert tantra_index < gemini_index
+
+
+def test_provider_router_can_prefer_tantra_for_local_tests(monkeypatch):
+    from atulya.intelligence import OpenRouterProvider, ProviderRouter, TantraProvider
+
+    monkeypatch.setenv("ATULYA_PREFER_TANTRA", "1")
+    providers = ProviderRouter().providers
+    tantra_index = next(i for i, provider in enumerate(providers) if isinstance(provider, TantraProvider))
+    openrouter_index = next(i for i, provider in enumerate(providers) if isinstance(provider, OpenRouterProvider))
+    assert tantra_index < openrouter_index

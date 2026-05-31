@@ -10,6 +10,7 @@ from fastapi import APIRouter, Header, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse, JSONResponse
 
 from atulya.config import get_config
+from drishti.dashboard import chat_history
 from drishti.dashboard.helpers import _checkpoint_index, _load_cached_model, _require_auth
 from yantra.capabilities.voice_pipeline import VoicePipeline, TextToSpeech, SpeechToText
 
@@ -122,7 +123,7 @@ async def api_voice_chat(
     token: str | None = Header(default=None, alias="X-Atulya-Token")
 ):
     """Full voice chat round-trip using the Atulya Pluggable Provider Router."""
-    _require_auth(token)
+    user = _require_auth(token)
     prompt = str(body.get("prompt") or "").strip()
     if not prompt:
         raise HTTPException(status_code=400, detail="Prompt is required")
@@ -143,7 +144,12 @@ async def api_voice_chat(
     provider_name = "Atulya Fallback"
     try:
         from atulya.llm import get_default_llm
-        response = await get_default_llm().ask(prompt, tools_enabled=True)
+        response = await get_default_llm().ask(
+            prompt,
+            history=body.get("history") or [],
+            tools_enabled=True,
+            provider=str(body.get("provider") or body.get("model_id") or ""),
+        )
         response_text, provider_name = response.text, response.provider
     except Exception as exc:
         logger.error(f"Intelligence router failure: {exc}")
@@ -154,6 +160,7 @@ async def api_voice_chat(
     # 3. Synthesize generated text into premium audio
     try:
         tts_result = await voice_pipeline.tts.synthesize(text=response_text, voice=voice, save=True)
+        chat_history.append_exchange(user, prompt, response_text, provider=provider_name, surface="live")
         return {
             "prompt": prompt,
             "response_text": response_text,
@@ -164,6 +171,7 @@ async def api_voice_chat(
         }
     except Exception as e:
         logger.error(f"Voice chat TTS synthesis failed: {e}")
+        chat_history.append_exchange(user, prompt, response_text, provider=provider_name, surface="live")
         return {
             "prompt": prompt,
             "response_text": response_text,

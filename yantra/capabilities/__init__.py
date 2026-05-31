@@ -110,12 +110,14 @@ class FileSearchTool(Tool):
 class GrepTool(Tool):
     name = "grep"
     description = "Search file contents with regex"
-    async def execute(self, pattern: str, path: str = ".", **kwargs: Any) -> ToolResult:
+    async def execute(self, pattern: str, path: str = ".", max_file_size: int = 1_048_576, **kwargs: Any) -> ToolResult:
         try:
             results = []
             for f in Path(path).rglob("*"):
                 if f.is_file():
                     try:
+                        if f.stat().st_size > max_file_size:
+                            continue
                         content = f.read_text()
                         if re.search(pattern, content):
                             results.append(str(f))
@@ -134,7 +136,7 @@ class ExecTool(Tool):
             return ToolResult(success=False, error="Execution requires allow_exec=True and RiskLevel.CRITICAL approval")
         from tantra.core.security import ApprovalSystem, RiskLevel
         approval = ApprovalSystem()
-        if not approval.requires_approval(command, level=RiskLevel.CRITICAL):
+        if approval.requires_approval(command, level=RiskLevel.CRITICAL):
             return ToolResult(success=False, error="Command rejected by approval system")
         allowed = allow_list or os.environ.get("ATULYA_EXEC_ALLOWLIST", "").split(",")
         allowed = [item.strip() for item in allowed if item.strip()]

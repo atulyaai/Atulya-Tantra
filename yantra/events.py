@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -31,9 +34,12 @@ class EventBus:
         self._history.append(event)
         handlers = [*self._subscribers.get(event_type, []), *self._subscribers.get("*", [])]
         for handler in handlers:
-            result = handler(event)
-            if asyncio.iscoroutine(result):
-                await result
+            try:
+                result = handler(event)
+                if asyncio.iscoroutine(result):
+                    await result
+            except Exception as e:
+                logger.warning("Handler %s failed for event %s: %s", handler, event_type, e)
         return event
 
     def history(self, limit: int = 100) -> list[Event]:

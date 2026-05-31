@@ -110,7 +110,10 @@ class HeartbeatSystem:
             pending = 0
             if kanban_dir.exists():
                 for f in kanban_dir.glob("*.json"):
-                    data = json.loads(f.read_text())
+                    try:
+                        data = json.loads(f.read_text(encoding="utf-8"))
+                    except (OSError, json.JSONDecodeError):
+                        continue
                     for task in data.get("tasks", {}).values():
                         if task.get("status") in ["todo", "in_progress"]:
                             pending += 1
@@ -146,10 +149,10 @@ class HeartbeatSystem:
         status_file.write_text(json.dumps({
             "last_check": time.time(),
             "checks": [{"name": c.name, "status": c.status, "message": c.message} for c in self._checks],
-        }, indent=2))
+        }, indent=2), encoding="utf-8")
 
     def get_status(self) -> dict[str, Any]:
         status_file = self.data_dir / "heartbeat_status.json"
         if status_file.exists():
-            return json.loads(status_file.read_text())
+            return json.loads(status_file.read_text(encoding="utf-8"))
         return {"last_check": 0, "checks": []}

@@ -39,6 +39,53 @@ def _write_pid(pid: int) -> None:
     PID_FILE.write_text(str(pid), encoding="utf-8")
 
 
+def _write_identity_dataset(path: Path) -> Path:
+    from atulya.identity import Identity
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        for record in Identity().format_for_training():
+            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+    return path
+
+
+def _materialize_all_datasets(datasets: dict[str, Path]) -> Path:
+    all_datasets_file = OUTPUTS_DIR / "dashboard_all_datasets.jsonl"
+    identity_dataset_file = OUTPUTS_DIR / "dashboard_identity_dataset.jsonl"
+    sources = [path for path in datasets.values() if path.suffix.lower() == ".jsonl"]
+    if not sources:
+        return _write_identity_dataset(identity_dataset_file)
+
+    all_datasets_file.parent.mkdir(parents=True, exist_ok=True)
+    rows_written = 0
+    with all_datasets_file.open("w", encoding="utf-8") as output:
+        for source in sources:
+            with source.open(encoding="utf-8", errors="replace") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        record = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    output.write(json.dumps(record, ensure_ascii=False) + "\n")
+                    rows_written += 1
+    if rows_written == 0:
+        return _write_identity_dataset(identity_dataset_file)
+    return all_datasets_file
+
+
+def _resolve_training_data_path(data_id: str, datasets: dict[str, Path]) -> Path | None:
+    if data_id == "all":
+        return _materialize_all_datasets(datasets)
+
+    data_path = datasets.get(data_id)
+    if data_path and data_path.suffix.lower() == ".json":
+        return _write_identity_dataset(OUTPUTS_DIR / "dashboard_identity_dataset.jsonl")
+    return data_path
+
+
 @router.get("/api/training-metrics")
 def api_training_metrics(_admin: str | None = Header(default=None, alias="X-Atulya-Token")):
     _require_admin(_admin)
@@ -99,12 +146,11 @@ def api_train_start(body: dict, _admin: str | None = Header(default=None, alias=
 
     datasets = _dataset_index()
     data_id = str(body.get("data_id") or body.get("dataset") or "all")
-    if data_id == "all":
-        data_path = datasets.get("identity.json") or next(iter(datasets.values()), None)
-    else:
-        data_path = datasets.get(data_id)
+    data_path = _resolve_training_data_path(data_id, datasets)
     if data_path is None:
         return {"error": "No dataset found in tantra/training/datasets"}
+    if not data_path.exists():
+        return {"error": f"Dataset file not found: {data_path}"}
 
     cmd = [
         _python_executable(),
@@ -160,5 +206,8 @@ def api_train_stop(_admin: str | None = Header(default=None, alias="X-Atulya-Tok
     if os.name == "nt":
         subprocess.call(["taskkill", "/PID", str(pid), "/T", "/F"])
     else:
-        os.kill(pid, signal.SIGTERM)
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
     return {"ok": True, "running": False, "stopped_pid": pid}

@@ -137,9 +137,8 @@ class NeuralMesh(nn.Module):
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
         """Route tokens to top-k Strands and combine outputs.
 
-        Uses dense weighted summation (all N strands process all tokens,
-        then outputs are masked via router weights) to avoid PyTorch
-        autograd issues with dynamic gather/scatter of variable-size batches.
+        SPARSE execution: only runs the top-k selected strands per token,
+        NOT all N strands. This gives N/k × compute savings.
 
         Args:
             x: Input (batch, seq_len, hidden_size).
@@ -151,7 +150,7 @@ class NeuralMesh(nn.Module):
         N = self.config.num_strands
         K = max(1, min(self.config.top_k, N))
 
-        # Compute routing scores
+        # Compute routing scores (cheap: just a Linear)
         scores = self.router(x)  # (B, T, N)
         top_weights, top_indices = torch.topk(scores, K, dim=-1)  # (B, T, K)
 
@@ -159,30 +158,56 @@ class NeuralMesh(nn.Module):
         self._last_top_indices = top_indices.detach()
         self._last_top_weights = top_weights.detach()
 
-        # Softmax over top-k weights only
+        # Normalize weights
         top_weights = top_weights.softmax(dim=-1)  # (B, T, K)
 
-        # All strands process input (dense), then mask
-        stacked = torch.stack([s(x) for s in self.strands], dim=-2)  # (B, T, N, H)
+        # ── SPARSE: only run the top-K strands that are actually selected ──
+        # Collect unique selected strand indices across the whole batch
+        unique_selected = top_indices.reshape(-1).unique()  # at most K*B*T unique, often K*2
 
-        # Build one-hot mask from top_indices
-        mask = torch.zeros(B, T, N, 1, device=x.device, dtype=stacked.dtype)
-        mask.scatter_(-2, top_indices.unsqueeze(-1).expand(-1, -1, -1, 1), 1.0)
-        # Weight by router probabilities
-        weights_full = torch.zeros(B, T, N, 1, device=x.device, dtype=stacked.dtype)
-        weights_full.scatter_(-2, top_indices.unsqueeze(-1).expand(-1, -1, -1, 1),
-                              top_weights.unsqueeze(-1))
-        masked = stacked * mask * weights_full  # (B, T, N, H)
-        output = masked.sum(dim=-2)  # (B, T, H)
+        output = torch.zeros_like(x)  # (B, T, H)
 
-        # Track usage
+        for k_idx in range(K):
+            # Which strand is selected at position k for each (b, t)?
+            selected = top_indices[:, :, k_idx]  # (B, T)
+            weight = top_weights[:, :, k_idx].unsqueeze(-1)  # (B, T, 1)
+
+            # Group (b, t) positions by which strand they selected
+            # This avoids running the same strand multiple times
+            for strand_idx in unique_selected:
+                strand_idx = int(strand_idx)
+                if strand_idx >= N:
+                    continue
+
+                # Find all (b, t) positions that selected this strand at position k
+                mask = (selected == strand_idx)  # (B, T) bool
+                if not mask.any():
+                    continue
+
+                # Extract the positions that need this strand
+                b_idx, t_idx = mask.nonzero(as_tuple=True)  # both (M,)
+
+                # Gather those positions: (M, H)
+                x_selected = x[b_idx, t_idx, :]  # (M, H)
+
+                # Run the strand on just those M positions (single "timestep" each)
+                # Shape: (M, 1, H) for the strand's expected input
+                strand_out = self.strands[strand_idx](
+                    x_selected.unsqueeze(1)  # (M, 1, H)
+                ).squeeze(1)  # (M, H)
+
+                # Scatter-add back with weights
+                w = weight[b_idx, t_idx, :]  # (M, 1)
+                output[b_idx, t_idx, :] += strand_out * w
+
+        # Update usage counts
         with torch.no_grad():
-            usage = top_indices.flatten().bincount(minlength=N)
-            self._usage_counts.copy_(self._usage_counts + usage.float())
+            usage = top_indices.reshape(-1).bincount(minlength=N).float()
+            self._usage_counts.add_(usage)
 
-        # Balance loss (auxiliary load balancing)
-        f_i = top_indices.flatten().bincount(minlength=N).float() / max(1, B * T * K)
-        router_probs = scores.softmax(dim=-1).mean(dim=(0, 1))  # (N,)
+        # Balance loss
+        f_i = usage / usage.sum().clamp_min(1.0)
+        router_probs = scores.softmax(dim=-1).mean(dim=(0, 1))
         balance_loss = N * (f_i * router_probs).sum()
         entropy = -(router_probs * router_probs.clamp_min(1e-9).log()).sum()
         entropy = entropy / torch.log(torch.tensor(max(1.0, float(N)), device=x.device))
@@ -208,6 +233,17 @@ class NeuralMesh(nn.Module):
     @property
     def last_router_entropy(self) -> float:
         return float(self._last_router_entropy.item())
+
+    def record_activation_topic(self, topic: str) -> None:
+        """Record which topic activated each strand during generation."""
+        top_idx = self._last_top_indices
+        if top_idx is None:
+            return
+        for strand_idx in top_idx.flatten().tolist():
+            sid = int(strand_idx)
+            if sid not in self.activation_topics:
+                self.activation_topics[sid] = Counter()
+            self.activation_topics[sid][topic] += 1
 
     def reset_usage(self) -> None:
         self._usage_counts.zero_()
@@ -279,9 +315,7 @@ class CategoryMesh(nn.Module):
                     category=cat_name,
                 ))
 
-        self.num_strands = num_strands
-
-        # Usage stats
+        # Running usage stats for Plasticity
         self.register_buffer(
             "_usage_counts",
             torch.zeros(num_strands),
@@ -291,6 +325,7 @@ class CategoryMesh(nn.Module):
         self.register_buffer("_last_router_entropy", torch.tensor(0.0), persistent=False)
         self._last_top_indices = None
         self._last_top_weights = None
+        self.activation_topics: dict[int, Counter[str]] = {}
 
     @property
     def strand_ids(self) -> list[int]:
@@ -535,6 +570,17 @@ class CategoryMesh(nn.Module):
     @property
     def last_router_entropy(self) -> float:
         return float(self._last_router_entropy.item())
+
+    def record_activation_topic(self, topic: str) -> None:
+        """Record which topic activated each strand during generation."""
+        top_idx = self._last_top_indices
+        if top_idx is None:
+            return
+        for strand_idx in top_idx.flatten().tolist():
+            sid = int(strand_idx)
+            if sid not in self.activation_topics:
+                self.activation_topics[sid] = Counter()
+            self.activation_topics[sid][topic] += 1
 
     def reset_usage(self) -> None:
         self._usage_counts.zero_()

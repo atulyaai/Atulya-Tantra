@@ -1,6 +1,7 @@
 """Unified inbound/outbound channel system."""
 from __future__ import annotations
 
+import html
 import json
 import logging
 import os
@@ -171,7 +172,13 @@ class TelegramChannel(ChannelBase):
             return False
         try:
             url = f"https://api.telegram.org/bot{token}/sendPhoto"
-            status, _ = await _post_json(url, {"chat_id": target, "photo": photo_url, "caption": caption})
+            payload: dict[str, Any] = {"chat_id": target, "photo": photo_url, "caption": caption}
+            parse_mode = kwargs.get("parse_mode") or self.config.get("parse_mode")
+            if parse_mode:
+                payload["parse_mode"] = parse_mode
+            if kwargs.get("reply_markup"):
+                payload["reply_markup"] = kwargs["reply_markup"]
+            status, _ = await _post_json(url, payload)
             return status < 400
         except Exception as exc:
             logger.warning("Telegram sendPhoto failed: %s", exc)
@@ -184,7 +191,7 @@ class TelegramChannel(ChannelBase):
         offset = self.config.get("offset", 0)
         try:
             url = f"https://api.telegram.org/bot{token}/getUpdates"
-            status, payload = await _get_json(url, {"offset": offset, "timeout": 0})
+            status, payload = await _get_json(url, {"offset": offset, "timeout": 30})
             if status >= 400:
                 return []
         except Exception as exc:
@@ -214,7 +221,7 @@ class TelegramChannel(ChannelBase):
             allowed = {item.strip() for item in allowlist.split(",") if item.strip()}
         else:
             allowed = {str(item).strip() for item in allowlist if str(item).strip()}
-        return not allowed or str(sender_id) in allowed
+        return allowed and str(sender_id) in allowed
 
     async def handle_message(self, message: ChannelMessage, llm: Any | None = None) -> str:
         text = message.content.strip()
@@ -245,7 +252,11 @@ class TelegramChannel(ChannelBase):
             {"role": "assistant", "content": response.text},
         ])
         del history[:-20]
-        await self.send(response.text[:3900], chat_id, parse_mode=self.config.get("parse_mode", "HTML"))
+        outgoing = html.escape(response.text)
+        show_provider = self.config.get("show_provider") or os.environ.get("ATULYA_TELEGRAM_SHOW_PROVIDER", "").lower() in {"1", "true", "yes"}
+        if show_provider and getattr(response, "provider", ""):
+            outgoing = f"{outgoing}\n\nvia {response.provider}"
+        await self.send(outgoing[:3900], chat_id, parse_mode=self.config.get("parse_mode", "HTML"))
         return "answered"
 
     async def poll_and_reply(self, llm: Any | None = None) -> int:
@@ -312,6 +323,7 @@ class EmailChannel(ChannelBase):
     name = "Email"
 
     async def send(self, message: str, chat_id: str = "", **kwargs: Any) -> bool:
+        import asyncio
         config = self.config
         username = config.get("username", "")
         password = config.get("password", "")
@@ -319,16 +331,20 @@ class EmailChannel(ChannelBase):
         if not all([username, password, to_email]):
             logger.warning("Email not configured")
             return False
-        import smtplib
-        from email.mime.text import MIMEText
-        msg = MIMEText(message)
-        msg["Subject"] = kwargs.get("title") or "Atulya Notification"
-        msg["From"] = username
-        msg["To"] = to_email
-        with smtplib.SMTP(config.get("smtp_host", "smtp.gmail.com"), int(config.get("smtp_port", 587))) as server:
-            server.starttls()
-            server.login(username, password)
-            server.send_message(msg)
+
+        def _send_email():
+            import smtplib
+            from email.mime.text import MIMEText
+            msg = MIMEText(message)
+            msg["Subject"] = kwargs.get("title") or "Atulya Notification"
+            msg["From"] = username
+            msg["To"] = to_email
+            with smtplib.SMTP(config.get("smtp_host", "smtp.gmail.com"), int(config.get("smtp_port", 587))) as server:
+                server.starttls()
+                server.login(username, password)
+                server.send_message(msg)
+
+        await asyncio.to_thread(_send_email)
         return True
 
 
@@ -444,7 +460,7 @@ class ChannelRegistry:
 class NotificationSystem:
     """Notification facade backed by the unified channel registry."""
 
-    def __init__(self, data_dir: str | Path = "assets/notify"):
+    def __init__(self, data_dir: str | Path = "config/channels"):
         self.registry = create_default_registry(data_dir)
         self._notifications: list[Notification] = []
 
