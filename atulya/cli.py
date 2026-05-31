@@ -102,6 +102,7 @@ def main() -> None:
 
     sub.add_parser("providers", help="Show provider priority and availability")
     sub.add_parser("doctor", help="Show provider, tool, and data-dir status")
+    sub.add_parser("readiness", help="Check production deployment readiness")
     sub.add_parser("tools", help="List installed Yantra tools")
 
     setup_p = sub.add_parser("setup", help="Write safe local configuration defaults")
@@ -127,6 +128,8 @@ def main() -> None:
         _cmd_providers()
     elif args.command == "doctor":
         _cmd_doctor()
+    elif args.command == "readiness":
+        _cmd_readiness()
     elif args.command == "tools":
         _cmd_tools()
     elif args.command == "setup":
@@ -392,6 +395,19 @@ def _cmd_doctor() -> None:
     print(f"ATULYA_DATA_DIR: {os.environ.get('ATULYA_DATA_DIR', '(default)')}\n")
     _cmd_providers()
     _cmd_tools()
+
+
+def _cmd_readiness() -> None:
+    from atulya.production_readiness import run_readiness_checks
+
+    report = run_readiness_checks(_ROOT)
+    print(f"Grade: {report['grade']}")
+    print(f"Required checks: {report['passed_required']}/{report['total_required']}\n")
+    rows = [
+        [item["name"], item["status"], "yes" if item["required"] else "no", item["detail"]]
+        for item in report["checks"]
+    ]
+    _print_table(["Check", "Status", "Required", "Detail"], rows)
 
 
 def _cmd_setup(args: argparse.Namespace) -> None:
