@@ -89,10 +89,40 @@ def _check_mcp_config(root: Path) -> ReadinessCheck:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except Exception as exc:
         return ReadinessCheck("MCP config", "fail", f"Invalid MCP config: {exc}")
-    enabled = [item.get("name", "unknown") for item in payload.get("servers", []) if item.get("enabled")]
+    servers = payload.get("servers", [])
+    enabled = [item.get("name", "unknown") for item in servers if item.get("enabled")]
+    oauth_errors = _google_mcp_oauth_errors(servers)
+    if oauth_errors:
+        return ReadinessCheck("MCP config", "fail", "; ".join(oauth_errors))
+    google_servers = {item.get("name") for item in servers}
+    if {"google_drive", "gmail"} & google_servers and not _google_mcp_env_ready():
+        return ReadinessCheck(
+            "MCP config",
+            "warn",
+            "Google/Gmail MCP entries are present; add Drive service-account and Gmail OAuth env before enabling them",
+            required=False,
+        )
     if enabled:
-        return ReadinessCheck("MCP config", "warn", f"Enabled MCP servers need live OAuth/token checks: {', '.join(enabled)}", required=False)
+        return ReadinessCheck("MCP config", "pass", f"Enabled MCP servers have required local credentials: {', '.join(enabled)}")
     return ReadinessCheck("MCP config", "pass", "MCP servers are configured and disabled by default")
+
+
+def _google_mcp_oauth_errors(servers: list[dict[str, Any]]) -> list[str]:
+    enabled = {str(item.get("name")) for item in servers if item.get("enabled")}
+    errors: list[str] = []
+    if "google_drive" in enabled and not os.environ.get("GOOGLE_SERVICE_ACCOUNT_KEY"):
+        errors.append("google_drive enabled but GOOGLE_SERVICE_ACCOUNT_KEY is missing")
+    gmail_required = ("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN")
+    missing_gmail = [key for key in gmail_required if not os.environ.get(key)]
+    if "gmail" in enabled and missing_gmail:
+        errors.append(f"gmail enabled but missing {', '.join(missing_gmail)}")
+    return errors
+
+
+def _google_mcp_env_ready() -> bool:
+    drive_ready = bool(os.environ.get("GOOGLE_SERVICE_ACCOUNT_KEY"))
+    gmail_ready = all(os.environ.get(key) for key in ("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN"))
+    return drive_ready and gmail_ready
 
 
 def _check_tantra_gate(root: Path) -> ReadinessCheck:

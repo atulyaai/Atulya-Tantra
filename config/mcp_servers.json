@@ -30,7 +30,12 @@
       "timeout": 5,
       "transport": "stdio",
       "command": "npx",
-      "args": ["-y", "mcp-google-drive"]
+      "args": ["-y", "mcp-google-drive"],
+      "env": {
+        "MCP_MODE": "stdio",
+        "LOG_LEVEL": "info",
+        "DISABLE_CONSOLE_OUTPUT": "true"
+      }
     },
     {
       "name": "gmail",
@@ -38,7 +43,10 @@
       "timeout": 5,
       "transport": "stdio",
       "command": "npx",
-      "args": ["-y", "mcp-gmail"]
+      "args": ["-y", "mcp-gmail"],
+      "env": {
+        "MCP_MODE": "stdio"
+      }
     },
     {
       "name": "spotify",

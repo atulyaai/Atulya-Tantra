@@ -33,6 +33,10 @@ def test_mcp_config_ships_disabled_by_default():
     assert all("enabled" in server for server in data["servers"])
     assert all("timeout" in server for server in data["servers"])
     assert not any(server["enabled"] for server in data["servers"])
+    by_name = {server["name"]: server for server in data["servers"]}
+    assert by_name["google_drive"]["env"]["MCP_MODE"] == "stdio"
+    assert by_name["google_drive"]["env"]["DISABLE_CONSOLE_OUTPUT"] == "true"
+    assert by_name["gmail"]["env"]["MCP_MODE"] == "stdio"
 
 
 def test_mcp_http_url_is_not_double_suffixed(monkeypatch):
