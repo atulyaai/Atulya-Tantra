@@ -15,17 +15,17 @@ Allowed root support directories:
 Do not add new root directories unless they are documented here and in the
 structure audit. New implementation should go into the owning product package.
 
-## Tantra: Model Core
+## Tantra: Support And Compatibility
 
-Model-owned files live under `tantra/`.
+Support-layer and legacy compatibility files live under `tantra/`. Active custom LLM/model architecture, tokenizer development, training jobs, checkpoints, and model release artifacts belong in the separate model repository.
 
-- `tantra/npdna/`: NP-DNA model, genome, mesh, strand blocks, tokenizer, frozen codec references, cortex, checkpointing, generation, plasticity, and safe evaluation.
-- `tantra/core/`: model-adjacent runtime systems such as task classification, context control, security, encryption, audit logging, and model failover.
-- `tantra/core/eval_checkpoints.py`: checkpoint evaluation utility.
-- `tantra/training/`: training loop, benchmark runner, RAG knowledge map, dataset builders, harvesting, merging, and JSONL utilities.
-- `tantra/training/datasets/`: model/tokenizer identity data and training datasets.
-- `tantra/assets/`: model-adjacent generated support assets such as prompt cache files.
-- `tantra/outputs/`: generated checkpoints, logs, metrics, and benchmark files. Secrets do not belong here.
+- `tantra/core/`: task classification, context control, security, encryption, audit logging, and model/provider failover helpers.
+- `tantra/config/`: support-layer configuration.
+- `tantra/scripts/`: support and compatibility utilities.
+- `tantra/npdna/`: legacy/reference NP-DNA compatibility code retained for older routes, tests, and artifacts.
+- `tantra/training/`: legacy/reference dataset and training utilities retained for compatibility.
+- `tantra/outputs/`: generated local artifacts. Do not treat this as the active model release location.
+- `tantra/README.md`: current boundary for what Tantra owns in this app repo.
 
 ## Drishti: User Interface Surface
 

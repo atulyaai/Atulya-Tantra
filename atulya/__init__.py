@@ -1,3 +1,3 @@
-"""Atulya Tantra — NP-DNA: NeuroPlastic DNA Network."""
+"""Atulya Tantra assistant workspace."""
 
 __version__ = "0.1.0"

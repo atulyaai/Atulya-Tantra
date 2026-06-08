@@ -1,6 +1,8 @@
 # Atulya Tantra
 
-Atulya Tantra is a local-first AI workspace built around **NP-DNA**: a NeuroPlastic DNA Network that keeps a compact genome, generates neural weights on demand, routes tokens through specialist strands, and connects model training, memory, Drishti, and automation in one repo.
+Atulya Tantra is a local-first AI workspace for the Atulya assistant: Drishti WebUI, provider routing, memory, actions, security/context helpers, and dashboard APIs in one repo.
+
+The custom LLM/model work now lives in a separate model repository. This repo can call external/local models through routers and compatibility links, but it is no longer the source of truth for model training, checkpoints, tokenizer development, or custom architecture work.
 
 ![Atulya Tantra architecture](atulya/docs/images/architecture.png)
 
@@ -9,15 +11,17 @@ Atulya Tantra is a local-first AI workspace built around **NP-DNA**: a NeuroPlas
 | Area | Folder | Purpose |
 |---|---|---|
 | Atulya | `atulya/` | Personality, memory, identity, assistant brain, docs, Atulya-owned tests |
-| Tantra | `tantra/` | NP-DNA model package, tokenizer, checkpoints, training, datasets, model tests |
+| Tantra | `tantra/` | Support layer for security, context, classification, compatibility links, and legacy NP-DNA references |
 | Yantra | `yantra/` | Actions, tools, automation, browser/device/camera/voice systems, action tests |
 | Drishti | `drishti/` | Mobile/desktop experience: Live Mode, chat, dashboard, backend APIs, frontend build |
 
-The goal is a local AI system that can train, grow, remember, inspect itself, automate tasks, and expose controls through a dashboard.
+The goal is a local AI system that can remember, inspect itself, route work to the right model/provider, automate tasks, and expose controls through a dashboard.
 
 ![Four pillars](atulya/docs/images/four_pillars.png)
 
-## NP-DNA In One Picture
+## Legacy NP-DNA Reference
+
+The NP-DNA notes below are retained for compatibility and historical context only. Active custom model design, training, tokenizer changes, checkpoints, and release notes belong in the separate LLM/model repository.
 
 ![Animated NP-DNA runtime](atulya/docs/images/npdna_runtime.svg)
 
@@ -61,14 +65,13 @@ Atulya Tantra/
 |-- config/                     # cross-package static configuration
 |-- outputs/                    # generated reports, invoices, benchmark artifacts
 |-- tantra/
-|   |-- npdna/                  # model, genome, mesh, tokenizer, cortex, checkpointing
 |   |-- core/                   # security, context, encryption, task classification
-|   |-- training/               # trainer, benchmark, dataset builders, RAG
-|   |   `-- datasets/           # identity.json and tokenizer.json live here
-|   |-- assets/                 # model-adjacent generated support assets
-|   |-- data/                   # training data examples, health scans
-|   |-- outputs/                # generated model outputs and checkpoints
-|   `-- tests/                  # Tantra model/training tests
+|   |-- config/                 # support-layer configuration
+|   |-- scripts/                # support and compatibility utilities
+|   |-- npdna/                  # legacy/reference model compatibility code
+|   |-- training/               # legacy/reference dataset and training utilities
+|   |-- outputs/                # local generated artifacts, not model-repo source
+|   `-- README.md               # boundary for what Tantra owns in this repo
 |-- drishti/
 |   |-- frontend/src/           # editable React frontend
 |   |-- backend/dashboard/      # FastAPI app, helpers, state, routes
@@ -150,7 +153,7 @@ ATULYA_PORT=8501
 
 # Python path configuration
 ATULYA_BACKEND_PYTHON=\Python311\python.exe
-ATULYA_TRAIN_PYTHON=\Python311\python.exe
+ATULYA_TRAIN_PYTHON=\Python311\python.exe  # legacy compatibility only; active model training is external
 
 # Pluggable cloud/local providers fallback chain
 OPENAI_API_KEY=sk-proj-...
@@ -166,13 +169,14 @@ ATULYA_DASHBOARD_TOKEN=my_secure_session_token
 
 ### Fallback Failover Order
 When you submit a request, the `ProviderRouter` scans the list of configured keys and automatically failovers in this order:
-1. **Tantra (Local NP-DNA)**: Running entirely offline on CPU/GPU.
-2. **OpenAI**: Cloud-based GPT engines.
-3. **Gemini**: Standard Gemini models.
-4. **OpenRouter**: Cloud-based aggregator models.
-5. **NVIDIA NIM**: Pluggable microservice containers.
-6. **Ollama**: Local containerized LLMs.
-7. **OpenCode Zen**: Offline rule-based voice fallback if all endpoints are offline or keys are missing.
+1. **OpenAI**: Cloud-based GPT engines.
+2. **Gemini**: Standard Gemini models.
+3. **OpenRouter**: Cloud-based aggregator models.
+4. **NVIDIA NIM**: Pluggable microservice containers.
+5. **Ollama**: Local containerized LLMs or the separate model repo when exposed through an Ollama-compatible endpoint.
+6. **OpenCode Zen**: Offline rule-based voice fallback if all endpoints are offline or keys are missing.
+
+Local custom models should be integrated through a provider endpoint or adapter. Keep their training and checkpoint lifecycle in the separate model repo.
 
 ---
 
@@ -212,110 +216,16 @@ To talk to Atulya outside your home WiFi network:
 
 ---
 
-## Training
+## Model Repo Boundary
 
-Main trainer:
+Do not add new custom LLM training flows to this repository. Model architecture work, tokenizer changes, training jobs, checkpoints, evaluations, and model release artifacts belong in the separate LLM/model repo.
 
-```powershell
-python -m tantra.training.npdna_train --config atulya_seed --steps 1000 --data tantra\training\datasets\identity.json --device cpu --pack
-```
+Use this repo to connect models to the product:
 
-Train from all JSONL datasets:
-
-```powershell
-python -m tantra.training.npdna_train --config atulya_seed --steps 50000 --data tantra\training\datasets\identity.json --device cpu --pack
-```
-
-Benchmark a checkpoint/config:
-
-```powershell
-python -m tantra.training.benchmark --config atulya_seed --max-samples 64
-```
-
-Evaluate checkpoints:
-
-```powershell
-python -m tantra.core.eval_checkpoints
-```
-
-When `All Datasets` is selected in the Drishti, `Training Steps` means total optimizer steps across the combined dataset stream, not steps per dataset.
-
-## Config Presets
-
-![Scaling comparison](atulya/docs/images/scaling_comparison.png)
-
-| Config | Vocab | Hidden | State | Layers | Mesh |
-|---|---:|---:|---:|---:|---|
-| `atulya_seed` | 4,096 | 64 | 32 | 2 | 4 strands/layer, top-k 3 |
-| `atulya_small` | 4,096 | 64 | 32 | 5 named layers | main/sentiment/bias/security/cortex |
-| `atulya_medium` | 50,000 | 512 | 256 | 6 | 12 strands/layer, top-k 3 |
-| `atulya_large` | 50,000 | 768 | 512 | 5 named layers | main/sentiment/bias/security/cortex |
-
-Inspect presets:
-
-```powershell
-python -m atulya.cli info
-```
-
-Pick a preset automatically by parameter budget:
-
-```python
-from tantra.npdna.config import auto_config
-
-cfg = auto_config(target_params=5_000_000)
-print(cfg.hidden_size, cfg.total_strands)
-```
-
-Legacy names such as `seed`, `nano`, `micro`, `small`, `medium`, `atulya_v1_small`, and `atulya` remain as compatibility aliases for old checkpoints and scripts. New commands should use the four `atulya_*` names.
-
-## Making Layers Unique
-
-The simplest preset repeats the same mesh for every layer. The named Atulya presets use `mesh_specs`, where each layer has its own name, strand count, and `top_k`.
-
-```python
-from tantra.npdna.config import (
-    CodecConfig,
-    CortexConfig,
-    GenomeConfig,
-    LayerSpec,
-    NpDnaConfig,
-)
-
-custom = NpDnaConfig(
-    initial_vocab=8192,
-    hidden_size=128,
-    state_size=64,
-    genome=GenomeConfig(
-        latent_dim=256,
-        rank=24,
-        max_strands=128,
-        encoder_hidden=512,
-    ),
-    mesh_specs=[
-        LayerSpec(name="main", num_strands=16, top_k=3),
-        LayerSpec(name="reasoning", num_strands=12, top_k=3),
-        LayerSpec(name="safety", num_strands=6, top_k=1),
-        LayerSpec(name="memory", num_strands=8, top_k=2),
-        LayerSpec(name="tool_use", num_strands=6, top_k=1),
-    ],
-    cortex=CortexConfig(dim=128, max_entries=100_000, top_k=8),
-    codecs=CodecConfig(
-        audio_codec="frozen://encodec/tokenizer",
-        image_codec="frozen://vqgan/tokenizer",
-    ),
-)
-```
-
-Layer design examples:
-
-| Layer | Good For | Suggested Shape |
-|---|---|---|
-| `main` | general language modeling | many strands, `top_k=3` |
-| `reasoning` | multi-step tasks, code, math | medium strands, `top_k=2` or `3` |
-| `safety` | refusal, secrets, policy checks | fewer strands, `top_k=1` |
-| `memory` / `cortex` | retrieval-heavy tokens | medium strands, `top_k=2` |
-| `tool_use` | command and function planning | fewer strands, `top_k=1` |
-| `sentiment` / `bias` | style and affect control | small strands, `top_k=1` |
+- Add provider keys and endpoint URLs in `.env`.
+- Route chat through `atulya/llm.py` and provider/router adapters.
+- Surface status, links, and diagnostics in Drishti.
+- Keep old NP-DNA utilities only for compatibility with historical dashboards, tests, and artifacts.
 
 ## Drishti Development
 
@@ -341,15 +251,17 @@ Backend entrypoint:
 python -u -m drishti.backend.app
 ```
 
-## Real Checkpoint Example
+## Legacy Checkpoint Reference
 
-The current best local checkpoint is:
+Historical NP-DNA checkpoints may still exist under local `tantra/outputs/` paths for old dashboards and tests. Treat them as legacy/reference artifacts, not the active model source of truth.
+
+One historical local checkpoint path was:
 
 ```text
 tantra/outputs/npdna/versions/2026-05-24_v3_expanded_training
 ```
 
-Its real metadata says:
+Its historical metadata said:
 
 | Field | Value |
 |---|---:|
@@ -374,7 +286,7 @@ Real layer list from `model_index.json`:
 | `layer_cortex.pt` | cortex | 8 | 2 |
 | `layer_main_002.pt` | main | 10 | 3 |
 
-The second `main` layer was not pre-created. It appears in v3 because training recorded this structural event:
+The second `main` layer was not pre-created. It appeared in v3 because the historical training run recorded this structural event:
 
 ```json
 {
@@ -390,11 +302,10 @@ The second `main` layer was not pre-created. It appears in v3 because training r
 flowchart LR
     Browser["Browser / Drishti"] --> Backend["drishti.backend.app"]
     Backend --> App["FastAPI dashboard"]
-    App --> Train["training APIs"]
-    App --> Chat["chat APIs"]
-    App --> Models["model APIs"]
+    App --> Chat["chat/provider APIs"]
+    App --> Models["model status/adapters"]
     App --> Yantra["Yantra MCP + tools"]
-    Train --> Outputs["tantra/outputs/npdna"]
+    Models --> External["external or local model repo endpoint"]
 ```
 
 Important Yantra locations:
@@ -428,7 +339,7 @@ Atulya application memory lives in `atulya/memory/`. Memory is part of the assis
 | `tree.py` | hierarchical memory summaries |
 | `obsidian.py` | markdown vault export |
 
-Identity and prompt behavior are controlled by `atulya/identity.py` and `tantra/training/datasets/identity.json`.
+Identity and prompt behavior are controlled by `atulya/identity.py` and the Atulya memory/persona modules. The old `tantra/training/datasets/identity.json` file is kept only for legacy compatibility.
 
 ## API Example
 
@@ -436,7 +347,7 @@ Token-protected dashboard routes expect `X-Atulya-Token`.
 
 ```powershell
 $token = $env:ATULYA_DASHBOARD_TOKEN
-Invoke-RestMethod http://127.0.0.1:8501/api/training-status -Headers @{"X-Atulya-Token"=$token}
+Invoke-RestMethod http://127.0.0.1:8501/api/system -Headers @{"X-Atulya-Token"=$token}
 ```
 
 Routes implemented by the current backend:
@@ -445,39 +356,22 @@ Routes implemented by the current backend:
 |---|---|---|
 | `/api/dashboard/bootstrap` | GET | combines system stats, configs, datasets, checkpoints, history |
 | `/api/system` | GET | `psutil` CPU/RAM/disk plus Python version |
-| `/api/configs` | GET | `tantra.npdna.config.CONFIGS` preferred `atulya_*` presets |
-| `/api/datasets` | GET | files in `tantra/training/datasets` |
-| `/api/run-history` | GET | checkpoint `metadata.json` files under `tantra/outputs/npdna/versions` |
-| `/api/training-status` | GET | latest `train_status.json`, `train.pid`, and `training.log` tail |
-| `/api/training-metrics` | GET | latest `live_metrics.jsonl` |
-| `/api/train/start` | POST | launches `python -m tantra.training.npdna_train` |
-| `/api/train/stop` | POST | stops the stored training PID |
-| `/api/chat` | POST | blocking local NP-DNA generation |
+| `/api/configs` | GET | legacy NP-DNA config compatibility for older dashboard controls |
+| `/api/datasets` | GET | legacy dataset listing for older dashboard controls |
+| `/api/run-history` | GET | legacy checkpoint metadata when present locally |
+| `/api/training-status` | GET | legacy local training status compatibility |
+| `/api/training-metrics` | GET | legacy local metrics compatibility |
+| `/api/train/start` | POST | legacy compatibility only; active training belongs in the model repo |
+| `/api/train/stop` | POST | legacy compatibility only |
+| `/api/chat` | POST | blocking chat routed through provider/model adapters |
 | `/api/chat/stream` | POST | Server-Sent Events token stream |
-| `/api/plasticity/check` | POST | checkpoint metadata plus layer/parameter/vocab info |
-| `/api/model/status` | GET | whether a checkpoint is already warm in memory |
-| `/api/checkpoints` | GET | available checkpoint list |
-| `/api/cortex/stats` | GET | checkpoint cortex metadata |
-| `/api/cortex/entries` | GET | saved cortex metadata entries when present |
+| `/api/plasticity/check` | POST | legacy checkpoint metadata compatibility |
+| `/api/model/status` | GET | model/provider warm status where available |
+| `/api/checkpoints` | GET | legacy local checkpoint list |
+| `/api/cortex/stats` | GET | legacy cortex metadata compatibility |
+| `/api/cortex/entries` | GET | legacy cortex metadata entries when present |
 | `/api/auth/login` | POST | validates the dashboard token |
 | `/v1/models` | GET | OpenAI-compatible model list |
-
-Start a short training run:
-
-```powershell
-$body = @{
-  config = "atulya_seed"
-  steps = 100
-  device = "cpu"
-  pack = $true
-} | ConvertTo-Json
-
-Invoke-RestMethod http://127.0.0.1:8501/api/train/start `
-  -Method Post `
-  -ContentType "application/json" `
-  -Headers @{"X-Atulya-Token"=$token} `
-  -Body $body
-```
 
 ## Verification
 
@@ -493,4 +387,5 @@ python -m atulya.cli info
 - Do not commit `tantra/outputs/`, generated checkpoints, `__pycache__`, or large local datasets unless intentionally publishing data elsewhere.
 - `drishti/node_modules` can exist locally for development, but should not be treated as source.
 - `assets/` replaces the old root `data/` directory for app config cache (prompt_cache).
-- Training data and generated datasets live in `tantra/data/` or are passed via CLI args.
+- Active LLM training data, checkpoints, and tokenizer artifacts belong in the separate model repo.
+- `tantra/data/`, `tantra/training/`, and `tantra/npdna/` are retained here only for legacy compatibility and historical reference.

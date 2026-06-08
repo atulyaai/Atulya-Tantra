@@ -1,8 +1,9 @@
 """Product alignment audit for Atulya Tantra.
 
 The audit keeps the project honest against the current product direction:
-Atulya as personality/memory, Tantra as optional model core, Yantra as action
-layer, and Drishti as the mobile/desktop live experience.
+Atulya as personality/memory, Tantra as support and compatibility layer,
+Yantra as action layer, Drishti as the mobile/desktop live experience, and
+custom LLM/model work in a separate repository.
 """
 
 from __future__ import annotations
@@ -40,9 +41,9 @@ DEFAULT_TARGETS = (
         weight=2,
     ),
     AlignmentTarget(
-        name="Tantra optional model core",
-        required_terms=("NP-DNA", "training", "tokenizer", "checkpoint", "frozen codecs"),
-        files=("README.md", "tantra/npdna", "tantra/training"),
+        name="Tantra support and model-repo boundary",
+        required_terms=("security", "context", "compatibility", "provider", "separate model repo"),
+        files=("README.md", "tantra/README.md", "tantra/core"),
         weight=2,
     ),
     AlignmentTarget(
