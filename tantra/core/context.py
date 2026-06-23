@@ -99,6 +99,10 @@ class ContextCompressor:
                 continue
             seen.add(original_stripped)
 
+            # HTML stripping
+            if rules.get("html_strip"):
+                stripped = re.sub(r'<[^>]+>', '', stripped)
+
             # URL shortening
             if rules.get("url_shorten"):
                 stripped = re.sub(r'https?://[^\s]+', '[URL]', stripped)

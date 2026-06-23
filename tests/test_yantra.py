@@ -1,5 +1,8 @@
 """Tests for BrowserAutomation — headless browser control via Playwright."""
 
+import asyncio
+import pytest
+
 
 
 class TestProductAlignmentAuditor:
@@ -960,3 +963,190 @@ class TestYantraHarness:
 
             assert result.tool_result.success is False
             assert result.metadata["blocked"] is True
+
+
+import asyncio
+
+class TestKnowledgeGraph:
+    @pytest.fixture
+    def kg(self, tmp_path):
+        from yantra.kgraph import KnowledgeGraph
+        return KnowledgeGraph(tmp_path)
+
+    def test_init(self, kg):
+        s = kg.get_stats()
+        assert s["total_nodes"] == 0
+        assert s["total_edges"] == 0
+
+    def test_add_node(self, kg):
+        n = kg.add_node("Test Label", "document", "test content", "source1")
+        assert n.label == "Test Label"
+        assert kg.get_stats()["total_nodes"] == 1
+
+    def test_get_node(self, kg):
+        n = kg.add_node("Label", "type", "content", "src")
+        found = kg.get_node(n.id)
+        assert found is not None
+        assert found.label == "Label"
+
+    def test_search_nodes(self, kg):
+        kg.add_node("Python Programming", "topic", "Python is a language", "src")
+        kg.add_node("Cooking", "topic", "Cooking recipes", "src")
+        results = kg.search_nodes("python")
+        assert len(results) == 1
+        assert results[0].label == "Python Programming"
+
+    def test_search_by_type(self, kg):
+        kg.add_node("A", "type1", "content", "src")
+        kg.add_node("B", "type2", "content", "src")
+        kg.add_node("C", "type1", "content", "src")
+        assert len(kg.search_by_type("type1")) == 2
+        assert len(kg.search_by_type("type2")) == 1
+
+    def test_add_edge(self, kg):
+        n1 = kg.add_node("A", "t", "c", "s")
+        n2 = kg.add_node("B", "t", "c", "s")
+        kg.add_edge(n1.id, n2.id, "relates_to")
+        assert kg.get_stats()["total_edges"] == 1
+
+    def test_get_connected(self, kg):
+        n1 = kg.add_node("A", "t", "c", "s")
+        n2 = kg.add_node("B", "t", "c", "s")
+        kg.add_edge(n1.id, n2.id, "links_to")
+        conn = kg.get_connected(n1.id)
+        assert len(conn) == 1
+        assert conn[0][0].label == "B"
+
+    def test_register_source(self, kg):
+        kg.register_source("github", "git", {"token": "xxx"})
+        assert "github" in kg.get_sources()
+
+    def test_extract_entities(self, kg):
+        text = "Contact me at test@example.com or visit https://example.com #python @user"
+        nodes = kg.extract_entities(text, "test")
+        assert len(nodes) >= 3
+
+    def test_extract_topics(self, kg):
+        text = "The Python Framework and the JavaScript Framework both work well"
+        nodes = kg.extract_topics(text, "test")
+        assert len(nodes) >= 1
+
+    def test_ingest_data(self, kg):
+        data = [
+            {"title": "Doc 1", "content": "First document", "type": "document"},
+            {"title": "Doc 2", "content": "Second document", "type": "document"},
+        ]
+        r = kg.ingest_data("test_source", data)
+        assert r["ingested"] == 2
+        assert kg.get_stats()["total_nodes"] >= 2
+
+    def test_export_to_obsidian(self, kg, tmp_path):
+        kg.add_node("Test", "topic", "content", "src")
+        r = kg.export_to_obsidian(tmp_path / "obsidian")
+        assert r["exported"] >= 1
+
+    def test_persistence(self, tmp_path):
+        from yantra.kgraph import KnowledgeGraph
+        k1 = KnowledgeGraph(tmp_path)
+        k1.add_node("Persist", "test", "content", "src")
+        k2 = KnowledgeGraph(tmp_path)
+        assert k2.get_stats()["total_nodes"] == 1
+
+
+class TestSubAgentOrchestrator:
+    @pytest.fixture
+    def orch(self, tmp_path):
+        from yantra.orchestrator import SubAgentOrchestrator, AgentSpec
+        o = SubAgentOrchestrator(tmp_path / "orch")
+        async def code_agent(prompt, context):
+            return f"Code result for: {prompt}"
+        async def research_agent(prompt, context):
+            return f"Research result for: {prompt}"
+        o.register_agent(AgentSpec("coder", "Writes code and fixes bugs", code_agent))
+        o.register_agent(AgentSpec("researcher", "Researches and analyzes data", research_agent))
+        return o
+
+    def test_register_agent(self, orch):
+        agents = orch.get_agents()
+        assert "coder" in agents
+        assert "researcher" in agents
+
+    def test_decompose_task(self, orch):
+        tasks = orch.decompose_task("write code and research data")
+        assert len(tasks) > 0
+
+    def test_decompose_empty(self, orch):
+        tasks = orch.decompose_task("")
+        assert len(tasks) >= 0
+
+    def _run_async(self, coro):
+        return asyncio.run(coro)
+
+    def test_execute_single(self, orch):
+        from yantra.orchestrator import AgentTask
+        async def _test():
+            task = AgentTask(id="1", agent="coder", prompt="write a function")
+            results = await orch.execute([task])
+            assert len(results) == 1
+            assert results[0].success
+            assert "Code result" in results[0].output
+        self._run_async(_test())
+
+    def test_execute_parallel(self, orch):
+        from yantra.orchestrator import AgentTask
+        async def _test():
+            tasks = [
+                AgentTask(id="1", agent="coder", prompt="task 1"),
+                AgentTask(id="2", agent="researcher", prompt="task 2"),
+            ]
+            results = await orch.execute_parallel(tasks)
+            assert len(results) == 2
+            assert all(r.success for r in results)
+        self._run_async(_test())
+
+    def test_execute_with_dependencies(self, orch):
+        from yantra.orchestrator import AgentTask
+        async def _test():
+            tasks = [
+                AgentTask(id="1", agent="coder", prompt="write code"),
+                AgentTask(id="2", agent="researcher", prompt="analyze", dependencies=["1"]),
+            ]
+            results = await orch.execute(tasks)
+            assert len(results) == 2
+        self._run_async(_test())
+
+    def test_run_objective(self, orch):
+        async def _test():
+            r = await orch.run_objective("write python code and research the topic")
+            assert r["tasks"] > 0
+            assert "results" in r
+        self._run_async(_test())
+
+    def test_aggregate(self, orch):
+        from yantra.orchestrator import AgentResult
+        results = [
+            AgentResult(task_id="1", agent="coder", success=True, output="done", duration=1.0),
+            AgentResult(task_id="2", agent="researcher", success=False, output="", duration=0.5, error="fail"),
+        ]
+        agg = orch.aggregate(results)
+        assert "done" in agg
+        assert "fail" in agg
+
+    def test_timeout_handling(self, tmp_path):
+        from yantra.orchestrator import SubAgentOrchestrator, AgentSpec, AgentTask
+        async def slow(prompt, context):
+            await asyncio.sleep(10)
+            return "too late"
+        o = SubAgentOrchestrator(tmp_path / "t")
+        o.register_agent(AgentSpec("slow", "slow agent", slow, timeout=0.05))
+        async def _test():
+            task = AgentTask(id="1", agent="slow", prompt="test")
+            results = await o.execute([task])
+            assert not results[0].success
+            assert "Timeout" in results[0].error
+        self._run_async(_test())
+
+    def test_get_stats(self, orch):
+        s = orch.get_stats()
+        assert s["agents"] == 2
+        assert s["total_runs"] >= 0

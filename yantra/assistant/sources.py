@@ -1,4 +1,4 @@
-﻿"""Source ingestion â€” RSS, git repos, markdown vaults."""
+"""Source ingestion - RSS, git repos, markdown vaults."""
 from __future__ import annotations
 
 import json

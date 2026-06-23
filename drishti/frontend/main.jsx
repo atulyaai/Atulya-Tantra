@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { api, clearToken, getToken, setToken, getUser, setUser } from './api.js';
-import { UserManagement } from './pages/UserManagement.jsx';
+import { HolographicSpirit } from './src/pages/HolographicSpirit.jsx';
+import { UserManagement } from './src/pages/UserManagement.jsx';
 import './styles.css';
 
 function Metric({ label, value }) {
@@ -64,23 +65,72 @@ function normalizeHistoryMessages(messages = []) {
 }
 
 function classifyIntent(text) {
-  const input = String(text || '').toLowerCase();
-  const candidates = [
-    { label: 'Forge Syntax Synthesis', agent: 'FORGE', words: ['code', 'build', 'fix', 'bug', 'website', 'app', 'function', 'script', 'test'] },
-    { label: 'Visual Object Assessment', agent: 'VISION', words: ['see', 'camera', 'look', 'image', 'photo', 'frame', 'scan', 'visual'] },
-    { label: 'Yantra System Command', agent: 'ATHENA', words: ['open', 'run', 'search', 'start', 'stop', 'device', 'automation', 'control'] },
-    { label: 'Memory Retrieval', agent: 'MEMORY', words: ['remember', 'history', 'previous', 'recall', 'memory', 'saved'] },
-    { label: 'General Reasoning Context', agent: 'ORACLE', words: [] },
-  ];
-  const scored = candidates.map((item) => ({
-    ...item,
-    score: item.words.reduce((total, word) => total + (input.includes(word) ? 1 : 0), 0),
-  })).sort((a, b) => b.score - a.score);
-  const winner = scored[0].score > 0 ? scored[0] : candidates[candidates.length - 1];
+  const input = String(text || '').toLowerCase().trim();
+  if (!input) return { label: 'General Reasoning Context', agent: 'ORACLE', confidence: 50 };
+
+  const intentPrototypes = {
+    FORGE: {
+      label: 'Forge Syntax Synthesis',
+      examples: ['write code', 'build a website', 'fix this bug', 'create a function', 'write a script', 'debug this', 'implement a class', 'refactor this code', 'write a python program', 'make an app'],
+      boost: ['code', 'build', 'fix', 'bug', 'website', 'app', 'function', 'script', 'test', 'implement', 'refactor', 'debug', 'class', 'module', 'api', 'database', 'sql', 'html', 'css', 'javascript', 'python'],
+    },
+    VISION: {
+      label: 'Visual Object Assessment',
+      examples: ['what do you see', 'look at this image', 'analyze this photo', 'describe the camera frame', 'scan this visual', 'what is in this picture'],
+      boost: ['see', 'camera', 'look', 'image', 'photo', 'frame', 'scan', 'visual', 'picture', 'describe', 'analyze image', 'vision'],
+    },
+    ATHENA: {
+      label: 'Yantra System Command',
+      examples: ['open the browser', 'run the automation', 'search the web', 'start the device', 'stop the process', 'control the system', 'execute this command'],
+      boost: ['open', 'run', 'search', 'start', 'stop', 'device', 'automation', 'control', 'execute', 'launch', 'deploy', 'schedule', 'automate'],
+    },
+    MEMORY: {
+      label: 'Memory Retrieval',
+      examples: ['what did we discuss before', 'recall our previous conversation', 'what do you remember', 'search my history', 'find saved information'],
+      boost: ['remember', 'history', 'previous', 'recall', 'memory', 'saved', 'before', 'earlier', 'last time', 'forgot', 'forget'],
+    },
+    ORACLE: {
+      label: 'General Reasoning Context',
+      examples: ['explain quantum physics', 'what is the meaning of life', 'how does photosynthesis work', 'compare these options', 'summarize this article'],
+      boost: [],
+    },
+  };
+
+  const scores = {};
+  for (const [agent, proto] of Object.entries(intentPrototypes)) {
+    let score = 0;
+
+    for (const word of proto.boost) {
+      if (input.includes(word)) score += 2;
+    }
+
+    for (const example of proto.examples) {
+      const exampleWords = example.split(/\s+/);
+      const matched = exampleWords.filter((w) => input.includes(w)).length;
+      if (matched > 0) score += (matched / exampleWords.length) * 4;
+    }
+
+    const inputWords = input.split(/\s+/);
+    const commonWords = proto.examples.join(' ').split(/\s+/);
+    const overlap = inputWords.filter((w) => commonWords.includes(w)).length;
+    score += overlap * 0.5;
+
+    scores[agent] = score;
+  }
+
+  const maxScore = Math.max(...Object.values(scores));
+  const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
+  const winnerAgent = Object.entries(scores).sort((a, b) => b[1] - a[1])[0][0];
+  const winner = intentPrototypes[winnerAgent];
+
+  const confidence = maxScore === 0
+    ? 50
+    : Math.min(98, 60 + (maxScore / Math.max(totalScore, 1)) * 30 + Math.min(8, Math.floor(input.length / 30)));
+
   return {
     label: winner.label,
-    agent: winner.agent,
-    confidence: Math.min(98, 72 + winner.score * 8 + Math.min(10, Math.floor(input.length / 24))),
+    agent: winnerAgent,
+    confidence: Math.round(confidence),
   };
 }
 
@@ -792,7 +842,7 @@ function LiveMode({ bootstrap, toast }) {
           }, 700);
           return;
         }
-        sendLive(continuous ? stripWakePhrase(text) : text);
+        sendLive(stripWakePhrase(text));
       }
     };
     
@@ -1135,7 +1185,7 @@ function LiveMode({ bootstrap, toast }) {
             <section className="v3-chat-wrap">
               <div className="v3-panel-hdr">
                 <span>Atulya Chat</span>
-                <div><strong>{busy ? 'Thinking' : 'Ready'}</strong><button type="button" onClick={() => setMessages(DEFAULT_LIVE_MESSAGES)}>CLR</button></div>
+                <div><strong>{busy ? 'Thinking' : 'Ready'}</strong><button type="button" onClick={() => { api.delete('/api/chat/history').catch(() => {}); setMessages(DEFAULT_LIVE_MESSAGES); }}>CLR</button></div>
               </div>
               <div className="v3-chat-msgs">
                 {messages.map((msg, idx) => (
@@ -1147,7 +1197,7 @@ function LiveMode({ bootstrap, toast }) {
                 {busy && <div className="v3-msg assistant thinking"><div>Atulya is thinking...</div></div>}
               </div>
               <form className="v3-chat-input" onSubmit={(event) => { event.preventDefault(); sendLive(); }}>
-                <input value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={continuous ? 'Say or type: Hey Atulya...' : 'Neural query...'} disabled={busy} />
+                <input value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={continuous ? 'Say: Hey Atulya...' : 'Type or say: Hey Atulya...'} disabled={busy} />
                 <button type="submit" disabled={busy || !prompt.trim()}>{busy ? '...' : 'Send'}</button>
               </form>
             </section>
@@ -1159,182 +1209,6 @@ function LiveMode({ bootstrap, toast }) {
           <div className={`v3-waveform ${status}`}>{Array.from({ length: 22 }).map((_, idx) => <span key={idx} />)}</div>
           <div><b>Quick Actions</b><button type="button" onClick={() => setPrompt('Save this as a memory: ')}>+ Mem</button><button type="button" onClick={cycleVortexMode}>Vortex</button><label><input type="checkbox" checked={continuous} onChange={(e) => setContinuous(e.target.checked)} /> Hands-Free</label></div>
         </footer>
-      </div>
-    );
-  }
-
-  if (false && !showTelemetry) {
-    return (
-      <div className="webui-immersive-viewport">
-        {/* Top Header */}
-        <header className="webui-header">
-          <div className="webui-logo">
-            <h1>ATULYA</h1>
-          </div>
-          <button className="webui-telemetry-badge" onClick={() => setShowTelemetry(true)}>
-            📊 TELEMETRY COCKPIT
-          </button>
-        </header>
-
-        {/* Floating Camera optics overlay */}
-        {(cameraOn || capturedFrame) && (
-          <div className="webui-floating-vision">
-            <button className="webui-vision-close" onClick={stopCamera}>×</button>
-            {cameraOn ? (
-              <video ref={videoRef} autoPlay playsInline muted />
-            ) : (
-              <img src={capturedFrame} alt="Captured frame" />
-            )}
-          </div>
-        )}
-
-        <section className="webui-live-grid">
-          <div className="webui-hologram-stage">
-            <HolographicVortex activeAgent={activeAgent} status={status} mode={vortexMode} onNodeSelect={handleVortexNode} />
-            <div className="webui-holo-hud webui-holo-hud-left">
-              <span>MODE {vortexMode.toUpperCase()}</span>
-              <span>NODE {activeAgent}</span>
-            </div>
-            <div className="webui-holo-hud webui-holo-hud-right">
-              <span>STATUS {status.toUpperCase()}</span>
-              <span>PROVIDER {provider.toUpperCase()}</span>
-            </div>
-            <div className="webui-orbit-system">
-            
-            {/* Strands */}
-            <svg className="webui-pulse-strands" viewBox="0 0 400 400">
-              <path d="M200,60 L200,200" className={`webui-strand-path oracle-strand ${activeAgent === 'ORACLE' ? 'stimulated' : ''}`} />
-              <path d="M280,120 L200,200" className={`webui-strand-path athena-strand ${activeAgent === 'ATHENA' ? 'stimulated' : ''}`} />
-              <path d="M280,280 L200,200" className={`webui-strand-path forge-strand ${activeAgent === 'FORGE' ? 'stimulated' : ''}`} />
-              <path d="M200,340 L200,200" className={`webui-strand-path memory-strand ${activeAgent === 'MEMORY' ? 'stimulated' : ''}`} />
-              <path d="M120,280 L200,200" className={`webui-strand-path vision-strand ${activeAgent === 'VISION' ? 'stimulated' : ''}`} />
-              <path d="M120,120 L200,200" className={`webui-strand-path echo-strand ${activeAgent === 'ECHO' ? 'stimulated' : ''}`} />
-            </svg>
-
-            {/* Orbiting nodes */}
-            <div className={`webui-node webui-node-oracle ${activeAgent === 'ORACLE' ? 'active' : ''}`} onClick={() => activateNode('ORACLE', 'ORACLE', 'Research and general reasoning prompts route through this strand.')} title="Routes research and general reasoning prompts.">
-              <span>ORACLE</span>
-              <small>Research</small>
-            </div>
-            <div className={`webui-node webui-node-athena ${activeAgent === 'ATHENA' ? 'active' : ''}`} onClick={() => activateNode('ATHENA', 'ATHENA', 'Planning state is active; requests will show routing and execution steps.')} title="Shows planning state while a request is running.">
-              <span>ATHENA</span>
-              <small>Planning</small>
-            </div>
-            <div className={`webui-node webui-node-forge ${activeAgent === 'FORGE' ? 'active' : ''}`} onClick={() => activateNode('FORGE', 'FORGE', 'Synthesis state is active after provider responses and tool results.')} title="Shows synthesis state after provider response.">
-              <span>FORGE</span>
-              <small>Synthesis</small>
-            </div>
-            <div className={`webui-node webui-node-memory ${activeAgent === 'MEMORY' ? 'active' : ''}`} onClick={() => activateNode('MEMORY', 'MEMORY', 'Persistent chat history is available; vector memory remains a deeper backend upgrade.')} title="Memory persistence is basic chat history in this build.">
-              <span>MEMORY</span>
-              <small>Cognition</small>
-            </div>
-            <div className={`webui-node webui-node-vision ${activeAgent === 'VISION' ? 'active' : ''}`} onClick={() => activateNode('VISION', 'VISION', 'Camera capture can be opened from Start Vision; model vision analysis is limited.')} title="Camera capture is available; model vision analysis is limited.">
-              <span>VISION</span>
-              <small>Perception</small>
-            </div>
-            <div className={`webui-node webui-node-echo ${activeAgent === 'ECHO' ? 'active' : ''}`} onClick={() => activateNode('ECHO', 'ECHO', 'Voice input and speech output controls are available from the mic and hands-free controls.')} title="Voice input/output state.">
-              <span>ECHO</span>
-              <small>Vocalize</small>
-            </div>
-
-            {/* Glowing Holographic core */}
-            <div className={`webui-central-core ${status}`} onClick={toggleVoice}>
-              <div className="webui-hologram-glow" />
-              <div className="webui-hologram-orb">
-                <div className="webui-hologram-core" />
-                <div className="webui-hologram-ring webui-ring-1" />
-                <div className="webui-hologram-ring webui-ring-2" />
-                <div className="webui-hologram-ring webui-ring-3" />
-              </div>
-            </div>
-            </div>
-          </div>
-
-          <section className="webui-chat-panel" aria-label="Atulya conversation">
-            <div className="webui-chat-title">
-              <div>
-                <strong>Atulya Chat</strong>
-                <span>{busy ? 'Thinking...' : 'Ready'}</span>
-              </div>
-              <button type="button" onClick={() => setMessages(DEFAULT_LIVE_MESSAGES)}>Clear</button>
-            </div>
-            <div className="webui-message-list">
-              {messages.map((msg, idx) => (
-                <div className={`webui-message ${msg.role}`} key={msg.id || idx}>
-                  {renderMarkdown(msg.text || (msg.role === 'assistant' ? 'Atulya is thinking...' : ''))}
-                </div>
-              ))}
-              {busy && (
-                <div className="webui-message assistant thinking">Atulya is thinking...</div>
-              )}
-            </div>
-          </section>
-        </section>
-
-        {/* Bottom controls and Visualizer */}
-        <div className="webui-bottom-bar">
-          <div className={`webui-visualizer-wave ${status}`}>
-            <span className="webui-bar sb-1" />
-            <span className="webui-bar sb-2" />
-            <span className="webui-bar sb-3" />
-            <span className="webui-bar sb-4" />
-            <span className="webui-bar sb-5" />
-            <span className="webui-bar sb-6" />
-            <span className="webui-bar sb-7" />
-            <span className="webui-bar sb-8" />
-            <span className="webui-bar sb-9" />
-            <span className="webui-bar sb-10" />
-          </div>
-
-          <form className="webui-text-composer" onSubmit={(event) => { event.preventDefault(); sendLive(); }}>
-            <input
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder={continuous ? 'Say or type: Hey Atulya...' : 'Type to Atulya...'}
-              disabled={busy}
-            />
-            <button type="submit" disabled={busy || !prompt.trim()}>
-              {busy ? 'Thinking...' : 'Send'}
-            </button>
-          </form>
-
-          <div className="webui-controls-container">
-            <button className={`webui-mic-glow-btn ${listening ? 'active' : ''}`} onClick={toggleVoice}>
-              {listening ? '🎤' : '🎙️'}
-            </button>
-            
-            <button className="webui-select" onClick={cameraOn ? stopCamera : startCamera}>
-              {cameraOn ? '⏹️ Close Camera' : '📷 Start Vision'}
-            </button>
-
-            {cameraOn && (
-              <button className="webui-select" onClick={captureFrame}>
-                🔍 Capture Frame
-              </button>
-            )}
-
-            <button className="webui-select" onClick={cycleVortexMode}>
-              Vortex: {vortexMode.toUpperCase()}
-            </button>
-
-            <select className="webui-select" value={provider} onChange={(e) => setProvider(e.target.value)}>
-              {providerOptions.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.available ? 'Ready - ' : 'Off - '}{item.name}
-                </option>
-              ))}
-            </select>
-
-            <select className="webui-select" value={selectedVoice} onChange={(e) => setSelectedVoice(e.target.value)}>
-              {voiceList.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-            </select>
-
-            <label className="check webui-quick-chk">
-              <input type="checkbox" checked={continuous} onChange={(e) => setContinuous(e.target.checked)} />
-              HANDS-FREE
-            </label>
-          </div>
-        </div>
       </div>
     );
   }
@@ -1629,12 +1503,13 @@ function LiveMode({ bootstrap, toast }) {
   );
 }
 
-function Chat({ bootstrap }) {
+function Chat({ bootstrap, toast }) {
   const providerOptions = bootstrap?.providers || [{ id: 'auto', name: 'Auto Provider', available: true }];
   const [provider, setProvider] = useState('auto');
   const [prompt, setPrompt] = useState('');
   const [messages, setMessages] = useState(() => loadCachedMessages(CHAT_CACHE_KEY, []));
   const [toolSteps, setToolSteps] = useState([]);
+  const [maxContext, setMaxContext] = useState(10);
   const [pendingApproval, setPendingApproval] = useState(null);
   const [busy, setBusy] = useState(false);
   const endRef = useRef(null);
@@ -1657,7 +1532,7 @@ function Chat({ bootstrap }) {
   function historyPayload(items = messages) {
     return items
       .filter((msg) => msg.text)
-      .slice(-10)
+      .slice(-maxContext)
       .map((msg) => ({ role: msg.role, content: msg.text }));
   }
 
@@ -1699,6 +1574,15 @@ function Chat({ bootstrap }) {
       <div className="panel-title">
         <h2>Atulya Chat</h2>
         <div className="panel-actions">
+          <label style={{fontSize:12, display:'flex', alignItems:'center', gap:4, color:'var(--muted)'}}>
+            Context:
+            <select value={String(maxContext)} onChange={e => setMaxContext(Number(e.target.value))}>
+              <option value="5">5 msgs</option>
+              <option value="10">10 msgs</option>
+              <option value="20">20 msgs</option>
+              <option value="50">50 msgs</option>
+            </select>
+          </label>
           <button
             type="button"
             onClick={() => {
@@ -1775,6 +1659,53 @@ function Chat({ bootstrap }) {
           </div>
         </div>
       )}
+      <div style={{position:'relative'}}
+        onDragOver={e => {e.preventDefault(); e.currentTarget.style.borderColor='var(--accent)';}}
+        onDragLeave={e => {e.currentTarget.style.borderColor='';}}
+        onDrop={async e => {
+          e.preventDefault();
+          e.currentTarget.style.borderColor='';
+          const files = Array.from(e.dataTransfer.files);
+          for (const f of files) {
+            const formData = new FormData();
+            formData.append('file', f);
+            try {
+              const res = await fetch('/api/upload', {
+                method: 'POST',
+                headers: { 'X-Atulya-Token': getToken() },
+                body: formData,
+              });
+              const data = await res.json();
+              if (data.ok) toast('success', `Uploaded ${f.name}`);
+            } catch (err) {
+              toast('error', `Upload failed: ${err.message}`);
+            }
+          }
+        }}
+        style={{border:'2px dashed var(--line)', borderRadius:8, padding:12, textAlign:'center', color:'var(--muted)', fontSize:12, marginTop:8}}>
+        Drop files here to upload, or{' '}
+        <label style={{cursor:'pointer', color:'var(--accent)'}}>
+          browse
+          <input type="file" hidden multiple onChange={async e => {
+            const files = Array.from(e.target.files);
+            for (const f of files) {
+              const formData = new FormData();
+              formData.append('file', f);
+              try {
+                const res = await fetch('/api/upload', {
+                  method: 'POST',
+                  headers: { 'X-Atulya-Token': getToken() },
+                  body: formData,
+                });
+                const data = await res.json();
+                if (data.ok) toast('success', `Uploaded ${f.name}`);
+              } catch (err) {
+                toast('error', `Upload failed: ${err.message}`);
+              }
+            }
+          }} />
+        </label>
+      </div>
     </section>
   );
 }
@@ -1899,6 +1830,11 @@ function App() {
   const [error, setError] = useState('');
   const [authenticated, setAuthenticated] = useState(Boolean(getToken()));
   const [toasts, setToasts] = useState([]);
+  const [healthWarnings, setHealthWarnings] = useState([]);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem('atulya-theme') || 'dark'; } catch { return 'dark'; }
+  });
   
   const currentUser = getUser();
   const isAdmin = currentUser?.role === 'admin';
@@ -1933,9 +1869,44 @@ function App() {
     }
   }, [authenticated]);
 
+  useEffect(() => {
+    api.get('/api/health')
+      .then(res => { if (res.warnings) setHealthWarnings(res.warnings); })
+      .catch(() => {});
+    const hc = setInterval(() => {
+      api.get('/api/health')
+        .then(res => { if (res.warnings) setHealthWarnings(res.warnings); })
+        .catch(() => {});
+    }, 60000);
+    return () => clearInterval(hc);
+  }, [authenticated]);
+
+  useEffect(() => {
+    document.documentElement.className = theme === 'light' ? 'light' : '';
+    try { localStorage.setItem('atulya-theme', theme); } catch {}
+  }, [theme]);
+
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.ctrlKey || event.metaKey) {
+        switch (event.key) {
+          case '1': event.preventDefault(); setTab('live'); break;
+          case '2': event.preventDefault(); setTab('chat'); break;
+          case '3': event.preventDefault(); setTab('spirit'); break;
+        }
+      }
+      if (event.key === '?' && !event.ctrlKey && !event.metaKey) {
+        setShowShortcuts(prev => !prev);
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const content = useMemo(() => {
     if (tab === 'live') return <LiveMode bootstrap={bootstrap} toast={toast} />;
-    if (tab === 'chat') return <Chat bootstrap={bootstrap} />;
+    if (tab === 'chat') return <Chat bootstrap={bootstrap} toast={toast} />;
+    if (tab === 'spirit') return <HolographicSpirit />;
     if (!isAdmin) return <LiveMode bootstrap={bootstrap} toast={toast} />; // Fallback for normal users
     
     // Admin-only views
@@ -1962,7 +1933,7 @@ function App() {
   }
 
   return (
-    <main className={tab === 'live' ? 'immersive-layout' : ''}>
+    <main className={(tab === 'live' || tab === 'spirit') ? 'immersive-layout' : ''}>
       <aside className={adminOpen ? 'admin-drawer open' : 'admin-drawer'}>
         <button className="drawer-close-btn" onClick={() => setAdminOpen(false)}>×</button>
         <h1>Atulya Tantra</h1>
@@ -1974,8 +1945,13 @@ function App() {
           <span className="badge small">{currentUser?.role?.toUpperCase()}</span>
         </div>
 
+        <button className="theme-toggle" onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}>
+          {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
+        </button>
+
         <button className={tab === 'live' ? 'active' : ''} onClick={() => { setTab('live'); setAdminOpen(false); }}>Live Mode</button>
         <button className={tab === 'chat' ? 'active' : ''} onClick={() => { setTab('chat'); setAdminOpen(false); }}>Chat</button>
+        <button className={tab === 'spirit' ? 'active' : ''} onClick={() => { setTab('spirit'); setAdminOpen(false); }}>⬡ Spirit UI</button>
         
         {isAdmin && (
           <>
@@ -1990,8 +1966,13 @@ function App() {
         <button className="logout" onClick={handleLogout}>Logout</button>
       </aside>
       
-      <section className="content" style={tab === 'live' ? { padding: 0, overflow: 'hidden' } : {}}>
+      <section className="content" style={(tab === 'live' || tab === 'spirit') ? { padding: 0, overflow: 'hidden' } : {}}>
         {error && <div className="alert">{error}</div>}
+        {healthWarnings.filter(w => w.severity !== 'low').map((w, i) => (
+          <div key={i} className="alert" style={{borderColor: w.severity === 'high' ? 'var(--bad)' : 'var(--warn)'}}>
+            {w.message}
+          </div>
+        ))}
         {content}
       </section>
 
@@ -2007,6 +1988,21 @@ function App() {
         <button className="gear-trigger" title="Navigation Menu" onClick={() => setAdminOpen(!adminOpen)}>
           ☰
         </button>
+      )}
+
+      {showShortcuts && (
+        <div className="modal-backdrop" onClick={() => setShowShortcuts(false)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
+            <h2>Keyboard Shortcuts</h2>
+            <div className="table">
+              <div className="row"><span>Ctrl+1</span><span>Live Mode</span></div>
+              <div className="row"><span>Ctrl+2</span><span>Chat</span></div>
+              <div className="row"><span>Ctrl+3</span><span>Spirit UI</span></div>
+              <div className="row"><span>?</span><span>Toggle this menu</span></div>
+            </div>
+            <button onClick={() => setShowShortcuts(false)}>Close</button>
+          </div>
+        </div>
       )}
 
       <div className="toasts">

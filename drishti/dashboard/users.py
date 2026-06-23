@@ -253,10 +253,44 @@ def seed_default_admin() -> None:
         print("  +------------------------------------------+\n")
     else:
         print("\n  +------------------------------------------+")
-        print("  |  Default admin account created:          |")
-        print("  |                                          |")
-        print("  |  Username: admin                         |")
-        print("  |  Password: (from env var)                |")
-        print("  |                                          |")
-        print("  |  Change this after first login!          |")
-        print("  +------------------------------------------+\n")
+    print("  |  Default admin account created:          |")
+    print("  |                                          |")
+    print("  |  Username: admin                         |")
+    print("  |  Password: (from env var)                |")
+    print("  |                                          |")
+    print("  |  Change this after first login!          |")
+    print("  +------------------------------------------+\n")
+
+
+def get_preferences(username: str) -> dict:
+    username = username.strip().lower()
+    with _lock:
+        store = _read_store()
+    user = store["users"].get(username)
+    if not user:
+        return {}
+    return user.get("preferences", {})
+
+
+def set_preferences(username: str, prefs: dict) -> bool:
+    username = username.strip().lower()
+    with _lock:
+        store = _read_store()
+        if username not in store["users"]:
+            return False
+        store["users"][username]["preferences"] = prefs
+        _write_store(store)
+    return True
+
+
+def update_preferences(username: str, updates: dict) -> dict:
+    username = username.strip().lower()
+    with _lock:
+        store = _read_store()
+        if username not in store["users"]:
+            return {}
+        current = store["users"][username].get("preferences", {})
+        current.update(updates)
+        store["users"][username]["preferences"] = current
+        _write_store(store)
+    return current

@@ -21,12 +21,12 @@ def _validate_identifier(name: str) -> str:
     return name
 
 
-class EncryptedStorage:
+class SQLEncryptedStorage:
     def __init__(self, key: str | None = None):
         resolved = key or os.environ.get("ATULYA_ENCRYPTION_KEY")
         if not resolved:
             raise ValueError(
-                "EncryptedStorage requires a key via constructor argument or "
+                "SQLEncryptedStorage requires a key via constructor argument or "
                 "ATULYA_ENCRYPTION_KEY environment variable"
             )
         self._key = resolved

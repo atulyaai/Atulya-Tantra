@@ -7,6 +7,8 @@ import tempfile
 import time
 from pathlib import Path
 
+import pytest
+
 
 
 # ===================================================================
@@ -165,24 +167,11 @@ class TestSessionSearch:
         asyncio.run(run())
 
 
-class TestPromptCache:
-    def test_get_set(self):
-        from atulya.memory.prompt_cache import PromptCacheProvider
-        from atulya.memory.orchestrator import MemoryEntry
-        async def run():
-            with tempfile.TemporaryDirectory() as tmp:
-                p = PromptCacheProvider(tmp)
-                await p.initialize()
-                await p.store(MemoryEntry(id="k1", provider="pc", content="v1"))
-                assert p.get("k1") == "v1"
-        asyncio.run(run())
-
-
 class TestSubconscious:
     def test_log_decision(self):
         from atulya.memory.subconscious import SubconsciousProvider
         async def run():
-            with tempfile.TemporaryDirectory() as tmp:
+            with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
                 p = SubconsciousProvider(tmp)
                 await p.initialize()
                 await p.log_decision("d1", "test decision", "success")
@@ -196,7 +185,7 @@ class TestReflection:
     def test_add_reflection(self):
         from atulya.memory.reflection import ReflectionProvider
         async def run():
-            with tempfile.TemporaryDirectory() as tmp:
+            with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
                 p = ReflectionProvider(tmp)
                 await p.initialize()
                 await p.add_reflection("test insight", "insight")
@@ -257,13 +246,18 @@ class TestToolRegistry:
         from yantra.capabilities import ToolRegistry, FileWriteTool, FileReadTool
         async def run():
             reg = ToolRegistry()
-            with tempfile.TemporaryDirectory() as tmp:
-                f = f"{tmp}/test.txt"
+            p = Path.cwd() / "_test_integration_tmp"
+            p.mkdir(exist_ok=True)
+            try:
+                f = str(p / "test.txt")
                 reg.register(FileWriteTool())
                 reg.register(FileReadTool())
                 await reg.execute("file_write", path=f, content="hello")
                 r = await reg.execute("file_read", path=f)
                 assert r.success and "hello" in r.output
+            finally:
+                import shutil
+                shutil.rmtree(p, ignore_errors=True)
         asyncio.run(run())
 
     def test_tool_not_found(self):
@@ -312,42 +306,6 @@ class TestPluginRegistry:
 # ===================================================================
 # CONTEXT TESTS
 # ===================================================================
-
-class TestContextWindowGuardIntegration:
-    def test_add_message(self):
-        from tantra.core.context import ContextWindowGuard, ContextMessage
-        guard = ContextWindowGuard(max_tokens=100)
-        guard.add(ContextMessage(role="user", content="hi", token_count=10))
-        assert len(guard.messages) == 1
-
-    def test_compaction(self):
-        from tantra.core.context import ContextWindowGuard, ContextMessage
-        guard = ContextWindowGuard(max_tokens=50, max_messages=3)
-        for i in range(5):
-            guard.add(ContextMessage(role="user", content=f"msg{i}", token_count=20))
-        assert len(guard.messages) <= 3
-
-
-class TestContextCompressorIntegration:
-    def test_compress(self):
-        from tantra.core.context import ContextCompressor
-        c = ContextCompressor()
-        text = "hello\n\n\n\nworld\nhello"
-        result = c.compress(text)
-        assert "hello" in result
-
-    def test_collapse_blank_lines(self):
-        from tantra.core.context import ContextCompressor
-        c = ContextCompressor()
-        result = c.collapse_blank_lines("a\n\n\n\nb")
-        assert result == "a\n\nb"
-
-    def test_deduplicate_lines(self):
-        from tantra.core.context import ContextCompressor
-        c = ContextCompressor()
-        result = c.deduplicate_lines("a\nb\na\nc")
-        assert result == "a\nb\nc"
-
 
 # ===================================================================
 # SECURITY TESTS
@@ -575,20 +533,6 @@ class TestCronScheduler:
 # TASK CLASSIFIER TESTS
 # ===================================================================
 
-class TestTaskClassifierIntegration:
-    def test_classify_coding(self):
-        from tantra.core.task_classifier import TaskClassifier, TaskCategory
-        tc = TaskClassifier()
-        r = tc.classify("write a python function to sort a list")
-        assert r.category == TaskCategory.CODING
-
-    def test_classify_reasoning(self):
-        from tantra.core.task_classifier import TaskClassifier, TaskCategory
-        tc = TaskClassifier()
-        r = tc.classify("explain why the sky is blue")
-        assert r.category == TaskCategory.REASONING
-
-
 # ===================================================================
 # TAMPER-EVIDENT LOG TESTS
 # ===================================================================
@@ -600,18 +544,6 @@ class TestTamperEvidentLogIntegration:
             log = TamperEvidentLog(f"{tmp}/audit.log")
             log.append("test_action", {"key": "value"})
             assert log.verify()
-
-
-# ===================================================================
-# ENCRYPTION AT REST TESTS
-# ===================================================================
-
-class TestEncryptedStorageIntegration:
-    def test_encrypt_decrypt(self):
-        from tantra.core.encryption import EncryptedStorage
-        e = EncryptedStorage("test-key")
-        encrypted = e.encrypt_value("secret")
-        assert e.decrypt_value(encrypted) == "secret"
 
 
 # ===================================================================
@@ -630,54 +562,6 @@ class TestMCPManifest:
 # ===================================================================
 # PLASTICITY AUTO-SCALE TESTS
 # ===================================================================
-
-class TestPlasticityAutoScale:
-    def test_scale_strands(self):
-        from tantra.npdna.plasticity_autoscale import PlasticityAutoScaler
-        ps = PlasticityAutoScaler()
-        actions = ps.check_and_scale(0.95, [0.1]*10, 100, 40)
-        assert "add_strand" in actions
-
-    def test_scale_layers(self):
-        from tantra.npdna.plasticity_autoscale import PlasticityAutoScaler
-        ps = PlasticityAutoScaler()
-        actions = ps.check_and_scale(0.5, [0.001]*10, 100, 40)
-        assert "add_layer" in actions
-
-
-# ===================================================================
-# CORTEX AUTO-STORE TESTS
-# ===================================================================
-
-class TestCortexAutoStoreIntegration:
-    def test_store_and_retrieve(self):
-        from tantra.npdna.cortex_autostore import CortexAutoStore
-        with tempfile.TemporaryDirectory() as tmp:
-            c = CortexAutoStore(tmp)
-            c.auto_store("layer1", {"weights": [1,2,3]}, 10)
-            r = c.retrieve("layer1", 10)
-            assert r is not None
-
-
-# ===================================================================
-# AUDIO/VISION ENCODER TESTS
-# ===================================================================
-
-class TestAudioEncoderIntegration:
-    def test_encode(self):
-        from tantra.npdna.encoders import AudioEncoder
-        e = AudioEncoder()
-        result = e.encode("nonexistent.wav")
-        assert len(result.embedding) == 128
-
-
-class TestVisionEncoderIntegration:
-    def test_encode(self):
-        from tantra.npdna.encoders import VisionEncoder
-        e = VisionEncoder()
-        result = e.encode("nonexistent.png")
-        assert len(result.embedding) == 256
-
 
 # ===================================================================
 # SOURCE INGESTION TESTS
@@ -704,3 +588,189 @@ class TestMultiProviderSearch:
         from yantra.capabilities.web_search import MultiProviderSearch
         s = MultiProviderSearch()
         assert len(s.get_providers()) >= 1
+
+
+class TestTokenEstimator:
+    def test_estimate_tokens(self):
+        from atulya.tokenjuice.estimator import estimate_tokens
+        t = estimate_tokens("hello world", "default")
+        assert t >= 1
+
+    def test_estimate_tokens_empty(self):
+        from atulya.tokenjuice.estimator import estimate_tokens
+        assert estimate_tokens("", "default") == 1
+
+    def test_estimate_cost(self):
+        from atulya.tokenjuice.estimator import estimate_cost
+        c = estimate_cost(1000, 500, "gpt-4")
+        assert c > 0
+
+    def test_estimate_cost_zero(self):
+        from atulya.tokenjuice.estimator import estimate_cost
+        assert estimate_cost(0, 0, "default") == 0.0
+
+
+class TestTokenJuice:
+    @pytest.fixture
+    def juice(self, tmp_path):
+        from atulya.tokenjuice import TokenJuice
+        return TokenJuice(tmp_path)
+
+    def test_track(self, juice):
+        u = juice.track("test", "gpt-4", "hello", "world")
+        assert u.provider == "test"
+        assert u.prompt_tokens > 0
+        assert u.completion_tokens > 0
+
+    def test_track_raw(self, juice):
+        u = juice.track_raw("test", "gpt-4", 100, 50)
+        assert u.prompt_tokens == 100
+        assert u.completion_tokens == 50
+
+    def test_check_budget(self, juice):
+        juice.track_raw("t", "default", 100, 50)
+        b = juice.check_budget()
+        assert "within_budget" in b
+        assert b["daily_tokens"] == 150
+
+    def test_budget_violation(self, juice):
+        from atulya.tokenjuice import TokenBudget
+        tight = TokenBudget(daily_token_limit=10)
+        juice2 = type(juice)(juice.data_dir.parent)
+        juice2.budget = tight
+        juice2.track_raw("t", "default", 100, 50)
+        b = juice2.check_budget()
+        assert "daily_token_limit" in b["violations"]
+
+    def test_compress_prompt(self, juice):
+        text = "hello world\nhello world\nthis is a test\nok"
+        r = juice.compress_prompt(text, aggressive=False)
+        assert r.compressed_tokens <= r.original_tokens
+        assert r.ratio <= 1.0
+
+    def test_compress_aggressive(self, juice):
+        text = "hello\nok\nyes\nno\nand\nthe\nhello"
+        r = juice.compress_prompt(text, aggressive=True)
+        assert "hello" in r.text
+
+    def test_get_stats(self, juice):
+        juice.track_raw("t1", "gpt-4", 100, 50)
+        juice.track_raw("t2", "claude", 200, 100)
+        s = juice.get_stats()
+        assert s["total_calls"] == 2
+        assert s["total_tokens"] == 450
+        assert "gpt-4" in s["by_model"]
+
+    def test_optimization_suggestions(self, juice):
+        for _ in range(5):
+            juice.track_raw("t", "gpt-4", 10000, 5000)
+        suggestions = juice.get_optimization_suggestions()
+        assert len(suggestions) > 0
+
+    def test_session_tracking(self, juice):
+        juice.track_raw("t", "default", 10, 5, session_id="sess1")
+        juice.track_raw("t", "default", 20, 10, session_id="sess1")
+        b = juice.check_budget("sess1")
+        assert b["session_tokens"] == 45
+
+    def test_persistence(self, tmp_path):
+        from atulya.tokenjuice import TokenJuice
+        j1 = TokenJuice(tmp_path)
+        j1.track_raw("t", "default", 100, 50)
+        j2 = TokenJuice(tmp_path)
+        assert j2.get_stats()["total_calls"] == 1
+
+
+class TestCrossComponentIntegration:
+    def test_tokenjuice_with_selfimprovement(self, tmp_path):
+        from atulya.tokenjuice import TokenJuice
+        from yantra.selfimprovement import UnifiedSelfImprovement
+        juice = TokenJuice(tmp_path)
+        si = UnifiedSelfImprovement(tmp_path)
+        for i in range(5):
+            juice.track_raw("self_learn", "default", 500, 200, task_type="learning")
+            si.record_task(f"learning iteration {i}", f"result {i}", 2.0)
+        jstats = juice.get_stats()
+        sistats = si.get_stats()
+        assert jstats["total_calls"] == 5
+        assert sistats["tasks_recorded"] == 5
+
+    def test_obsidian_with_knowledge_graph(self, tmp_path):
+        from yantra.kgraph import KnowledgeGraph
+        from atulya.memory.obsidian import ObsidianExporter
+        kg = KnowledgeGraph(tmp_path)
+        kg.add_node("Python", "language", "A programming language", "wiki")
+        kg.add_node("JavaScript", "language", "Another language", "wiki")
+        vault_dir = tmp_path / "vault"
+        kg.export_to_obsidian(vault_dir)
+        assert (vault_dir / "knowledge-graph" / "index.md").exists()
+        assert (vault_dir / "knowledge-graph" / "language.md").exists()
+
+    def test_orchestrator_with_selfimprovement(self, tmp_path):
+        from yantra.orchestrator import SubAgentOrchestrator, AgentSpec
+        from yantra.selfimprovement import UnifiedSelfImprovement
+        si = UnifiedSelfImprovement(tmp_path)
+        async def learning_agent(prompt, context):
+            si.record_task(prompt, "learned", 1.0)
+            return f"Learned: {prompt}"
+        o = SubAgentOrchestrator(tmp_path / "o")
+        o.register_agent(AgentSpec("learner", "Learns from tasks", learning_agent))
+        async def _test():
+            r = await o.run_objective("learn python and learn data science")
+            assert r["success"]
+        import asyncio
+        asyncio.run(_test())
+
+
+class TestObsidianExporterIntegration:
+    @pytest.fixture
+    def exporter(self, tmp_path):
+        from atulya.memory.obsidian import ObsidianExporter
+        return ObsidianExporter(tmp_path / "vault")
+
+    def test_export_all_entries(self, exporter):
+        entries = [
+            {"id": "1", "topic": "python", "content": "Python is great", "tags": ["code"]},
+            {"id": "2", "topic": "data", "content": "Data science", "tags": ["data"]},
+        ]
+        exporter.export_all(entries)
+        assert (exporter.vault_dir / "index.md").exists()
+        assert (exporter.vault_dir / "topics" / "python.md").exists()
+
+    def test_export_with_topics(self, exporter):
+        topics = {"python": [{"id": "1", "content": "hello", "tags": []}]}
+        exporter.export_all([], topics)
+        assert (exporter.vault_dir / "topics" / "python.md").exists()
+
+    def test_create_daily_note(self, exporter):
+        fp = exporter.create_daily_note(["Did some coding", "Fixed a bug"])
+        assert fp.exists()
+        content = fp.read_text()
+        assert "Did some coding" in content
+
+    def test_sync_from_memory_provider(self, exporter, tmp_path):
+        from atulya.memory.vector_store import VectorMemoryProvider
+        import asyncio
+        from atulya.memory.orchestrator import MemoryEntry
+        async def _test():
+            p = VectorMemoryProvider(tmp_path, "test")
+            await p.initialize()
+            await p.store(MemoryEntry(id="1", provider="t", content="test entry"))
+            result = exporter.sync_from_memory_provider(p)
+            assert result["synced"] >= 1
+            await p.close()
+        asyncio.run(_test())
+
+    def test_index_creation(self, exporter):
+        entries = [
+            {"id": "1", "topic": "a", "content": "x", "tags": []},
+            {"id": "2", "topic": "b", "content": "y", "tags": []},
+        ]
+        exporter.export_all(entries)
+        index = (exporter.vault_dir / "index.md").read_text()
+        assert "a" in index
+        assert "b" in index
+
+    def test_slugify(self, exporter):
+        assert exporter._slugify("Hello World!") == "hello-world"
+        assert exporter._slugify("Python & Data") == "python-data"

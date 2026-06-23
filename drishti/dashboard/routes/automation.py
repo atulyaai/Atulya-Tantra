@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import time
 
-from fastapi import APIRouter, Header, Request
+from fastapi import APIRouter, Depends, Request
 
 from drishti.dashboard.helpers import _require_admin
 from drishti.dashboard.state import OUTPUTS_DIR
@@ -28,14 +28,12 @@ def _save_jobs(jobs: list[dict]) -> None:
 
 
 @router.get("/api/cron/jobs")
-def api_cron_jobs(_admin: str | None = Header(default=None, alias="X-Atulya-Token")):
-    _require_admin(_admin)
+def api_cron_jobs(_admin: dict = Depends(_require_admin)):
     return {"jobs": _load_jobs()}
 
 
 @router.post("/api/cron/jobs")
-def api_cron_add_job(body: dict, _admin: str | None = Header(default=None, alias="X-Atulya-Token")):
-    _require_admin(_admin)
+def api_cron_add_job(body: dict, _admin: dict = Depends(_require_admin)):
     jobs = _load_jobs()
     job = {
         "id": str(body.get("id") or int(time.time() * 1000)),
@@ -51,16 +49,14 @@ def api_cron_add_job(body: dict, _admin: str | None = Header(default=None, alias
 
 
 @router.delete("/api/cron/jobs/{job_id}")
-def api_cron_delete_job(job_id: str, _admin: str | None = Header(default=None, alias="X-Atulya-Token")):
-    _require_admin(_admin)
+def api_cron_delete_job(job_id: str, _admin: dict = Depends(_require_admin)):
     jobs = [job for job in _load_jobs() if str(job.get("id")) != job_id]
     _save_jobs(jobs)
     return {"ok": True, "jobs": jobs}
 
 
 @router.patch("/api/cron/jobs/{job_id}")
-def api_cron_update_job(job_id: str, body: dict, _admin: str | None = Header(default=None, alias="X-Atulya-Token")):
-    _require_admin(_admin)
+def api_cron_update_job(job_id: str, body: dict, _admin: dict = Depends(_require_admin)):
     jobs = _load_jobs()
     for job in jobs:
         if str(job.get("id")) != job_id:
@@ -80,9 +76,8 @@ def api_cron_update_job(job_id: str, body: dict, _admin: str | None = Header(def
 async def api_cron_run_job(
     request: Request,
     job_id: str,
-    _admin: str | None = Header(default=None, alias="X-Atulya-Token"),
+    _admin: dict = Depends(_require_admin),
 ):
-    _require_admin(_admin)
     jobs = _load_jobs()
     for job in jobs:
         if str(job.get("id")) != job_id:

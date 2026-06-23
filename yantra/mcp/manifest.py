@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -23,7 +24,14 @@ class MCPManifest:
 
 class MCPManifestSigner:
     def __init__(self, secret: str | None = None):
-        self._secret = secret or "mcp-signing-secret-change-in-production"
+        if not secret:
+            secret = os.environ.get("ATULYA_MCP_SIGNING_SECRET")
+        if not secret:
+            raise ValueError(
+                "MCP signing secret is required. Set ATULYA_MCP_SIGNING_SECRET env var "
+                "or pass a secret to MCPManifestSigner()."
+            )
+        self._secret = secret
 
     def sign(self, manifest: MCPManifest) -> str:
         """Sign an MCP manifest."""

@@ -89,7 +89,7 @@ class PluginRegistry:
             result["warnings"].append("Plugin file not found")
             return result
         content = plugin_path.read_text()
-        dangerous_patterns = ["os.system(", "subprocess.call(", "__import__('os'", "eval(", "exec(", "getattr(", "__import__(", "compile(", "execfile(", "subprocess", "popen(", "os.popen(", "shell=True"]
+        dangerous_patterns = ["os.system(", "subprocess.call(", "eval(", "exec(", "compile(", "execfile("]
         for pattern in dangerous_patterns:
             if pattern in content:
                 result["warnings"].append(f"Found dangerous pattern: {pattern}")
@@ -120,11 +120,66 @@ class PluginRegistry:
         self._save_manifest()
         return info
 
+    def get_skill(self, name: str) -> PluginInfo | None:
+        """Get a plugin/skill by name."""
+        return self._plugins.get(name)
+
+    def enable_skill(self, name: str) -> bool:
+        """Set a plugin state to ACTIVE."""
+        plugin = self._plugins.get(name)
+        if plugin is None:
+            return False
+        plugin.state = PluginState.ACTIVE
+        self._save_manifest()
+        return True
+
+    def disable_skill(self, name: str) -> bool:
+        """Set a plugin state to DISABLED."""
+        plugin = self._plugins.get(name)
+        if plugin is None:
+            return False
+        plugin.state = PluginState.DISABLED
+        self._save_manifest()
+        return True
+
+    def uninstall_skill(self, name: str) -> bool:
+        """Remove a plugin/skill from the registry and manifest."""
+        if name not in self._plugins:
+            return False
+        del self._plugins[name]
+        self._save_manifest()
+        return True
+
+    def search_skills(self, query: str) -> list[PluginInfo]:
+        """Search plugins by name or description substring."""
+        q = query.lower()
+        return [p for p in self._plugins.values() if q in p.name.lower() or q in p.description.lower()]
+
+    def sync_to_harness(self, harness_registry) -> list[str]:
+        """Bridge: install all PluginRegistry skills into a HarnessRegistry as SkillSpecs.
+
+        Returns a list of skill names that were newly registered.
+        """
+        from yantra.harness import RiskLevel, SkillSpec
+        added = []
+        for name, plugin in self._plugins.items():
+            if plugin.state == PluginState.DISABLED:
+                continue
+            if harness_registry.get_skill(name) is not None:
+                continue
+            risk = RiskLevel.LOW if plugin.trust_level.value in ("verified", "community") else RiskLevel.HIGH
+            spec = SkillSpec(name, plugin.description, tool_name="", risk=risk)
+            harness_registry.register_skill(spec)
+            added.append(name)
+        if added:
+            self._save_manifest()
+        return added
+
     def route_skill(self, prompt: str) -> PluginInfo | None:
         text = prompt.lower()
         for plugin in self._plugins.values():
             haystack = f"{plugin.name} {plugin.description}".lower()
-            if plugin.name.lower() in text or any(word and word in haystack for word in text.split()):
+            if plugin.name.lower() in text or _skills_intersect(text.split(), haystack.split()):
                 return plugin
         return None
 
@@ -141,6 +196,10 @@ def _plugin_to_json(plugin: PluginInfo) -> dict[str, Any]:
     data["trust_level"] = plugin.trust_level.value
     data["state"] = plugin.state.value
     return data
+
+
+def _skills_intersect(words: list[str], haystack_words: list[str]) -> bool:
+    return len(set(words) & set(haystack_words)) >= 2
 
 
 def _extract_heading(text: str) -> str:

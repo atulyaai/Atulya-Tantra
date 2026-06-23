@@ -1,4 +1,4 @@
-﻿"""Device Control â€” whitehat control any device old/new/ancient. IR, Bluetooth, WiFi, Zigbee."""
+"""Device Control - whitehat control any device old/new/ancient. IR, Bluetooth, WiFi, Zigbee."""
 from __future__ import annotations
 
 import json

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import asyncio
 import json
+import os
 import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -14,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from drishti.dashboard.helpers import _checkpoint_index, _load_cached_model
-from drishti.dashboard.routes import auth, automation, chat, cortex, model, openai, system, train, voice
+from drishti.dashboard.routes import agent, auth, automation, chat, cortex, create, devices, model, notifications, openai, system, train, upload, voice, ws
 from drishti.dashboard.automation_runner import AutomationRunner
 from yantra.mcp.external_client import MCPClientManager
 
@@ -33,6 +34,8 @@ def _warm_latest_model() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from atulya.llm import get_default_llm
+    from atulya.agent import AgentCore
+    from drishti.dashboard.routes.agent import set_agent
 
     app.state.llm = get_default_llm()
     app.state.mcp_manager = MCPClientManager()
@@ -40,6 +43,12 @@ async def lifespan(app: FastAPI):
     await _connect_mcp_servers(app)
     app.state.automation_runner = AutomationRunner(automation.JOBS_FILE, app.state.llm)
     app.state.automation_task = asyncio.create_task(app.state.automation_runner.start())
+
+    # Initialize Atulya Agent
+    agent_core = AgentCore(llm_provider=app.state.llm)
+    set_agent(agent_core)
+    app.state.agent = agent_core
+
     threading.Thread(target=_warm_latest_model, daemon=True).start()
     try:
         yield
@@ -47,6 +56,7 @@ async def lifespan(app: FastAPI):
         await app.state.automation_runner.stop()
         app.state.automation_task.cancel()
         await app.state.mcp_manager.shutdown_all()
+        await agent_core.shutdown()
 
 
 async def _connect_mcp_servers(app: FastAPI) -> None:
@@ -88,7 +98,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for module in (auth, system, model, train, chat, cortex, automation, openai, voice):
+for module in (auth, system, model, train, chat, cortex, automation, openai, voice, upload, devices, ws, notifications, agent, create):
     app.include_router(module.router)
 
 

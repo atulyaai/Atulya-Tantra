@@ -1,4 +1,4 @@
-﻿"""Subconscious provider for background processing."""
+"""Subconscious provider for background processing."""
 from __future__ import annotations
 
 import asyncio
@@ -17,7 +17,7 @@ class SubconsciousProvider(MemoryProvider):
 
     def _get_conn(self) -> sqlite3.Connection:
         if self._conn is None:
-            self._conn = sqlite3.connect(str(self.db_path))
+            self._conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
             self._conn.execute("PRAGMA journal_mode=WAL")
         return self._conn
 
@@ -97,5 +97,13 @@ class SubconsciousProvider(MemoryProvider):
 
     async def close(self):
         if self._conn:
-            self._conn.close()
+            def _do_close():
+                try:
+                    self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                    self._conn.execute("PRAGMA journal_mode=DELETE")
+                except Exception:
+                    pass
+                self._conn.close()
+                self._conn = None
+            await asyncio.to_thread(_do_close)
             self._conn = None

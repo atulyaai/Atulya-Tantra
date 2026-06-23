@@ -76,3 +76,19 @@ def api_delete_user(username: str, admin: dict = Depends(_require_admin)):
         raise HTTPException(status_code=404, detail="User not found")
 
     return {"ok": True}
+
+
+@router.get("/api/user/preferences")
+def api_get_preferences(user: dict = Depends(_require_auth)):
+    prefs = users.get_preferences(user["username"])
+    return {"ok": True, "preferences": prefs}
+
+
+@router.put("/api/user/preferences")
+def api_update_preferences(body: dict, user: dict = Depends(_require_auth)):
+    updates = body.get("preferences", {})
+    if not isinstance(updates, dict):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Invalid preferences format")
+    result = users.update_preferences(user["username"], updates)
+    return {"ok": True, "preferences": result}

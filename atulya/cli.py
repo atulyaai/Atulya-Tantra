@@ -41,7 +41,7 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(
         prog="atulya",
-        description="Atulya Tantra - free-first Jarvis/NP-DNA assistant",
+        description="Atulya Tantra - free-first Atulya Agent/NP-DNA assistant",
     )
     sub = parser.add_subparsers(dest="command")
 
@@ -139,7 +139,7 @@ def main() -> None:
 
 
 def _banner() -> None:
-    print("\nAtulya Tantra | free-first Jarvis stack\n")
+    print("\nAtulya Tantra | free-first Atulya Agent stack\n")
 
 
 def _print_table(headers: list[str], rows: Iterable[Iterable[object]]) -> None:

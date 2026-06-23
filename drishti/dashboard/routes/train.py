@@ -20,6 +20,8 @@ from drishti.dashboard.helpers import (
 )
 from drishti.dashboard.state import DashboardState, OUTPUTS_DIR
 
+from drishti.dashboard.routes.ws import broadcast_training, broadcast_telemetry, broadcast_event
+
 router = APIRouter()
 
 PID_FILE = OUTPUTS_DIR / "train.pid"
@@ -116,6 +118,12 @@ def api_training_status(_admin: str | None = Header(default=None, alias="X-Atuly
         phase = "stopped"
     status = {**status, "phase": phase}
 
+    try:
+        import asyncio
+        asyncio.ensure_future(broadcast_training(status))
+    except Exception:
+        pass
+
     return {
         "running": running,
         "pid": pid,
@@ -183,6 +191,14 @@ def api_train_start(body: dict, _admin: str | None = Header(default=None, alias=
         if resume_path:
             cmd.extend(["--resume", str(resume_path)])
 
+    try:
+        import asyncio
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.ensure_future(broadcast_event("Training Started", f"PID {_python_executable()} training with config {config}", "info"))
+    except Exception:
+        pass
+
     OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
     with LOG_FILE.open("ab") as log:
         log.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] START {' '.join(cmd)}\n".encode("utf-8"))
@@ -202,6 +218,13 @@ def api_train_stop(_admin: str | None = Header(default=None, alias="X-Atulya-Tok
     _require_admin(_admin)
     pid = _read_pid()
     if not _pid_running(pid):
+        try:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.ensure_future(broadcast_event("Training Stopped", "No process was running", "warning"))
+        except Exception:
+            pass
         return {"ok": True, "running": False, "message": "No training process is running"}
     if os.name == "nt":
         subprocess.call(["taskkill", "/PID", str(pid), "/T", "/F"])
@@ -210,4 +233,11 @@ def api_train_stop(_admin: str | None = Header(default=None, alias="X-Atulya-Tok
             os.kill(pid, signal.SIGTERM)
         except ProcessLookupError:
             pass
+    try:
+        import asyncio
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.ensure_future(broadcast_event("Training Stopped", f"PID {pid} was stopped", "warning"))
+    except Exception:
+        pass
     return {"ok": True, "running": False, "stopped_pid": pid}

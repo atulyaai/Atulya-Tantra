@@ -165,6 +165,50 @@ def api_datasets(_admin: str | None = Header(default=None, alias="X-Atulya-Token
     return {"datasets": _dataset_registry()}
 
 
+@router.get("/api/health")
+def api_health(token: str | None = Header(default=None, alias="X-Atulya-Token")):
+    _require_auth(token)
+    warnings = []
+
+    # Check disk space
+    mem = psutil.virtual_memory()
+    disk_root = OUTPUTS_DIR.parent
+    try:
+        disk = psutil.disk_usage(str(disk_root))
+        if disk.free / (1024**3) < 5:
+            warnings.append({"severity": "high", "message": f"Low disk space: {disk.free / (1024**3):.1f} GB free"})
+        elif disk.free / (1024**3) < 20:
+            warnings.append({"severity": "medium", "message": f"Disk space getting low: {disk.free / (1024**3):.1f} GB free"})
+    except Exception:
+        pass
+
+    # Check RAM
+    if mem.percent > 90:
+        warnings.append({"severity": "high", "message": f"Critical RAM usage: {mem.percent}%"})
+    elif mem.percent > 80:
+        warnings.append({"severity": "medium", "message": f"High RAM usage: {mem.percent}%"})
+
+    # Check checkpoints for corruption
+    checkpoints = _checkpoint_index()
+    stale_count = 0
+    for cid, cpath in checkpoints.items():
+        if cid == "latest":
+            continue
+        meta = _read_metadata(cpath)
+        if not meta or not meta.get("version_stage"):
+            stale_count += 1
+    if stale_count > 3:
+        warnings.append({"severity": "medium", "message": f"{stale_count} checkpoints may be incomplete"})
+
+    # Check dataset health
+    datasets = _dataset_registry()
+    empty_datasets = [d["name"] for d in datasets if d.get("rows") is None or d.get("rows", 0) == 0]
+    if empty_datasets:
+        warnings.append({"severity": "low", "message": f"Empty datasets: {', '.join(empty_datasets[:3])}"})
+
+    return {"ok": True, "warnings": warnings, "healthy": len(warnings) == 0}
+
+
 @router.get("/api/dashboard/bootstrap")
 def api_dashboard_bootstrap(token: str | None = Header(default=None, alias="X-Atulya-Token")):
     user = _require_auth(token)

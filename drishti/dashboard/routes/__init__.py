@@ -1,3 +1,2 @@
-﻿"""Dashboard route modules."""
-
+"""Dashboard route modules."""
 

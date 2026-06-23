@@ -127,4 +127,44 @@ export const api = {
       })
       .catch(onError);
   },
+  connectWebSocket(onMessage) {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/api/ws`;
+    let ws = new WebSocket(wsUrl);
+    let reconnectTimer = null;
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: 'ping' }));
+    };
+    ws.onmessage = (event) => {
+      try { onMessage(JSON.parse(event.data)); } catch {}
+    };
+    ws.onclose = () => {
+      reconnectTimer = setTimeout(() => {
+        this.connectWebSocket(onMessage);
+      }, 3000);
+    };
+    return () => {
+      clearTimeout(reconnectTimer);
+      ws.close();
+    };
+  },
+  async subscribePush() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      return { ok: false, error: 'Push not supported' };
+    }
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      let sub = await registration.pushManager.getSubscription();
+      if (!sub) {
+        sub = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: null,
+        });
+      }
+      return this.post('/api/notifications/subscribe', { subscription: sub.toJSON() });
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  },
 };

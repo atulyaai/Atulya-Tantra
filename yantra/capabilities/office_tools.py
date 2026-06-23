@@ -1,4 +1,4 @@
-"""Free, local office/data tools for Jarvis workflows."""
+"""Free, local office/data tools for Atulya Agent workflows."""
 from __future__ import annotations
 
 import ast
@@ -49,7 +49,12 @@ class PDFReadTool(Tool):
     description = "Read text from a PDF when a local PDF reader library is installed. Args: path."
 
     async def execute(self, path: str, max_chars: int = 8000, **kwargs: Any) -> ToolResult:
-        pdf_path = Path(path)
+        if max_chars > 50000:
+            return ToolResult(success=False, error="max_chars exceeds limit (50000)")
+        pdf_path = Path(path).resolve()
+        cwd = Path.cwd().resolve()
+        if cwd not in pdf_path.parents and pdf_path != cwd:
+            return ToolResult(success=False, error="Path outside allowed directory")
         if not pdf_path.exists():
             return ToolResult(success=False, error=f"PDF not found: {path}")
         try:

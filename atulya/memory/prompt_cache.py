@@ -1,4 +1,4 @@
-﻿"""Prompt cache with deferred invalidation."""
+"""Prompt cache with deferred invalidation."""
 from __future__ import annotations
 
 import json
