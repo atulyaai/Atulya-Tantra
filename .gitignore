@@ -6,15 +6,11 @@ outputs/
 # Generated data
 data/
 tantra/data/*.jsonl
-assets/conversations/
-!assets/conversations/.keep
-assets/memory/
-!assets/memory/.keep
-assets/audio/
-!assets/audio/.keep
+assets/
 tantra/assets/
 yantra/selfimprovement/data/
-!yantra/selfimprovement/data/.keep
+config/users.json
+tmp/
 
 # Cache
 .pytest_cache/

@@ -1,0 +1,31 @@
+{
+  "agent": {
+    "enabled": true,
+    "mode": "proactive",
+    "proactive": {
+      "enabled": true,
+      "suggestion_interval_minutes": 30,
+      "context_analysis_depth": "medium"
+    },
+    "email": {
+      "enabled": false,
+      "imap_server": "",
+      "imap_port": 993,
+      "smtp_server": "",
+      "smtp_port": 587,
+      "username": "",
+      "password": ""
+    },
+    "scheduler": {
+      "enabled": true,
+      "default_reminder_channel": "websocket",
+      "natural_language_parsing": true
+    },
+    "vision": {
+      "enabled": false,
+      "model_type": "llava",
+      "model_path": null,
+      "auto_download": false
+    }
+  }
+}

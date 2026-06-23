@@ -1,4 +1,4 @@
-﻿"""Reflection provider for self-improvement."""
+"""Reflection provider for self-improvement."""
 from __future__ import annotations
 
 import asyncio
@@ -19,7 +19,7 @@ class ReflectionProvider(MemoryProvider):
 
     def _get_conn(self):
         if self._conn is None:
-            self._conn = sqlite3.connect(str(self.db_path))
+            self._conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
             self._conn.execute("PRAGMA journal_mode=WAL")
         return self._conn
 
@@ -99,7 +99,17 @@ class ReflectionProvider(MemoryProvider):
 
     async def close(self):
         if self._conn:
-            self._conn.close()
+            def _do_close():
+                try:
+                    self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                    self._conn.execute("PRAGMA journal_mode=DELETE")
+                except Exception:
+                    pass
+                try:
+                    self._conn.close()
+                except Exception:
+                    pass
+            await asyncio.to_thread(_do_close)
             self._conn = None
 
     async def get_insights(self) -> list[dict[str, Any]]:

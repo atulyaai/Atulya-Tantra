@@ -1,4 +1,4 @@
-﻿"""Memory orchestrator with pluggable providers."""
+"""Memory orchestrator with pluggable providers."""
 from __future__ import annotations
 
 import re

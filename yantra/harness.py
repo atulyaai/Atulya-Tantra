@@ -1,6 +1,7 @@
 """ECC-inspired harness layer for Yantra agents, skills, commands, and safety."""
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -81,10 +82,17 @@ class SafetyPolicy:
             "write_file",
             "edit_file",
         }:
+            if os.environ.get("ATULYA_ALLOW_HIGH_RISK", "").lower() in ("1", "true"):
+                return SafetyDecision(
+                    allowed=True,
+                    risk=RiskLevel.HIGH,
+                    reason="High-risk command approved via ATULYA_ALLOW_HIGH_RISK env var",
+                    sanitized_prompt=sanitized,
+                )
             return SafetyDecision(
                 allowed=False,
                 risk=RiskLevel.HIGH,
-                reason="High-risk command requires an explicit lower-level approval path",
+                reason="High-risk command blocked. Set ATULYA_ALLOW_HIGH_RISK=true to enable, or use direct tool API.",
                 sanitized_prompt=sanitized,
             )
         return SafetyDecision(
@@ -110,6 +118,7 @@ class HarnessRegistry:
         self.skills: dict[str, SkillSpec] = {}
         self.commands: dict[str, CommandSpec] = {}
         self.aliases: dict[str, str] = {}
+        self._disabled_skills: set[str] = set()
 
     def register_agent(self, spec: AgentSpec) -> None:
         self.agents.setdefault(spec.name, spec)
@@ -127,6 +136,64 @@ class HarnessRegistry:
     def resolve_command(self, name: str) -> CommandSpec | None:
         resolved = self.aliases.get(name, name)
         return self.commands.get(resolved)
+
+    def get_skill(self, name: str) -> SkillSpec | None:
+        """Get a skill spec by name or alias."""
+        resolved = self.aliases.get(name, name)
+        return self.skills.get(resolved)
+
+    def remove_skill(self, name: str) -> bool:
+        """Remove a skill and its aliases from the registry."""
+        resolved = self.aliases.get(name, name)
+        spec = self.skills.pop(resolved, None)
+        if spec is None:
+            return False
+        self._disabled_skills.discard(resolved)
+        for alias in spec.aliases:
+            self.aliases.pop(alias, None)
+        return True
+
+    def disable_skill(self, name: str) -> bool:
+        """Mark a skill as disabled at runtime."""
+        resolved = self.aliases.get(name, name)
+        if resolved not in self.skills:
+            return False
+        self._disabled_skills.add(resolved)
+        return True
+
+    def enable_skill(self, name: str) -> bool:
+        """Re-enable a previously disabled skill."""
+        resolved = self.aliases.get(name, name)
+        if resolved not in self.skills:
+            return False
+        self._disabled_skills.discard(resolved)
+        return True
+
+    def is_skill_enabled(self, name: str) -> bool:
+        """Check if a skill is enabled."""
+        resolved = self.aliases.get(name, name)
+        return resolved in self.skills and resolved not in self._disabled_skills
+
+    def update_skill(self, name: str, **updates: Any) -> bool:
+        """Update a skill's description, tool_name, risk, or aliases in-place."""
+        resolved = self.aliases.get(name, name)
+        spec = self.skills.get(resolved)
+        if spec is None:
+            return False
+        valid_fields = {"description", "tool_name", "risk", "aliases"}
+        for key, value in updates.items():
+            if key not in valid_fields:
+                continue
+            if key == "aliases":
+                object.__setattr__(spec, key, tuple(value))
+            else:
+                object.__setattr__(spec, key, value)
+        return True
+
+    def search_skills(self, query: str) -> list[SkillSpec]:
+        """Search skills by name or description substring."""
+        q = query.lower()
+        return [s for s in self.skills.values() if q in s.name.lower() or q in s.description.lower()]
 
     def duplicate_report(self, tools: ToolRegistry | None = None) -> dict[str, list[str]]:
         report: dict[str, list[str]] = {
@@ -255,6 +322,15 @@ class YantraHarness:
                     "risk": decision.risk.value,
                     "blocked": True,
                 },
+            )
+
+        if not self.registry.is_skill_enabled(command.skill_name):
+            from yantra.capabilities import ToolResult
+            return DispatchResult(
+                classification=self.dispatcher.classifier.classify(prompt or command.name),
+                tool_result=ToolResult(success=False, error=f"Skill '{command.skill_name}' is disabled"),
+                model="",
+                metadata={"command": command.name, "blocked": True, "disabled": True},
             )
 
         skill = self.registry.skills[command.skill_name]

@@ -1,4 +1,4 @@
-"""Production readiness checks for Jarvis/Atulya deployments."""
+"""Production readiness checks for Atulya deployments."""
 from __future__ import annotations
 
 import json

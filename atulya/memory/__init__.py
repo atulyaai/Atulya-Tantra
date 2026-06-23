@@ -1,4 +1,4 @@
-﻿"""Memory - Persistent memory, knowledge graphs, and context management."""
+"""Memory - Persistent memory, knowledge graphs, and context management."""
 from .orchestrator import (
     ContextWindow,
     MemoryEntry,
@@ -13,6 +13,7 @@ from .subconscious import SubconsciousProvider
 from .session_search import SessionSearchProvider
 from .prompt_cache import PromptCacheProvider
 from .reflection import ReflectionProvider
+from .vector_store import VectorMemoryProvider
 
 __all__ = [
     "ContextWindow",
@@ -27,5 +28,6 @@ __all__ = [
     "SessionSearchProvider",
     "PromptCacheProvider",
     "ReflectionProvider",
+    "VectorMemoryProvider",
 ]
 

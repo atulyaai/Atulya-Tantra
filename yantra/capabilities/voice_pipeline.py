@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import base64
+import asyncio
 import hashlib
 import logging
 import os
+import re
+import subprocess
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -64,7 +67,7 @@ class STTResult:
 
 
 class TextToSpeech:
-    """TTS with edge-tts (free, Microsoft voices for Hindi/English/Sanskrit)."""
+    """TTS with edge-tts plus an optional offline Piper fallback."""
 
     VOICES = {
         "en_male": {"voice": "en-US-GuyNeural", "language": "en"},
@@ -85,11 +88,17 @@ class TextToSpeech:
         percent = int(round((float(speed) - 1.0) * 100))
         return f"{percent:+d}%"
 
+    @staticmethod
+    def strip_ssml(text: str) -> str:
+        text = re.sub(r"<break[^>]*/>", " ... ", text)
+        return re.sub(r"<[^>]+>", "", text).strip()
+
     async def synthesize(
         self, text: str, voice: str = "en_male", speed: float = 1.0,
         format: AudioFormat = AudioFormat.MP3, save: bool = True,
     ) -> TTSResult:
         """Synthesize speech using edge-tts (free, no API key needed)."""
+        text = self.strip_ssml(text)
         try:
             import edge_tts
             voice_config = self.VOICES.get(voice, self.VOICES["en_male"])
@@ -114,11 +123,49 @@ class TextToSpeech:
             self._history.append(result)
             return result
         except ImportError:
-            # Fallback: return text as-is with metadata
-            return TTSResult(
-                id=f"fallback_{hashlib.sha256(text.encode()).hexdigest()[:16]}", provider="fallback",
-                metadata={"text": text, "voice": voice, "note": "edge-tts not installed"},
-            )
+            return await self._piper_or_manifest(text, voice, format)
+
+    async def synthesize_bulk(
+        self,
+        texts: list[str],
+        voice: str = "en_male",
+        speed: float = 1.0,
+        concurrency: int = 4,
+    ) -> list[TTSResult]:
+        semaphore = asyncio.Semaphore(max(1, concurrency))
+
+        async def run(text: str) -> TTSResult:
+            async with semaphore:
+                return await self.synthesize(text, voice=voice, speed=speed)
+
+        return await asyncio.gather(*(run(text) for text in texts))
+
+    async def _piper_or_manifest(self, text: str, voice: str, format: AudioFormat) -> TTSResult:
+        result_id = hashlib.sha256(text.encode()).hexdigest()[:16]
+        model = os.environ.get("PIPER_MODEL", "")
+        if model:
+            try:
+                path = self.output_dir / f"{result_id}.wav"
+                result = subprocess.run(
+                    [os.environ.get("PIPER_BIN", "piper"), "--model", model, "--output_file", str(path)],
+                    input=text,
+                    text=True,
+                    capture_output=True,
+                    timeout=120,
+                )
+                if result.returncode == 0 and path.exists():
+                    return TTSResult(result_id, local_path=str(path), format=AudioFormat.WAV, provider="piper")
+            except Exception as exc:
+                logger.warning("Piper synthesis skipped: %s", exc)
+        path = self.output_dir / f"{result_id}.txt"
+        path.write_text(text, encoding="utf-8")
+        return TTSResult(
+            result_id,
+            local_path=str(path),
+            format=format,
+            provider="fallback",
+            metadata={"voice": voice, "note": "narration manifest; install edge-tts or configure Piper"},
+        )
 
     async def synthesize_streaming(
         self, text: str, voice: str = "en_male", speed: float = 1.0,
@@ -168,20 +215,43 @@ class SpeechToText:
 
         stt_result = STTResult(id="error", text="", error="Transcription failed")
         try:
-            import whisper
-            whisp_model = whisper.load_model(model)
-            result = whisp_model.transcribe(audio_path, language=language, word_timestamps=True)
-            words = []
-            for segment in result.get("segments", []):
-                for word in segment.get("words", []):
-                    words.append({"word": word.get("word", ""), "start": word.get("start", 0), "end": word.get("end", 0)})
+            from faster_whisper import WhisperModel
+
+            whisper_model = WhisperModel(model, device="cpu", compute_type="int8")
+            segments, info = whisper_model.transcribe(audio_path, language=language, word_timestamps=True)
+            segments = list(segments)
+            text = " ".join(segment.text.strip() for segment in segments).strip()
+            words = [
+                {"word": word.word, "start": word.start, "end": word.end}
+                for segment in segments
+                for word in (segment.words or [])
+            ]
             stt_result = STTResult(
-                id=hashlib.sha256(result["text"].encode()).hexdigest()[:16],
-                text=result["text"], language=language,
-                confidence=result.get("confidence", 0.9), words=words, provider="whisper",
+                id=hashlib.sha256(text.encode()).hexdigest()[:16],
+                text=text,
+                language=getattr(info, "language", language),
+                confidence=float(getattr(info, "language_probability", 0.0) or 0.0),
+                words=words,
+                provider="faster-whisper",
             )
         except ImportError:
-            stt_result = await self._transcribe_openai(audio_path, language)
+            try:
+                import whisper
+            except ImportError:
+                stt_result = await self._transcribe_openai(audio_path, language)
+            else:
+                whisp_model = whisper.load_model(model)
+                result = whisp_model.transcribe(audio_path, language=language, word_timestamps=True)
+                words = [
+                    {"word": word.get("word", ""), "start": word.get("start", 0), "end": word.get("end", 0)}
+                    for segment in result.get("segments", [])
+                    for word in segment.get("words", [])
+                ]
+                stt_result = STTResult(
+                    id=hashlib.sha256(result["text"].encode()).hexdigest()[:16],
+                    text=result["text"], language=language,
+                    confidence=result.get("confidence", 0.9), words=words, provider="whisper",
+                )
         finally:
             if _temp_created and audio_path:
                 try:

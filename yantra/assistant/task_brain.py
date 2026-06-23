@@ -1,4 +1,4 @@
-﻿"""Task Brain â€” SQLite control plane for unified task ledger."""
+"""Task Brain - SQLite control plane for unified task ledger."""
 from __future__ import annotations
 
 import json

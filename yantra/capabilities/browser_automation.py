@@ -49,10 +49,18 @@ class BrowserAutomation:
 
     async def stop(self):
         """Stop browser."""
+        if self._page:
+            await self._page.close()
+            self._page = None
+        if self._context:
+            await self._context.close()
+            self._context = None
         if self._browser:
             await self._browser.close()
+            self._browser = None
         if self._playwright:
             await self._playwright.stop()
+            self._playwright = None
 
     async def navigate(self, url: str, wait_until: str = "domcontentloaded") -> BrowserResult:
         """Navigate to URL."""

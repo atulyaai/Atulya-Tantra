@@ -5,6 +5,7 @@ import html
 import json
 import logging
 import os
+import threading
 import time
 import urllib.parse
 import urllib.request
@@ -14,6 +15,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any
+
+_MAX_NOTIFICATIONS = 500
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +146,7 @@ class TelegramChannel(ChannelBase):
     def __init__(self):
         super().__init__()
         self._histories: dict[str, list[dict[str, str]]] = {}
+        self._lock = threading.Lock()
 
     async def send(self, message: str, chat_id: str = "", **kwargs: Any) -> bool:
         token = self.config.get("bot_token") or self.config.get("token") or os.environ.get("ATULYA_TELEGRAM_BOT_TOKEN")
@@ -247,11 +251,12 @@ class TelegramChannel(ChannelBase):
             llm = AtulyaLLM()
         history = self._histories.setdefault(str(message.sender), [])
         response = await llm.ask(prompt, history=history)
-        history.extend([
-            {"role": "user", "content": prompt},
-            {"role": "assistant", "content": response.text},
-        ])
-        del history[:-20]
+        with self._lock:
+            history.extend([
+                {"role": "user", "content": prompt},
+                {"role": "assistant", "content": response.text},
+            ])
+            del history[:-20]
         outgoing = html.escape(response.text)
         show_provider = self.config.get("show_provider") or os.environ.get("ATULYA_TELEGRAM_SHOW_PROVIDER", "").lower() in {"1", "true", "yes"}
         if show_provider and getattr(response, "provider", ""):
@@ -463,6 +468,7 @@ class NotificationSystem:
     def __init__(self, data_dir: str | Path = "config/channels"):
         self.registry = create_default_registry(data_dir)
         self._notifications: list[Notification] = []
+        self._notif_lock = threading.Lock()
 
     def configure(self, channel: str, config: dict[str, Any]):
         self.registry._configs[channel] = dict(config)
@@ -478,17 +484,22 @@ class NotificationSystem:
             priority=priority,
             sent=sent,
         )
-        self._notifications.append(notification)
+        with self._notif_lock:
+            self._notifications.append(notification)
+            if len(self._notifications) > _MAX_NOTIFICATIONS:
+                self._notifications = self._notifications[-_MAX_NOTIFICATIONS:]
         return notification
 
     def get_history(self, limit: int = 20) -> list[dict[str, Any]]:
-        return [vars(n) for n in self._notifications[-limit:]]
+        with self._notif_lock:
+            return [vars(n) for n in self._notifications[-limit:]]
 
     def get_stats(self) -> dict[str, Any]:
-        by_channel: dict[str, int] = {}
-        for item in self._notifications:
-            by_channel[item.channel.value] = by_channel.get(item.channel.value, 0) + 1
-        return {"total_sent": len(self._notifications), "by_channel": by_channel}
+        with self._notif_lock:
+            by_channel: dict[str, int] = {}
+            for item in self._notifications:
+                by_channel[item.channel.value] = by_channel.get(item.channel.value, 0) + 1
+            return {"total_sent": len(self._notifications), "by_channel": by_channel}
 
 
 def create_default_registry(data_dir: str | Path = "config/channels") -> ChannelRegistry:

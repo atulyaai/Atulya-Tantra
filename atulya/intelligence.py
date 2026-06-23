@@ -25,7 +25,7 @@ def _env_float(name: str, default: float) -> float:
 
 
 def _benchmark_allows_tantra(model_path: str | Path) -> bool:
-    if os.environ.get("ATULYA_TANTRA_FORCE_PROD", "").lower() in {"1", "true", "yes"}:
+    if os.environ.get("ATULYA_TANTRA_ALLOW_MODEL", "").lower() in {"1", "true", "yes"}:
         return True
     benchmark_path = Path(model_path) / "benchmark.json"
     if not benchmark_path.exists():
@@ -392,6 +392,36 @@ class OpenCodeProvider(IntelligenceProvider):
         return get_atulya_fallback_response(prompt, "en_male")
 
 
+class LocalGGUFProvider(IntelligenceProvider):
+    """Provider that loads a tiny GGUF model directly via llama-cpp-python."""
+
+    def __init__(self):
+        self._impl = None
+
+    def name(self) -> str:
+        try:
+            from atulya.local_provider import LocalGGUFProvider as LP
+            if self._impl is None:
+                self._impl = LP()
+            return self._impl.name()
+        except Exception:
+            return "Tiny Local GGUF"
+
+    def is_available(self) -> bool:
+        try:
+            from atulya.local_provider import LocalGGUFProvider as LP
+            if self._impl is None:
+                self._impl = LP()
+            return self._impl.is_available()
+        except Exception:
+            return False
+
+    async def chat(self, prompt: str, system_prompt: str = "") -> str:
+        from atulya.local_provider import LocalGGUFProvider as LP
+        if self._impl is None:
+            self._impl = LP()
+        return await self._impl.chat(prompt, system_prompt)
+
 
 class ProviderRouter(IntelligenceProvider):
     """Atulya Intelligence Provider Fallback Chain Router."""
@@ -400,7 +430,8 @@ class ProviderRouter(IntelligenceProvider):
         # Fallback priority chain order
         self.providers: list[IntelligenceProvider] = [
             OllamaProvider(),      # Free local model (1st choice)
-            GroqProvider(),        # Fast free developer-tier API (2nd choice)
+            LocalGGUFProvider(),   # Tiny 350 MB local GGUF, no Ollama needed (2nd choice)
+            GroqProvider(),        # Fast free developer-tier API (3rd choice)
             OpenRouterProvider(),  # Free model aggregator when configured (3rd choice)
             GeminiProvider(),      # Google free-tier key when configured (4th choice)
             TantraProvider(),      # Research model only after benchmark gate passes

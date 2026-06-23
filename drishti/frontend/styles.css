@@ -12,6 +12,20 @@
   --warn: #ffbf47;
 }
 
+:root.light {
+  color-scheme: light;
+  --bg: #f5f7fa;
+  --panel: #ffffff;
+  --panel-soft: #eef1f6;
+  --text: #1a1d2e;
+  --muted: #6b7a8f;
+  --line: #d0d7e2;
+  --accent: #6d4aff;
+  --good: #0ea87b;
+  --bad: #e04860;
+  --warn: #d49a1a;
+}
+
 * { box-sizing: border-box; }
 body {
   margin: 0;
@@ -47,6 +61,15 @@ button, input, select {
 button { cursor: pointer; }
 button.active, button.primary { background: var(--accent); border-color: var(--accent); }
 button:disabled { opacity: 0.55; cursor: wait; }
+.theme-toggle {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
 
 .logout { margin-top: auto; }
 .content { padding: 24px; overflow: auto; }
@@ -2986,4 +3009,378 @@ button.small {
   padding: 4px 10px;
   font-size: 11px;
   border-radius: 4px;
+}
+
+/* ─── HOLOGRAPHIC SPIRIT UI ─── */
+.holo-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 600px;
+  background: #000008;
+  overflow: hidden;
+  cursor: none;
+  font-family: 'Courier New', monospace;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.holo-canvas {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.holo-fx {
+  z-index: 4;
+  pointer-events: none;
+}
+
+.holo-cam {
+  position: absolute;
+  top: 0; left: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.holo-hand {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 200px;
+  height: 150px;
+  z-index: 9;
+  border: 1px solid rgba(136, 85, 255, 0.27);
+  background: #000;
+}
+
+.holo-hud {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  pointer-events: none;
+  z-index: 10;
+  color: #cc88ff;
+  text-transform: uppercase;
+}
+
+.holo-name {
+  text-align: center;
+  font-size: 18px;
+  font-weight: bold;
+  letter-spacing: 8px;
+  margin-top: 14px;
+  text-shadow: 0 0 12px #cc88ff88;
+  color: #cc88ff;
+  transition: color 0.4s, text-shadow 0.4s;
+}
+
+.holo-sub {
+  text-align: center;
+  font-size: 8px;
+  color: #8855ff;
+  letter-spacing: 4px;
+  margin-top: 4px;
+}
+
+.holo-state {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  font-size: 9px;
+  color: #6633aa;
+  letter-spacing: 3px;
+}
+
+.holo-gesture {
+  position: absolute;
+  top: 30px;
+  left: 16px;
+  font-size: 9px;
+  color: #aa66ff;
+  letter-spacing: 3px;
+}
+
+.holo-fingers {
+  position: absolute;
+  top: 46px;
+  left: 16px;
+  font-size: 8px;
+  color: #6633aa;
+  letter-spacing: 2px;
+}
+
+.holo-pill {
+  position: absolute;
+  top: 14px;
+  right: 230px;
+  display: inline-block;
+  background: rgba(26, 10, 46, 0.67);
+  border: 1px solid rgba(136, 85, 255, 0.27);
+  padding: 5px 10px;
+  font-size: 9px;
+  letter-spacing: 2px;
+  z-index: 9;
+  color: #cc88ff;
+}
+
+.holo-cam-btn {
+  position: absolute;
+  bottom: 90px;
+  right: 16px;
+  z-index: 12;
+  background: transparent;
+  border: 1px solid rgba(204, 136, 255, 0.5);
+  color: #cc88ff;
+  font-family: 'Courier New', monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.holo-cam-btn:hover {
+  background: rgba(204, 136, 255, 0.13);
+  box-shadow: 0 0 12px rgba(204, 136, 255, 0.3);
+}
+
+.holo-cam-btn.on {
+  background: rgba(68, 255, 136, 0.13);
+  border-color: #44ff88;
+  color: #44ff88;
+}
+
+.holo-cam-err {
+  position: absolute;
+  bottom: 70px;
+  right: 16px;
+  z-index: 12;
+  background: rgba(60, 0, 0, 0.8);
+  border: 1px solid #ff4444;
+  color: #ff8888;
+  padding: 6px 10px;
+  font-size: 9px;
+  max-width: 280px;
+}
+
+.holo-corner {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-color: rgba(204, 136, 255, 0.2);
+  border-style: solid;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.holo-corner.tl { top: 8px; left: 8px; border-width: 2px 0 0 2px; }
+.holo-corner.tr { top: 8px; right: 8px; border-width: 2px 2px 0 0; }
+.holo-corner.bl { bottom: 110px; left: 8px; border-width: 0 0 2px 2px; }
+.holo-corner.br { bottom: 110px; right: 8px; border-width: 0 2px 2px 0; }
+
+.holo-storyboard {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  z-index: 12;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 8px;
+  border: 1px solid rgba(136, 85, 255, 0.2);
+}
+
+.holo-frame {
+  position: relative;
+  width: 80px;
+  height: 60px;
+  background: #000010;
+  border: 1px solid rgba(136, 85, 255, 0.13);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.holo-frame:hover {
+  border-color: rgba(204, 136, 255, 0.5);
+}
+
+.holo-frame.active {
+  border-color: #cc88ff;
+  box-shadow: 0 0 12px rgba(204, 136, 255, 0.4);
+  transform: scale(1.08);
+}
+
+.holo-frame-num {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 8px;
+  color: #cc88ff;
+  z-index: 2;
+  text-shadow: 0 0 4px #000;
+}
+
+.holo-frame-lbl {
+  position: absolute;
+  bottom: 1px;
+  left: 0;
+  right: 0;
+  font-size: 7px;
+  color: #cc88ff;
+  text-align: center;
+  letter-spacing: 1px;
+  z-index: 2;
+  text-shadow: 0 0 4px #000;
+}
+
+.holo-legend {
+  position: absolute;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 14px;
+  z-index: 12;
+  font-size: 9px;
+  color: #aa66ff;
+  letter-spacing: 1px;
+  pointer-events: none;
+}
+
+.holo-legend span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 4px 8px;
+  border: 1px solid rgba(136, 85, 255, 0.13);
+}
+
+.holo-chat-panel {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 280px;
+  max-height: 420px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(10, 10, 20, 0.85);
+  border: 1px solid rgba(136, 85, 255, 0.25);
+  border-radius: 8px;
+  z-index: 15;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: #cc88ff;
+}
+
+.holo-chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(136, 85, 255, 0.15);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: #aa66ff;
+}
+
+.holo-chat-status {
+  color: #00ff88;
+}
+
+.holo-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 300px;
+}
+
+.holo-chat-msg {
+  padding: 4px 6px;
+  border-radius: 4px;
+  line-height: 1.4;
+}
+
+.holo-chat-msg.user {
+  background: rgba(136, 85, 255, 0.15);
+  align-self: flex-end;
+  max-width: 85%;
+}
+
+.holo-chat-msg.assistant {
+  background: rgba(0, 255, 136, 0.08);
+  align-self: flex-start;
+  max-width: 85%;
+}
+
+.holo-chat-msg small {
+  display: block;
+  font-size: 7px;
+  color: #666;
+  margin-top: 2px;
+  letter-spacing: 1px;
+}
+
+.holo-chat-input {
+  display: flex;
+  border-top: 1px solid rgba(136, 85, 255, 0.15);
+}
+
+.holo-chat-input input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.4);
+  border: none;
+  color: #cc88ff;
+  padding: 8px 10px;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  outline: none;
+}
+
+.holo-chat-input input::placeholder {
+  color: rgba(136, 85, 255, 0.4);
+}
+
+.holo-chat-input button {
+  background: rgba(136, 85, 255, 0.2);
+  border: none;
+  border-left: 1px solid rgba(136, 85, 255, 0.15);
+  color: #aa66ff;
+  padding: 8px 12px;
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+
+.holo-chat-input button:hover:not(:disabled) {
+  background: rgba(136, 85, 255, 0.35);
+}
+
+.holo-chat-input button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@media (max-width: 720px) {
+  .holo-hand { width: 120px; height: 90px; }
+  .holo-legend { flex-wrap: wrap; justify-content: center; max-width: 90%; }
+  .holo-frame { width: 60px; height: 45px; }
+  .holo-frame-lbl { font-size: 6px; }
+  .holo-pill { display: none; }
+  .holo-name { font-size: 14px; letter-spacing: 4px; }
 }

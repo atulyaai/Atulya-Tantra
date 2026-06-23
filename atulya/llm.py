@@ -69,7 +69,7 @@ class AtulyaLLM:
         system_prompt = self._build_system_prompt(history or [])
         working_prompt = self._compose_prompt(prompt, history or [])
         steps: list[dict[str, Any]] = []
-        provider = "Diagnostics Fallback"
+        requested_provider = provider
 
         if approved_tool_call and tools_enabled:
             step = await self._execute_tool_call(approved_tool_call)
@@ -82,7 +82,11 @@ class AtulyaLLM:
             )
 
         for _ in range(self.max_tool_iterations if tools_enabled else 1):
-            text, provider_name = await self.router.chat(working_prompt, system_prompt, preferred_provider=provider)
+            text, provider_name = await self.router.chat(
+                working_prompt,
+                system_prompt,
+                preferred_provider=requested_provider,
+            )
             tool_call = self._extract_tool_call(text)
             if not tool_call or not tools_enabled:
                 return LLMResponse(text=self._strip_tool_blocks(text).strip(), provider=provider_name, tool_steps=steps)
@@ -109,7 +113,7 @@ class AtulyaLLM:
 
         fallback = "I ran out of tool iterations before completing the request. Here is what I found:\n"
         fallback += "\n".join(f"- {s['tool']}: {s.get('output') or s.get('error')}" for s in steps)
-        return LLMResponse(text=fallback, provider=provider, tool_steps=steps)
+        return LLMResponse(text=fallback, provider=requested_provider or "Diagnostics Fallback", tool_steps=steps)
 
     async def _execute_tool_call(self, tool_call: dict[str, Any]) -> dict[str, Any]:
         normalized = self._normalize_tool_call(tool_call)

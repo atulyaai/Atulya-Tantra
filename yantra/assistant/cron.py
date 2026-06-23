@@ -1,4 +1,4 @@
-﻿"""Cron/scheduling system with persistence."""
+"""Cron/scheduling system with persistence."""
 from __future__ import annotations
 
 import asyncio

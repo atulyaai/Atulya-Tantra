@@ -311,7 +311,7 @@ flowchart LR
 Important Yantra locations:
 
 - `yantra/capabilities/`: file read/write/edit, gated shell execution, web search/fetch, todo, memory, browser, voice, and workflow capabilities (canonical)
-- `yantra/harness.py`: ECC-inspired command surface for agents, skills, commands, safety checks, and duplicate reports. Add new Jarvis-style behavior here first, then route into existing capabilities instead of creating parallel folders.
+- `yantra/harness.py`: ECC-inspired command surface for agents, skills, commands, safety checks, and duplicate reports. Add new Atulya Agent-style behavior here first, then route into existing capabilities instead of creating parallel folders.
 - `yantra/tools/`: compatibility re-exports from capabilities/ for older callers
 - `yantra/channels.py`: unified 14-channel system (Discord, Telegram, Slack, Email, Webhook, WhatsApp, Signal, Matrix, Teams, IRC, WebChat, Console, Log, Twitter)
 - `yantra/mcp/`: MCP server, transport, manifest signing, external client, dashboard bridge

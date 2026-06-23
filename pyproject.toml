@@ -21,12 +21,25 @@ dependencies = [
 [project.optional-dependencies]
 serve = ["fastapi", "uvicorn", "jinja2", "python-multipart"]
 dev = ["pytest>=7.0", "pytest-asyncio>=0.23", "anyio>=4.0", "PyYAML>=6.0", "ruff"]
+local = ["llama-cpp-python"]
+email = ["aioimaplib", "aiosmtplib"]
+vision = ["llama-cpp-python"]
 chakra = ["GitPython>=3.1"]
 yantra = ["scapy", "zeroconf", "broadlink"]
+creation = [
+    "fpdf2>=2.7", "python-docx>=1.1", "python-pptx>=0.6", "openpyxl>=3.1",
+    "moviepy>=1.0", "Pillow>=10.0", "matplotlib>=3.8", "seaborn>=0.13",
+    "piper-tts>=1.2", "soundfile>=0.12", "faster-whisper>=0.10",
+]
 all = [
     "fastapi", "uvicorn", "jinja2", "python-multipart",
     "GitPython>=3.1",
     "scapy", "zeroconf", "broadlink",
+    "aioimaplib", "aiosmtplib",
+    "llama-cpp-python",
+    "fpdf2>=2.7", "python-docx>=1.1", "python-pptx>=0.6", "openpyxl>=3.1",
+    "moviepy>=1.0", "Pillow>=10.0", "matplotlib>=3.8", "seaborn>=0.13",
+    "piper-tts>=1.2", "soundfile>=0.12", "faster-whisper>=0.10",
 ]
 
 [project.scripts]
@@ -38,6 +51,15 @@ include = ["atulya*", "tantra*", "yantra*", "drishti*"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+
+[tool.ruff.lint]
+ignore = ["E501", "F401", "E402"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "D100", "D101", "D102", "D103"]
+
+[tool.ruff.format]
+quote-style = "double"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

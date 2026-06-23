@@ -144,9 +144,26 @@ async def api_voice_chat(
     provider_name = "Atulya Fallback"
     try:
         from atulya.llm import get_default_llm
+        server_messages = chat_history.list_messages(user, limit=20)
+        server_hist = [{"role": m["role"], "content": m["text"]} for m in server_messages if m.get("text")]
+        frontend_hist = body.get("history") or []
+        seen = set()
+        history = []
+        for msg in server_hist + frontend_hist:
+            content = (msg.get("content") or msg.get("text") or "").strip()
+            role = msg.get("role", "user")
+            if not content:
+                continue
+            key = f"{role}:{content[:80]}"
+            if key in seen:
+                continue
+            seen.add(key)
+            history.append({"role": role, "content": content})
+        history = history[-10:]
+
         response = await get_default_llm().ask(
             prompt,
-            history=body.get("history") or [],
+            history=history,
             tools_enabled=True,
             provider=str(body.get("provider") or body.get("model_id") or ""),
         )

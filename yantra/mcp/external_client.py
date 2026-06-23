@@ -1,4 +1,4 @@
-﻿"""MCP Client â€” connect to external MCP servers over stdio or HTTP.
+"""MCP Client - connect to external MCP servers over stdio or HTTP.
 
     client = MCPClient(name="my-server", transport="stdio", command="node server.js")
     await client.connect()
@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import time
 import urllib.request
 from dataclasses import dataclass, field
@@ -83,7 +84,12 @@ class MCPClient:
             self._prompts = (await self._request("prompts/list", {})).get("prompts", [])
 
             self.status = MCPServerStatus.CONNECTED
-            logger.info(f"MCP client '{self.config.name}' connected â€” {len(self._tools)} tools, {len(self._resources)} resources")
+            logger.info(
+                "MCP client '%s' connected - %s tools, %s resources",
+                self.config.name,
+                len(self._tools),
+                len(self._resources),
+            )
             return True
         except Exception as e:
             logger.error(f"MCP client '{self.config.name}' connect failed: {e}")
@@ -97,7 +103,7 @@ class MCPClient:
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            env={**__import__("os").environ, **self.config.env} if self.config.env else None,
+            env={**os.environ, **self.config.env} if self.config.env else None,
         )
         self._reader = self._process.stdout
         self._writer = self._process.stdin

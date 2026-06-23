@@ -1,4 +1,4 @@
-﻿"""Memory tree with hierarchical L0â†'L1â†'L2 summaries."""
+"""Memory tree with hierarchical L0->L1->L2 summaries."""
 from __future__ import annotations
 
 import json

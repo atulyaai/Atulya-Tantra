@@ -59,13 +59,40 @@ class ToolRegistry:
         return sorted(self._duplicate_names)
 
 
+def _safe_path(path: str, allowed_base: str | None = None) -> Path:
+    """Resolve a path and ensure it stays within allowed_base (or CWD)."""
+    resolved = Path(path).resolve()
+    if allowed_base:
+        base = Path(allowed_base).resolve()
+        try:
+            resolved.relative_to(base)
+        except ValueError:
+            raise PermissionError(f"Path {resolved} is outside allowed directory {base}")
+    else:
+        cwd = Path.cwd().resolve()
+        try:
+            resolved.relative_to(cwd)
+        except ValueError:
+            raise PermissionError(f"Path {resolved} is outside current working directory {cwd}")
+    return resolved
+
+
+_MAX_FILE_SIZE = 10 * 1024 * 1024
+
+
 class FileReadTool(Tool):
     name = "file_read"
     description = "Read file contents"
     async def execute(self, path: str, **kwargs: Any) -> ToolResult:
         try:
-            content = Path(path).read_text()
+            safe = _safe_path(path)
+            size = safe.stat().st_size
+            if size > _MAX_FILE_SIZE:
+                return ToolResult(success=False, error=f"File too large ({size} bytes, max {_MAX_FILE_SIZE})")
+            content = safe.read_text()
             return ToolResult(success=True, output=content)
+        except (PermissionError, OSError) as e:
+            return ToolResult(success=False, error=str(e))
         except Exception as e:
             return ToolResult(success=False, error=str(e))
 
@@ -75,8 +102,13 @@ class FileWriteTool(Tool):
     description = "Write content to file"
     async def execute(self, path: str, content: str, **kwargs: Any) -> ToolResult:
         try:
-            Path(path).write_text(content)
-            return ToolResult(success=True, output=f"Written {len(content)} bytes")
+            safe = _safe_path(path)
+            if len(content) > _MAX_FILE_SIZE:
+                return ToolResult(success=False, error=f"Content too large ({len(content)} bytes, max {_MAX_FILE_SIZE})")
+            safe.write_text(content)
+            return ToolResult(success=True, output=f"Written {len(content)} bytes to {safe}")
+        except (PermissionError, OSError) as e:
+            return ToolResult(success=False, error=str(e))
         except Exception as e:
             return ToolResult(success=False, error=str(e))
 
@@ -86,12 +118,15 @@ class FileEditTool(Tool):
     description = "Edit file with search/replace"
     async def execute(self, path: str, old: str, new: str, **kwargs: Any) -> ToolResult:
         try:
-            content = Path(path).read_text()
+            safe = _safe_path(path)
+            content = safe.read_text()
             if old not in content:
                 return ToolResult(success=False, error="Search string not found")
             content = content.replace(old, new)
-            Path(path).write_text(content)
+            safe.write_text(content)
             return ToolResult(success=True, output="File edited")
+        except (PermissionError, OSError) as e:
+            return ToolResult(success=False, error=str(e))
         except Exception as e:
             return ToolResult(success=False, error=str(e))
 
@@ -101,8 +136,11 @@ class FileSearchTool(Tool):
     description = "Search for files by pattern"
     async def execute(self, pattern: str, path: str = ".", **kwargs: Any) -> ToolResult:
         try:
-            matches = list(Path(path).glob(pattern))
+            safe = _safe_path(path)
+            matches = list(safe.glob(pattern))
             return ToolResult(success=True, output="\n".join(str(m) for m in matches))
+        except (PermissionError, OSError) as e:
+            return ToolResult(success=False, error=str(e))
         except Exception as e:
             return ToolResult(success=False, error=str(e))
 
@@ -112,18 +150,21 @@ class GrepTool(Tool):
     description = "Search file contents with regex"
     async def execute(self, pattern: str, path: str = ".", max_file_size: int = 1_048_576, **kwargs: Any) -> ToolResult:
         try:
+            safe = _safe_path(path)
             results = []
-            for f in Path(path).rglob("*"):
+            for f in safe.rglob("*"):
                 if f.is_file():
                     try:
                         if f.stat().st_size > max_file_size:
                             continue
-                        content = f.read_text()
+                        content = f.read_text(encoding="utf-8")
                         if re.search(pattern, content):
                             results.append(str(f))
-                    except Exception:
-                        pass
+                    except (UnicodeDecodeError, OSError):
+                        continue
             return ToolResult(success=True, output="\n".join(results))
+        except (PermissionError, OSError) as e:
+            return ToolResult(success=False, error=str(e))
         except Exception as e:
             return ToolResult(success=False, error=str(e))
 
@@ -231,6 +272,23 @@ class MemorySearchTool(Tool):
         return ToolResult(success=True, output=json.dumps(results, indent=2))
 
 
+class CreateOutputTool(Tool):
+    name = "create_output"
+    description = "Create documents, images, videos, audio, and charts from a prompt"
+
+    async def execute(self, prompt: str, format: str = "auto", **kwargs: Any) -> ToolResult:
+        from yantra.capabilities.connector import AtulyaTantraConnector
+
+        root = Path(kwargs.pop("data_dir", "assets")) / "creations"
+        result = AtulyaTantraConnector(root).create(prompt, format, **kwargs)
+        return ToolResult(
+            success=result.ok,
+            output=result.path,
+            error=result.error,
+            metadata={"format": result.format, "fallback": result.fallback, **result.metadata},
+        )
+
+
 def create_default_registry(data_dir: str | Path = ".") -> ToolRegistry:
     from yantra.capabilities.business_automation import (
         HRAttendancePayrollTool,
@@ -250,7 +308,7 @@ def create_default_registry(data_dir: str | Path = ".") -> ToolRegistry:
     registry = ToolRegistry()
     for tool_class in [FileReadTool, FileWriteTool, FileEditTool, FileSearchTool, GrepTool,
                        ExecTool, WebSearchTool, WebFetchTool, TodoCreateTool, TodoListTool,
-                       MemoryStoreTool, MemorySearchTool, HRAttendancePayrollTool,
+                       MemoryStoreTool, MemorySearchTool, CreateOutputTool, HRAttendancePayrollTool,
                        DataScrubberTool, GSTReconciliationTool, AccountingERPTool,
                        SAPAutomationTool, CodeExecuteTool, PDFReadTool, CSVAnalyzeTool,
                        CalendarTool, EmailDraftTool, ChartGenerateTool]:

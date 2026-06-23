@@ -18,6 +18,23 @@ def _resolve_model_id(model_id: str):
     return allowed[model_id], None
 
 
+def _merge_history(frontend_history: list[dict], server_history: list[dict], limit: int = 10) -> list[dict]:
+    """Merge frontend-provided history with server-persisted history, deduplicating by content."""
+    seen = set()
+    merged = []
+    for msg in server_history + frontend_history:
+        content = (msg.get("content") or msg.get("text") or "").strip()
+        role = msg.get("role", "user")
+        if not content:
+            continue
+        key = f"{role}:{content[:80]}"
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append({"role": role, "content": content})
+    return merged[-limit:]
+
+
 @router.post("/api/chat")
 async def api_chat(request: Request, body: dict, token: str | None = Header(default=None, alias="X-Atulya-Token")):
     user = _require_auth(token)
@@ -28,10 +45,15 @@ async def api_chat(request: Request, body: dict, token: str | None = Header(defa
     prompt = str(body.get("prompt") or "")[:MAX_PROMPT_CHARS]
     from atulya.llm import get_default_llm
 
+    server_messages = chat_history.list_messages(user, limit=20)
+    server_hist = [{"role": m["role"], "content": m["text"]} for m in server_messages if m.get("text")]
+    frontend_hist = body.get("history") or []
+    history = _merge_history(frontend_hist, server_hist)
+
     llm = getattr(request.app.state, "llm", None) or get_default_llm()
     response = await llm.ask(
         prompt,
-        history=body.get("history") or [],
+        history=history,
         approved_tool_call=body.get("approved_tool") or None,
         provider=str(body.get("provider") or model_id),
     )
@@ -62,11 +84,16 @@ async def api_chat_stream(request: Request, body: dict, token: str | None = Head
         from atulya.llm import get_default_llm
 
         try:
+            server_messages = chat_history.list_messages(user, limit=20)
+            server_hist = [{"role": m["role"], "content": m["text"]} for m in server_messages if m.get("text")]
+            frontend_hist = body.get("history") or []
+            history = _merge_history(frontend_hist, server_hist)
+
             llm = getattr(request.app.state, "llm", None) or get_default_llm()
             response_parts: list[str] = []
             async for event in llm.stream(
                 prompt,
-                history=body.get("history") or [],
+                history=history,
                 approved_tool_call=body.get("approved_tool") or None,
                 provider=str(body.get("provider") or model_id),
             ):

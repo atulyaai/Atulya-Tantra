@@ -1,4 +1,4 @@
-﻿"""Self-Repair System â€” auto-fix bugs, evolve architecture, self-healing code."""
+"""Self-Repair System - auto-fix bugs, evolve architecture, self-healing code."""
 from __future__ import annotations
 
 import json
@@ -28,7 +28,7 @@ class RepairAction:
 
 
 class SelfRepairSystem:
-    """Self-repairing code system â€” detects and fixes issues automatically."""
+    """Self-repairing code system - detects and fixes issues automatically."""
 
     def __init__(self, data_dir: str | Path = "assets/selfrepair"):
         self.data_dir = Path(data_dir)
@@ -172,7 +172,7 @@ class SelfRepairSystem:
 
 
 class CodeEvolver:
-    """Self-evolving code â€” modifies its own codebase safely."""
+    """Self-evolving code - modifies its own codebase safely."""
 
     def __init__(self, base_dir: str | Path = "."):
         self.base_dir = Path(base_dir)
