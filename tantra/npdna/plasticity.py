@@ -25,9 +25,17 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Callable
 
-import torch
-from torch import Tensor, nn
-from torch.optim import AdamW
+try:
+    import torch
+    from torch import Tensor, nn
+    from torch.optim import AdamW
+    _HAS_TORCH = True
+except Exception:
+    torch = None
+    Tensor = None
+    nn = None
+    AdamW = None
+    _HAS_TORCH = False
 
 logger = logging.getLogger(__name__)
 

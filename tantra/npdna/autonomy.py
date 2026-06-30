@@ -4,6 +4,7 @@ Implements the NpDnaAgent which wraps NpDnaCore in a ReAct (Reasoning and Acting
 execution loop, allowing the model to run search and memory storage tools.
 """
 from __future__ import annotations
+import json
 import re
 import logging
 from typing import Callable
@@ -79,7 +80,7 @@ class NpDnaAgent:
         url = f"https://api.duckduckgo.com/?q={urllib.parse.quote(query)}&format=json&no_redirect=1"
         try:
             with urllib.request.urlopen(url, timeout=5) as r:
-                data = __import__("json").loads(r.read())
+                data = json.loads(r.read())
             result = data.get("AbstractText") or data.get("Answer") or data.get("RelatedTopics", [{}])[0].get("Text", "")
             if result:
                 return result[:500]

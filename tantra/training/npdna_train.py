@@ -17,9 +17,16 @@ import gc
 import shutil
 from pathlib import Path
 
-import torch
-from torch import nn
-import psutil
+try:
+    import torch
+    from torch import nn
+    import psutil
+    _HAS_TORCH = True
+except Exception:
+    torch = None
+    nn = None
+    psutil = None
+    _HAS_TORCH = False
 
 # Add project root to path
 _ROOT = Path(__file__).resolve().parent.parent.parent
@@ -1330,7 +1337,8 @@ def train_topic(
     return core
 
 
-if __name__ == "__main__":
+def main():
+    """CLI entry point for NP-DNA training."""
     import argparse
     from tantra.npdna.config import CONFIGS
 
@@ -1394,4 +1402,8 @@ if __name__ == "__main__":
     except Exception as exc:
         _write_train_status(args.output, "error", error=str(exc))
         raise
+
+
+if __name__ == "__main__":
+    main()
 
