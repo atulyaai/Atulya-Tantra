@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Header, HTTPException, Depends
 
 from drishti.dashboard import users
-from drishti.dashboard.helpers import _require_auth, _require_admin
+from drishti.dashboard.helpers import _require_auth, _require_admin, _jwt_encode
 
 router = APIRouter()
 
@@ -18,9 +18,11 @@ def api_auth_login(body: dict):
         raise HTTPException(status_code=401, detail="Wrong username or password")
         
     token = users.create_session(username)
+    jwt = _jwt_encode({"sub": username, "role": user.get("role", "user"), "name": user.get("display_name", "")})
     return {
         "ok": True,
         "token": token,
+        "jwt": jwt,
         "user": user
     }
 

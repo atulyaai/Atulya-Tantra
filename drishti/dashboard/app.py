@@ -7,11 +7,13 @@ import asyncio
 import json
 import os
 import threading
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from drishti.dashboard.helpers import _checkpoint_index, _load_cached_model
@@ -20,6 +22,27 @@ from drishti.dashboard.automation_runner import AutomationRunner
 from yantra.mcp.external_client import MCPClientManager
 
 logger = logging.getLogger(__name__)
+
+# ── Rate Limiting ─────────────────────────────────────────────────────────
+
+_RATE_LIMIT_WINDOW = 60
+_RATE_LIMIT_MAX = 100
+_RATE_STORE: dict[str, list[float]] = {}
+
+
+async def _rate_limiter(request: Request, call_next):
+    client = request.client.host if request.client else "unknown"
+    now = time.time()
+    window_start = now - _RATE_LIMIT_WINDOW
+    hits = [t for t in _RATE_STORE.get(client, []) if t > window_start]
+    if len(hits) >= _RATE_LIMIT_MAX:
+        return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded. Try again later."})
+    hits.append(now)
+    _RATE_STORE[client] = hits
+    return await call_next(request)
+
+
+# ── Lifespan ──────────────────────────────────────────────────────────────
 
 
 def _warm_latest_model() -> None:
@@ -97,6 +120,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.middleware("http")(_rate_limiter)
 
 for module in (auth, system, model, train, chat, cortex, automation, openai, voice, upload, devices, ws, notifications, agent, create):
     app.include_router(module.router)

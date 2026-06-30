@@ -415,6 +415,203 @@ async def analyze_image(image_path: str, task: str = "analyze") -> str:
         return f"Analysis failed: {e}"
 
 
+# ── Tool: Calendar Skills ─────────────────────────────────────────────────
+
+_CALENDAR: dict[str, dict[str, Any]] = {}
+
+
+@tool("calendar_add", "Add an event to the calendar", {
+    "title": {"type": "string", "description": "Event title"},
+    "date": {"type": "string", "description": "Date/time: '2025-12-25 14:00' or 'tomorrow 3pm'"},
+    "duration_minutes": {"type": "integer", "description": "Duration in minutes (default 60)", "default": 60},
+    "description": {"type": "string", "description": "Optional description", "default": ""},
+})
+async def calendar_add(title: str, date: str, duration_minutes: int = 60, description: str = "") -> str:
+    import calendar as cal_mod
+    try:
+        evt_time = _parse_time(date) if not re.match(r"\d{4}-\d{2}-\d{2}", date) else time.mktime(time.strptime(date[:10], "%Y-%m-%d")) + (int(date[11:13]) * 3600 + int(date[14:16]) * 60 if len(date) > 10 else 0)
+    except Exception:
+        return f"Could not parse date: '{date}'. Use YYYY-MM-DD HH:MM or natural language."
+    eid = f"evt_{int(time.time() * 1000)}"
+    entry = {"id": eid, "title": title, "time": evt_time, "duration": duration_minutes, "description": description, "created_at": time.time()}
+    _CALENDAR[eid] = entry
+    _save_json("calendar.json", list(_CALENDAR.values()))
+    return f"Event added: '{title}' on {time.ctime(evt_time)} (id: {eid})"
+
+
+@tool("calendar_list", "List upcoming calendar events", {
+    "days": {"type": "integer", "description": "How many days ahead (default 7)", "default": 7},
+})
+async def calendar_list(days: int = 7) -> str:
+    now = time.time()
+    cutoff = now + days * 86400
+    upcoming = sorted([e for e in _CALENDAR.values() if now <= e["time"] <= cutoff], key=lambda x: x["time"])
+    if not upcoming:
+        return f"No events in the next {days} days."
+    lines = []
+    for i, e in enumerate(upcoming, 1):
+        d = e.get("description", "")
+        lines.append(f"{i}. {e['title']} — {time.ctime(e['time'])} ({e['duration']}min){' - '+d if d else ''}")
+    return "\n".join(lines)
+
+
+@tool("calendar_remove", "Remove a calendar event by ID", {
+    "event_id": {"type": "string", "description": "Event ID from calendar_add or calendar_list"},
+})
+async def calendar_remove(event_id: str) -> str:
+    if event_id in _CALENDAR:
+        title = _CALENDAR[event_id]["title"]
+        del _CALENDAR[event_id]
+        _save_json("calendar.json", list(_CALENDAR.values()))
+        return f"Event '{title}' removed."
+    return f"Event {event_id} not found."
+
+
+# ── Tool: Weather Skills ──────────────────────────────────────────────────
+
+@tool("get_weather", "Get current weather for a location", {
+    "location": {"type": "string", "description": "City name or 'lat,lon' coordinates"},
+})
+async def get_weather(location: str) -> str:
+    try:
+        import urllib.request
+        import json as _json
+        q = urllib.request.quote(location)
+        url = f"https://wttr.in/{q}?format=j1"
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            data = _json.loads(resp.read())
+        cc = data["current_condition"][0]
+        temp = cc["temp_C"]
+        desc = cc["weatherDesc"][0]["value"]
+        humidity = cc["humidity"]
+        wind = cc["windspeedKmph"]
+        return f"Weather in {location}: {desc}, {temp}°C, humidity {humidity}%, wind {wind} km/h"
+    except Exception as e:
+        return f"Could not get weather for '{location}': {e}"
+
+
+@tool("get_forecast", "Get weather forecast for a location", {
+    "location": {"type": "string", "description": "City name"},
+    "days": {"type": "integer", "description": "Number of days (1-3, default 3)", "default": 3},
+})
+async def get_forecast(location: str, days: int = 3) -> str:
+    try:
+        import urllib.request
+        import json as _json
+        q = urllib.request.quote(location)
+        days = max(1, min(3, days))
+        url = f"https://wttr.in/{q}?format=j1"
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            data = _json.loads(resp.read())
+        lines = [f"Forecast for {location}:"]
+        for day in data["weather"][:days]:
+            date = day["date"]
+            maxtemp = day["maxtempC"]
+            mintemp = day["mintempC"]
+            desc = day["hourly"][0]["weatherDesc"][0]["value"]
+            lines.append(f"  {date}: {desc}, {mintemp}–{maxtemp}°C")
+        return "\n".join(lines)
+    except Exception as e:
+        return f"Could not get forecast for '{location}': {e}"
+
+
+# ── Tool: Home Automation Skills (simulated) ───────────────────────────────
+
+_HOME_DEVICES: dict[str, dict[str, Any]] = {
+    "living_room_light": {"name": "Living Room Light", "type": "light", "state": "off", "brightness": 0},
+    "kitchen_light": {"name": "Kitchen Light", "type": "light", "state": "off", "brightness": 0},
+    "bedroom_light": {"name": "Bedroom Light", "type": "light", "state": "off", "brightness": 0},
+    "thermostat": {"name": "Thermostat", "type": "thermostat", "state": "off", "temperature": 22},
+    "front_door": {"name": "Front Door", "type": "lock", "state": "locked"},
+}
+
+
+@tool("home_list_devices", "List all home automation devices", {})
+async def home_list_devices() -> str:
+    lines = ["Home Devices:"]
+    for did, dev in _HOME_DEVICES.items():
+        extra = ""
+        if dev["type"] == "light":
+            extra = f" (brightness: {dev.get('brightness', 0)}%)"
+        elif dev["type"] == "thermostat":
+            extra = f" (temp: {dev.get('temperature', 22)}°C)"
+        lines.append(f"  {did}: {dev['name']} — {dev['state']}{extra}")
+    return "\n".join(lines)
+
+
+@tool("home_control", "Control a home automation device", {
+    "device_id": {"type": "string", "description": "Device ID (use home_list_devices to see IDs)"},
+    "action": {"type": "string", "description": "Action: 'on', 'off', 'lock', 'unlock', 'set_temperature', 'set_brightness'"},
+    "value": {"type": "string", "description": "Optional value (e.g. temperature or brightness)", "default": ""},
+})
+async def home_control(device_id: str, action: str, value: str = "") -> str:
+    if device_id not in _HOME_DEVICES:
+        available = ", ".join(_HOME_DEVICES.keys())
+        return f"Device '{device_id}' not found. Available: {available}"
+    dev = _HOME_DEVICES[device_id]
+    if dev["type"] == "lock":
+        if action in ("lock", "unlock"):
+            dev["state"] = action + "ed" if action == "lock" else action + "ed"
+            return f"{dev['name']} is now {dev['state']}."
+        return f"Invalid action '{action}' for a lock. Use 'lock' or 'unlock'."
+    if dev["type"] == "thermostat":
+        if action == "set_temperature" and value:
+            try:
+                dev["temperature"] = int(value)
+                dev["state"] = "on"
+                return f"{dev['name']} set to {dev['temperature']}°C."
+            except ValueError:
+                return f"Invalid temperature: '{value}'."
+        if action in ("on", "off"):
+            dev["state"] = action
+            return f"{dev['name']} turned {action}."
+        return f"Invalid action '{action}' for thermostat."
+    if dev["type"] == "light":
+        if action == "set_brightness" and value:
+            try:
+                dev["brightness"] = max(0, min(100, int(value)))
+                dev["state"] = "on" if dev["brightness"] > 0 else "off"
+                return f"{dev['name']} brightness set to {dev['brightness']}%."
+            except ValueError:
+                return f"Invalid brightness: '{value}'."
+        if action in ("on", "off"):
+            dev["state"] = action
+            dev["brightness"] = 100 if action == "on" else 0
+            return f"{dev['name']} turned {action}."
+        return f"Invalid action '{action}' for a light."
+    return f"Unknown device type: {dev['type']}."
+
+
+# ── Tool: Calculator / Utility Skills ─────────────────────────────────────
+
+@tool("calculate", "Perform a calculation (safe math evaluation)", {
+    "expression": {"type": "string", "description": "Math expression, e.g. '2 + 2 * 5'"},
+})
+async def calculate(expression: str) -> str:
+    try:
+        from tantra.npdna.safe_eval import safe_math_eval
+        result = safe_math_eval(expression)
+        return f"{expression} = {result}"
+    except Exception as e:
+        return f"Could not calculate '{expression}': {e}"
+
+
+@tool("current_time", "Get the current date and time", {
+    "timezone": {"type": "string", "description": "Optional timezone (e.g. 'UTC', 'Asia/Kolkata')", "default": ""},
+})
+async def current_time(timezone: str = "") -> str:
+    try:
+        if timezone:
+            import zoneinfo
+            tz = zoneinfo.ZoneInfo(timezone)
+            now = time.localtime(time.time() + tz.utcoffset(None).total_seconds() if hasattr(tz, 'utcoffset') else 0)
+        else:
+            now = time.localtime()
+        return time.strftime("%Y-%m-%d %H:%M:%S %A", now) + (f" ({timezone})" if timezone else "")
+    except Exception:
+        return f"Current time: {time.ctime()}"
+
+
 # ── Load persisted state on import ─────────────────────────────────────────
 
 def _bootstrap():

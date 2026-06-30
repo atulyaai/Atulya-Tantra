@@ -4,7 +4,35 @@ Base URL: `http://localhost:8000`
 
 ## Authentication
 
-Most endpoints require a bearer token via `X-Atulya-Token` header or `Authorization: Bearer <token>` header.
+All endpoints (except `/api/auth/login`) require the `X-Atulya-Token` header.
+
+- **Session tokens**: returned by `POST /api/auth/login`, stored server-side
+- **JWT tokens**: returned as `jwt` field on login, can be used in place of session tokens
+- **Admin token**: set via `ATULYA_DASHBOARD_TOKEN` env var, bypasses all checks
+
+## Rate Limiting
+
+100 requests per 60-second window per client IP. Exceeding returns `429 Too Many Requests`.
+
+## Auth
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/auth/login` | Login — returns `{token, jwt, user}` |
+| POST | `/api/auth/verify` | Verify current session |
+| POST | `/api/auth/logout` | Destroy session |
+| GET | `/api/users` | List users (admin) |
+| POST | `/api/users` | Create user (admin) |
+| DELETE | `/api/users/{username}` | Delete user (admin) |
+| GET | `/api/user/preferences` | Get preferences |
+| PUT | `/api/user/preferences` | Update preferences |
+
+### POST /api/auth/login
+
+```
+→ {"username": "alice", "password": "secret"}
+← {"ok": true, "token": "abc...", "jwt": "eyJ...", "user": {"username": "alice", "role": "user"}}
+```
 
 ## Agent
 
@@ -22,20 +50,32 @@ Most endpoints require a bearer token via `X-Atulya-Token` header or `Authorizat
 → {"status": "success", "reply": "Reminder set for 5 minutes"}
 ```
 
-## Auth
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/auth/login` | Login with credentials |
-| POST | `/api/auth/register` | Register new user |
-| GET | `/api/auth/session` | Get current session |
-
 ## Chat
 
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/chat` | Send message to LLM |
 | GET | `/api/chat/history` | Get chat history |
+
+## System & Monitoring
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/system` | System resources (admin) |
+| GET | `/api/telemetry` | System + providers + events |
+| GET | `/api/health` | Health check with warnings |
+| GET | `/api/configs` | Available training configs |
+| GET | `/api/run-history` | Past training runs |
+| GET | `/api/datasets` | Registered datasets |
+| GET | `/api/dashboard/bootstrap` | Full bootstrap payload |
+
+### GET /api/health
+
+```json
+→ {"ok": true, "warnings": [...], "healthy": true}
+```
+
+Checks: disk space (<5GB = high, <20GB = medium), RAM (>90% = high, >80% = medium), checkpoint corruption, empty datasets.
 
 ## Cortex (Model Management)
 
@@ -103,13 +143,6 @@ Most endpoints require a bearer token via `X-Atulya-Token` header or `Authorizat
 | PATCH | `/api/cron/jobs/{id}` | Update job |
 | POST | `/api/cron/jobs/{id}/run` | Run job immediately |
 
-## System
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/system/status` | System status |
-| GET | `/api/system/health` | Health check |
-
 ## Training
 
 | Method | Path | Description |
@@ -117,3 +150,4 @@ Most endpoints require a bearer token via `X-Atulya-Token` header or `Authorizat
 | POST | `/api/train/start` | Start training run |
 | GET | `/api/train/status` | Training status |
 | GET | `/api/train/datasets` | List datasets |
+| GET | `/api/train/metrics` | Training metrics |

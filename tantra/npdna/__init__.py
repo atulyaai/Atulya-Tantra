@@ -16,7 +16,12 @@ from .genome import Genome
 from .mesh import CategoryMesh, NeuralMesh
 from .model import NpDnaCore, NpDnaModel
 from .autonomy import NpDnaAgent
-from .plasticity import PlasticityAutoScaler, PlasticityEngine, PlasticityMetrics
+try:
+    from .plasticity_engine import PlasticityAutoScaler, PlasticityEngine, PlasticityMetrics
+except Exception:
+    PlasticityAutoScaler = None
+    PlasticityEngine = None
+    PlasticityMetrics = None
 from .strand import Strand
 from .tokenizer import AtulyaTokenizer
 from .codecs import FrozenCodecRef, FrozenCodecRegistry

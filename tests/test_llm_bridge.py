@@ -2,7 +2,7 @@ import asyncio
 
 
 class FakeRouter:
-    async def chat(self, prompt, system_prompt=""):
+    async def chat(self, prompt, system_prompt="", **kwargs):
         if "tool please" in prompt and "Tool result" not in prompt:
             return '{"tool":"todo_create","arguments":{"text":"demo"}}', "fake"
         if "write please" in prompt and "Tool result" not in prompt and "User approved tool" not in prompt:

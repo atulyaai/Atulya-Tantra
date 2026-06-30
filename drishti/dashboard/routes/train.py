@@ -120,7 +120,9 @@ def api_training_status(_admin: str | None = Header(default=None, alias="X-Atuly
 
     try:
         import asyncio
-        asyncio.ensure_future(broadcast_training(status))
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.ensure_future(broadcast_training(status), loop=loop)
     except Exception:
         pass
 

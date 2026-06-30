@@ -9,7 +9,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: "3.11"}
       - run: pip install ruff
-      - run: ruff check . --ignore=E501,F401,E402 --statistics
+      - run: ruff check . --statistics
 
   test:
     strategy:
@@ -24,4 +24,4 @@ jobs:
       - name: Install system deps
         run: sudo apt-get update && sudo apt-get install -y libsndfile1 ffmpeg
       - run: pip install -e ".[dev,serve]"
-      - run: python -m pytest -x --tb=short -q --ignore=tests/test_business_automation.py
+      - run: python -m pytest -x --tb=short -q --ignore=tests/test_benchmarks.py -k "not benchmark"

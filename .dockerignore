@@ -1,0 +1,15 @@
+__pycache__
+*.pyc
+.git
+.gitignore
+.pytest_cache
+.ruff_cache
+.env
+*.md
+tests/
+docs/
+nginx/
+*.yml
+*.yaml
+Dockerfile
+.dockerignore
