@@ -19,13 +19,16 @@ ALLOWED_ROOT_DIRS = {
     "config",
     "docs",
     "drishti",
+    "outputs",
     "tantra",
     "tests",
     "yantra",
     "tmp",
+    ".github",
 }
 
 GENERATED_ROOT_DIRS = {
+    ".benchmarks",
     ".pytest_cache",
     ".ruff_cache",
     ".mypy_cache",
@@ -49,17 +52,19 @@ ALLOWED_ROOT_FILES = {
 }
 
 EXPECTED_PACKAGE_DIRS = {
-    "atulya": {"docs", "memory", "observability"},
-    "tantra": {"config", "core", "data", "npdna", "scripts", "training"},
+    "atulya": {"agent", "docs", "memory", "observability", "tokenjuice"},
+    "tantra": {"config", "core", "npdna", "outputs", "scripts", "training"},
     "yantra": {
         "assistant",
         "capabilities",
+        "kgraph",
         "mcp",
         "notify",
+        "orchestrator",
         "plugins",
         "selfimprovement",
     },
-    "drishti": {"dashboard", "frontend", "public"},
+    "drishti": {"dashboard", "frontend", "nginx", "public"},
 }
 
 IGNORED_DIR_NAMES = {"__pycache__", ".pytest_cache", ".ruff_cache", "node_modules", "dist"}

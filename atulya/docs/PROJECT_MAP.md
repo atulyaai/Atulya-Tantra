@@ -21,7 +21,7 @@ Support-layer and legacy compatibility files live under `tantra/`. Active custom
 
 - `tantra/core/`: task classification, context control, security, encryption, audit logging, and model/provider failover helpers.
 - `tantra/config/`: support-layer configuration.
-- `tantra/scripts/`: support and compatibility utilities.
+- `tantra/scripts/`: support and compatibility utilities, including the Gmail OAuth refresh-token helper (`generate_gmail_refresh_token.mjs`).
 - `tantra/npdna/`: legacy/reference NP-DNA compatibility code retained for older routes, tests, and artifacts.
 - `tantra/training/`: legacy/reference dataset and training utilities retained for compatibility.
 - `tantra/outputs/`: generated local artifacts. Do not treat this as the active model release location.
@@ -32,25 +32,25 @@ Support-layer and legacy compatibility files live under `tantra/`. Active custom
 Drishti-owned files live under `drishti/`.
 
 - `drishti/frontend/src/`: editable React source and browser API client.
-- `drishti/dist/`, `drishti/build/`: generated frontend/package artifacts.
-- `drishti/backend/app.py`: dashboard launcher for `python -m drishti.backend.app`.
-- `drishti/backend/dashboard/`: FastAPI dashboard app, helpers, state, and API route implementation.
-- `drishti/api/`: Drishti import wrappers around shared dashboard routes.
+- `drishti/dist/`: generated frontend/package artifacts (built, se gitignored).
+- `drishti/dashboard/`: FastAPI dashboard app, helpers, state, chat history, and API routes.
+- `drishti/app.py`: dashboard launcher for `python -m drishti.app`.
+- `drishti/nginx/`: nginx reverse-proxy config used by `docker-compose.yml`.
 - `drishti/package.json`, `drishti/vite.config.js`, `drishti/index.html`: frontend build and Vite setup.
-- `start_dashboard.bat`: root-level convenience launcher for the Drishti.
 
 ## Yantra: Automation And Tools
 
 Automation-owned files live under `yantra/`.
 
 - `yantra/capabilities/`: tool registry, workflow engine, browser automation, voice pipeline, and web search.
-- `yantra/tools/`: compatibility imports for older callers.
 - `yantra/mcp/`: MCP server, client, transport, signed manifests, dashboard bridge, and agent runner.
 - `yantra/mcp/external_client.py`: external MCP server connection manager.
 - `yantra/assistant/`: assistant channels, task brain, cron scheduler, and source ingestion.
 - `yantra/channels.py`: unified 14-channel system (Discord, Telegram, Slack, Email, Webhook, WhatsApp, Signal, Matrix, Teams, IRC, WebChat, Console, Log, Twitter).
 - `yantra/plugins/`: plugin lifecycle and safety checks.
 - `yantra/dispatch.py`: classifier-aware capability dispatch.
+- `yantra/kgraph/`: knowledge-graph store and queries.
+- `yantra/orchestrator/`: agent orchestration and workflow scheduling.
 - `yantra/selfimprovement/`: unified self-improvement tracker (bridge.py merged into unified.py).
 
 ## Atulya: Application AI Layer
@@ -58,6 +58,8 @@ Automation-owned files live under `yantra/`.
 Application-owned AI files live under `atulya/`.
 
 - `memory/`: memory orchestrator, session search, prompt cache, subconscious log, reflection, memory tree, and Obsidian export.
+- `agent/`: proactive assistant agent loop and scheduled jobs.
+- `tokenjuice/`: token accounting and usage helpers.
 - `docs/`: architecture, contribution, security, project map, and product direction notes.
 - `tests/`: Atulya and integration tests.
 - `atulya/identity.py`: identity and role-aware prompt helpers.

@@ -49,7 +49,7 @@ GMAIL_OAUTH_PORT=3000
 
 ```powershell
 npm.cmd install mcp-gmail
-node scripts/generate_gmail_refresh_token.mjs
+node tantra/scripts/generate_gmail_refresh_token.mjs
 ```
 
 9. Copy only the printed `GMAIL_REFRESH_TOKEN=...` line into `.env`.

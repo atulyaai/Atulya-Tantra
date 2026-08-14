@@ -20,7 +20,7 @@ services:
     image: nginx:alpine
     ports: ["80:80", "443:443"]
     volumes:
-      - ./nginx:/etc/nginx/conf.d:ro
+      - ./drishti/nginx:/etc/nginx/conf.d:ro
       - ./drishti/dist:/usr/share/nginx/html:ro
     depends_on: [app]
     restart: unless-stopped
