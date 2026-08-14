@@ -28,7 +28,11 @@ data/
 *.safetensors
 checkpoints/
 outputs/npdna/benchmark.json
-assets/agent/reminders.json
+
+# Runtime-local app state
+assets/agent/*.json
+assets/memory/*.db
+assets/memory/*.json
 
 # Node / frontend
 node_modules/
