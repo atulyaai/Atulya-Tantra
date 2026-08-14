@@ -29,6 +29,8 @@ The repo root intentionally has four product directories. New implementation goe
 
 ![Four pillars](atulya/docs/images/four_pillars.png)
 
+![NP-DNA runtime](atulya/docs/images/npdna_runtime.svg)
+
 ## Quick Start
 
 Requires Python 3.10+.
