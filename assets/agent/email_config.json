@@ -1,8 +1,0 @@
-{
-  "imap_server": "imap.test.com",
-  "imap_port": 993,
-  "smtp_server": "imap.test.com",
-  "smtp_port": 587,
-  "username": "test@test.com",
-  "password": "secret"
-}

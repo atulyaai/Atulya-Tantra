@@ -40,12 +40,16 @@ GENERATED_ROOT_DIRS = {
 }
 
 ALLOWED_ROOT_FILES = {
+    ".dockerignore",
     ".env",
     ".env.example",
     ".gitignore",
+    ".pre-commit-config.yaml",
     "CHANGELOG.md",
+    "Dockerfile",
     "LICENSE",
     "README.md",
+    "docker-compose.yml",
     "pyproject.toml",
     "requirements.txt",
     "start.bat",

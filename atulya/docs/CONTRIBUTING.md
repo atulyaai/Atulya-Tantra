@@ -20,7 +20,7 @@
 
 ### DON'T
 - ‚ùå Never hardcode identity, personality, or prompts ‚Äî use `tantra/training/datasets/identity.json`
-- ‚ùå Never add GPU-only dependencies to `requirements.txt`
+- ‚ùå Never add GPU-only dependencies to `pyproject.toml`
 - ‚ùå Never commit model weights to git (use GitHub Releases or HF Hub)
 - Never commit `__pycache__/`, `.egg-info/`, or generated `tantra/outputs/` artifacts
 - ‚ùå Never break the flat `atulya/` package layout ‚Äî no `src/` directory
@@ -33,62 +33,56 @@
 
 ```
 Atulya-Tantra/
-+-- assets/                        # app config cache (prompt_cache)
-+-- atulya/                        # Application AI: persona, heartbeat, observability, CLI
-¶   +-- memory/                    # compatibility imports for memory/
-¶   +-- persona.py                 # unified identity + personality
-¶   +-- identity.py                # compatibility wrapper
-¶   +-- config.py                  # AtulyaConfig dataclass (single source of truth)
-¶   +-- heartbeat.py               # model/provider/Cortex/disk/memory health checks
-¶   +-- observability/             # usage, metrics, traces, errors
-¶   +-- soul.py                    # SOULSystem compatibility wrapper
-¶   +-- cli.py                     # CLI entry point
-+-- memory/                        # shared memory providers
-¶   +-- orchestrator.py            # provider registry, context assembly
-¶   +-- tree.py                    # hierarchical memory summaries
-¶   +-- obsidian.py                # markdown vault export
-¶   +-- prompt_cache.py            # prompt/result cache
-¶   +-- reflection.py              # insights and reflective notes
-¶   +-- subconscious.py            # decision/event log
-¶   +-- session_search.py          # session text search
-¶   +-- manager.py                 # combined storage + search entry point
-+-- tantra/                        # NP-DNA model package
-¶   +-- npdna/                     # genome, mesh, strand, tokenizer, cortex, checkpointing
-¶   +-- core/                      # security, context, encryption, model failover
-¶   +-- training/                  # trainer, benchmark, dataset builders, RAG
-¶   ¶   +-- datasets/              # identity.json and identity config files
-¶   +-- data/                      # training data examples and health scans
-¶   +-- outputs/                   # generated model outputs and checkpoints
-+-- drishti/                         # React dashboard + FastAPI backend
-¶   +-- frontend/src/              # editable React source
-¶   +-- backend/dashboard/         # FastAPI app, helpers, state, routes
-¶   +-- api/                       # route wrappers
-¶   +-- dist/                      # built frontend assets
-¶   +-- package.json
-¶   +-- vite.config.js
++-- assets/                        # runtime-local app state (audio, temp files, scheduler state)
++-- atulya/                        # Application AI: persona, memory, routing, local model glue
+ÔøΩ   +-- memory/                    # memory providers, tree, reflection, Obsidian export, vector store
+ÔøΩ   +-- agent/                     # proactive assistant agent loop and scheduled jobs
+ÔøΩ   +-- observability/             # usage, metrics, traces, errors
+ÔøΩ   +-- tokenjuice/                # token accounting helpers
+ÔøΩ   +-- docs/                      # architecture, contribution, security, project map
+ÔøΩ   +-- persona.py                 # unified identity + personality
+ÔøΩ   +-- soul.py                    # SOULSystem compatibility wrapper
+ÔøΩ   +-- llm.py                     # AtulyaLLM, memory-enabled default, tool-call pass-through, streaming
+ÔøΩ   +-- local_provider.py          # local GGUF chat/stream/tool-call normalization
+ÔøΩ   +-- tantra_local.py            # built-in Tantra local model glue
+ÔøΩ   +-- intelligence.py            # ProviderRouter and provider wrappers
+ÔøΩ   +-- heartbeat.py               # model/provider/Cortex/disk/memory health checks
+ÔøΩ   +-- production_readiness.py    # readiness checks
+ÔøΩ   +-- cli.py                     # CLI entry point
++-- config/                        # cross-package static configuration
++-- docs/                          # deployment, API reference, implementation plan
++-- drishti/                       # React dashboard + FastAPI backend
+ÔøΩ   +-- frontend/src/              # editable React source
+ÔøΩ   +-- dashboard/                 # FastAPI app, helpers, state, routes
+ÔøΩ   +-- nginx/                     # reverse-proxy config for docker deployment
+ÔøΩ   +-- dist/                      # built frontend assets (gitignored)
+ÔøΩ   +-- app.py                     # backend entrypoint
+ÔøΩ   +-- package.json
+ÔøΩ   +-- vite.config.js
++-- tantra/                        # Support layer
+ÔøΩ   +-- npdna/                     # legacy/reference NP-DNA compatibility code
+ÔøΩ   +-- core/                      # security, context, encryption, model failover
+ÔøΩ   +-- training/                  # legacy/reference dataset and training utilities
+ÔøΩ   +-- scripts/                   # support and compatibility utilities
+ÔøΩ   +-- outputs/                   # generated local artifacts (gitignored)
++-- tests/                         # root test suite
 +-- yantra/                        # Automation and tools
-¶   +-- capabilities/              # canonical tools: exec, workflow, browser, voice, web search
-¶   +-- tools/                     # compatibility re-exports from capabilities/
-¶   +-- channels.py                # unified 14-channel communication system
-¶   +-- mcp/                       # MCP server, client, transport, manifests
-¶   +-- assistant/                 # task brain, cron scheduler, source ingestion
-¶   +-- selfimprovement/           # unified self-improvement (bridge merged)
-¶   +-- selfrepair.py              # automated error recovery
-¶   +-- dispatch.py                # classifier + failover + tools dispatch
-¶   +-- events.py                  # async event bus
-¶   +-- device_controller.py       # CPU-first device management
-¶   +-- notify/                    # notification facade
-¶   +-- plugins/                   # plugin SDK with trust levels
-+-- docs/                          # architecture, contribution, security, project map
-¶   +-- images/                    # diagrams and visuals for README
-+-- tests/                         # test suites
-¶   +-- tantra/
-¶   +-- yantra/
-¶   +-- atulya/
-¶   +-- integration/
-+-- start_dashboard.bat
-+-- pyproject.toml
-+-- requirements.txt
+ÔøΩ   +-- capabilities/              # canonical tools: exec, workflow, browser, voice, web search
+ÔøΩ   +-- harness.py                 # agents, skills, slash commands, safety
+ÔøΩ   +-- channels.py                # unified 14-channel communication system
+ÔøΩ   +-- mcp/                       # MCP server, client, transport, manifests
+ÔøΩ   +-- assistant/                 # task brain, cron scheduler, source ingestion
+ÔøΩ   +-- kgraph/                    # knowledge-graph store
+ÔøΩ   +-- orchestrator/              # agent orchestration
+ÔøΩ   +-- selfimprovement/           # unified self-improvement (bridge merged)
+ÔøΩ   +-- selfrepair.py              # automated error recovery
+ÔøΩ   +-- dispatch.py                # classifier + failover + tools dispatch
+ÔøΩ   +-- events.py                  # async event bus
+ÔøΩ   +-- device_controller.py       # CPU-first device management
+ÔøΩ   +-- notify/                    # notification facade
+ÔøΩ   +-- plugins/                   # plugin SDK with trust levels
++-- pyproject.toml                 # package metadata, extras, tool config
++-- start.bat                      # Windows launcher
 ```
 
 ---
@@ -102,7 +96,7 @@ Atulya-Tantra/
 | Tests | `tests/` | ‚úÖ Yes |
 | Identity config | `tantra/training/datasets/identity.json` | ‚úÖ Yes |
 | Tokenizer vocab | `tantra/training/datasets/tokenizer.json` | ‚úÖ Yes |
-| README images | `docs/images/` | ‚úÖ Yes |
+| README images | `atulya/docs/images/` | ‚úÖ Yes |
 | Model weights | `outputs/` ‚Üí GitHub Releases | ‚ùå Never in git |
 | Training data (large) | `assets/*.jsonl` | ‚ùå Generated locally |
 | Checkpoints | `outputs/npdna/checkpoints/` | ‚ùå Never in git |
