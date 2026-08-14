@@ -42,7 +42,7 @@ def _write_pid(pid: int) -> None:
 
 
 def _write_identity_dataset(path: Path) -> Path:
-    from atulya.identity import Identity
+    from atulya.persona import Identity
 
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:

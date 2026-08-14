@@ -1972,12 +1972,12 @@ class TestNpDnaCore:
 
 class TestIdentity:
     def test_load_identity(self):
-        from atulya.identity import Identity
+        from atulya.persona import Identity
         identity = Identity()
         assert identity.name == "Atulya"
 
     def test_system_prompt_user(self):
-        from atulya.identity import Identity
+        from atulya.persona import Identity
         identity = Identity()
         prompt = identity.get_system_prompt("user")
         assert "Atulya" in prompt
@@ -1985,7 +1985,7 @@ class TestIdentity:
         assert "architecture" not in prompt.lower() or "NP-DNA" not in prompt
 
     def test_system_prompt_superuser(self):
-        from atulya.identity import Identity
+        from atulya.persona import Identity
         identity = Identity()
         prompt = identity.get_system_prompt("superuser")
         assert "Atulya" in prompt
@@ -1993,7 +1993,7 @@ class TestIdentity:
         assert "NP-DNA" in prompt or "architecture" in prompt.lower()
 
     def test_training_samples(self):
-        from atulya.identity import Identity
+        from atulya.persona import Identity
         identity = Identity()
         samples = identity.format_for_training()
         assert len(samples) > 10

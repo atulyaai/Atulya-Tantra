@@ -51,12 +51,62 @@ class AtulyaLLM:
         tools: ToolRegistry | None = None,
         max_tool_iterations: int = 3,
         allow_exec: bool = False,
+        use_memory: bool = False,
+        memory_dir: str = "assets/memory",
     ):
         self.tools = tools or create_default_registry()
         self.max_tool_iterations = max_tool_iterations
         self.allow_exec = allow_exec
         self.router = ProviderRouter()
         self.persona = Persona()
+        self.use_memory = use_memory
+        self.memory_dir = memory_dir
+        self._memory = None
+
+    def _ensure_memory(self):
+        if self._memory is None and self.use_memory:
+            try:
+                from atulya.memory.manager import MemoryManager
+
+                self._memory = MemoryManager(self.memory_dir)
+            except Exception:
+                self._memory = False
+        return self._memory or None
+
+    async def _ensure_memory_initialized(self):
+        mgr = self._ensure_memory()
+        if not mgr:
+            return None
+        if not getattr(mgr, "_initialized", False):
+            try:
+                await mgr.initialize()
+                mgr._initialized = True
+            except Exception:
+                return None
+        return mgr
+
+    def memory(self) -> "MemoryManager | None":
+        return self._ensure_memory()
+
+    async def _retrieve_memory_context(self, prompt: str, limit: int = 5) -> list[str]:
+        mgr = await self._ensure_memory_initialized()
+        if not mgr:
+            return []
+        try:
+            entries = await mgr.semantic_search(prompt, limit)
+            return [entry.content for entry in entries if getattr(entry, "content", None)]
+        except Exception:
+            return []
+
+    async def _store_exchange(self, prompt: str, response_text: str) -> None:
+        mgr = await self._ensure_memory_initialized()
+        if not mgr or not response_text:
+            return
+        try:
+            combined = f"Q: {prompt}\nA: {response_text}"
+            await mgr.store_session(combined)
+        except Exception:
+            pass
 
     async def ask(
         self,
@@ -70,6 +120,17 @@ class AtulyaLLM:
         working_prompt = self._compose_prompt(prompt, history or [])
         steps: list[dict[str, Any]] = []
         requested_provider = provider
+
+        if requested_provider.startswith("public") or requested_provider == "public":
+            pass
+        elif self.use_memory and (requested_provider == "" or "private" in requested_provider or "local" in requested_provider.lower() or requested_provider == "private"):
+            memories = await self._retrieve_memory_context(prompt)
+            if memories:
+                working_prompt = (
+                    f"Relevant past interactions:\n"
+                    + "\n".join(f"- {m}" for m in memories)
+                    + f"\n\n{working_prompt}"
+                )
 
         if approved_tool_call and tools_enabled:
             step = await self._execute_tool_call(approved_tool_call)
@@ -86,10 +147,13 @@ class AtulyaLLM:
                 working_prompt,
                 system_prompt,
                 preferred_provider=requested_provider,
+                tools=self._build_tool_schemas() if tools_enabled else None,
             )
             tool_call = self._extract_tool_call(text)
             if not tool_call or not tools_enabled:
-                return LLMResponse(text=self._strip_tool_blocks(text).strip(), provider=provider_name, tool_steps=steps)
+                final = LLMResponse(text=self._strip_tool_blocks(text).strip(), provider=provider_name, tool_steps=steps)
+                await self._store_exchange(prompt, final.text)
+                return final
 
             tool_calls = self._normalize_tool_calls(tool_call)
             risky = [call for call in tool_calls if call["tool"] in RISKY_TOOLS]
@@ -113,7 +177,9 @@ class AtulyaLLM:
 
         fallback = "I ran out of tool iterations before completing the request. Here is what I found:\n"
         fallback += "\n".join(f"- {s['tool']}: {s.get('output') or s.get('error')}" for s in steps)
-        return LLMResponse(text=fallback, provider=requested_provider or "Diagnostics Fallback", tool_steps=steps)
+        final = LLMResponse(text=fallback, provider=requested_provider or "Diagnostics Fallback", tool_steps=steps)
+        await self._store_exchange(prompt, final.text)
+        return final
 
     async def _execute_tool_call(self, tool_call: dict[str, Any]) -> dict[str, Any]:
         normalized = self._normalize_tool_call(tool_call)
@@ -197,6 +263,20 @@ class AtulyaLLM:
             f"Recent turns available: {len(history)}"
         )
 
+    def _build_tool_schemas(self) -> list[dict[str, Any]]:
+        """Build OpenAI-style function schemas for the local model's native tool loop."""
+        schemas = []
+        for tool in self.tools.list_tools()[:14]:
+            schemas.append({
+                "type": "function",
+                "function": {
+                    "name": tool["name"],
+                    "description": tool["description"][:120],
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            })
+        return schemas
+
     @staticmethod
     def _compose_prompt(prompt: str, history: list[dict[str, str]]) -> str:
         trimmed = history[-10:]
@@ -273,4 +353,4 @@ def fallback_answer(prompt: str) -> str:
 
 @lru_cache(maxsize=1)
 def get_default_llm() -> AtulyaLLM:
-    return AtulyaLLM()
+    return AtulyaLLM(use_memory=True)

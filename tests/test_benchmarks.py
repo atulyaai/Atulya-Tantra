@@ -7,7 +7,13 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-pytestmark = [pytest.mark.benchmark, pytest.mark.skipif("not config.getoption('--benchmark')")]
+pytestmark = [
+    pytest.mark.benchmark,
+    pytest.mark.skipif(
+        "not config.getoption('--benchmark-enable', default=False)",
+        reason="Benchmarks skipped unless --benchmark-enable is passed",
+    ),
+]
 
 
 @pytest.fixture(scope="module")

@@ -85,7 +85,7 @@ def build_seed_dataset(output_path: str | Path = "data/seed_dataset.jsonl") -> P
 
     # 1. Identity-derived samples (from identity.json config)
     try:
-        from atulya.identity import Identity
+        from atulya.persona import Identity
         identity = Identity()
         identity_samples = identity.format_for_training()
         all_samples.extend(identity_samples)

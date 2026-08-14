@@ -9,12 +9,24 @@ from __future__ import annotations
 import json
 import logging
 import os
+import inspect
 import urllib.request
 import urllib.error
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+def _supports_tools(provider: Any) -> bool:
+    """True if provider.chat accepts a tools keyword argument."""
+    chat = getattr(provider, "chat", None)
+    if not callable(chat):
+        return False
+    try:
+        return "tools" in inspect.signature(chat).parameters
+    except (TypeError, ValueError):
+        return False
 
 
 def _env_float(name: str, default: float) -> float:
@@ -393,44 +405,47 @@ class OpenCodeProvider(IntelligenceProvider):
 
 
 class LocalGGUFProvider(IntelligenceProvider):
-    """Provider that loads a tiny GGUF model directly via llama-cpp-python."""
+    """Provider that loads a tiny GGUF model directly via llama-cpp-python.
+    
+    Uses TantraLocalProvider wrapper for Atulya persona and Tantra-placeholder behavior.
+    """
 
     def __init__(self):
         self._impl = None
 
     def name(self) -> str:
         try:
-            from atulya.local_provider import LocalGGUFProvider as LP
+            from atulya.tantra_local import create_tantra_local_provider
             if self._impl is None:
-                self._impl = LP()
+                self._impl = create_tantra_local_provider()
             return self._impl.name()
         except Exception:
-            return "Tiny Local GGUF"
+            return "Tantra Local (Placeholder)"
 
     def is_available(self) -> bool:
         try:
-            from atulya.local_provider import LocalGGUFProvider as LP
+            from atulya.tantra_local import create_tantra_local_provider
             if self._impl is None:
-                self._impl = LP()
+                self._impl = create_tantra_local_provider()
             return self._impl.is_available()
         except Exception:
             return False
 
-    async def chat(self, prompt: str, system_prompt: str = "") -> str:
-        from atulya.local_provider import LocalGGUFProvider as LP
+    async def chat(self, prompt: str, system_prompt: str = "", tools: list[dict[str, Any]] | None = None) -> str:
+        from atulya.tantra_local import create_tantra_local_provider
         if self._impl is None:
-            self._impl = LP()
-        return await self._impl.chat(prompt, system_prompt)
+            self._impl = create_tantra_local_provider()
+        return await self._impl.chat(prompt, system_prompt, tools)
 
 
 class ProviderRouter(IntelligenceProvider):
     """Atulya Intelligence Provider Fallback Chain Router."""
     
     def __init__(self):
-        # Fallback priority chain order
+        # Fallback priority chain order - Local 0.5B model first (Tantra placeholder)
         self.providers: list[IntelligenceProvider] = [
-            OllamaProvider(),      # Free local model (1st choice)
-            LocalGGUFProvider(),   # Tiny 350 MB local GGUF, no Ollama needed (2nd choice)
+            LocalGGUFProvider(),   # Tiny 350 MB local GGUF, auto-downloads, no Ollama needed (1st choice)
+            OllamaProvider(),      # Free local model via Ollama (2nd choice)
             GroqProvider(),        # Fast free developer-tier API (3rd choice)
             OpenRouterProvider(),  # Free model aggregator when configured (3rd choice)
             GeminiProvider(),      # Google free-tier key when configured (4th choice)
@@ -446,7 +461,7 @@ class ProviderRouter(IntelligenceProvider):
     def is_available(self) -> bool:
         return True
         
-    async def chat(self, prompt: str, system_prompt: str = "", preferred_provider: str = "") -> str:
+    async def chat(self, prompt: str, system_prompt: str = "", preferred_provider: str = "", tools: list[dict[str, Any]] | None = None) -> str:
         """Route request through priority chain and failover automatically."""
         attempted = []
         providers = self.providers
@@ -459,7 +474,10 @@ class ProviderRouter(IntelligenceProvider):
             if provider.is_available():
                 try:
                     logger.info(f"Atulya OS routing request to provider: {provider.name()}")
-                    response = await provider.chat(prompt, system_prompt)
+                    if tools and _supports_tools(provider):
+                        response = await provider.chat(prompt, system_prompt, tools=tools)
+                    else:
+                        response = await provider.chat(prompt, system_prompt)
                     return response, provider.name()
                 except Exception as exc:
                     logger.warning(f"Provider {provider.name()} failed: {exc}. Attempting next fallback.")

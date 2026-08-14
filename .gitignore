@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+venv/
+.venv/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.benchmarks/
+
+# Environment & secrets
+.env
+*.pem
+*.key
+*.crt
+
+# Data / outputs
+data/
+*.model
+*.bin
+*.gguf
+*.safetensors
+checkpoints/
+
+# Node / frontend
+node_modules/
+drishti/dist/
+drishti/.vite/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log

@@ -15,6 +15,36 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+
+def _normalize_tool_call_xml(text: str) -> str | None:
+    """Convert Qwen-style <tool_call>{{"name":...,"arguments":{...}}}</tool_call> to plain JSON.
+
+    AtulyaLLM expects {"tool":..., "arguments":{...}}; Qwen emits a wrapped object
+    with "name"/"arguments" keys inside <tool_call> tags. Return None if no match.
+    """
+    import re
+
+    if "<tool_call>" not in text:
+        return None
+    match = re.search(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", text, flags=re.DOTALL)
+    if not match:
+        return None
+    raw = match.group(1)
+    # Normalize the common Qwen double-brace escaping: {{...}} -> {...}
+    if raw.startswith("{{") and raw.endswith("}}"):
+        raw = raw[1:-1]
+    try:
+        data = json.loads(raw)
+    except Exception:
+        return None
+    if not isinstance(data, dict):
+        return None
+    name = data.get("name") or data.get("tool") or ""
+    arguments = data.get("arguments") or data.get("args") or {}
+    if name:
+        return json.dumps({"tool": name, "arguments": arguments}, ensure_ascii=False)
+    return None
+
 MODEL_REPO = "Qwen/Qwen2.5-0.5B-Instruct-GGUF"
 MODEL_FILE = "qwen2.5-0.5b-instruct-q4_k_m.gguf"
 MODEL_URL = f"https://huggingface.co/{MODEL_REPO}/resolve/main/{MODEL_FILE}"
@@ -26,9 +56,11 @@ def _resolve_model_path() -> Path | None:
     model_path = model_dir / MODEL_FILE
     if model_path.exists():
         return model_path
-    alt = Path(os.environ.get("ATULYA_GGUF_PATH", ""))
-    if alt and alt.exists():
-        return alt
+    alt_str = os.environ.get("ATULYA_GGUF_PATH", "").strip()
+    if alt_str:
+        alt = Path(alt_str)
+        if alt.exists():
+            return alt
     return None
 
 
@@ -81,15 +113,22 @@ class LocalGGUFProvider:
         if self._llm is not None:
             return
         import llama_cpp
-        n_ctx = int(os.environ.get("ATULYA_LOCAL_MODEL_CONTEXT", "2048"))
+        n_ctx = int(os.environ.get("ATULYA_LOCAL_MODEL_CONTEXT", "4096"))
         self._llm = llama_cpp.Llama(
             model_path=str(self._model_path),
             n_ctx=n_ctx,
             n_threads=int(os.environ.get("ATULYA_LOCAL_THREADS", "4")),
+            n_batch=int(os.environ.get("ATULYA_LOCAL_BATCH", "512")),
             verbose=False,
         )
 
-    async def chat(self, prompt: str, system_prompt: str = "") -> str:
+    async def chat(
+        self,
+        prompt: str,
+        system_prompt: str = "",
+        tools: list[dict[str, Any]] | None = None,
+    ) -> str:
+        """Chat with optional native tool calling (llama-cpp chat template)."""
         try:
             self._load()
             messages = []
@@ -97,13 +136,36 @@ class LocalGGUFProvider:
                 messages.append({"role": "system", "content": system_prompt})
             messages.append({"role": "user", "content": prompt})
 
-            response = self._llm.create_chat_completion(
-                messages=messages,
-                max_tokens=int(os.environ.get("ATULYA_LOCAL_MAX_TOKENS", "256")),
-                temperature=float(os.environ.get("ATULYA_LOCAL_TEMPERATURE", "0.7")),
-                stop=["<|im_end|>", "<|endoftext|>"],
-            )
-            return response["choices"][0]["message"]["content"].strip()
+            kwargs: dict[str, Any] = {
+                "messages": messages,
+                "max_tokens": int(os.environ.get("ATULYA_LOCAL_MAX_TOKENS", "512")),
+                "temperature": float(os.environ.get("ATULYA_LOCAL_TEMPERATURE", "0.6")),
+                "stop": ["<|im_end|>", "<|endoftext|>"],
+            }
+            if tools:
+                kwargs["tools"] = tools
+                kwargs["tool_choice"] = "auto"
+                # Keep responses short when tool calling so the model doesn't ramble
+                kwargs["max_tokens"] = int(os.environ.get("ATULYA_LOCAL_TOOL_MAX_TOKENS", "256"))
+
+            response = self._llm.create_chat_completion(**kwargs)
+            message = response["choices"][0]["message"]
+            content = (message.get("content") or "").strip()
+            if not content and message.get("tool_calls"):
+                tool_calls = message["tool_calls"]
+                if tool_calls:
+                    first = tool_calls[0]
+                    args = first.get("function", {}).get("arguments", "{}")
+                    try:
+                        args_parsed = json.loads(args)
+                    except Exception:
+                        args_parsed = {"_raw": args}
+                    return json.dumps(
+                        {"tool": first.get("function", {}).get("name", ""), "arguments": args_parsed},
+                        ensure_ascii=False,
+                    )
+            # Normalize Qwen-style <tool_call> XML output into the JSON AtulyaLLM expects
+            return _normalize_tool_call_xml(content) or content
         except Exception as exc:
             logger.warning("LocalGGUFProvider chat failed: %s", exc)
             raise

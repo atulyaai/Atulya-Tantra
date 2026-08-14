@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import logging
 import time
 from dataclasses import dataclass, field
@@ -136,3 +137,55 @@ class BrowserAutomation:
 
     def get_stats(self) -> dict[str, Any]:
         return {"pages_visited": len(self._history), "last_url": self._history[-1].url if self._history else ""}
+
+
+class BrowserAutomationTool:
+    """Tool wrapper around BrowserAutomation for the default registry.
+
+    Degrades gracefully: reports a clear message when Playwright is not installed
+    instead of failing the whole tool loop.
+    """
+    name = "browser_navigate"
+    description = "Open a URL in a headless browser and return page title, text, and links. Args: url, extract_text."
+
+    def __init__(self, output_dir: str = "config/browser"):
+        self._automation = BrowserAutomation(headless=True, output_dir=output_dir)
+
+    async def execute(self, url: str, extract_text: bool = True, **kwargs: Any) -> Any:
+        from yantra.capabilities import ToolResult
+
+        try:
+            await self._automation.start()
+            if getattr(self._automation, "_browser", None) is None:
+                return ToolResult(
+                    success=False,
+                    output="",
+                    error="Playwright is not installed. Run: pip install playwright && playwright install chromium",
+                )
+            result = await self._automation.navigate(url)
+            payload = {"url": result.url, "title": result.title, "success": result.success}
+            if extract_text and result.content:
+                payload["content"] = result.content[:5000]
+            if result.links:
+                payload["links"] = result.links[:20]
+            error = result.metadata.get("error", "")
+            if error:
+                payload["error"] = error
+            return ToolResult(
+                success=result.success,
+                output=json.dumps(payload, ensure_ascii=False)[:4000],
+                error="",
+            )
+        except ImportError:
+            return ToolResult(
+                success=False,
+                output="",
+                error="Playwright is not installed. Run: pip install playwright && playwright install chromium",
+            )
+        except Exception as exc:
+            return ToolResult(success=False, output="", error=str(exc))
+        finally:
+            try:
+                await self._automation.stop()
+            except Exception:
+                pass

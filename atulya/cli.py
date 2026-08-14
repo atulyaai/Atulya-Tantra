@@ -27,6 +27,10 @@ FREE_DEFAULTS = {
     "ATULYA_PREFER_TANTRA": "0",
     "ATULYA_GEMINI_MODEL": "gemini-1.5-flash",
     "ATULYA_TELEGRAM_ALLOWLIST": "",
+    "ATULYA_AUTO_DOWNLOAD_MODEL": "1",
+    "ATULYA_LOCAL_MODEL_CONTEXT": "4096",
+    "ATULYA_LOCAL_MAX_TOKENS": "512",
+    "ATULYA_LOCAL_TEMPERATURE": "0.7",
 }
 
 
@@ -105,6 +109,12 @@ def main() -> None:
     sub.add_parser("readiness", help="Check production deployment readiness")
     sub.add_parser("tools", help="List installed Yantra tools")
 
+    model_p = sub.add_parser("model", help="Manage local Tantra placeholder model (0.5B GGUF)")
+    model_sub = model_p.add_subparsers(dest="model_command")
+    model_sub.add_parser("download", help="Download the 0.5B model (~350 MB)")
+    model_sub.add_parser("status", help="Show model download status and path")
+    model_sub.add_parser("remove", help="Remove downloaded model")
+
     setup_p = sub.add_parser("setup", help="Write safe local configuration defaults")
     setup_p.add_argument("--free", action="store_true", help="Configure free-first local/free-tier defaults")
     setup_p.add_argument("--env", default=".env", help="Env file to update")
@@ -132,6 +142,8 @@ def main() -> None:
         _cmd_readiness()
     elif args.command == "tools":
         _cmd_tools()
+    elif args.command == "model":
+        _cmd_model(args)
     elif args.command == "setup":
         _cmd_setup(args)
     else:
@@ -415,6 +427,56 @@ def _cmd_readiness() -> None:
         for item in report["checks"]
     ]
     _print_table(["Check", "Status", "Required", "Detail"], rows)
+
+
+def _cmd_model(args: argparse.Namespace) -> None:
+    from atulya.local_provider import _ensure_model, _resolve_model_path, _DEFAULT_MODEL_DIR, MODEL_FILE, MODEL_URL
+    import shutil
+
+    subcmd = getattr(args, "model_command", None)
+
+    if subcmd == "download":
+        print("Downloading Tantra placeholder model (Qwen2.5-0.5B-Instruct, ~350 MB)...")
+        model_dir = _DEFAULT_MODEL_DIR
+        model_dir.mkdir(parents=True, exist_ok=True)
+        model_path = model_dir / MODEL_FILE
+        if model_path.exists():
+            print(f"Model already exists at {model_path} ({model_path.stat().st_size / 1024 / 1024:.0f} MB)")
+            return
+        try:
+            import urllib.request
+            print(f"Fetching from {MODEL_URL}...")
+            urllib.request.urlretrieve(MODEL_URL, str(model_path))
+            size_mb = model_path.stat().st_size / 1024 / 1024
+            print(f"Downloaded: {model_path} ({size_mb:.0f} MB)")
+            print("Model ready. Run 'atulya chat' to use it.")
+        except Exception as exc:
+            print(f"Download failed: {exc}")
+            if model_path.exists():
+                model_path.unlink()
+
+    elif subcmd == "status":
+        path = _resolve_model_path()
+        if path:
+            size_mb = path.stat().st_size / 1024 / 1024
+            print(f"Model found: {path}")
+            print(f"Size: {size_mb:.0f} MB")
+            print(f"Auto-download: {os.environ.get('ATULYA_AUTO_DOWNLOAD_MODEL', '0')}")
+        else:
+            print("Model not downloaded.")
+            print(f"Expected at: {_DEFAULT_MODEL_DIR / MODEL_FILE}")
+            print("Run: atulya model download")
+
+    elif subcmd == "remove":
+        path = _resolve_model_path()
+        if path and path.exists():
+            path.unlink()
+            print(f"Removed: {path}")
+        else:
+            print("No model to remove.")
+
+    else:
+        print("Usage: atulya model {download|status|remove}")
 
 
 def _cmd_setup(args: argparse.Namespace) -> None:

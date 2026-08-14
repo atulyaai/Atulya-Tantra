@@ -1,4 +1,0 @@
-# Minimal production runtime. Legacy experimental-model dependencies remain in
-# requirements.txt and are intentionally not needed to run the API service.
-fastapi>=0.115.0
-uvicorn[standard]>=0.32.0

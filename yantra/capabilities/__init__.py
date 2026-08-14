@@ -290,6 +290,7 @@ class CreateOutputTool(Tool):
 
 
 def create_default_registry(data_dir: str | Path = ".") -> ToolRegistry:
+    from yantra.capabilities.browser_automation import BrowserAutomationTool
     from yantra.capabilities.business_automation import (
         HRAttendancePayrollTool,
         DataScrubberTool,
@@ -311,6 +312,6 @@ def create_default_registry(data_dir: str | Path = ".") -> ToolRegistry:
                        MemoryStoreTool, MemorySearchTool, CreateOutputTool, HRAttendancePayrollTool,
                        DataScrubberTool, GSTReconciliationTool, AccountingERPTool,
                        SAPAutomationTool, CodeExecuteTool, PDFReadTool, CSVAnalyzeTool,
-                       CalendarTool, EmailDraftTool, ChartGenerateTool]:
+                       CalendarTool, EmailDraftTool, ChartGenerateTool, BrowserAutomationTool]:
         registry.register(tool_class())
     return registry
