@@ -8,6 +8,9 @@ from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from drishti.dashboard import users
+from drishti.dashboard.helpers import _require_auth
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
@@ -17,8 +20,23 @@ _broadcast_history: list[dict[str, Any]] = []
 
 @router.websocket("/api/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    # Authenticate the WebSocket connection via a token query parameter
+    # (browsers cannot set arbitrary headers on a WebSocket handshake),
+    # falling back to the X-Atulya-Token header if present. The connection is
+    # rejected (4401 -> 1008 policy violation) before accept() when unauthenticated.
+    token = websocket.query_params.get("token")
+    if not token:
+        token = websocket.headers.get("x-atulya-token")
+
+    try:
+        user = _require_auth(token)
+    except Exception:
+        await websocket.close(code=1008)
+        return
     await websocket.accept()
     _active_connections.add(websocket)
+
+    await websocket.send_json({"type": "welcome", "user": user.get("username"), "role": user.get("role")})
 
     # Send recent history
     for msg in _broadcast_history[-20:]:

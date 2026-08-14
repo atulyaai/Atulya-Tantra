@@ -10,11 +10,33 @@ from starlette.websockets import WebSocketDisconnect
 
 class TestWebSocket:
     @pytest.fixture
-    def ws_mock(self):
+    def authed_ws(self, monkeypatch):
+        import drishti.dashboard.routes.ws as ws_mod
+        monkeypatch.setattr(
+            ws_mod, "_require_auth", lambda token: {"username": "admin", "role": "admin", "display_name": "Admin"}
+        )
         ws = AsyncMock()
         ws.accept = AsyncMock()
         ws.send_json = AsyncMock()
         ws.receive_text = AsyncMock()
+        ws.query_params = {"token": "valid-token"}
+        ws.headers = {}
+        return ws
+
+    @pytest.fixture
+    def anon_ws(self, monkeypatch):
+        from fastapi import HTTPException
+        import drishti.dashboard.routes.ws as ws_mod
+        def _always_fail(token):
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        monkeypatch.setattr(ws_mod, "_require_auth", _always_fail)
+        ws = AsyncMock()
+        ws.accept = AsyncMock()
+        ws.send_json = AsyncMock()
+        ws.close = AsyncMock()
+        ws.receive_text = AsyncMock()
+        ws.query_params = {}
+        ws.headers = {}
         return ws
 
     @pytest.fixture
@@ -23,6 +45,15 @@ class TestWebSocket:
         ws_mod._active_connections.clear()
         ws_mod._broadcast_history.clear()
         yield
+
+    @pytest.mark.asyncio
+    async def test_websocket_rejects_unauthenticated(self, anon_ws, clean_state):
+        from drishti.dashboard.routes.ws import websocket_endpoint
+
+        await websocket_endpoint(anon_ws)
+
+        anon_ws.accept.assert_not_awaited()
+        anon_ws.close.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_broadcast_adds_to_history(self, clean_state):
@@ -63,39 +94,39 @@ class TestWebSocket:
         assert entry["data"]["type"] == "warning"
 
     @pytest.mark.asyncio
-    async def test_websocket_connect_and_pong(self, ws_mock, clean_state):
+    async def test_websocket_connect_and_pong(self, authed_ws, clean_state):
         from drishti.dashboard.routes.ws import websocket_endpoint
 
-        ws_mock.receive_text.side_effect = [
+        authed_ws.receive_text.side_effect = [
             json.dumps({"type": "ping"}),
             WebSocketDisconnect(),
         ]
 
-        await websocket_endpoint(ws_mock)
+        await websocket_endpoint(authed_ws)
 
-        ws_mock.accept.assert_awaited_once()
-        ws_mock.send_json.assert_any_await({"type": "pong"})
+        authed_ws.accept.assert_awaited_once()
+        authed_ws.send_json.assert_any_await({"type": "pong"})
 
     @pytest.mark.asyncio
-    async def test_websocket_sends_history_on_connect(self, ws_mock, clean_state):
+    async def test_websocket_sends_history_on_connect(self, authed_ws, clean_state):
         from drishti.dashboard.routes.ws import websocket_endpoint
         import drishti.dashboard.routes.ws as ws_mod
 
         await ws_mod.broadcast("past", {"msg": "old"})
-        ws_mock.receive_text.side_effect = [WebSocketDisconnect()]
+        authed_ws.receive_text.side_effect = [WebSocketDisconnect()]
 
-        await websocket_endpoint(ws_mock)
+        await websocket_endpoint(authed_ws)
 
-        assert ws_mock.send_json.await_count >= 1
+        assert authed_ws.send_json.await_count >= 1
 
     @pytest.mark.asyncio
-    async def test_disconnect_removes_connection(self, ws_mock, clean_state):
+    async def test_disconnect_removes_connection(self, authed_ws, clean_state):
         from drishti.dashboard.routes.ws import websocket_endpoint
         import drishti.dashboard.routes.ws as ws_mod
 
-        ws_mock.receive_text.side_effect = [WebSocketDisconnect()]
-        ws_mod._active_connections.add(ws_mock)
+        authed_ws.receive_text.side_effect = [WebSocketDisconnect()]
+        ws_mod._active_connections.add(authed_ws)
 
-        await websocket_endpoint(ws_mock)
+        await websocket_endpoint(authed_ws)
 
-        assert ws_mock not in ws_mod._active_connections
+        assert authed_ws not in ws_mod._active_connections

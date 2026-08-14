@@ -177,10 +177,17 @@ def run_structure_audit(repo_root: str | Path = ".") -> dict[str, Any]:
     return RepoStructureAuditor(repo_root).run()
 
 
-def main() -> None:
+def main() -> int:
     path = RepoStructureAuditor(".").write_report()
     print(path)
+    report = RepoStructureAuditor(".").run()
+    if report["status"] == "needs_fix":
+        # Surface all blocking issues so they're visible in CI logs.
+        for issue in report["issues"]:
+            print(f"  [{issue['severity']}] {issue['path']}: {issue['message']}")
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

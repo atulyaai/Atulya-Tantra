@@ -203,6 +203,34 @@ def test_merge_env_defaults_preserves_existing_values(tmp_path):
     assert "ATULYA_GROQ_MODEL=llama-3.3-70b-versatile" in content
 
 
+def test_ollama_provider_reads_env(monkeypatch):
+    import os
+    monkeypatch.setenv("ATULYA_OLLAMA_MODEL", "qwen3:8b")
+    monkeypatch.setenv("ATULYA_OLLAMA_HOST", "http://localhost:11434")
+    from atulya.intelligence import OllamaProvider
+
+    p = OllamaProvider()
+    assert p.model_name == "qwen3:8b"
+    assert p.host == "http://localhost:11434"
+    assert "ollama" in p.name().lower()
+
+
+def test_ollama_provider_unavailable_offline(monkeypatch):
+    # Point Ollama at a port nothing listens on and confirm it reports unavailable.
+    monkeypatch.setenv("ATULYA_OLLAMA_HOST", "http://127.0.0.1:1")
+    from atulya.intelligence import OllamaProvider
+
+    p = OllamaProvider()
+    assert p.is_available() is False
+
+
+def test_ollama_provider_in_failover_chain():
+    from atulya.intelligence import ProviderRouter
+    router = ProviderRouter()
+    names = [p.name() for p in router.providers]
+    assert any("Ollama" in n for n in names)
+    assert any("Tantra Local" in n for n in names)
+
 
 import asyncio
 import json

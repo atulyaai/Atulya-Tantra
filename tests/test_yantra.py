@@ -1150,3 +1150,78 @@ class TestSubAgentOrchestrator:
         s = orch.get_stats()
         assert s["agents"] == 2
         assert s["total_runs"] >= 0
+
+
+class TestDispatcherIntentRouting:
+    """Tests for intent classification -> tool routing in the Dispatcher."""
+
+    @pytest.mark.asyncio
+    async def test_routes_to_tool_by_intent_when_unnamed(self):
+        from yantra.dispatch import Dispatcher, CATEGORY_TOOLS
+        from yantra.capabilities import Tool, ToolRegistry, ToolResult
+
+        called = {}
+        class CodeTool(Tool):
+            name = "code_execute"
+            description = "run code"
+            async def execute(self, **kwargs):
+                called["args"] = kwargs
+                return ToolResult(success=True, output="ran")
+
+        tools = ToolRegistry()
+        tools.register(CodeTool())
+        d = Dispatcher(tools=tools)
+
+        # A coding-flavored prompt should auto-route to code_execute.
+        res = await d.dispatch("write a python loop", auto_route=True)
+        assert res.tool_used == "code_execute"
+        assert res.tool_result is not None and res.tool_result.success
+        assert called["args"] == {}
+
+    @pytest.mark.asyncio
+    async def test_no_auto_route_when_disabled(self):
+        from yantra.dispatch import Dispatcher
+        from yantra.capabilities import Tool, ToolRegistry, ToolResult
+
+        class CodeTool(Tool):
+            name = "code_execute"
+            description = "run code"
+            async def execute(self, **kwargs):
+                return ToolResult(success=True, output="ran")
+
+        tools = ToolRegistry()
+        tools.register(CodeTool())
+        d = Dispatcher(tools=tools)
+        res = await d.dispatch("write a python loop", auto_route=False)
+        assert res.tool_used is None
+        assert res.tool_result is None
+
+    @pytest.mark.asyncio
+    async def test_explicit_tool_name_not_overridden(self):
+        from yantra.dispatch import Dispatcher
+        from yantra.capabilities import Tool, ToolRegistry, ToolResult
+
+        called = {}
+        class TodoTool(Tool):
+            name = "todo_create"
+            description = "todo"
+            async def execute(self, **kwargs):
+                called["n"] = kwargs.get("text")
+                return ToolResult(success=True, output="ok")
+
+        tools = ToolRegistry()
+        tools.register(TodoTool())
+        d = Dispatcher(tools=tools)
+        res = await d.dispatch("analyze this dataset", tool_name="todo_create", text="buy milk")
+        assert res.tool_used == "todo_create"
+        assert called["n"] == "buy milk"
+
+    @pytest.mark.asyncio
+    async def test_unknown_category_does_not_execute(self):
+        from yantra.dispatch import Dispatcher
+        from yantra.capabilities import ToolRegistry
+
+        d = Dispatcher(tools=ToolRegistry())
+        res = await d.dispatch("tell me a story about dragons", auto_route=True)
+        # "creative" maps to email/create_output; if neither is registered, no tool runs.
+        assert res.tool_result is None

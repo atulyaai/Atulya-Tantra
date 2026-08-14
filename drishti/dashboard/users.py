@@ -2,7 +2,7 @@
 
 Stores users in a JSON file at {project_root}/config/users.json.
 Passwords are hashed with PBKDF2-HMAC-SHA256 + per-user salt.
-Sessions are in-memory dicts that reset on server restart.
+Sessions are persisted to config/sessions.json so they survive a server restart.
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 _ROOT = Path(__file__).resolve().parents[2]
 USERS_FILE = _ROOT / "config" / "users.json"
+SESSIONS_FILE = _ROOT / "config" / "sessions.json"
 
 _lock = threading.Lock()
 
@@ -66,6 +67,48 @@ def _write_store(data: dict) -> None:
         json.dumps(data, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
+
+
+def _read_sessions() -> dict[str, dict[str, Any]]:
+    """Read the sessions JSON file into memory."""
+    if not SESSIONS_FILE.exists():
+        return {}
+    try:
+        data = json.loads(SESSIONS_FILE.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            return data
+    except Exception as exc:
+        logger.warning("Failed to read sessions file: %s", exc)
+    return {}
+
+
+def _save_sessions() -> None:
+    """Persist the in-memory sessions to disk."""
+    SESSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    if not _sessions:
+        if SESSIONS_FILE.exists():
+            SESSIONS_FILE.write_text("{}", encoding="utf-8")
+        return
+    SESSIONS_FILE.write_text(
+        json.dumps(_sessions, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
+def _prune_expired_sessions() -> None:
+    """Drop expired sessions and persist the cleaned store."""
+    expired = [t for t, s in _sessions.items() if time.time() > s.get("expires_at", 0)]
+    if not expired:
+        return
+    for t in expired:
+        _sessions.pop(t, None)
+    _save_sessions()
+
+
+# Load persisted sessions into memory on import so logins survive a restart.
+with _lock:
+    _sessions.update(_read_sessions())
+    _prune_expired_sessions()
 
 
 
@@ -193,6 +236,7 @@ def create_session(username: str) -> str:
             "created_at": datetime.now(timezone.utc).isoformat(),
             "expires_at": time.time() + 86400,
         }
+        _save_sessions()
     return token
 
 
@@ -204,22 +248,28 @@ def get_session(token: str | None) -> dict | None:
     if session is None:
         return None
     if time.time() > session.get("expires_at", 0):
-        _sessions.pop(token, None)
+        with _lock:
+            _sessions.pop(token, None)
+            _save_sessions()
         return None
     return session
 
 
 def kill_session(token: str) -> None:
     """Remove a session."""
-    _sessions.pop(token, None)
+    with _lock:
+        _sessions.pop(token, None)
+        _save_sessions()
 
 
 def kill_user_sessions(username: str) -> None:
     """Remove all sessions for a specific user."""
     username = username.strip().lower()
-    to_remove = [t for t, s in _sessions.items() if s["username"] == username]
-    for t in to_remove:
-        _sessions.pop(t, None)
+    with _lock:
+        to_remove = [t for t, s in _sessions.items() if s["username"] == username]
+        for t in to_remove:
+            _sessions.pop(t, None)
+        _save_sessions()
 
 
 

@@ -69,6 +69,7 @@ class AutomationRunner:
         command = str(job.get("command") or job.get("callback") or "").strip()
         if not command:
             job["last_error"] = "No command configured"
+            await self._notify_job(job, error="No command configured")
             return job
         try:
             response = await self.llm.ask(command, tools_enabled=True)
@@ -77,7 +78,39 @@ class AutomationRunner:
             job["last_error"] = ""
         except Exception as exc:
             job["last_error"] = str(exc)
+            job["last_result"] = ""
+            job["last_provider"] = ""
+        await self._notify_job(job, error=job.get("last_error") or "")
         return job
+
+    async def _notify_job(self, job: dict[str, Any], error: str = "") -> None:
+        """Emit a completion event for a finished automation job.
+
+        Best-effort: broadcasts to WebSocket listeners and, when a notification
+        channel is configured, forwards to the `yantra` notification system.
+        Never lets a notification failure abort the job itself.
+        """
+        name = job.get("name") or job.get("id") or "automation job"
+        try:
+            from drishti.dashboard.routes.ws import broadcast_event
+            desc = (error or "job finished")[:280]
+            broadcast_event(
+                f"Automation job: {name}",
+                desc,
+                event_type="success" if not error else "error",
+            )
+        except Exception:  # pragma: no cover - notifications are best-effort
+            pass
+
+        try:
+            from yantra.notify import NotificationSystem
+            await NotificationSystem().send(
+                f"{name}: {'failed' if error else 'completed'}",
+                channel="console",
+                title="Automation",
+            )
+        except Exception:  # pragma: no cover - notifications are best-effort
+            pass
 
     @staticmethod
     def _next_run(schedule: str, now: float) -> float:

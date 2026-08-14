@@ -1,5 +1,8 @@
 name: CI
-on: [push, pull_request]
+
+on:
+  push:
+  pull_request:
 
 jobs:
   lint:
@@ -7,9 +10,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: {python-version: "3.11"}
+        with:
+          python-version: "3.11"
       - run: pip install ruff
       - run: ruff check . --statistics
+      - name: Structure audit
+        run: python -m yantra.assistant.structure_audit
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm install --silent
+        working-directory: drishti
+      - run: npm run build
+        working-directory: drishti
 
   test:
     strategy:
@@ -20,8 +38,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: {python-version: "${{ matrix.python-version }}"}
+        with:
+          python-version: "${{ matrix.python-version }}"
       - name: Install system deps
         run: sudo apt-get update && sudo apt-get install -y libsndfile1 ffmpeg
       - run: pip install -e ".[dev,serve]"
-      - run: python -m pytest -x --tb=short -q --ignore=tests/test_benchmarks.py -k "not benchmark"
+      - run: python -m pytest --tb=short -q --ignore=tests/test_benchmarks.py -k "not benchmark"
