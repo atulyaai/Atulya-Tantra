@@ -13,7 +13,7 @@ import inspect
 import urllib.request
 import urllib.error
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +31,27 @@ def _supports_tools(provider: Any) -> bool:
 
 def _env_float(name: str, default: float) -> float:
     try:
-        return float(os.environ.get(name, default))
+        return float(os.environ.get(name, str(default)))
     except (TypeError, ValueError):
         return default
+
+
+def _chunk_stream_text(text: str, size: int = 28) -> list[str]:
+    """Split a full response into small pieces for naive streaming fallback."""
+    if not text:
+        return [""]
+    chunks: list[str] = []
+    current = ""
+    for word in text.split(" "):
+        candidate = f"{current} {word}".strip()
+        if len(candidate) >= size and current:
+            chunks.append(current + " ")
+            current = word
+        else:
+            current = candidate
+    if current:
+        chunks.append(current)
+    return chunks
 
 
 def _benchmark_allows_tantra(model_path: str | Path) -> bool:
@@ -437,6 +455,17 @@ class LocalGGUFProvider(IntelligenceProvider):
             self._impl = create_tantra_local_provider()
         return await self._impl.chat(prompt, system_prompt, tools)
 
+    async def chat_stream(self, prompt: str, system_prompt: str = "") -> AsyncIterator[str]:
+        from atulya.tantra_local import create_tantra_local_provider
+        if self._impl is None:
+            self._impl = create_tantra_local_provider()
+        stream = getattr(self._impl, "chat_stream", None)
+        if stream is None:
+            yield await self._impl.chat(prompt, system_prompt)
+            return
+        async for piece in stream(prompt, system_prompt):
+            yield piece
+
 
 class ProviderRouter(IntelligenceProvider):
     """Atulya Intelligence Provider Fallback Chain Router."""
@@ -492,3 +521,38 @@ class ProviderRouter(IntelligenceProvider):
             f"Attempted: {errors_summary}. Please verify your local Ollama connection or API keys.",
             "Diagnostics Fallback"
         )
+
+    async def stream(
+        self,
+        prompt: str,
+        system_prompt: str = "",
+        preferred_provider: str = "",
+    ) -> AsyncIterator[tuple[str, str]]:
+        """Stream tokens from the first available provider that supports streaming.
+
+        Falls back to chunking a full provider.chat() response when the chosen
+        provider only implements chat(). Yields (text_piece, provider_name).
+        """
+        providers = self.providers
+        preferred = (preferred_provider or "").strip().lower()
+        if preferred and preferred not in {"auto", "latest"}:
+            preferred_matches = [p for p in providers if preferred in p.name().lower()]
+            providers = preferred_matches + [p for p in providers if p not in preferred_matches]
+
+        for provider in providers:
+            if not provider.is_available():
+                continue
+            stream_method = getattr(provider, "chat_stream", None)
+            try:
+                if stream_method is not None:
+                    async for piece in stream_method(prompt, system_prompt):
+                        yield piece, provider.name()
+                else:
+                    text = await provider.chat(prompt, system_prompt)
+                    for piece in _chunk_stream_text(text):
+                        yield piece, provider.name()
+                return
+            except Exception as exc:
+                logger.warning(f"Provider {provider.name()} stream failed: {exc}. Attempting next fallback.")
+
+        yield "Caution, sir. All neural intelligence channels are offline or unconfigured.", "Diagnostics Fallback"

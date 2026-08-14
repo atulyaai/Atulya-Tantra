@@ -76,6 +76,26 @@ export function HolographicSpirit() {
   const [spiritBusy, setSpiritBusy] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+    api.get('/api/chat/history')
+      .then((res) => {
+        if (cancelled || !res || !Array.isArray(res.messages)) return;
+        const loaded = res.messages
+          .filter((m) => m && m.text)
+          .slice(-20)
+          .map((m) => ({ role: m.role === 'user' ? 'user' : 'assistant', text: m.text, id: `${Date.now()}-${Math.random()}` }));
+        if (loaded.length) {
+          setSpiritMessages((prev) => [
+            ...prev.filter((m) => m.text && m.text.startsWith('Holographic Spirit online')),
+            ...loaded,
+          ]);
+        }
+      })
+      .catch(() => { /* history load is non-critical */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
     const root = rootRef.current;
     const mainC = mainRef.current;
     const fxC = fxRef.current;

@@ -27,6 +27,41 @@ def _save_jobs(jobs: list[dict]) -> None:
     JOBS_FILE.write_text(json.dumps(jobs, indent=2), encoding="utf-8")
 
 
+def _seed_default_jobs() -> None:
+    """Provision a small set of proactive jobs on first launch.
+
+    The AutomationRunner executes each job's command through the LLM with tools
+    on its schedule, so Atulya acts without being prompted. Existing files are
+    left untouched (idempotent).
+    """
+    if not JOBS_FILE.exists():
+        defaults = [
+            {
+                "id": "seed_proactive_morning",
+                "name": "Morning Initiative",
+                "schedule": "86400",
+                "command": (
+                    "Proactively check current todos, memory notes, and pending "
+                    "automation, then summarize what is most important today."
+                ),
+                "enabled": True,
+                "created_at": time.time(),
+            },
+            {
+                "id": "seed_proactive_cleanup",
+                "name": "Periodic Cleanup Review",
+                "schedule": "43200",
+                "command": (
+                    "Review recent memory and chat history for stale or outdated notes"
+                    " and leave a short maintenance summary."
+                ),
+                "enabled": False,
+                "created_at": time.time(),
+            },
+        ]
+        _save_jobs(defaults)
+
+
 @router.get("/api/cron/jobs")
 def api_cron_jobs(_admin: dict = Depends(_require_admin)):
     return {"jobs": _load_jobs()}

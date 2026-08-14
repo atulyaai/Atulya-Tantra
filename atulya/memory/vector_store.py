@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 import threading
 import time
 from pathlib import Path
@@ -11,23 +12,46 @@ from typing import Any
 
 from .orchestrator import MemoryEntry, MemoryProvider
 
+_WORD_RE = re.compile(r"[a-z0-9]+")
+_CHAR_NGRAMS = (3, 4)
+
+
+def _hbytes(text: str) -> bytes:
+    return hashlib.sha256(text.encode("utf-8")).digest()
+
+
+def _signed_probe(text: str, salt: int) -> tuple[int, float]:
+    """Map a feature string to a (dimension, weight) using a salted hash."""
+    digest = _hbytes(f"{salt}:{text}")
+    dim = (digest[0] << 8) | digest[1]
+    sign = 1.0 if (digest[2] & 1) else -1.0
+    mag = 0.5 + (digest[3] / 255.0)
+    return dim, sign * mag
+
 
 def _hash_embed(text: str, dim: int = 128) -> list[float]:
-    """Generate a deterministic pseudo-embedding from text using hash-based feature hashing.
+    """Generate a deterministic dependency-free embedding from text.
 
-    This is a lightweight embedding that requires no external ML libraries.
-    For production use, replace with sentence-transformers or similar.
+    Combines word unigrams with character n-grams (3- and 4-grams) using
+    salted feature hashing. Character n-grams capture morphological and
+    near-duplicate overlap ("python script" vs "python function",
+    "running" vs "run"), giving meaningfully better recall than naive
+    per-token hashing while needing no external ML libraries.
     """
-    tokens = text.lower().split()
     vector = [0.0] * dim
-    for token in tokens:
-        h = hashlib.sha256(token.encode("utf-8")).digest()
-        for i in range(dim):
-            byte_val = h[i % len(h)]
-            if byte_val % 2 == 0:
-                vector[i] += 1.0 / (1 + i * 0.1)
-            else:
-                vector[i] -= 1.0 / (1 + i * 0.1)
+    lower = (text or "").lower()
+    words = _WORD_RE.findall(lower)
+
+    features: set[str] = set(words)
+    for gram in _CHAR_NGRAMS:
+        if len(lower) >= gram:
+            features.update(lower[i : i + gram] for i in range(len(lower) - gram + 1))
+
+    # Keep sparse: probe each feature into dim via salted hash (2 probes/feature).
+    for feature in features:
+        for salt in (1, 2, 3):
+            feature_dim, weight = _signed_probe(feature, salt)
+            vector[feature_dim % dim] += weight
 
     norm = math.sqrt(sum(x * x for x in vector))
     if norm > 0:

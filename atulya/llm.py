@@ -219,6 +219,27 @@ class AtulyaLLM:
         approved_tool_call: dict[str, Any] | None = None,
         provider: str = "",
     ) -> AsyncIterator[LLMEvent]:
+        # True incremental streaming when no tools/approval gate is involved:
+        # each provider's chat_stream (llama-cpp token generator) is used directly.
+        if not tools_enabled and not approved_tool_call:
+            system_prompt = self._build_system_prompt(history or [])
+            working_prompt = self._compose_prompt(prompt, history or [])
+            parts: list[str] = []
+            async for piece, provider_name in self.router.stream(
+                working_prompt,
+                system_prompt,
+                preferred_provider=provider,
+            ):
+                if piece:
+                    parts.append(piece)
+                    yield LLMEvent("token", content=piece)
+                    await asyncio.sleep(0)
+            yield LLMEvent(
+                "done",
+                metadata={"provider": provider_name, "steps": []},
+            )
+            return
+
         response = await self.ask(
             prompt,
             history=history,

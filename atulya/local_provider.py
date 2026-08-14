@@ -11,7 +11,7 @@ import os
 import urllib.request
 import urllib.error
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 
 logger = logging.getLogger(__name__)
 
@@ -169,3 +169,34 @@ class LocalGGUFProvider:
         except Exception as exc:
             logger.warning("LocalGGUFProvider chat failed: %s", exc)
             raise
+
+    async def chat_stream(self, prompt: str, system_prompt: str = "") -> AsyncIterator[str]:
+        """Stream tokens incrementally from the local model (llama-cpp stream=True).
+
+        Falls back to yielding the whole response if streaming is unsupported.
+        """
+        try:
+            self._load()
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
+            kwargs: dict[str, Any] = {
+                "messages": messages,
+                "max_tokens": int(os.environ.get("ATULYA_LOCAL_MAX_TOKENS", "512")),
+                "temperature": float(os.environ.get("ATULYA_LOCAL_TEMPERATURE", "0.6")),
+                "stop": ["<|im_end|>", "<|endoftext|>"],
+                "stream": True,
+            }
+            def _gen():
+                for chunk in self._llm.create_chat_completion(**kwargs):
+                    delta = (chunk.get("choices") or [{}])[0].get("delta", {})
+                    piece = delta.get("content") or ""
+                    if piece:
+                        yield piece
+
+            for piece in _gen():
+                yield piece
+        except Exception as exc:
+            logger.warning("LocalGGUFProvider chat_stream failed: %s", exc)
+            yield str(exc)

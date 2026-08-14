@@ -64,6 +64,7 @@ async def lifespan(app: FastAPI):
     app.state.mcp_manager = MCPClientManager()
     app.state.mcp_errors = []
     await _connect_mcp_servers(app)
+    automation._seed_default_jobs()
     app.state.automation_runner = AutomationRunner(automation.JOBS_FILE, app.state.llm)
     app.state.automation_task = asyncio.create_task(app.state.automation_runner.start())
 

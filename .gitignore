@@ -27,6 +27,8 @@ data/
 *.gguf
 *.safetensors
 checkpoints/
+outputs/npdna/benchmark.json
+assets/agent/reminders.json
 
 # Node / frontend
 node_modules/

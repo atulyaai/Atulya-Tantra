@@ -94,3 +94,27 @@ class TestAutomationRoutes:
                 result = asyncio.run(api_cron_run_job(mock_request, "1", _admin=mock_admin.return_value))
 
         assert result["ok"] is True
+
+    def test_seed_default_jobs(self, tmp_path):
+        from drishti.dashboard.routes.automation import _seed_default_jobs
+        import drishti.dashboard.routes.automation as auto_mod
+        jobs_file = tmp_path / "jobs.json"
+        auto_mod.JOBS_FILE = jobs_file
+
+        _seed_default_jobs()
+        seeded = json.loads(jobs_file.read_text())
+        assert len(seeded) == 2
+        assert seeded[0]["enabled"] is True
+        assert all(job.get("command") for job in seeded)
+
+    def test_seed_default_jobs_idempotent(self, tmp_path):
+        from drishti.dashboard.routes.automation import _seed_default_jobs
+        import drishti.dashboard.routes.automation as auto_mod
+        jobs_file = tmp_path / "jobs.json"
+        auto_mod.JOBS_FILE = jobs_file
+        jobs_file.write_text(json.dumps([{"id": "custom", "name": "mine"}]))
+
+        _seed_default_jobs()
+        preserved = json.loads(jobs_file.read_text())
+        assert len(preserved) == 1
+        assert preserved[0]["id"] == "custom"
