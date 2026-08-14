@@ -25,6 +25,10 @@ Shared support directories:
 
 The repo root intentionally has four product directories. New implementation goes into the owning package; see `atulya/docs/PROJECT_MAP.md` for the ownership map.
 
+![Atulya Tantra architecture](atulya/docs/images/architecture.png)
+
+![Four pillars](atulya/docs/images/four_pillars.png)
+
 ## Quick Start
 
 Requires Python 3.10+.
@@ -131,3 +135,5 @@ See `docs/API_REFERENCE.md` for the route list.
 - `atulya/docs/SECURITY_MODEL.md` — security model and threat boundaries
 - `atulya/docs/PROJECT_MAP.md` — folder ownership and drift rules
 - `CHANGELOG.md` — release history
+
+![NP-DNA runtime](atulya/docs/images/npdna_runtime.svg)
