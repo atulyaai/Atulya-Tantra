@@ -358,8 +358,8 @@ function HolographicVortex({ activeAgent, status, mode, onNodeSelect }) {
       ctx.fillRect(0, 0, width, height);
 
       const glow = ctx.createRadialGradient(cx + mouseX * 0.25, cy + mouseY * 0.25, 0, cx, cy, 230);
-      glow.addColorStop(0, mode === 'gold' ? 'rgba(255, 196, 64, 0.26)' : mode === 'dna' ? 'rgba(255, 110, 30, 0.22)' : 'rgba(124, 92, 255, 0.24)');
-      glow.addColorStop(0.45, 'rgba(0, 245, 255, 0.07)');
+      glow.addColorStop(0, mode === 'gold' ? 'rgba(255, 196, 64, 0.26)' : mode === 'dna' ? 'rgba(255, 110, 30, 0.22)' : 'rgba(255, 153, 51, 0.24)');
+      glow.addColorStop(0.45, 'rgba(255, 244, 230, 0.07)');
       glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
       ctx.fillStyle = glow;
       ctx.beginPath();
@@ -369,7 +369,7 @@ function HolographicVortex({ activeAgent, status, mode, onNodeSelect }) {
       for (let ring = 0; ring < 4; ring += 1) {
         ctx.beginPath();
         ctx.arc(cx, cy, 70 + ring * 58 + Math.sin(frame * 0.018 + ring) * 5, 0, Math.PI * 2);
-        ctx.strokeStyle = ring % 2 ? 'rgba(168, 85, 247, 0.16)' : 'rgba(0, 245, 255, 0.15)';
+        ctx.strokeStyle = ring % 2 ? 'rgba(244, 196, 48, 0.16)' : 'rgba(255, 244, 230, 0.15)';
         ctx.lineWidth = 1;
         ctx.stroke();
       }
@@ -405,7 +405,7 @@ function HolographicVortex({ activeAgent, status, mode, onNodeSelect }) {
           ctx.beginPath();
           ctx.arc(x, y1, 2.4, 0, Math.PI * 2);
           ctx.fill();
-          ctx.fillStyle = 'rgba(0, 245, 255, 0.68)';
+          ctx.fillStyle = 'rgba(255, 244, 230, 0.68)';
           ctx.beginPath();
           ctx.arc(x, y2, 2.4, 0, Math.PI * 2);
           ctx.fill();
@@ -420,13 +420,13 @@ function HolographicVortex({ activeAgent, status, mode, onNodeSelect }) {
         ctx.beginPath();
         ctx.moveTo(cx, cy);
         ctx.lineTo(x, y);
-        ctx.strokeStyle = active ? 'rgba(0, 245, 255, 0.42)' : 'rgba(124, 92, 255, 0.13)';
+        ctx.strokeStyle = active ? 'rgba(255, 244, 230, 0.42)' : 'rgba(255, 153, 51, 0.13)';
         ctx.stroke();
         ctx.beginPath();
         ctx.arc(x, y, active ? 11 : 7, 0, Math.PI * 2);
-        ctx.fillStyle = active ? 'rgba(0, 245, 255, 0.82)' : 'rgba(168, 85, 247, 0.48)';
+        ctx.fillStyle = active ? 'rgba(255, 244, 230, 0.82)' : 'rgba(244, 196, 48, 0.48)';
         ctx.fill();
-        ctx.fillStyle = active ? '#ffffff' : 'rgba(218, 226, 255, 0.68)';
+        ctx.fillStyle = active ? '#ffffff' : 'rgba(243, 234, 223, 0.68)';
         ctx.font = '700 9px Orbitron, system-ui, sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText(name, x, y + 25);

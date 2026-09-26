@@ -3,8 +3,8 @@
   "short_name": "Atulya",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0d0f15",
-  "theme_color": "#11131a",
+  "background_color": "#0a0d1f",
+  "theme_color": "#0a0d1f",
   "icons": [
     {
       "src": "/favicon.svg",
