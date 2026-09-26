@@ -32,12 +32,26 @@ class ToolSandbox:
         self._env = os.environ.copy()
         self._env["ATULYA_SANDBOX"] = "1"
 
+    # Shell metacharacters that would allow chaining/expansion past the
+    # allowlist. Rejected outright so the allowlist cannot be bypassed.
+    _SHELL_METACHARACTERS = (";", "&", "|", "$", "`", ">", "<", "\n", "(", ")", "{", "}")
+
     def check_command(self, command: str) -> tuple[bool, str]:
-        cmd = shlex.split(command)
+        # Any shell metacharacter is rejected: we execute argv directly
+        # (shell=False), so these can only be an attempt to chain commands.
+        for meta in self._SHELL_METACHARACTERS:
+            if meta in command:
+                return False, f"Command contains disallowed shell character: {meta!r}"
+        try:
+            cmd = shlex.split(command)
+        except ValueError as exc:
+            return False, f"Could not parse command: {exc}"
         if not cmd:
             return False, "Empty command"
         base = os.path.basename(cmd[0]).lower()
-        if base not in _ALLOWED_COMMANDS and base not in ("cmd", "powershell"):
+        # Note: shells (cmd/powershell/bash/sh) are intentionally NOT allowed —
+        # they would defeat the allowlist by running arbitrary child commands.
+        if base not in _ALLOWED_COMMANDS:
             return False, f"Command '{base}' not in allowed list"
         for pattern in _BLOCKED_PATTERNS:
             if pattern in command.lower():
@@ -49,9 +63,11 @@ class ToolSandbox:
         if not allowed:
             return {"success": False, "error": reason, "stdout": "", "stderr": ""}
         try:
+            # shell=False + argv list: the allowlisted binary runs with its
+            # literal arguments; no shell interprets metacharacters.
             result = subprocess.run(
-                command,
-                shell=True,
+                shlex.split(command),
+                shell=False,
                 capture_output=True,
                 text=True,
                 timeout=self.timeout,

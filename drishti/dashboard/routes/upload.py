@@ -15,6 +15,31 @@ router = APIRouter()
 
 UPLOAD_DIR = Path(__file__).resolve().parents[3] / "config" / "uploads"
 _MAX_SIZE = 50 * 1024 * 1024  # 50MB
+
+
+def _safe_component(value: str, label: str = "identifier") -> str:
+    """Reject any path-like input so it can't traverse outside the uploads dir.
+
+    A valid username / file_id is a single path component with no separators,
+    no parent references, and no null bytes. Anything else is a traversal
+    attempt (e.g. '..', 'a/../../etc', '%2e%2e').
+    """
+    if not value or value in (".", "..") or "/" in value or "\\" in value or "\x00" in value:
+        raise HTTPException(400, f"Invalid {label}")
+    if os.path.basename(value) != value:
+        raise HTTPException(400, f"Invalid {label}")
+    return value
+
+
+def _resolve_upload_path(username: str, file_id: str) -> Path:
+    """Build an uploads path and confirm it stays inside UPLOAD_DIR."""
+    _safe_component(username, "username")
+    _safe_component(file_id, "file id")
+    path = (UPLOAD_DIR / username / file_id).resolve()
+    base = UPLOAD_DIR.resolve()
+    if base not in path.parents:
+        raise HTTPException(400, "Invalid path")
+    return path
 _ALLOWED_TYPES = {
     "image/jpeg", "image/png", "image/gif", "image/webp",
     "application/pdf", "text/plain", "text/csv",
@@ -62,8 +87,8 @@ async def api_get_file(username: str, file_id: str, token: str | None = Header(d
     user = _require_auth(token)
     if username != user["username"] and user.get("role") != "admin":
         raise HTTPException(403, "Forbidden")
-    file_path = UPLOAD_DIR / username / file_id
-    if not file_path.exists():
+    file_path = _resolve_upload_path(username, file_id)
+    if not file_path.is_file():
         raise HTTPException(404, "File not found")
     from fastapi.responses import FileResponse
     return FileResponse(str(file_path))
@@ -87,8 +112,8 @@ async def api_list_files(token: str | None = Header(default=None, alias="X-Atuly
 @router.delete("/api/files/{file_id}")
 async def api_delete_file(file_id: str, token: str | None = Header(default=None, alias="X-Atulya-Token")):
     user = _require_auth(token)
-    file_path = UPLOAD_DIR / user["username"] / file_id
-    if not file_path.exists():
+    file_path = _resolve_upload_path(user["username"], file_id)
+    if not file_path.is_file():
         raise HTTPException(404, "File not found")
     file_path.unlink()
     return {"ok": True}
