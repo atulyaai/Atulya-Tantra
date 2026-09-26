@@ -137,6 +137,7 @@ async def api_voice_chat(
     provider_name = "Atulya Fallback"
     needs_approval = False
     pending_tool = None
+    trace: list = []
     try:
         from atulya.cognition import get_kernel
         server_messages = chat_history.list_messages(user, limit=20)
@@ -165,6 +166,7 @@ async def api_voice_chat(
         )
         response_text, provider_name = response.text, response.provider
         needs_approval, pending_tool = response.needs_approval, response.pending_tool
+        trace = getattr(response, "trace", [])
     except Exception as exc:
         logger.error(f"Intelligence router failure: {exc}")
         from atulya.persona import get_atulya_fallback_response
@@ -184,6 +186,7 @@ async def api_voice_chat(
             "provider_name": provider_name,
             "needs_approval": needs_approval,
             "pending_tool": pending_tool,
+            "trace": trace,
         }
     except Exception as e:
         logger.error(f"Voice chat TTS synthesis failed: {e}")
@@ -194,6 +197,7 @@ async def api_voice_chat(
             "provider_name": provider_name,
             "needs_approval": needs_approval,
             "pending_tool": pending_tool,
+            "trace": trace,
             "error": f"Audio synthesis failed: {e}"
         }
 

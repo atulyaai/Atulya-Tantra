@@ -6,7 +6,7 @@ export function UserManagement({ toast }) {
   const [loading, setLoading] = useState(true);
 
   React.useEffect(() => {
-    api.get('/api/admin/users')
+    api.get('/api/users')
       .then(data => { setUsers(data.users || []); setLoading(false); })
       .catch(err => { toast('error', 'Failed to load users: ' + err.message); setLoading(false); });
   }, []);

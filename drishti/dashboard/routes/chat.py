@@ -70,6 +70,7 @@ async def api_chat(request: Request, body: dict, token: str | None = Header(defa
         "steps": response.tool_steps,
         "needs_approval": response.needs_approval,
         "pending_tool": response.pending_tool,
+        "trace": getattr(response, "trace", []),
     }
 
 
