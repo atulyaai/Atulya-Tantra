@@ -58,6 +58,16 @@ docs = [
 browser = [
     "playwright>=1.40",
 ]
+# Always-listening app: microphone, private local speech-to-text, offline
+# voice and a tray icon (`atulya listen`).
+ambient = [
+    "sounddevice>=0.4",
+    "numpy>=1.24",
+    "faster-whisper>=1.0",
+    "pyttsx3>=2.90",
+    "pystray>=0.19",
+    "Pillow>=10.0",
+]
 # Cameras: motion + person detection for "someone is at the door".
 vision = [
     "opencv-python-headless>=4.8",
@@ -75,6 +85,10 @@ dev = [
     "pytest-benchmark>=4.0",
     "ruff>=0.1",
 ]
+
+[project.scripts]
+atulya = "atulya.cli:main"
+atulya-listen = "atulya.ambient.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["atulya*", "tantra*", "yantra*", "drishti*"]

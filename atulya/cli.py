@@ -35,6 +35,10 @@ FREE_DEFAULTS = {
 
 
 def main() -> None:
+    if len(sys.argv) > 1 and sys.argv[1] == "listen":  # the always-listening app has its own options
+        from atulya.ambient.cli import main as listen
+
+        raise SystemExit(listen(sys.argv[2:]))
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     logging.basicConfig(
@@ -108,6 +112,7 @@ def main() -> None:
     sub.add_parser("doctor", help="Show provider, tool, and data-dir status")
     sub.add_parser("readiness", help="Check production deployment readiness")
     sub.add_parser("tools", help="List installed Yantra tools")
+    sub.add_parser("listen", help="Always-listening Atulya with a wake word (see: atulya listen --help)")
 
     model_p = sub.add_parser("model", help="Manage local Tantra placeholder model (0.5B GGUF)")
     model_sub = model_p.add_subparsers(dest="model_command")

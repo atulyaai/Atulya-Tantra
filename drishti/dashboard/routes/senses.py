@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 
-from drishti.dashboard.helpers import _require_admin, _require_auth
+from drishti.dashboard.helpers import _jwt_encode, _require_admin, _require_auth
 
 router = APIRouter()
 
@@ -61,3 +61,19 @@ def api_camera_snapshot(
 def api_listener_heartbeat(request: Request, body: dict, user: dict = Depends(_require_auth)):
     """An always-listening device checking in (see ``python -m atulya.ambient``)."""
     return {"ok": True, "listener": _senses(request).heartbeat(body, user=str(user.get("username") or ""))}
+
+
+DEVICE_TOKEN_DAYS = 90
+
+
+@router.post("/api/senses/device-token")
+def api_device_token(body: dict, user: dict = Depends(_require_auth)):
+    """A long-lived sign-in for an always-listening device (sessions expire daily).
+
+    It acts as the signed-in user — same role, same confirmations.
+    """
+    device = str(body.get("device") or "listener")[:60]
+    token = _jwt_encode({"sub": user.get("username"), "role": user.get("role", "user"),
+                         "name": user.get("display_name", ""), "device": device},
+                        expires_in=DEVICE_TOKEN_DAYS * 86400)
+    return {"token": token, "device": device, "expires_in": DEVICE_TOKEN_DAYS * 86400}
