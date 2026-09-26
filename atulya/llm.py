@@ -15,7 +15,20 @@ from typing import Any, AsyncIterator
 
 from atulya.intelligence import ProviderRouter
 from atulya.persona import Persona, get_atulya_fallback_response
+from atulya.emotion import MoodState, build_emotional_directive, detect_emotion
 from yantra.capabilities import ToolRegistry, create_default_registry
+
+
+# Style rules that make replies read as a person, not a robot. Appended to
+# every system prompt.
+_HUMAN_STYLE = (
+    "Voice & manner:\n"
+    "- Speak like a sharp, caring friend — warm, direct, concise by default.\n"
+    "- If the user seems upset, tired or anxious, acknowledge it in one natural "
+    "sentence before helping.\n"
+    "- Use the user's name when you know it. Light wit is welcome; never forced.\n"
+    '- Never say "As an AI" or narrate your own limitations unprompted.\n'
+)
 
 
 @dataclass
@@ -62,6 +75,18 @@ class AtulyaLLM:
         self.use_memory = use_memory
         self.memory_dir = memory_dir
         self._memory = None
+        self.mood = MoodState.load()
+
+    def _human_context(self, prompt: str) -> str:
+        """Perceive the user's emotion, nudge Atulya's mood, and return a short
+        directive block for the system prompt. Best-effort; never raises."""
+        try:
+            reading = detect_emotion(prompt)
+            self.mood.nudge(reading)
+            self.mood.save()
+            return build_emotional_directive(reading, self.mood)
+        except Exception:
+            return ""
 
     def _ensure_memory(self):
         if self._memory is None and self.use_memory:
@@ -116,7 +141,7 @@ class AtulyaLLM:
         approved_tool_call: dict[str, Any] | None = None,
         provider: str = "",
     ) -> LLMResponse:
-        system_prompt = self._build_system_prompt(history or [])
+        system_prompt = self._build_system_prompt(history or [], user_prompt=prompt)
         working_prompt = self._compose_prompt(prompt, history or [])
         steps: list[dict[str, Any]] = []
         requested_provider = provider
@@ -222,7 +247,7 @@ class AtulyaLLM:
         # True incremental streaming when no tools/approval gate is involved:
         # each provider's chat_stream (llama-cpp token generator) is used directly.
         if not tools_enabled and not approved_tool_call:
-            system_prompt = self._build_system_prompt(history or [])
+            system_prompt = self._build_system_prompt(history or [], user_prompt=prompt)
             working_prompt = self._compose_prompt(prompt, history or [])
             parts: list[str] = []
             async for piece, provider_name in self.router.stream(
@@ -267,12 +292,17 @@ class AtulyaLLM:
             await asyncio.sleep(0)
         yield LLMEvent("done", metadata={"provider": response.provider, "steps": response.tool_steps})
 
-    def _build_system_prompt(self, history: list[dict[str, str]]) -> str:
+    def _build_system_prompt(self, history: list[dict[str, str]], user_prompt: str = "") -> str:
         prompt = self.persona.get_system_prompt()
         tools = self.tools.list_tools()
         tool_lines = [f"- {item['name']}: {item['description']}" for item in tools]
+        human_block = f"\n\n{_HUMAN_STYLE}"
+        emotional = self._human_context(user_prompt) if user_prompt else ""
+        if emotional:
+            human_block += f"\n{emotional}\n"
         return (
-            f"{prompt}\n\n"
+            f"{prompt}"
+            f"{human_block}\n\n"
             "Operating policy:\n"
             "- Use free/local providers first. Paid APIs are optional fallbacks only when configured.\n"
             "- Tantra must never block production behavior.\n"

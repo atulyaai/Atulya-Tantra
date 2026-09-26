@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import urllib.request
 import urllib.error
 from pathlib import Path
@@ -45,17 +46,53 @@ def _normalize_tool_call_xml(text: str) -> str | None:
         return json.dumps({"tool": name, "arguments": arguments}, ensure_ascii=False)
     return None
 
-MODEL_REPO = "Qwen/Qwen2.5-0.5B-Instruct-GGUF"
-MODEL_FILE = "qwen2.5-0.5b-instruct-q4_k_m.gguf"
+_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
+
+
+def _strip_think(text: str) -> str:
+    """Remove Qwen3 ``<think>…</think>`` reasoning blocks from a reply.
+
+    Also handles a dangling opening tag (model cut off mid-thought) and stray
+    closing tags so the user never sees internal reasoning.
+    """
+    if not text or "<think>" not in text and "</think>" not in text:
+        return text
+    cleaned = _THINK_RE.sub("", text)
+    # Drop an unterminated think block and any orphan tags.
+    if "<think>" in cleaned:
+        cleaned = cleaned.split("<think>", 1)[0]
+    cleaned = cleaned.replace("</think>", "")
+    return cleaned.strip()
+
+
+MODEL_REPO = "unsloth/Qwen3-0.6B-GGUF"
+MODEL_FILE = "Qwen3-0.6B-Q4_K_M.gguf"
 MODEL_URL = f"https://huggingface.co/{MODEL_REPO}/resolve/main/{MODEL_FILE}"
-_DEFAULT_MODEL_DIR = Path.home() / ".cache" / "atulya" / "models"
+
+# Portable-first: models live inside the project's ``runtime/models`` folder so
+# the whole system can be copied to another machine and just run. An explicit
+# ATULYA_MODEL_DIR env var still wins; the old ~/.cache location is kept as a
+# read fallback so existing installs don't re-download.
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_PORTABLE_MODEL_DIR = _REPO_ROOT / "runtime" / "models"
+_LEGACY_MODEL_DIR = Path.home() / ".cache" / "atulya" / "models"
+_DEFAULT_MODEL_DIR = _PORTABLE_MODEL_DIR
 
 
 def _resolve_model_path() -> Path | None:
-    model_dir = Path(os.environ.get("ATULYA_MODEL_DIR", str(_DEFAULT_MODEL_DIR)))
-    model_path = model_dir / MODEL_FILE
-    if model_path.exists():
-        return model_path
+    search_dirs = []
+    env_dir = os.environ.get("ATULYA_MODEL_DIR", "").strip()
+    if env_dir:
+        search_dirs.append(Path(env_dir))
+    search_dirs += [_PORTABLE_MODEL_DIR, _LEGACY_MODEL_DIR]
+    for model_dir in search_dirs:
+        # Accept the configured file, or any Qwen3-0.6B GGUF quant present.
+        candidate = model_dir / MODEL_FILE
+        if candidate.exists():
+            return candidate
+        if model_dir.exists():
+            for found in sorted(model_dir.glob("Qwen3-0.6B*.gguf")):
+                return found
     alt_str = os.environ.get("ATULYA_GGUF_PATH", "").strip()
     if alt_str:
         alt = Path(alt_str)
@@ -164,6 +201,7 @@ class LocalGGUFProvider:
                         {"tool": first.get("function", {}).get("name", ""), "arguments": args_parsed},
                         ensure_ascii=False,
                     )
+            content = _strip_think(content)
             # Normalize Qwen-style <tool_call> XML output into the JSON AtulyaLLM expects
             return _normalize_tool_call_xml(content) or content
         except Exception as exc:
@@ -189,11 +227,39 @@ class LocalGGUFProvider:
                 "stream": True,
             }
             def _gen():
+                in_think = False
+                buffer = ""
                 for chunk in self._llm.create_chat_completion(**kwargs):
                     delta = (chunk.get("choices") or [{}])[0].get("delta", {})
                     piece = delta.get("content") or ""
-                    if piece:
-                        yield piece
+                    if not piece:
+                        continue
+                    # Suppress everything between <think> and </think> so the
+                    # user only hears the final answer, not the reasoning.
+                    buffer += piece
+                    while buffer:
+                        if in_think:
+                            end = buffer.find("</think>")
+                            if end == -1:
+                                buffer = buffer[-8:] if len(buffer) > 8 else buffer
+                                break
+                            buffer = buffer[end + len("</think>"):]
+                            in_think = False
+                        else:
+                            start = buffer.find("<think>")
+                            if start == -1:
+                                # Hold back a small tail in case a tag is split.
+                                safe = buffer[:-8] if len(buffer) > 8 else ""
+                                if safe:
+                                    yield safe
+                                    buffer = buffer[len(safe):]
+                                break
+                            if start > 0:
+                                yield buffer[:start]
+                            buffer = buffer[start + len("<think>"):]
+                            in_think = True
+                if buffer and not in_think:
+                    yield buffer
 
             for piece in _gen():
                 yield piece

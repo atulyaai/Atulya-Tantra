@@ -1,0 +1,52 @@
+{
+  "name": "Atulya portable runtime",
+  "description": "Everything Atulya needs to run offline is downloaded into ./runtime so the whole project folder is portable across machines. Nothing is installed system-wide, nothing runs hidden, and this file lists exactly what the installer fetches.",
+  "consent": "By running install/setup.ps1 (Windows) or install/setup.sh you agree to download the components below into ./runtime on a machine you own or are authorized to manage.",
+  "install_location": "runtime/",
+  "removes_with": "delete the runtime/ folder",
+  "components": [
+    {
+      "name": "Brain — Qwen3-0.6B (Q4_K_M GGUF)",
+      "purpose": "Local language model that thinks, chats and calls tools. Runs on CPU.",
+      "source": "https://huggingface.co/Qwen/Qwen3-0.6B-GGUF",
+      "file": "runtime/models/Qwen3-0.6B-Q4_K_M.gguf",
+      "approx_size_mb": 484,
+      "license": "Apache-2.0",
+      "required": true
+    },
+    {
+      "name": "Mouth — Piper TTS engine",
+      "purpose": "Offline text-to-speech. No API key, no account.",
+      "source": "https://github.com/rhasspy/piper/releases",
+      "file": "runtime/bin/piper/",
+      "approx_size_mb": 25,
+      "license": "MIT",
+      "required": false
+    },
+    {
+      "name": "Voice — en_US-amy (medium)",
+      "purpose": "A natural English Piper voice.",
+      "source": "https://huggingface.co/rhasspy/piper-voices",
+      "file": "runtime/models/piper/en_US-amy-medium.onnx",
+      "approx_size_mb": 63,
+      "license": "MIT",
+      "required": false
+    },
+    {
+      "name": "Ears — faster-whisper (base, int8)",
+      "purpose": "Offline speech-to-text. Model files are fetched on first use into runtime/models/whisper.",
+      "source": "https://huggingface.co/Systran/faster-whisper-base",
+      "file": "runtime/models/whisper/",
+      "approx_size_mb": 145,
+      "license": "MIT",
+      "required": false
+    }
+  ],
+  "python_runtime_packages": [
+    "llama-cpp-python (runs the GGUF brain)",
+    "edge-tts (online TTS fallback)",
+    "faster-whisper (speech-to-text)",
+    "mss (screen capture for see_screen)",
+    "rapidocr-onnxruntime (reads text off the screen)"
+  ]
+}
