@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from drishti.dashboard.helpers import _checkpoint_index, _load_cached_model
-from drishti.dashboard.routes import agent, auth, automation, chat, cortex, create, devices, model, notifications, openai, system, train, upload, voice, ws
+from drishti.dashboard.routes import agent, auth, automation, chat, cortex, create, devices, model, notifications, openai, system, train, triggers, upload, voice, ws
 from drishti.dashboard.automation_runner import AutomationRunner
 from yantra.mcp.external_client import MCPClientManager
 
@@ -73,14 +73,42 @@ async def lifespan(app: FastAPI):
     set_agent(agent_core)
     app.state.agent = agent_core
 
+    # Reflexes: event-driven proactivity + self-monitoring. Reminders, health
+    # changes and automation outcomes become events; trigger rules react; the
+    # resulting notifications are relayed to connected clients.
+    from atulya.cognition import get_kernel
+    from atulya.cognition.triggers import TriggerEngine, connect_sensors
+    from atulya.heartbeat import HeartbeatSystem
+    from yantra.events import default_bus
+
+    connect_sensors(default_bus)
+    app.state.triggers = TriggerEngine(kernel=get_kernel(app.state.llm), events=default_bus)
+    app.state.triggers.start()
+    default_bus.subscribe("notification", _relay_notification)
+    app.state.heartbeat = HeartbeatSystem(events=default_bus)
+    app.state.heartbeat_task = asyncio.create_task(app.state.heartbeat.start())
+
     threading.Thread(target=_warm_latest_model, daemon=True).start()
     try:
         yield
     finally:
+        app.state.triggers.stop()
+        default_bus.unsubscribe("notification", _relay_notification)
+        await app.state.heartbeat.stop()
+        app.state.heartbeat_task.cancel()
         await app.state.automation_runner.stop()
         app.state.automation_task.cancel()
         await app.state.mcp_manager.shutdown_all()
         await agent_core.shutdown()
+
+
+async def _relay_notification(event) -> None:
+    """Push a proactive notification (e.g. a due reminder) to connected clients."""
+    from drishti.dashboard.routes.ws import broadcast_event
+
+    payload = event.payload or {}
+    logger.info("Atulya notification: %s — %s", payload.get("title"), payload.get("message"))
+    await broadcast_event(str(payload.get("title") or "Atulya"), str(payload.get("message") or ""), event_type="info")
 
 
 async def _connect_mcp_servers(app: FastAPI) -> None:
@@ -123,7 +151,7 @@ app.add_middleware(
 )
 app.middleware("http")(_rate_limiter)
 
-for module in (auth, system, model, train, chat, cortex, automation, openai, voice, upload, devices, ws, notifications, agent, create):
+for module in (auth, system, model, train, chat, cortex, automation, openai, voice, upload, devices, ws, notifications, agent, create, triggers):
     app.include_router(module.router)
 
 

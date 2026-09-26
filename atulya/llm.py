@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -16,10 +17,11 @@ from typing import TYPE_CHECKING, Any, AsyncIterator
 if TYPE_CHECKING:
     from atulya.memory.manager import MemoryManager
 
+from atulya.cognition.safety import RISKY_TOOLS, needs_confirmation  # noqa: F401  (RISKY_TOOLS re-exported)
 from atulya.intelligence import ProviderRouter
 from atulya.persona import Persona, get_atulya_fallback_response
 from atulya.emotion import MoodState, build_emotional_directive, detect_emotion
-from yantra.capabilities import ToolRegistry, create_default_registry
+from yantra.capabilities import ToolRegistry
 
 
 # Style rules that make replies read as a person, not a robot. Appended to
@@ -50,12 +52,23 @@ class LLMResponse:
     pending_tool: dict[str, Any] | None = None
 
 
-RISKY_TOOLS = {
-    "exec",
-    "file_write",
-    "file_edit",
-    "code_execute",
-    "sap_gui_automation",
+# Which tools the model sees first when the advertised list is capped.
+# Personal-assistant essentials lead; anything unranked keeps registry order.
+_TOOL_PRIORITY = {
+    "home_control": 1,
+    "set_reminder": 2,
+    "get_weather": 3,
+    "current_time": 4,
+    "web_search": 5,
+    "memory_search": 6,
+    "memory_store": 7,
+    "calendar_list": 8,
+    "calendar_add": 9,
+    "fetch_emails": 10,
+    "send_email": 11,
+    "todo_create": 12,
+    "calculate": 13,
+    "web_fetch": 14,
 }
 
 
@@ -70,7 +83,11 @@ class AtulyaLLM:
         use_memory: bool = False,
         memory_dir: str = "assets/memory",
     ):
-        self.tools = tools or create_default_registry()
+        if tools is None:
+            # One tool surface: yantra tools + personal-assistant tools.
+            from atulya.cognition.toolbelt import build_unified_registry
+            tools = build_unified_registry()
+        self.tools = tools
         self.max_tool_iterations = max_tool_iterations
         self.allow_exec = allow_exec
         self.router = ProviderRouter()
@@ -184,7 +201,7 @@ class AtulyaLLM:
                 return final
 
             tool_calls = self._normalize_tool_calls(tool_call)
-            risky = [call for call in tool_calls if call["tool"] in RISKY_TOOLS]
+            risky = [call for call in tool_calls if needs_confirmation(call["tool"], call["arguments"])]
             if risky:
                 return LLMResponse(
                     text="Approval required before running this tool.",
@@ -214,7 +231,11 @@ class AtulyaLLM:
         tool_name = normalized["tool"]
         arguments = normalized["arguments"]
         if tool_name == "exec":
-            arguments.setdefault("allow_exec", self.allow_exec)
+            # Execution permission is server policy, never a caller- or
+            # model-supplied argument: override (not setdefault) allow_exec and
+            # drop any allow_list so ATULYA_EXEC_ALLOWLIST stays authoritative.
+            arguments["allow_exec"] = self.allow_exec
+            arguments.pop("allow_list", None)
         result = await self.tools.execute(tool_name, **arguments)
         return {
             "tool": tool_name,
@@ -223,6 +244,14 @@ class AtulyaLLM:
             "output": result.output[:4000],
             "error": result.error,
         }
+
+    async def run_tool(self, tool_call: dict[str, Any]) -> dict[str, Any]:
+        """Execute one tool call with the brain's policies applied; returns a step dict."""
+        return await self._execute_tool_call(tool_call)
+
+    async def remember(self, prompt: str, response_text: str) -> None:
+        """Write an exchange (e.g. an action the kernel took) to long-term memory."""
+        await self._store_exchange(prompt, response_text)
 
     @staticmethod
     def _normalize_tool_call(tool_call: dict[str, Any]) -> dict[str, Any]:
@@ -318,15 +347,29 @@ class AtulyaLLM:
         )
 
     def _build_tool_schemas(self) -> list[dict[str, Any]]:
-        """Build OpenAI-style function schemas for the local model's native tool loop."""
+        """Build OpenAI-style function schemas for the model's native tool loop.
+
+        Small models degrade with long tool lists, so only the top
+        ``ATULYA_MAX_TOOL_SCHEMAS`` (default 14) are advertised, ranked
+        assistant-first by ``_TOOL_PRIORITY``; unranked tools keep registry
+        order. Tools that declare a JSON ``parameters`` schema expose it.
+        """
+        limit = max(1, int(os.environ.get("ATULYA_MAX_TOOL_SCHEMAS", "14")))
+        listed = self.tools.list_tools()
+        ranked = sorted(
+            enumerate(listed),
+            key=lambda item: (_TOOL_PRIORITY.get(item[1]["name"], 1000), item[0]),
+        )
         schemas = []
-        for tool in self.tools.list_tools()[:14]:
+        for _, tool in ranked[:limit]:
+            obj = self.tools.get(tool["name"]) if hasattr(self.tools, "get") else None
+            params = getattr(obj, "parameters", None) or {"type": "object", "properties": {}}
             schemas.append({
                 "type": "function",
                 "function": {
                     "name": tool["name"],
                     "description": tool["description"][:120],
-                    "parameters": {"type": "object", "properties": {}},
+                    "parameters": params,
                 },
             })
         return schemas

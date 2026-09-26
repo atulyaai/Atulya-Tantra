@@ -69,6 +69,8 @@ def _strip_think(text: str) -> str:
     return cleaned.strip()
 
 
+# Default ("tiny") brain; kept for compatibility. The active model follows the
+# ATULYA_BRAIN tier — see atulya.cognition.brain.
 MODEL_REPO = "unsloth/Qwen3-0.6B-GGUF"
 MODEL_FILE = "Qwen3-0.6B-Q4_K_M.gguf"
 MODEL_URL = f"https://huggingface.co/{MODEL_REPO}/resolve/main/{MODEL_FILE}"
@@ -83,25 +85,37 @@ _LEGACY_MODEL_DIR = Path.home() / ".cache" / "atulya" / "models"
 _DEFAULT_MODEL_DIR = _PORTABLE_MODEL_DIR
 
 
-def _resolve_model_path() -> Path | None:
-    search_dirs = []
+def _model_dirs() -> list[Path]:
+    dirs = []
     env_dir = os.environ.get("ATULYA_MODEL_DIR", "").strip()
     if env_dir:
-        search_dirs.append(Path(env_dir))
-    search_dirs += [_PORTABLE_MODEL_DIR, _LEGACY_MODEL_DIR]
-    for model_dir in search_dirs:
-        # Accept the configured file, or any Qwen3-0.6B GGUF quant present.
-        candidate = model_dir / MODEL_FILE
-        if candidate.exists():
-            return candidate
-        if model_dir.exists():
-            for found in sorted(model_dir.glob("Qwen3-0.6B*.gguf")):
-                return found
+        dirs.append(Path(env_dir))
+    return dirs + [_PORTABLE_MODEL_DIR, _LEGACY_MODEL_DIR]
+
+
+def _resolve_model_path() -> Path | None:
+    from atulya.cognition.brain import fallback_globs, local_model_spec
+
+    # An explicitly chosen file always wins (it used to be checked last, so it
+    # was silently ignored whenever the default model was present).
     alt_str = os.environ.get("ATULYA_GGUF_PATH", "").strip()
     if alt_str:
         alt = Path(alt_str)
         if alt.exists():
             return alt
+        logger.warning("ATULYA_GGUF_PATH=%s does not exist; using the brain tier's model", alt_str)
+
+    # The ATULYA_BRAIN tier's model first, then any smaller tier as fallback.
+    spec = local_model_spec()
+    for pattern in fallback_globs():
+        for model_dir in _model_dirs():
+            if pattern == spec["glob"]:
+                candidate = model_dir / spec["file"]
+                if candidate.exists():
+                    return candidate
+            if model_dir.exists():
+                for found in sorted(model_dir.glob(pattern)):
+                    return found
     return None
 
 
@@ -113,18 +127,23 @@ def _download_progress(url: str, dest: Path) -> None:
 
 
 def _ensure_model() -> Path | None:
+    from atulya.cognition.brain import local_model_spec
+
+    spec = local_model_spec()
     existing = _resolve_model_path()
-    if existing:
+    # A smaller fallback was found but the chosen tier's model is missing:
+    # fetch it when auto-download is on, otherwise use the fallback.
+    if existing and (os.environ.get("ATULYA_GGUF_PATH") or existing.match(spec["glob"])):
         return existing
     try:
         env_auto = os.environ.get("ATULYA_AUTO_DOWNLOAD_MODEL", "0")
         if env_auto.lower() in ("1", "true", "yes"):
-            dest = _DEFAULT_MODEL_DIR / MODEL_FILE
-            _download_progress(MODEL_URL, dest)
+            dest = _DEFAULT_MODEL_DIR / spec["file"]
+            _download_progress(spec["url"], dest)
             return dest
     except Exception as exc:
-        logger.warning("Model download failed: %s", exc)
-    return None
+        logger.warning("Model download failed (%s): %s", spec["label"], exc)
+    return existing
 
 
 class LocalGGUFProvider:
@@ -141,8 +160,14 @@ class LocalGGUFProvider:
     def name(self) -> str:
         custom = os.environ.get("ATULYA_LOCAL_MODEL_NAME", "").strip()
         if custom:
-            return f"Tiny Local ({custom})"
-        return "Tiny Local (Qwen3-0.6B)"
+            return f"Local Brain ({custom})"
+        # Name the model actually loaded (a tier may have fallen back).
+        if self._model_path:
+            label = re.sub(r"[-.]Q\d.*$", "", self._model_path.stem, flags=re.IGNORECASE)
+            return f"Local Brain ({label})"
+        from atulya.cognition.brain import local_model_spec
+
+        return f"Local Brain ({local_model_spec()['label']})"
 
     def is_available(self) -> bool:
         if not self._model_path or not self._model_path.exists():

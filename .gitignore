@@ -34,6 +34,7 @@ assets/agent/*.json
 assets/memory/
 assets/audio/
 assets/admin_token.txt
+assets/heartbeat_status.json
 tantra/outputs/npdna/
 config/chat_history.json
 config/sessions.json

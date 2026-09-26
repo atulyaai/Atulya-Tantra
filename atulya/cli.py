@@ -430,23 +430,25 @@ def _cmd_readiness() -> None:
 
 
 def _cmd_model(args: argparse.Namespace) -> None:
-    from atulya.local_provider import _ensure_model, _resolve_model_path, _DEFAULT_MODEL_DIR, MODEL_FILE, MODEL_URL
+    from atulya.cognition.brain import local_model_spec
+    from atulya.local_provider import _ensure_model, _resolve_model_path, _DEFAULT_MODEL_DIR
     import shutil
 
     subcmd = getattr(args, "model_command", None)
 
     if subcmd == "download":
-        print("Downloading Tantra placeholder model (Qwen2.5-0.5B-Instruct, ~350 MB)...")
+        spec = local_model_spec()  # follows ATULYA_BRAIN (tiny / balanced / power)
+        print(f"Downloading the '{spec['tier']}' brain: {spec['label']} ({spec['size']})...")
         model_dir = _DEFAULT_MODEL_DIR
         model_dir.mkdir(parents=True, exist_ok=True)
-        model_path = model_dir / MODEL_FILE
+        model_path = model_dir / spec["file"]
         if model_path.exists():
             print(f"Model already exists at {model_path} ({model_path.stat().st_size / 1024 / 1024:.0f} MB)")
             return
         try:
             import urllib.request
-            print(f"Fetching from {MODEL_URL}...")
-            urllib.request.urlretrieve(MODEL_URL, str(model_path))
+            print(f"Fetching from {spec['url']}...")
+            urllib.request.urlretrieve(spec["url"], str(model_path))
             size_mb = model_path.stat().st_size / 1024 / 1024
             print(f"Downloaded: {model_path} ({size_mb:.0f} MB)")
             print("Model ready. Run 'atulya chat' to use it.")
@@ -464,7 +466,7 @@ def _cmd_model(args: argparse.Namespace) -> None:
             print(f"Auto-download: {os.environ.get('ATULYA_AUTO_DOWNLOAD_MODEL', '0')}")
         else:
             print("Model not downloaded.")
-            print(f"Expected at: {_DEFAULT_MODEL_DIR / MODEL_FILE}")
+            print(f"Expected at: {_DEFAULT_MODEL_DIR / local_model_spec()['file']}")
             print("Run: atulya model download")
 
     elif subcmd == "remove":

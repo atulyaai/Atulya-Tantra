@@ -115,29 +115,41 @@ Atulya tries providers in order until one responds:
 - PWA (manifest + service worker + Add to Home Screen)
 - Digital Nervous System with stimulated strand animations
 - Memory Galaxy constellation visualization
-- 413+ tests passing
+- 459 tests passing
+
+### Cognition layer ✅ (see [atulya/docs/COGNITIVE_ARCHITECTURE.md](../atulya/docs/COGNITIVE_ARCHITECTURE.md))
+- One cognitive kernel for chat, streaming chat, voice, automations and triggers
+- Deterministic intent router: commands trigger real tools reliably, even on a 0.6B model
+- Safety policy: unlocking, sending email, deletions and code execution need confirmation
+  (spoken "yes"/"no" or the UI Approve button) and an admin account; per-user holds that expire
+- One tool surface: the chat/voice brain can call home, reminder, weather, email and calendar tools
+- Event-driven proactivity: trigger rules on reminders, health changes, automation results, actions
+- Reminders now notify when due (they previously fired into nothing)
+- Self-monitoring heartbeat publishes health changes (edge-triggered)
+- Brain tiers: `ATULYA_BRAIN=tiny|balanced|power|cloud`
+- Real smart-home control through Home Assistant (`HOME_ASSISTANT_URL` + `HOME_ASSISTANT_TOKEN`)
+
+### Done since the original TODO list ✅
+- Persistent chat history (server-side, `drishti/dashboard/chat_history.py`)
+- Text input in Holographic (Spirit) mode
+- Wake word "Hey Atulya" in hands-free mode
+- Real intent handling for commands (intent router + kernel)
+- Device control via Home Assistant
+- Multi-user support with roles
+- Conversation context window (recent history is sent to the brain)
+- File/image upload through the UI
+- Proactive notifications pushed to Drishti over WebSocket
+- Light theme option and keyboard shortcuts
 
 ### Missing / TODO 🚧
-
-**High Priority:**
-- Persistent chat history (messages lost on refresh)
-- Text input in Holographic Mode (voice-only currently)
-- Wake word "Hey Atulya" (UI shows it but not functional)
-- Real intent classification (currently simulated)
-- Vector memory persistence (galaxy is visual only, needs ChromaDB/FAISS)
-
-**Medium Priority:**
-- Yantra device control integration (IR/WiFi nodes visual only)
-- Multi-user support (single token auth currently)
-- Conversation context window (each message is standalone)
-- File/image upload through UI
-- Push notifications to Drishti
-
-**Low Priority:**
+- Multi-step planning for goals ("get the house ready for guests")
+- Learning preferences from confirmations, cancellations and corrections
+- Continuous perception events from camera/vision
+- Always-on ambient presence outside the browser (desktop/phone runtime)
+- Memory consolidation into a durable user model; verify vector-memory persistence
+- OAuth-backed Gmail / Google Calendar connectors wired into the email and calendar tools
 - HTTPS/SSL for non-localhost PWA features
 - Android APK wrapper (Capacitor/TWA)
-- Light theme option
-- Keyboard shortcuts
 - WebSocket push for training status
 
 ---

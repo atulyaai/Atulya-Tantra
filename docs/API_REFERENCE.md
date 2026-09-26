@@ -54,8 +54,25 @@ All endpoints (except `/api/auth/login`) require the `X-Atulya-Token` header.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/chat` | Send message to LLM |
+| POST | `/api/chat` | Send a message through the cognitive kernel |
+| POST | `/api/chat/stream` | Same, streamed as server-sent events |
 | GET | `/api/chat/history` | Get chat history |
+
+Chat, streaming chat and `/api/voice/chat` all go through the cognitive kernel
+([COGNITIVE_ARCHITECTURE.md](../atulya/docs/COGNITIVE_ARCHITECTURE.md)). Clear
+commands run tools directly (`provider: "Atulya Kernel"`). Risky actions come
+back with `needs_approval: true` and a `pending_tool`; confirm by replying "yes"
+(or "no"), or by resending with `approved_tool` set to that `pending_tool`.
+
+## Proactivity (admin)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/triggers` | List trigger rules |
+| POST | `/api/triggers` | Add or replace a rule: `{event, match?, notify?, command?, allow_risky?, cooldown_seconds?}` |
+| DELETE | `/api/triggers/{rule_id}` | Delete a rule |
+| POST | `/api/events/emit` | Publish `{type, payload}` on the event bus (for testing rules) |
+| GET | `/api/events/recent?limit=50` | Recent event-bus activity |
 
 ## System & Monitoring
 
@@ -64,6 +81,7 @@ All endpoints (except `/api/auth/login`) require the `X-Atulya-Token` header.
 | GET | `/api/system` | System resources (admin) |
 | GET | `/api/telemetry` | System + providers + events |
 | GET | `/api/health` | Health check with warnings |
+| GET | `/api/brain` | Active brain tier (`ATULYA_BRAIN`), its local model, available tiers |
 | GET | `/api/configs` | Available training configs |
 | GET | `/api/run-history` | Past training runs |
 | GET | `/api/datasets` | Registered datasets |
