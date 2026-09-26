@@ -21,6 +21,7 @@ ALLOWED_ROOT_DIRS = {
     "drishti",
     "install",
     "outputs",
+    "runtime",
     "tantra",
     "tests",
     "yantra",
