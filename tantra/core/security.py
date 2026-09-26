@@ -150,30 +150,56 @@ class SandboxManager:
         return self._sandboxes
 
 
+_EXTRA_BLOCKED = [ipaddress.ip_network("100.64.0.0/10"), ipaddress.ip_network("0.0.0.0/8")]
+
+
+def is_public_ip(value: str) -> bool:
+    """False for loopback, private, link-local (cloud metadata), CGNAT, multicast, reserved…"""
+    try:
+        ip = ipaddress.ip_address(value.split("%", 1)[0])
+    except ValueError:
+        return False
+    if ip.version == 6 and ip.ipv4_mapped:  # ::ffff:127.0.0.1
+        ip = ip.ipv4_mapped
+    return not (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved
+                or ip.is_unspecified or any(ip in net for net in _EXTRA_BLOCKED if net.version == ip.version))
+
+
+def _resolve(host: str) -> set[str]:
+    import socket
+
+    return {info[4][0] for info in socket.getaddrinfo(host, None)}
+
+
 class SSRFProtection:
-    def __init__(self):
-        self._blocked_ranges = [
-            ipaddress.ip_network("10.0.0.0/8"),
-            ipaddress.ip_network("172.16.0.0/12"),
-            ipaddress.ip_network("192.168.0.0/16"),
-            ipaddress.ip_network("127.0.0.0/8"),
-            ipaddress.ip_network("169.254.0.0/16"),
-        ]
+    """Is this URL safe to fetch from the server? Only public http(s) destinations.
+
+    Hostnames are resolved and *every* address must be public, so names that
+    point inside the network (localhost, localtest.me, internal DNS) are
+    refused; a name that doesn't resolve is refused too (fail closed).
+    """
+
+    def __init__(self, resolver=None):
+        self._resolve = resolver
 
     def check_url(self, url: str) -> bool:
         try:
             import urllib.parse
             parsed = urllib.parse.urlparse(url)
-            host = parsed.hostname
+            if parsed.scheme not in ("http", "https"):
+                return False  # file://, ftp://, gopher://… never
+            host = (parsed.hostname or "").strip("[]").lower()
             if not host:
                 return False
-            # If host is a hostname (not an IP), allow it (assume external)
             try:
-                ip = ipaddress.ip_address(host)
+                ipaddress.ip_address(host.split("%", 1)[0])
+                return is_public_ip(host)
             except ValueError:
-                # Not an IP address - it's a hostname, so it's external
-                return True
-            return not any(ip in net for net in self._blocked_ranges)
+                pass
+            if host == "localhost" or host.endswith((".localhost", ".local", ".internal", ".lan", ".home.arpa")):
+                return False
+            addresses = (self._resolve or _resolve)(host)
+            return bool(addresses) and all(is_public_ip(a) for a in addresses)
         except Exception:
             return False
 
