@@ -29,7 +29,8 @@ Atulya Tantra/
 |   |-- memory/                 # memory providers, tree, reflection, Obsidian export
 |   |-- observability/          # usage, metrics, tracing, error tracking
 |   |-- tokenjuice/             # token accounting / usage helpers
-|   |-- agent/                  # proactive agent jobs
+|   |-- cognition/              # kernel, safety, toolbelt, triggers, brain tiers (docs/COGNITIVE_ARCHITECTURE.md)
+|   |-- agent/                  # agent loop, tools, intent router, proactive jobs
 |   |-- llm.py                  # AtulyaLLM, memory-enabled default, tool-call pass-through, streaming
 |   |-- local_provider.py       # local GGUF chat/stream/tool-call normalization
 |   |-- tantra_local.py         # built-in Tantra local model glue

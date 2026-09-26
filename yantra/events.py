@@ -33,6 +33,11 @@ class EventBus:
     def subscribe(self, event_type: str, handler: EventHandler) -> None:
         self._subscribers[event_type].append(handler)
 
+    def unsubscribe(self, event_type: str, handler: EventHandler) -> None:
+        handlers = self._subscribers.get(event_type, [])
+        if handler in handlers:
+            handlers.remove(handler)
+
     async def emit(self, event_type: str, payload: dict[str, Any] | None = None) -> Event:
         event = Event(event_type, payload or {})
         with self._lock:

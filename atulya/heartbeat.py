@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 import asyncio
 import logging
@@ -21,12 +22,15 @@ class HealthCheck:
 
 
 class HeartbeatSystem:
-    def __init__(self, data_dir: str | Path = "assets"):
+    def __init__(self, data_dir: str | Path = "assets", events: Any = None, interval: float | None = None):
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self._checks: list[HealthCheck] = []
         self._running = False
-        self._interval = 60.0
+        self._interval = float(interval or os.environ.get("ATULYA_HEARTBEAT_INTERVAL", "300"))
+        # Optional event bus: status *changes* are published as health.<status>.
+        self.events = events
+        self._last_status: dict[str, str] = {}
 
     async def start(self):
         self._running = True
@@ -48,6 +52,28 @@ class HeartbeatSystem:
             await self._cortex_check(),
         ]
         self._save_status()
+        await self._publish_changes()
+
+    async def _publish_changes(self) -> None:
+        """Emit health.<status> only when a check changes state (edge-triggered),
+        so a persistent warning alerts once instead of every interval. The
+        first run publishes only non-ok states."""
+        if self.events is None:
+            return
+        for check in self._checks:
+            previous = self._last_status.get(check.name)
+            self._last_status[check.name] = check.status
+            if previous == check.status or (previous is None and check.status in ("ok", "info")):
+                continue
+            try:
+                await self.events.emit(f"health.{check.status}", {
+                    "check": check.name,
+                    "status": check.status,
+                    "message": check.message,
+                    "previous": previous or "",
+                })
+            except Exception as exc:  # noqa: BLE001 - monitoring must never crash
+                logger.debug("heartbeat event emit failed: %s", exc)
 
     async def _memory_check(self) -> HealthCheck:
         try:
@@ -73,6 +99,9 @@ class HeartbeatSystem:
     async def _model_check(self) -> HealthCheck:
         try:
             from tantra.npdna import NpDnaCore
+            if NpDnaCore is None:
+                # The research model stack (torch) is optional in the app repo.
+                return HealthCheck("model", "info", "NP-DNA model stack not installed (optional)")
             core = NpDnaCore.from_config("seed")
             ids = core.encode("health", allow_growth=False)
             if ids:
@@ -83,8 +112,10 @@ class HeartbeatSystem:
 
     async def _provider_check(self) -> HealthCheck:
         try:
-            from atulya.intelligence import ProviderRouter
-            router = ProviderRouter()
+            # Reuse the live brain's router rather than building (and possibly
+            # re-downloading a model for) a new one every interval.
+            from atulya.llm import get_default_llm
+            router = get_default_llm().router
             available = [p.name() for p in router.providers if p.is_available()]
             if not available:
                 return HealthCheck("provider", "warning", "No intelligence providers are available")

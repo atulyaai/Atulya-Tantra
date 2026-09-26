@@ -213,7 +213,8 @@ async def set_reminder(message: str, time_str: str = "in 5 minutes") -> str:
         entry["status"] = "done"
         _save_json("reminders.json", list(_reminders.values()))
 
-    return f"Reminder set: '{message}' at {time} (id: {rid})"
+    when = time.strftime("%Y-%m-%d %H:%M", time.localtime(parsed))
+    return f"Reminder set: '{message}' at {when} (id: {rid})"
 
 
 @tool("list_reminders", "List upcoming reminders", {
@@ -528,7 +529,10 @@ _HOME_DEVICES: dict[str, dict[str, Any]] = {
 
 @tool("home_list_devices", "List all home automation devices", {})
 async def home_list_devices() -> str:
-    lines = ["Home Devices:"]
+    from yantra.capabilities.home_assistant import HomeAssistantBridge
+
+    bridge = HomeAssistantBridge()
+    lines = ["Home Devices (connected to Home Assistant):" if bridge.configured else "Home Devices (simulated):"]
     for did, dev in _HOME_DEVICES.items():
         extra = ""
         if dev["type"] == "light":
@@ -545,6 +549,23 @@ async def home_list_devices() -> str:
     "value": {"type": "string", "description": "Optional value (e.g. temperature or brightness)", "default": ""},
 })
 async def home_control(device_id: str, action: str, value: str = "") -> str:
+    # Real devices via Home Assistant when HOME_ASSISTANT_URL/TOKEN are set;
+    # otherwise the built-in simulation below.
+    from yantra.capabilities.home_assistant import HomeAssistantBridge
+
+    bridge = HomeAssistantBridge()
+    if bridge.configured:
+        try:
+            result = await bridge.control(device_id, action, value)
+        except Exception as exc:  # noqa: BLE001 - report the real failure, never fake success
+            return f"Home Assistant couldn't do that: {exc}"
+        if device_id in _HOME_DEVICES:
+            _simulate_home_control(device_id, action, value)  # mirror state for the dashboard
+        return result
+    return _simulate_home_control(device_id, action, value)
+
+
+def _simulate_home_control(device_id: str, action: str, value: str = "") -> str:
     if device_id not in _HOME_DEVICES:
         available = ", ".join(_HOME_DEVICES.keys())
         return f"Device '{device_id}' not found. Available: {available}"

@@ -483,6 +483,15 @@ class ProviderRouter(IntelligenceProvider):
             NvidiaNimProvider(),   # Optional provider fallback (7th choice)
             OpenCodeProvider()     # Bulletproof fallback (8th choice)
         ]
+        # ATULYA_BRAIN=cloud: configured cloud APIs lead; the local brain and
+        # Ollama become the offline fallback (still ahead of the persona reply).
+        from atulya.cognition.brain import cloud_first
+        if cloud_first():
+            local = (LocalGGUFProvider, OllamaProvider, TantraProvider)
+            last = [p for p in self.providers if isinstance(p, OpenCodeProvider)]
+            locals_ = [p for p in self.providers if isinstance(p, local)]
+            clouds = [p for p in self.providers if p not in locals_ and p not in last]
+            self.providers = clouds + locals_ + last
         
     def name(self) -> str:
         return "Atulya Provider Router"

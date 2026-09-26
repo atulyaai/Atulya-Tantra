@@ -43,6 +43,7 @@ async def api_chat(request: Request, body: dict, token: str | None = Header(defa
         _, error = _resolve_model_id(model_id)
         return error
     prompt = str(body.get("prompt") or "")[:MAX_PROMPT_CHARS]
+    from atulya.cognition import get_kernel
     from atulya.llm import get_default_llm
 
     server_messages = chat_history.list_messages(user, limit=20)
@@ -50,12 +51,16 @@ async def api_chat(request: Request, body: dict, token: str | None = Header(defa
     frontend_hist = body.get("history") or []
     history = _merge_history(frontend_hist, server_hist)
 
-    llm = getattr(request.app.state, "llm", None) or get_default_llm()
-    response = await llm.ask(
+    # Every request goes through the cognitive kernel: intent -> safety -> action,
+    # or the brain for open conversation.
+    kernel = get_kernel(getattr(request.app.state, "llm", None) or get_default_llm())
+    response = await kernel.handle(
         prompt,
+        user=user,
         history=history,
-        approved_tool_call=body.get("approved_tool") or None,
+        approved_tool=body.get("approved_tool") or None,
         provider=str(body.get("provider") or model_id),
+        source="chat",
     )
     chat_history.append_exchange(user, prompt, response.text, provider=response.provider)
     return {
@@ -81,6 +86,7 @@ async def api_chat_stream(request: Request, body: dict, token: str | None = Head
         return StreamingResponse(error_events(), media_type="text/event-stream")
 
     async def events():
+        from atulya.cognition import get_kernel
         from atulya.llm import get_default_llm
 
         try:
@@ -89,13 +95,15 @@ async def api_chat_stream(request: Request, body: dict, token: str | None = Head
             frontend_hist = body.get("history") or []
             history = _merge_history(frontend_hist, server_hist)
 
-            llm = getattr(request.app.state, "llm", None) or get_default_llm()
+            kernel = get_kernel(getattr(request.app.state, "llm", None) or get_default_llm())
             response_parts: list[str] = []
-            async for event in llm.stream(
+            async for event in kernel.stream(
                 prompt,
+                user=user,
                 history=history,
-                approved_tool_call=body.get("approved_tool") or None,
+                approved_tool=body.get("approved_tool") or None,
                 provider=str(body.get("provider") or model_id),
+                source="chat",
             ):
                 if event.type == "token":
                     response_parts.append(event.content)

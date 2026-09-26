@@ -58,7 +58,7 @@ ALLOWED_ROOT_FILES = {
 }
 
 EXPECTED_PACKAGE_DIRS = {
-    "atulya": {"agent", "docs", "memory", "observability", "tokenjuice"},
+    "atulya": {"agent", "cognition", "docs", "memory", "observability", "tokenjuice"},
     "tantra": {"config", "core", "npdna", "outputs", "scripts", "training"},
     "yantra": {
         "assistant",

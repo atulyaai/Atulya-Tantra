@@ -49,6 +49,9 @@ class ToolRegistry:
         except Exception as e:
             return ToolResult(success=False, error=str(e))
 
+    def get(self, name: str) -> Tool | None:
+        return self._tools.get(name)
+
     def list_tools(self) -> list[dict[str, str]]:
         return [{"name": t.name, "description": t.description} for t in self._tools.values()]
 

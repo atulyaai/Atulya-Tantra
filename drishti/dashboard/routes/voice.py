@@ -130,11 +130,15 @@ async def api_voice_chat(
         
     voice = str(body.get("voice") or "en_male")
 
-    # Query the provider router (it applies the Atulya persona internally).
+    # Route through the cognitive kernel (intent -> safety -> action, or the
+    # brain). A risky action is answered with a spoken confirmation question;
+    # the user's next utterance ("yes" / "no") resolves it.
     response_text = ""
     provider_name = "Atulya Fallback"
+    needs_approval = False
+    pending_tool = None
     try:
-        from atulya.llm import get_default_llm
+        from atulya.cognition import get_kernel
         server_messages = chat_history.list_messages(user, limit=20)
         server_hist = [{"role": m["role"], "content": m["text"]} for m in server_messages if m.get("text")]
         frontend_hist = body.get("history") or []
@@ -152,13 +156,15 @@ async def api_voice_chat(
             history.append({"role": role, "content": content})
         history = history[-10:]
 
-        response = await get_default_llm().ask(
+        response = await get_kernel().handle(
             prompt,
+            user=user,
             history=history,
-            tools_enabled=True,
             provider=str(body.get("provider") or body.get("model_id") or ""),
+            source="voice",
         )
         response_text, provider_name = response.text, response.provider
+        needs_approval, pending_tool = response.needs_approval, response.pending_tool
     except Exception as exc:
         logger.error(f"Intelligence router failure: {exc}")
         from atulya.persona import get_atulya_fallback_response
@@ -175,7 +181,9 @@ async def api_voice_chat(
             "audio_base64": tts_result.audio_base64,
             "format": tts_result.format.value,
             "provider": tts_result.provider,
-            "provider_name": provider_name
+            "provider_name": provider_name,
+            "needs_approval": needs_approval,
+            "pending_tool": pending_tool,
         }
     except Exception as e:
         logger.error(f"Voice chat TTS synthesis failed: {e}")
@@ -184,6 +192,8 @@ async def api_voice_chat(
             "prompt": prompt,
             "response_text": response_text,
             "provider_name": provider_name,
+            "needs_approval": needs_approval,
+            "pending_tool": pending_tool,
             "error": f"Audio synthesis failed: {e}"
         }
 

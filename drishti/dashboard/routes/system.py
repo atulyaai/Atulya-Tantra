@@ -166,6 +166,15 @@ def api_datasets(_admin: str | None = Header(default=None, alias="X-Atulya-Token
     return {"datasets": _dataset_registry()}
 
 
+@router.get("/api/brain")
+def api_brain(token: str | None = Header(default=None, alias="X-Atulya-Token")):
+    """Active brain tier (ATULYA_BRAIN), its local model, and the available tiers."""
+    _require_auth(token)
+    from atulya.cognition.brain import describe
+
+    return describe()
+
+
 @router.get("/api/health")
 def api_health(token: str | None = Header(default=None, alias="X-Atulya-Token")):
     _require_auth(token)

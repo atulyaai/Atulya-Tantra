@@ -58,7 +58,8 @@ Automation-owned files live under `yantra/`.
 Application-owned AI files live under `atulya/`.
 
 - `memory/`: memory orchestrator, session search, prompt cache, subconscious log, reflection, memory tree, and Obsidian export.
-- `agent/`: proactive assistant agent loop and scheduled jobs.
+- `agent/`: proactive assistant agent loop, tools, intent router, and scheduled jobs.
+- `cognition/`: the single pipeline every request goes through — `kernel` (perceive → understand → decide → act → remember → react), `safety` (action confirmation policy), `toolbelt` (one tool surface), `triggers` (event-driven proactivity), `brain` (`ATULYA_BRAIN` tiers). See [COGNITIVE_ARCHITECTURE.md](COGNITIVE_ARCHITECTURE.md).
 - `tokenjuice/`: token accounting and usage helpers.
 - `docs/`: architecture, contribution, security, project map, and product direction notes.
 - `tests/`: Atulya and integration tests.
