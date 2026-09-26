@@ -1,7 +1,11 @@
 """Tiny local GGUF model provider using llama-cpp-python.
 
-Downloads and loads Qwen2.5-0.5B-Instruct (Q4_K_M, ~350 MB) on first use.
+Downloads and loads Qwen3-0.6B-Instruct (Q4_K_M, ~380 MB) on first use.
 No Ollama required. Falls back gracefully if llama-cpp-python is not installed.
+
+Switching models: drop any GGUF into ``runtime/models`` and point
+``ATULYA_GGUF_PATH`` at it (or set ``ATULYA_MODEL_DIR``), and set
+``ATULYA_LOCAL_MODEL_NAME`` to control the label shown in the UI.
 """
 from __future__ import annotations
 
@@ -135,7 +139,10 @@ class LocalGGUFProvider:
         self._llm = None
 
     def name(self) -> str:
-        return "Tiny Local (Qwen2.5-0.5B)"
+        custom = os.environ.get("ATULYA_LOCAL_MODEL_NAME", "").strip()
+        if custom:
+            return f"Tiny Local ({custom})"
+        return "Tiny Local (Qwen3-0.6B)"
 
     def is_available(self) -> bool:
         if not self._model_path or not self._model_path.exists():

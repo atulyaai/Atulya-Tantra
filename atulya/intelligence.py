@@ -471,9 +471,9 @@ class ProviderRouter(IntelligenceProvider):
     """Atulya Intelligence Provider Fallback Chain Router."""
     
     def __init__(self):
-        # Fallback priority chain order - Local 0.5B model first (Tantra placeholder)
+        # Fallback priority chain order - local Qwen3-0.6B GGUF first, cloud APIs after.
         self.providers: list[IntelligenceProvider] = [
-            LocalGGUFProvider(),   # Tiny 350 MB local GGUF, auto-downloads, no Ollama needed (1st choice)
+            LocalGGUFProvider(),   # Qwen3-0.6B GGUF (~380 MB), auto-downloads, no Ollama needed (1st choice)
             OllamaProvider(),      # Free local model via Ollama (2nd choice)
             GroqProvider(),        # Fast free developer-tier API (3rd choice)
             OpenRouterProvider(),  # Free model aggregator when configured (3rd choice)

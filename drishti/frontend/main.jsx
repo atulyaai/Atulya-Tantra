@@ -1,9 +1,14 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { api, clearToken, getToken, setToken, getUser, setUser } from './api.js';
-import { HolographicSpirit } from './src/pages/HolographicSpirit.jsx';
 import { UserManagement } from './src/pages/UserManagement.jsx';
 import './styles.css';
+
+// Lazy-load the heavy Spirit view so it is fetched only when opened, keeping
+// the initial bundle (and first paint) small.
+const HolographicSpirit = lazy(() =>
+  import('./src/pages/HolographicSpirit.jsx').then((m) => ({ default: m.HolographicSpirit })),
+);
 
 function Metric({ label, value }) {
   return (
@@ -1906,7 +1911,11 @@ function App() {
   const content = useMemo(() => {
     if (tab === 'live') return <LiveMode bootstrap={bootstrap} toast={toast} />;
     if (tab === 'chat') return <Chat bootstrap={bootstrap} toast={toast} />;
-    if (tab === 'spirit') return <HolographicSpirit />;
+    if (tab === 'spirit') return (
+      <Suspense fallback={<div className="lazy-loading">Loading Spirit UI…</div>}>
+        <HolographicSpirit />
+      </Suspense>
+    );
     if (!isAdmin) return <LiveMode bootstrap={bootstrap} toast={toast} />; // Fallback for normal users
     
     // Admin-only views
