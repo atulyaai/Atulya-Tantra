@@ -111,3 +111,20 @@ class HomeAssistantBridge:
         if resp.status_code >= 400:
             raise HomeAssistantError(f"Home Assistant returned {resp.status_code}: {resp.text[:200]}")
         return f"{entity} {done} (via Home Assistant)."
+
+    async def state(self, entity_id: str) -> dict[str, Any]:
+        """One entity's current state, e.g. {"state": "on", "attributes": {...}}."""
+        data = await self._get(f"/api/states/{entity_id}")
+        return data if isinstance(data, dict) else {}
+
+    async def states(self) -> list[dict[str, Any]]:
+        """Every entity's state (used to watch sensors such as doorbells)."""
+        data = await self._get("/api/states")
+        return [s for s in data if isinstance(s, dict)] if isinstance(data, list) else []
+
+    async def _get(self, path: str) -> Any:
+        async with httpx.AsyncClient(timeout=self._timeout, transport=self._transport) as client:
+            resp = await client.get(f"{self.url}{path}", headers={"Authorization": f"Bearer {self.token}"})
+        if resp.status_code >= 400:
+            raise HomeAssistantError(f"Home Assistant returned {resp.status_code}: {resp.text[:200]}")
+        return resp.json()

@@ -23,6 +23,7 @@ from typing import Any, AsyncIterator
 
 from atulya.agent.intent_router import route_intent
 from atulya.cognition import safety
+from atulya.cognition.planner import PLAN_TOOL, Plan, Planner, looks_failed, steps_for_clause, verify_step
 from atulya.cognition.toolbelt import EXCLUDED_FROM_BRAIN
 from atulya.llm import AtulyaLLM, LLMEvent, LLMResponse, _chunk_text, get_default_llm
 from yantra.events import EventBus, default_bus
@@ -141,9 +142,10 @@ def _lead_step(approved_tool: dict[str, Any] | None) -> list[dict[str, str]]:
 
 
 class CognitiveKernel:
-    def __init__(self, llm: Any = None, events: EventBus | None = None):
+    def __init__(self, llm: Any = None, events: EventBus | None = None, planner: Planner | None = None):
         self._llm = llm
         self.events = events or default_bus
+        self.planner = planner or Planner()
         self._pending: OrderedDict[str, tuple[dict[str, Any], float]] = OrderedDict()
 
     @property
@@ -236,7 +238,10 @@ class CognitiveKernel:
         # UI "Approve": this resolves whatever was held. Kernel-held assistant
         # actions run here; anything else goes to the brain's approval flow.
         if approved_tool:
+            held = self.pending_action(user)
             self._pending.pop(key, None)
+            if approved_tool.get("tool") == PLAN_TOOL:
+                return await self._approved_plan(approved_tool, held, user=user, source=source, prompt=text)
             denied = await self._deny_if_unprivileged(approved_tool, user, source)
             if denied is not None:
                 return denied
@@ -254,10 +259,13 @@ class CognitiveKernel:
             intent = confirmation_intent(text)
             phrase = safety.describe_action(pending.get("tool", ""), pending.get("arguments"))
             if intent == "affirm":
+                confirmed = [_step("decide", "Confirmed", f"You confirmed: {phrase}")]
+                if pending.get("tool") == PLAN_TOOL and isinstance(pending.get("plan"), dict):
+                    return await self._run_plan(Plan.from_dict(pending["plan"]), user=user, source=source,
+                                                prompt=text, trace=confirmed)
                 denied = await self._deny_if_unprivileged(pending, user, source)
                 if denied is not None:
                     return denied
-                confirmed = [_step("decide", "Confirmed", f"You confirmed: {phrase}")]
                 if pending.get("origin") == KERNEL_ORIGIN:
                     return await self._act(pending, user=user, source=source, prompt=text, trace=confirmed)
                 llm_call = {k: v for k, v in pending.items() if k != "origin"}
@@ -272,6 +280,14 @@ class CognitiveKernel:
 
         if not tools_enabled or not text:
             return None
+
+        # Understand a goal: a routine, a device group or several commands at
+        # once become a plan; goal-like requests ask the brain for the steps.
+        plan = self.planner.plan(text)
+        if plan is None and self.planner.is_goal(text):
+            plan = await self.planner.plan_with_brain(text, self.llm, provider=provider)
+        if plan is not None:
+            return await self._start_plan(plan, user=user, source=source, prompt=text)
 
         # Understand: turn a clear command into a concrete action.
         routed = route_intent(text)
@@ -343,6 +359,109 @@ class CognitiveKernel:
         await self._emit("action.executed", {"tool": tool, "arguments": args, "success": ok,
                                              "source": source, "user": self._user_key(user), "result": text[:500]})
         return LLMResponse(text=text, provider=KERNEL_PROVIDER, tool_steps=[step], trace=steps)
+
+    # ── plans ──────────────────────────────────────────────────────────────
+    async def start_plan(self, plan: Plan, *, user: Any = None, source: str = "chat") -> LLMResponse:
+        """Run a plan (e.g. a routine started from the UI) with the usual safety rules."""
+        return await self._start_plan(plan, user=user, source=source, prompt=plan.goal)
+
+    async def _start_plan(self, plan: Plan, *, user: Any, source: str, prompt: str) -> LLMResponse:
+        """Run a plan now, or hold it for one confirmation if a step is risky."""
+        planned = _step("plan", "Plan", f"{plan.title}: {len(plan.steps)} steps ({plan.source})")
+        risky = [(i, s, safety.assess(s.tool, s.arguments)) for i, s in enumerate(plan.steps, 1)]
+        risky = [(i, s, a) for i, s, a in risky if a.needs_confirmation]
+        if risky and source not in PRE_AUTHORIZED_SOURCES and _is_privileged(user, source):
+            key = self._user_key(user)
+            action = {"tool": PLAN_TOOL, "arguments": plan.summary(), "origin": KERNEL_ORIGIN}
+            self._hold(user, {**action, "plan": plan.to_dict()}, origin=KERNEL_ORIGIN)
+            await self._emit("action.pending", {"tool": PLAN_TOOL, "arguments": plan.summary(), "user": key,
+                                                "source": source, "reason": risky[0][2].reason})
+            flagged = {i: a.reason for i, _, a in risky}
+            lines = [f"{i}. {s.command}" + (f" — that {flagged[i]}" if i in flagged else "")
+                     for i, s in enumerate(plan.steps, 1)]
+            return LLMResponse(
+                text=f"Here's my plan for “{plan.title}”:\n" + "\n".join(lines)
+                     + "\nShould I go ahead? Say yes or no.",
+                provider=KERNEL_PROVIDER,
+                needs_approval=True,
+                pending_tool=action,
+                trace=[planned, _step("decide", "Needs confirmation",
+                                      f"Step {risky[0][0]} {risky[0][2].reason}")],
+            )
+        return await self._run_plan(plan, user=user, source=source, prompt=prompt, trace=[planned])
+
+    async def _approved_plan(self, approved: dict[str, Any], held: dict[str, Any] | None, *,
+                             user: Any, source: str, prompt: str) -> LLMResponse:
+        """UI Approve for a plan: run the plan the kernel held, never a client-edited one."""
+        approved_trace = [_step("decide", "Approved", "You approved the plan")]
+        if held and held.get("tool") == PLAN_TOOL and isinstance(held.get("plan"), dict):
+            return await self._run_plan(Plan.from_dict(held["plan"]), user=user, source=source,
+                                        prompt=prompt, trace=approved_trace)
+        # The hold expired: rebuild from the plain commands, each re-understood.
+        args = approved.get("arguments") or {}
+        steps = []
+        for command in args.get("steps") or []:
+            found = steps_for_clause(str(command))
+            if not found:
+                return LLMResponse(text="That plan has expired — please ask me again.", provider=KERNEL_PROVIDER,
+                                   trace=[_step("decide", "Expired", "The held plan expired")])
+            steps.extend(found)
+        plan = Plan(goal=str(args.get("goal") or prompt), title=str(args.get("title") or "your plan"),
+                    source="approved", steps=steps)
+        return await self._run_plan(plan, user=user, source=source, prompt=prompt, trace=approved_trace)
+
+    async def _run_plan(self, plan: Plan, *, user: Any, source: str, prompt: str,
+                        trace: list[dict[str, str]] | None = None) -> LLMResponse:
+        """Run each step through safety and the tools, then check it worked."""
+        key = self._user_key(user)
+        steps_trace = list(trace or [])
+        privileged = _is_privileged(user, source)
+        total = len(plan.steps)
+        await self._emit("plan.started", {"title": plan.title, "goal": plan.goal, "source": source,
+                                          "user": key, "steps": [s.command for s in plan.steps]})
+        tool_steps: list[dict[str, Any]] = []
+        lines: list[str] = []
+        for i, step in enumerate(plan.steps, 1):
+            assessment = safety.assess(step.tool, step.arguments)
+            phrase = safety.describe_action(step.tool, step.arguments)
+            if assessment.needs_confirmation and not privileged:
+                step.status, step.result = "skipped", f"only an admin can {phrase}"
+                lines.append(f"Skipped: {phrase} (only an admin can do that).")
+                steps_trace.append(_step("decide", f"Step {i}/{total} skipped", f"Admin only — {phrase}"))
+                continue
+            result = await self._execute(step.tool, dict(step.arguments))
+            output = str(result.get("output") or result.get("error") or "")
+            ok = bool(result.get("success")) and not looks_failed(output)
+            check = None
+            if ok:  # did the device really change? (the tool saying so isn't proof)
+                verified, detail = await verify_step(step)
+                step.verified = verified
+                if verified is not None:
+                    check = _step("check", "Checked" if verified else "Check failed", detail)
+                if verified is False:
+                    ok = False
+                    output = f"{output} But when I checked, {detail}."
+            step.status, step.result = ("done" if ok else "failed"), output
+            tool_steps.append({**result, "success": ok})
+            lines.append(output if ok else f"Couldn't {phrase}: {output}")
+            steps_trace.append(_step("act", f"Step {i}/{total}" if ok else f"Step {i}/{total} failed", output))
+            if check:
+                steps_trace.append(check)
+            await self._emit("action.executed", {"tool": step.tool, "arguments": step.arguments, "success": ok,
+                                                 "source": source, "user": key, "result": output[:500],
+                                                 "plan": plan.title})
+            await self._emit("plan.step", {"title": plan.title, "index": i, "total": total,
+                                           "command": step.command, "success": ok, "user": key})
+        done = sum(1 for s in plan.steps if s.status == "done")
+        heading = (f"{plan.title} — all {total} steps done." if done == total
+                   else f"{plan.title} — {done} of {total} steps done.")
+        text = heading + "\n" + "\n".join(lines)
+        if await self._remember(prompt or plan.goal, text):
+            steps_trace.append(_step("remember", "Memory", "Saved to memory"))
+        await self._emit("plan.completed", {"title": plan.title, "goal": plan.goal, "done": done, "total": total,
+                                            "failed": sum(1 for s in plan.steps if s.status == "failed"),
+                                            "user": key, "source": source})
+        return LLMResponse(text=text, provider=KERNEL_PROVIDER, tool_steps=tool_steps, trace=steps_trace)
 
     async def _execute(self, tool: str, args: dict[str, Any]) -> dict[str, Any]:
         if isinstance(self.llm, AtulyaLLM) and self.llm.tools.get(tool) is not None:

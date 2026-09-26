@@ -102,4 +102,6 @@ def describe_action(tool: str, arguments: dict[str, Any] | None = None) -> str:
         return f"delete calendar event {args.get('event_id', '')}".strip()
     if tool == "cancel_reminder":
         return f"cancel reminder {args.get('reminder_id', '')}".strip()
+    if tool == "run_plan":
+        return f"run “{args.get('title') or 'the plan'}” ({len(args.get('steps') or [])} steps)"
     return f"run {tool}"

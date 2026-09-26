@@ -42,8 +42,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from atulya.agent.intent_router import route_intent
 from atulya.cognition import safety
+from atulya.cognition.planner import expand_command
 from yantra.events import Event, EventBus, default_bus
 
 logger = logging.getLogger(__name__)
@@ -221,9 +221,12 @@ class TriggerEngine:
 
         command = str(rule.get("command") or "").strip()
         if command:
-            routed = route_intent(command)
-            if routed and safety.needs_confirmation(routed.tool, routed.arguments) and not rule.get("allow_risky"):
-                blocked = (f"Trigger '{name}' wanted to {safety.describe_action(routed.tool, routed.arguments)}, "
+            # A command may be a routine or several commands: check every step.
+            planner = getattr(self.kernel, "planner", None)
+            steps = expand_command(command, getattr(planner, "routines", None))
+            risky = [s for s in steps if safety.needs_confirmation(s.tool, s.arguments)]
+            if risky and not rule.get("allow_risky"):
+                blocked = (f"Trigger '{name}' wanted to {safety.describe_action(risky[0].tool, risky[0].arguments)}, "
                            "but risky actions need allow_risky on the rule.")
                 await self._notify(name, blocked)
                 result["blocked"] = blocked
