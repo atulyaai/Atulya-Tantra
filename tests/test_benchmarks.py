@@ -103,7 +103,7 @@ async def test_jwt_encode_decode_latency():
 @pytest.mark.asyncio
 async def test_rate_limiter_overhead():
     from drishti.dashboard.app import _RATE_LIMIT_MAX, _RATE_STORE, _rate_limiter
-    from unittest.mock import AsyncMock, Mock
+    from unittest.mock import Mock
 
     _RATE_STORE.clear()
     request = Mock()

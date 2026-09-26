@@ -256,22 +256,22 @@ class KnowledgeGraph:
         for ntype, nodes in by_type.items():
             content = [
                 f"# {ntype.capitalize()} Nodes",
-                f"",
+                "",
                 f"*Auto-synced from knowledge graph: {time.strftime('%Y-%m-%d %H:%M')}*",
-                f"",
-                f"---",
-                f"",
+                "",
+                "---",
+                "",
             ]
             for node in nodes:
                 content.extend([
                     f"## [[{self._slugify(node.label)}]]",
-                    f"",
+                    "",
                     f"- **Source:** {node.source}",
                     f"- **Type:** {node.type}",
                     f"- **Created:** {time.strftime('%Y-%m-%d', time.localtime(node.created_at))}",
-                    f"",
+                    "",
                     f"{node.content}",
-                    f"",
+                    "",
                 ])
                 if node.connections:
                     links = " ".join(f"[[{c}]]" for c in node.connections)
@@ -286,11 +286,11 @@ class KnowledgeGraph:
         # Index
         index = [
             "# Knowledge Graph Index",
-            f"",
+            "",
             f"*Auto-synced: {time.strftime('%Y-%m-%d %H:%M')}*",
-            f"",
-            f"---",
-            f"",
+            "",
+            "---",
+            "",
         ]
         for ntype in sorted(by_type.keys()):
             index.append(f"- [[{ntype}]] ({len(by_type[ntype])} nodes)")

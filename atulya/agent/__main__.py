@@ -45,7 +45,7 @@ async def _cmd_chat(args):
     router = ProviderRouter()
     core = AgentCore(llm_provider=router)
     print(f"You: {args.text}")
-    print(f"Atulya: ", end="", flush=True)
+    print("Atulya: ", end="", flush=True)
     result = await core.process(args.text)
     print(result)
     return 0

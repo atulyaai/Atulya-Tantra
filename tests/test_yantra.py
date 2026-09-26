@@ -103,7 +103,6 @@ class TestBrowserAutomation:
 """Tests for DeviceController â€” IoT device management with multi-protocol support."""
 
 import tempfile
-import asyncio
 
 
 class TestDeviceController:
@@ -194,7 +193,6 @@ class TestDeviceController:
 
 """Tests for MCPManifestSigner — cryptographic signing and verification."""
 
-import tempfile
 import os
 
 
@@ -289,8 +287,6 @@ class TestMCPManifestSigner:
 
 """Tests for MCPServer — MCP-compatible tool/resource/prompt serving."""
 
-import pytest
-import tempfile
 
 
 class TestMCPServer:
@@ -404,7 +400,6 @@ class TestMCPServer:
 
 """Tests for UnifiedSelfImprovement â€” chakras, skills, achievements, learning log."""
 
-import tempfile
 
 
 class TestUnifiedSelfImprovement:
@@ -513,7 +508,6 @@ class TestUnifiedSelfImprovement:
 
 """Tests for SelfRepairSystem and CodeEvolver â€” automatic error recovery and evolution."""
 
-import tempfile
 import traceback
 
 
@@ -657,7 +651,6 @@ class TestCodeEvolver:
 
 """Tests for VoicePipeline, TextToSpeech, SpeechToText — TTS/STT infrastructure."""
 
-import tempfile
 
 
 class TestTextToSpeech:
@@ -764,8 +757,6 @@ class TestWebSearch:
 """Tests for WorkflowEngine — multi-step task orchestration."""
 
 import pytest
-import tempfile
-import asyncio
 
 
 class TestWorkflowEngine:
@@ -784,7 +775,8 @@ class TestWorkflowEngine:
             assert tid is not None
             assert len(tid) > 0
         finally:
-            import shutil; shutil.rmtree(tmp, ignore_errors=True)
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def test_create_task_with_tool(self):
         engine, tmp = self._make_engine()
@@ -792,7 +784,8 @@ class TestWorkflowEngine:
             tid = engine.create_task("calc-task", tool_name="calculator", tool_args={"expr": "2+2"})
             assert tid is not None
         finally:
-            import shutil; shutil.rmtree(tmp, ignore_errors=True)
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def test_get_task(self):
         engine, tmp = self._make_engine()
@@ -802,14 +795,16 @@ class TestWorkflowEngine:
             assert task is not None
             assert task.title == "test-task"
         finally:
-            import shutil; shutil.rmtree(tmp, ignore_errors=True)
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def test_get_task_not_found(self):
         engine, tmp = self._make_engine()
         try:
             assert engine.get_task("nonexistent") is None
         finally:
-            import shutil; shutil.rmtree(tmp, ignore_errors=True)
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def test_create_workflow(self):
         engine, tmp = self._make_engine()
@@ -820,7 +815,8 @@ class TestWorkflowEngine:
             assert wid is not None
             assert len(wid) > 0
         finally:
-            import shutil; shutil.rmtree(tmp, ignore_errors=True)
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def test_get_workflow(self):
         engine, tmp = self._make_engine()
@@ -831,7 +827,8 @@ class TestWorkflowEngine:
             assert wf is not None
             assert isinstance(wf, list)
         finally:
-            import shutil; shutil.rmtree(tmp, ignore_errors=True)
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def test_execute_task_simple(self):
         engine, tmp = self._make_engine()
@@ -841,7 +838,8 @@ class TestWorkflowEngine:
             assert result is not None
             assert result.status.value in ("done", "in_progress", "todo")
         finally:
-            import shutil; shutil.rmtree(tmp, ignore_errors=True)
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def test_execute_workflow(self):
         engine, tmp = self._make_engine()
@@ -853,7 +851,8 @@ class TestWorkflowEngine:
             assert results is not None
             assert isinstance(results, list)
         finally:
-            import shutil; shutil.rmtree(tmp, ignore_errors=True)
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def test_execute_task_not_found_raises(self):
         engine, tmp = self._make_engine()
@@ -861,7 +860,8 @@ class TestWorkflowEngine:
             with pytest.raises(ValueError):
                 asyncio.run(engine.execute_task("nonexistent"))
         finally:
-            import shutil; shutil.rmtree(tmp, ignore_errors=True)
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def test_get_blocked_tasks(self):
         engine, tmp = self._make_engine()
@@ -869,7 +869,8 @@ class TestWorkflowEngine:
             blocked = engine.get_blocked_tasks()
             assert isinstance(blocked, list)
         finally:
-            import shutil; shutil.rmtree(tmp, ignore_errors=True)
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def test_get_pending_tasks(self):
         engine, tmp = self._make_engine()
@@ -877,7 +878,8 @@ class TestWorkflowEngine:
             pending = engine.get_pending_tasks()
             assert isinstance(pending, list)
         finally:
-            import shutil; shutil.rmtree(tmp, ignore_errors=True)
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def test_get_stats(self):
         engine, tmp = self._make_engine()
@@ -890,7 +892,8 @@ class TestWorkflowEngine:
             assert stats["total_tasks"] == 3
             assert stats["workflows"] >= 0
         finally:
-            import shutil; shutil.rmtree(tmp, ignore_errors=True)
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def test_get_stats_empty(self):
         engine, tmp = self._make_engine()
@@ -898,7 +901,8 @@ class TestWorkflowEngine:
             stats = engine.get_stats()
             assert stats["total_tasks"] == 0
         finally:
-            import shutil; shutil.rmtree(tmp, ignore_errors=True)
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def test_task_dependencies_block(self):
         engine, tmp = self._make_engine()
@@ -909,7 +913,8 @@ class TestWorkflowEngine:
             # t2 should be blocked because t1 is still TODO
             assert result.status.value == "blocked"
         finally:
-            import shutil; shutil.rmtree(tmp, ignore_errors=True)
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 class TestYantraHarness:
@@ -965,7 +970,6 @@ class TestYantraHarness:
             assert result.metadata["blocked"] is True
 
 
-import asyncio
 
 class TestKnowledgeGraph:
     @pytest.fixture

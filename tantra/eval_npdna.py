@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 """Evaluate latest NP-DNA checkpoint — standalone script for cron job."""
-import json, logging, math, os, sys, time
+import json
+import logging
+import math
+import os
+import sys
+import time
 from pathlib import Path
 
 import torch
@@ -178,8 +183,8 @@ def format_results(latest: dict, prev: dict | None) -> str:
 
     # Build report
     lines = []
-    lines.append(f"Checkpoint | Samples | Loss | Acc% | Tok/s | vs Previous | Verdict")
-    lines.append(f"---------- | ------- | ---- | ---- | ----- | ----------- | -------")
+    lines.append("Checkpoint | Samples | Loss | Acc% | Tok/s | vs Previous | Verdict")
+    lines.append("---------- | ------- | ---- | ---- | ----- | ----------- | -------")
 
     vs_str = "N/A (first eval)"
     if prev:
@@ -336,4 +341,4 @@ if __name__ == "__main__":
     # Write improvement.json if accuracy improved
     write_improvement_json(latest_res, prev, IMPROVEMENT_FILE)
 
-    print(f"\n  Evaluation complete.", flush=True)
+    print("\n  Evaluation complete.", flush=True)

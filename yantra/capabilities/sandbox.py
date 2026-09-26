@@ -41,7 +41,7 @@ class ToolSandbox:
             return False, f"Command '{base}' not in allowed list"
         for pattern in _BLOCKED_PATTERNS:
             if pattern in command.lower():
-                return False, f"Command blocked by safety pattern"
+                return False, "Command blocked by safety pattern"
         return True, ""
 
     def run(self, command: str, cwd: str | Path | None = None) -> dict[str, Any]:

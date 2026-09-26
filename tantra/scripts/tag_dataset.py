@@ -61,7 +61,7 @@ def tag_dataset(
                     tagged += 1
                     cat = result.category or "unknown"
                     category_counts[cat] = category_counts.get(cat, 0) + 1
-                except Exception as e:
+                except Exception:
                     errors += 1
                     # Write untagged as fallback
                     try:

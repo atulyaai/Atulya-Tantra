@@ -102,8 +102,6 @@ class TestHeartbeatSystem:
 """Tests for Identity — personality config loading and privacy system."""
 
 import os
-import tempfile
-import json
 
 
 class TestIdentity:

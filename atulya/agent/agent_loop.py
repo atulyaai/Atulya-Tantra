@@ -35,7 +35,6 @@ async def agent_loop(
         The final assistant reply as a string.
     """
     tools = get_tool_schemas()
-    tool_map = {t["function"]["name"]: t for t in tools}
 
     messages = list(conversation_history or [])
     messages.append({"role": "user", "content": user_input})
@@ -73,7 +72,6 @@ async def agent_loop(
 
 
 def _default_system_prompt(tools: list[dict]) -> str:
-    names = [t["function"]["name"] for t in tools]
     descs = "\n".join(f"  - {t['function']['name']}: {t['function']['description']}" for t in tools)
     return (
         "You are Atulya, a proactive AI assistant.\n\n"

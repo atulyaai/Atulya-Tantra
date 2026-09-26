@@ -129,17 +129,8 @@ async def api_voice_chat(
         raise HTTPException(status_code=400, detail="Prompt is required")
         
     voice = str(body.get("voice") or "en_male")
-    
-    # 1. Load Persona and build system guidelines
-    system_prompt = ""
-    try:
-        from atulya.persona import Persona
-        system_prompt = Persona().get_system_prompt()
-    except Exception as e:
-        logger.warning(f"Failed to load system persona: {e}")
-        system_prompt = "You are Atulya, a helpful local AI assistant."
 
-    # 2. Query Pluggable Provider Router
+    # Query the provider router (it applies the Atulya persona internally).
     response_text = ""
     provider_name = "Atulya Fallback"
     try:
