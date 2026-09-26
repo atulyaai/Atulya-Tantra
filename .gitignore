@@ -32,11 +32,14 @@ outputs/npdna/benchmark.json
 # Runtime-local app state
 assets/agent/*.json
 assets/memory/
+assets/audio/
+assets/admin_token.txt
 tantra/outputs/npdna/
 config/chat_history.json
 config/sessions.json
 config/push_subs.json
 config/admin_token.json
+config/users.json
 
 # Node / frontend
 node_modules/
