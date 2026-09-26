@@ -24,6 +24,16 @@ from typing import Any, AsyncIterator
 from atulya.agent.intent_router import route_intent
 from atulya.cognition import safety
 from atulya.cognition.planner import PLAN_TOOL, Plan, Planner, looks_failed, steps_for_clause, verify_step
+from atulya.cognition.profile import (
+    LEARN_AFTER,
+    USER_SOURCES,
+    ProfileStore,
+    approval_key,
+    describe_fact,
+    extract_facts,
+    is_pure_statement,
+    profile_intent,
+)
 from atulya.cognition.toolbelt import EXCLUDED_FROM_BRAIN
 from atulya.llm import AtulyaLLM, LLMEvent, LLMResponse, _chunk_text, get_default_llm
 from yantra.events import EventBus, default_bus
@@ -36,6 +46,10 @@ KERNEL_ORIGIN = "kernel"
 # approved when they were created, so they don't stop to ask again.
 PRE_AUTHORIZED_SOURCES = {"automation", "trigger"}
 PENDING_TTL_SECONDS = 120
+# Offers only the kernel makes and answers; never tools the brain or a client can call.
+TRUST_TOOL = "trust_action"
+FORGET_TOOL = "forget_profile"
+_INTERNAL_TOOLS = {TRUST_TOOL, FORGET_TOOL}
 _MAX_PENDING = 256
 
 _FILLER = {"please", "ji", "sir", "atulya", "it", "ahead", "for", "sure", "thanks", "thank", "you", "that", "now", "karo", "do"}
@@ -142,10 +156,17 @@ def _lead_step(approved_tool: dict[str, Any] | None) -> list[dict[str, str]]:
 
 
 class CognitiveKernel:
-    def __init__(self, llm: Any = None, events: EventBus | None = None, planner: Planner | None = None):
+    def __init__(
+        self,
+        llm: Any = None,
+        events: EventBus | None = None,
+        planner: Planner | None = None,
+        profiles: ProfileStore | None = None,
+    ):
         self._llm = llm
         self.events = events or default_bus
         self.planner = planner or Planner()
+        self.profiles = profiles or ProfileStore()
         self._pending: OrderedDict[str, tuple[dict[str, Any], float]] = OrderedDict()
 
     @property
@@ -169,7 +190,7 @@ class CognitiveKernel:
         fast = await self._fast_path(text, user, history, source, approved_tool, provider, tools_enabled)
         if fast is not None:
             return fast
-        response = await self.llm.ask(text, **_brain_kwargs(history, approved_tool, provider, tools_enabled))
+        response = await self.llm.ask(text, **self._ask_kwargs(user, history, approved_tool, provider, tools_enabled))
         for step in getattr(response, "tool_steps", None) or []:
             await self._publish_step(step, user, source)
         if getattr(response, "needs_approval", False):
@@ -193,7 +214,8 @@ class CognitiveKernel:
                 yield event
             return
         tool_steps: list[dict[str, Any]] = []
-        async for event in self.llm.stream(text, **_brain_kwargs(history, approved_tool, provider, tools_enabled)):
+        kwargs = self._ask_kwargs(user, history, approved_tool, provider, tools_enabled)
+        async for event in self.llm.stream(text, **kwargs):
             if event.type == "tool" and isinstance(event.metadata, dict):
                 tool_steps.append(event.metadata)
                 await self._publish_step(event.metadata, user, source)
@@ -220,6 +242,15 @@ class CognitiveKernel:
             return None
         return action
 
+    def _ask_kwargs(self, user: Any, history: list[dict[str, str]] | None, approved_tool: dict[str, Any] | None,
+                    provider: str, tools_enabled: bool) -> dict[str, Any]:
+        kwargs = _brain_kwargs(history, approved_tool, provider, tools_enabled)
+        if isinstance(self.llm, AtulyaLLM):  # the real brain also gets what it knows about the user
+            context = self.profiles.context_for(self._user_key(user))
+            if context:
+                kwargs["context"] = context
+        return kwargs
+
     # ── pipeline ───────────────────────────────────────────────────────────
     async def _fast_path(
         self,
@@ -240,14 +271,19 @@ class CognitiveKernel:
         if approved_tool:
             held = self.pending_action(user)
             self._pending.pop(key, None)
-            if approved_tool.get("tool") == PLAN_TOOL:
+            tool = approved_tool.get("tool")
+            if tool in _INTERNAL_TOOLS:  # only ever the offer the kernel itself made
+                return await self._internal(held if held and held.get("tool") == tool else None, user, True)
+            if tool == PLAN_TOOL:
                 return await self._approved_plan(approved_tool, held, user=user, source=source, prompt=text)
             denied = await self._deny_if_unprivileged(approved_tool, user, source)
             if denied is not None:
                 return denied
+            self._learn_approval(user, approved_tool, True)
             if approved_tool.get("origin") == KERNEL_ORIGIN and approved_tool.get("tool") in _kernel_tools():
-                return await self._act(approved_tool, user=user, source=source, prompt=text,
-                                       trace=_lead_step(approved_tool))
+                response = await self._act(approved_tool, user=user, source=source, prompt=text,
+                                           trace=_lead_step(approved_tool))
+                return self._maybe_offer_trust(response, user, approved_tool)
             return None
 
         # A spoken/typed yes or no resolves the held action. Any other message
@@ -257,26 +293,43 @@ class CognitiveKernel:
         if pending is not None:
             self._pending.pop(key, None)
             intent = confirmation_intent(text)
-            phrase = safety.describe_action(pending.get("tool", ""), pending.get("arguments"))
+            held_tool = str(pending.get("tool", ""))
+            phrase = safety.describe_action(held_tool, pending.get("arguments"))
+            if intent is not None and held_tool in _INTERNAL_TOOLS:
+                return await self._internal(pending, user, intent == "affirm")
+            is_plan = held_tool == PLAN_TOOL and isinstance(pending.get("plan"), dict)
             if intent == "affirm":
                 confirmed = [_step("decide", "Confirmed", f"You confirmed: {phrase}")]
-                if pending.get("tool") == PLAN_TOOL and isinstance(pending.get("plan"), dict):
-                    return await self._run_plan(Plan.from_dict(pending["plan"]), user=user, source=source,
-                                                prompt=text, trace=confirmed)
+                if is_plan:
+                    plan = Plan.from_dict(pending["plan"])
+                    self._learn_plan_approval(user, plan, True)
+                    return await self._run_plan(plan, user=user, source=source, prompt=text, trace=confirmed)
                 denied = await self._deny_if_unprivileged(pending, user, source)
                 if denied is not None:
                     return denied
+                self._learn_approval(user, pending, True)
                 if pending.get("origin") == KERNEL_ORIGIN:
-                    return await self._act(pending, user=user, source=source, prompt=text, trace=confirmed)
+                    response = await self._act(pending, user=user, source=source, prompt=text, trace=confirmed)
+                    return self._maybe_offer_trust(response, user, pending)
                 llm_call = {k: v for k, v in pending.items() if k != "origin"}
-                response = await self.llm.ask(text, **_brain_kwargs(history, llm_call, provider, True))
+                response = await self.llm.ask(text, **self._ask_kwargs(user, history, llm_call, provider, True))
                 for step in getattr(response, "tool_steps", None) or []:
                     await self._publish_step(step, user, source)
                 return _set_trace(response, _brain_trace(response, confirmed))
             if intent == "deny":
-                await self._emit("action.cancelled", {"tool": pending.get("tool"), "user": key, "source": source})
+                if is_plan:
+                    self._learn_plan_approval(user, Plan.from_dict(pending["plan"]), False)
+                else:
+                    self._learn_approval(user, pending, False)
+                await self._emit("action.cancelled", {"tool": held_tool, "user": key, "source": source})
                 return LLMResponse(text=f"Okay, I won't {phrase}.", provider=KERNEL_PROVIDER,
                                    trace=[_step("decide", "Cancelled", f"Cancelled: {phrase}")])
+
+        # Learn about the user from what they say, and answer questions about it.
+        if text and source in USER_SOURCES:
+            about = await self._profile_turn(text, user)
+            if about is not None:
+                return about
 
         if not tools_enabled or not text:
             return None
@@ -297,12 +350,13 @@ class CognitiveKernel:
         understood = _step("understand", "Intent", _describe_call(routed.tool, routed.arguments))
 
         # Decide: risky actions need an admin, and wait for confirmation unless
-        # pre-authorized.
+        # pre-authorized or the user has told Atulya to stop asking.
         assessment = safety.assess(routed.tool, routed.arguments)
         denied = await self._deny_if_unprivileged(action, user, source)
         if denied is not None:
             return _set_trace(denied, [understood, *denied.trace])
-        if assessment.needs_confirmation and source not in PRE_AUTHORIZED_SOURCES:
+        trusted = assessment.needs_confirmation and self.profiles.is_trusted(key, routed.tool, routed.arguments)
+        if assessment.needs_confirmation and source not in PRE_AUTHORIZED_SOURCES and not trusted:
             self._hold(user, action, origin=KERNEL_ORIGIN)
             phrase = safety.describe_action(routed.tool, routed.arguments)
             await self._emit("action.pending", {"tool": routed.tool, "arguments": routed.arguments,
@@ -312,14 +366,133 @@ class CognitiveKernel:
                       "Say yes to go ahead, or no to cancel."),
                 provider=KERNEL_PROVIDER,
                 needs_approval=True,
-                pending_tool=action,
+                pending_tool={**action, "description": phrase},
                 trace=[understood, _step("decide", "Needs confirmation", f"That {assessment.reason}")],
             )
 
         # Act.
-        decided = _step("decide", "Allowed",
-                        "Pre-authorized by you" if assessment.needs_confirmation else "Safe to run now")
-        return await self._act(action, user=user, source=source, prompt=text, trace=[understood, decided])
+        if trusted:
+            why = "You told me I don't need to ask"
+        else:
+            why = "Pre-authorized by you" if assessment.needs_confirmation else "Safe to run now"
+        return await self._act(action, user=user, source=source, prompt=text,
+                               trace=[understood, _step("decide", "Allowed", why)])
+
+    # ── learning about the user ────────────────────────────────────────────
+    async def _profile_turn(self, text: str, user: Any) -> LLMResponse | None:
+        key = self._user_key(user)
+        intent = profile_intent(text)
+        if intent is not None:
+            kind, what = intent
+            asked = _step("understand", "About you", "A question about what I've learned")
+            if kind == "about":
+                lines = self.profiles.summary_lines(key)
+                reply = ("Here's what I know about you:\n" + "\n".join(f"- {line}" for line in lines) if lines else
+                         "I don't know much about you yet. Tell me things like “my name is …”, "
+                         "“my wife's name is …” or “I like …” and I'll remember.")
+                return LLMResponse(text=reply, provider=KERNEL_PROVIDER,
+                                   trace=[asked, _step("remember", "Profile", f"{len(lines)} things I know")])
+            if kind == "forget_all":
+                offer = {"tool": FORGET_TOOL, "arguments": {}, "origin": KERNEL_ORIGIN}
+                self._hold(user, offer, origin=KERNEL_ORIGIN)
+                return LLMResponse(text="Should I forget everything I've learned about you? Say yes or no.",
+                                   provider=KERNEL_PROVIDER, needs_approval=True,
+                                   pending_tool={**offer, "description": safety.describe_action(FORGET_TOOL, {})},
+                                   trace=[asked, _step("decide", "Needs confirmation", "Deletes your profile")])
+            if kind == "forget":
+                removed = self.profiles.forget(key, what)
+                reply = ("Done — I've forgotten that " + "; ".join(describe_fact(f) for f in removed) + "."
+                         if removed else "I didn't have that remembered.")
+                return LLMResponse(text=reply, provider=KERNEL_PROVIDER,
+                                   trace=[asked, _step("remember", "Forgot", f"{len(removed)} facts removed")])
+            if kind == "always_ask":
+                removed = self.profiles.untrust(key)
+                reply = ("Okay — I'll ask before every risky action again." if removed
+                         else "I already ask before every risky action.")
+                return LLMResponse(text=reply, provider=KERNEL_PROVIDER,
+                                   trace=[asked, _step("decide", "Always ask", f"{len(removed)} actions")])
+
+        facts = extract_facts(text)
+        if not facts:
+            return None
+        stored = self.profiles.remember(key, facts)
+        learned = [describe_fact(f) for f in stored]
+        await self._emit("profile.learned", {"user": key, "facts": learned})
+        if not is_pure_statement(text):
+            return None  # remembered quietly; the brain answers the rest
+        return LLMResponse(text="Got it — I'll remember that " + " and ".join(learned) + ".",
+                           provider=KERNEL_PROVIDER,
+                           trace=[_step("understand", "About you", "Something you told me about yourself"),
+                                  _step("remember", "Profile", "; ".join(learned))])
+
+    def _learn_approval(self, user: Any, action: dict[str, Any], approved: bool) -> None:
+        tool = str(action.get("tool") or "")
+        args = action.get("arguments") or {}
+        if not safety.needs_confirmation(tool, args):
+            return
+        try:
+            self.profiles.record_approval(self._user_key(user), approval_key(tool, args),
+                                          safety.describe_action(tool, args), approved)
+        except OSError as exc:  # learning is best-effort
+            logger.debug("could not record approval: %s", exc)
+
+    def _learn_plan_approval(self, user: Any, plan: Plan, approved: bool) -> None:
+        for step in plan.steps:
+            self._learn_approval(user, {"tool": step.tool, "arguments": step.arguments}, approved)
+
+    def _learn_action(self, user: Any, source: str, tool: str, args: dict[str, Any], ok: bool) -> None:
+        if not ok or source not in USER_SOURCES:
+            return
+        try:
+            self.profiles.record_action(self._user_key(user), tool, args, safety.describe_action(tool, args))
+        except OSError as exc:
+            logger.debug("could not record habit: %s", exc)
+
+    def _maybe_offer_trust(self, response: LLMResponse, user: Any, action: dict[str, Any]) -> LLMResponse:
+        """After the Nth yes in a row, offer to stop asking (only with the user's OK)."""
+        tool = str(action.get("tool") or "")
+        args = action.get("arguments") or {}
+        key = self._user_key(user)
+        k = approval_key(tool, args)
+        succeeded = bool(response.tool_steps) and bool(response.tool_steps[0].get("success"))
+        if not succeeded or not self.profiles.should_offer_trust(key, k):
+            return response
+        self.profiles.mark_offered(key, k)
+        label = safety.describe_action(tool, args)
+        offer = {"tool": TRUST_TOOL, "arguments": {"key": k, "label": label}, "origin": KERNEL_ORIGIN}
+        self._hold(user, offer, origin=KERNEL_ORIGIN)
+        response.text += (f"\n\nBy the way, you've said yes to this {LEARN_AFTER} times in a row. "
+                          f"Want me to stop asking before I {label}? Say yes or no.")
+        response.needs_approval = True
+        response.pending_tool = {**offer, "description": safety.describe_action(TRUST_TOOL, offer["arguments"])}
+        response.trace = [*response.trace, _step("remember", "Learned", f"You always approve: {label}")]
+        return response
+
+    async def _internal(self, action: dict[str, Any] | None, user: Any, affirmed: bool) -> LLMResponse:
+        """Answer an offer the kernel made (stop asking / forget everything)."""
+        key = self._user_key(user)
+        if action is None:
+            return LLMResponse(text="That question has expired, so I haven't changed anything.",
+                               provider=KERNEL_PROVIDER, trace=[_step("decide", "Expired", "Nothing changed")])
+        tool = action.get("tool")
+        args = action.get("arguments") or {}
+        if tool == TRUST_TOOL:
+            label = str(args.get("label") or "do that")
+            if affirmed and self.profiles.trust(key, str(args.get("key") or "")):
+                await self._emit("profile.trusted", {"user": key, "action": label})
+                return LLMResponse(
+                    text=(f"Okay — I won't ask again before I {label}. You can change this under "
+                          "About you, or just say “always ask me first”."),
+                    provider=KERNEL_PROVIDER, trace=[_step("remember", "Learned", f"Won't ask before: {label}")])
+            return LLMResponse(text="Okay, I'll keep asking first.", provider=KERNEL_PROVIDER,
+                               trace=[_step("decide", "Keep asking", label)])
+        if affirmed:  # FORGET_TOOL
+            self.profiles.forget_everything(key)
+            await self._emit("profile.forgotten", {"user": key})
+            return LLMResponse(text="Done — I've forgotten everything I'd learned about you.",
+                               provider=KERNEL_PROVIDER, trace=[_step("remember", "Forgot", "Profile cleared")])
+        return LLMResponse(text="Okay, I'll keep what I know.", provider=KERNEL_PROVIDER,
+                           trace=[_step("decide", "Kept", "Profile unchanged")])
 
     async def _deny_if_unprivileged(self, action: dict[str, Any], user: Any, source: str) -> LLMResponse | None:
         """Refuse a confirmation-level action for a non-admin web user."""
@@ -353,6 +526,7 @@ class CognitiveKernel:
         text = step.get("output") if ok else f"I couldn't do that — {step.get('error') or 'the tool failed'}."
         text = text or "Done."
         steps = [*(trace or []), _step("act", "Action" if ok else "Action failed", text)]
+        self._learn_action(user, source, tool, args, ok)
         # Remember what was done, and let the rest of the system react to it.
         if await self._remember(prompt or safety.describe_action(tool, args), text):
             steps.append(_step("remember", "Memory", "Saved to memory"))
@@ -368,10 +542,11 @@ class CognitiveKernel:
     async def _start_plan(self, plan: Plan, *, user: Any, source: str, prompt: str) -> LLMResponse:
         """Run a plan now, or hold it for one confirmation if a step is risky."""
         planned = _step("plan", "Plan", f"{plan.title}: {len(plan.steps)} steps ({plan.source})")
+        key = self._user_key(user)
         risky = [(i, s, safety.assess(s.tool, s.arguments)) for i, s in enumerate(plan.steps, 1)]
-        risky = [(i, s, a) for i, s, a in risky if a.needs_confirmation]
+        risky = [(i, s, a) for i, s, a in risky
+                 if a.needs_confirmation and not self.profiles.is_trusted(key, s.tool, s.arguments)]
         if risky and source not in PRE_AUTHORIZED_SOURCES and _is_privileged(user, source):
-            key = self._user_key(user)
             action = {"tool": PLAN_TOOL, "arguments": plan.summary(), "origin": KERNEL_ORIGIN}
             self._hold(user, {**action, "plan": plan.to_dict()}, origin=KERNEL_ORIGIN)
             await self._emit("action.pending", {"tool": PLAN_TOOL, "arguments": plan.summary(), "user": key,
@@ -384,7 +559,7 @@ class CognitiveKernel:
                      + "\nShould I go ahead? Say yes or no.",
                 provider=KERNEL_PROVIDER,
                 needs_approval=True,
-                pending_tool=action,
+                pending_tool={**action, "description": safety.describe_action(PLAN_TOOL, plan.summary())},
                 trace=[planned, _step("decide", "Needs confirmation",
                                       f"Step {risky[0][0]} {risky[0][2].reason}")],
             )
@@ -395,8 +570,9 @@ class CognitiveKernel:
         """UI Approve for a plan: run the plan the kernel held, never a client-edited one."""
         approved_trace = [_step("decide", "Approved", "You approved the plan")]
         if held and held.get("tool") == PLAN_TOOL and isinstance(held.get("plan"), dict):
-            return await self._run_plan(Plan.from_dict(held["plan"]), user=user, source=source,
-                                        prompt=prompt, trace=approved_trace)
+            plan = Plan.from_dict(held["plan"])
+            self._learn_plan_approval(user, plan, True)
+            return await self._run_plan(plan, user=user, source=source, prompt=prompt, trace=approved_trace)
         # The hold expired: rebuild from the plain commands, each re-understood.
         args = approved.get("arguments") or {}
         steps = []
@@ -442,6 +618,7 @@ class CognitiveKernel:
                     ok = False
                     output = f"{output} But when I checked, {detail}."
             step.status, step.result = ("done" if ok else "failed"), output
+            self._learn_action(user, source, step.tool, step.arguments, ok)
             tool_steps.append({**result, "success": ok})
             lines.append(output if ok else f"Couldn't {phrase}: {output}")
             steps_trace.append(_step("act", f"Step {i}/{total}" if ok else f"Step {i}/{total} failed", output))
@@ -475,6 +652,8 @@ class CognitiveKernel:
 
     async def _publish_step(self, step: dict[str, Any], user: Any, source: str) -> None:
         """Publish a tool the brain ran natively, so triggers see it too."""
+        self._learn_action(user, source, str(step.get("tool") or ""), step.get("arguments") or {},
+                           bool(step.get("success")))
         await self._emit("action.executed", {
             "tool": step.get("tool"), "arguments": step.get("arguments") or {},
             "success": bool(step.get("success")), "source": source, "user": self._user_key(user),

@@ -77,7 +77,27 @@ DEFAULT_RULES: list[dict[str, Any]] = [
         "enabled": True,
         "cooldown_seconds": 300,
     },
+    {
+        "id": "trg_habit_nudge",
+        "name": "Habit nudges",
+        "event": "habit.due",
+        "notify": "You usually {label} {when} — just say the word.",
+        "enabled": True,
+        "cooldown_seconds": 0,
+    },
+    {
+        "id": "trg_someone_at_door",
+        "name": "Someone at the door",
+        "event": ["vision.person", "doorbell.pressed"],
+        "match": {"camera": "door"},
+        "notify": "Someone is at the {camera}.",
+        "enabled": True,
+        "cooldown_seconds": 60,
+    },
 ]
+# Rules shipped before new defaults were added; used to top up older rule files
+# without bringing back a default the user deleted.
+_ORIGINAL_DEFAULTS = {"trg_reminder_alert", "trg_health_alert", "trg_automation_failed"}
 
 _FIELD_RE = re.compile(r"\{(\w+)\}")
 
@@ -117,8 +137,8 @@ class TriggerEngine:
         self._started = False
         self._last_fired: dict[str, float] = {}
         self._tasks: set[asyncio.Task] = set()
-        if seed_defaults and not self.rules_file.exists():
-            self._save([dict(rule) for rule in DEFAULT_RULES])
+        if seed_defaults:
+            self._seed_defaults()
 
     @property
     def kernel(self) -> Any:
@@ -138,6 +158,26 @@ class TriggerEngine:
         if self._started:
             self.events.unsubscribe("*", self._on_event)
             self._started = False
+
+    def _seed_defaults(self) -> None:
+        """First run: every built-in rule. Later: only built-ins added since, once."""
+        seeded_file = self.rules_file.with_name(self.rules_file.stem + ".seeded.json")
+        if not self.rules_file.exists():
+            self._save([dict(rule) for rule in DEFAULT_RULES])
+        else:
+            try:
+                seeded = set(json.loads(seeded_file.read_text(encoding="utf-8")))
+            except (OSError, json.JSONDecodeError, TypeError):
+                seeded = set(_ORIGINAL_DEFAULTS)
+            rules = self.list_rules()
+            have = {r.get("id") for r in rules}
+            new = [dict(r) for r in DEFAULT_RULES if r["id"] not in seeded and r["id"] not in have]
+            if new:
+                self._save(rules + new)
+        try:
+            seeded_file.write_text(json.dumps(sorted(r["id"] for r in DEFAULT_RULES)), encoding="utf-8")
+        except OSError:
+            pass
 
     # ── rules ──────────────────────────────────────────────────────────────
     def list_rules(self) -> list[dict[str, Any]]:

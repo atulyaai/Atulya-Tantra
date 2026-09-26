@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from drishti.dashboard.helpers import _checkpoint_index, _load_cached_model
-from drishti.dashboard.routes import agent, auth, automation, chat, cortex, create, devices, model, notifications, openai, routines, system, train, triggers, upload, voice, ws
+from drishti.dashboard.routes import agent, auth, automation, chat, cortex, create, devices, model, notifications, openai, profile, routines, system, train, triggers, upload, voice, ws
 from drishti.dashboard.automation_runner import AutomationRunner
 from yantra.mcp.external_client import MCPClientManager
 
@@ -87,6 +87,10 @@ async def lifespan(app: FastAPI):
     default_bus.subscribe("notification", _relay_notification)
     app.state.heartbeat = HeartbeatSystem(events=default_bus)
     app.state.heartbeat_task = asyncio.create_task(app.state.heartbeat.start())
+    # Learned habits: "you usually … around now" when it hasn't happened yet today.
+    from atulya.cognition.profile import watch_habits
+
+    app.state.habit_task = asyncio.create_task(watch_habits(get_kernel(app.state.llm).profiles, default_bus))
 
     threading.Thread(target=_warm_latest_model, daemon=True).start()
     try:
@@ -96,6 +100,7 @@ async def lifespan(app: FastAPI):
         default_bus.unsubscribe("notification", _relay_notification)
         await app.state.heartbeat.stop()
         app.state.heartbeat_task.cancel()
+        app.state.habit_task.cancel()
         await app.state.automation_runner.stop()
         app.state.automation_task.cancel()
         await app.state.mcp_manager.shutdown_all()
@@ -151,7 +156,7 @@ app.add_middleware(
 )
 app.middleware("http")(_rate_limiter)
 
-for module in (auth, system, model, train, chat, cortex, automation, openai, voice, upload, devices, ws, notifications, agent, create, triggers, routines):
+for module in (auth, system, model, train, chat, cortex, automation, openai, voice, upload, devices, ws, notifications, agent, create, triggers, routines, profile):
     app.include_router(module.router)
 
 
