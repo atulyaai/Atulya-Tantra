@@ -48,6 +48,8 @@ flowchart LR
 |---|---|---|
 | Kernel | The one pipeline every request goes through | `atulya/cognition/kernel.py` |
 | Understanding | Clear command → concrete tool + arguments, no model needed | `atulya/agent/intent_router.py` |
+| Planning | Goals → checked multi-step plans (routines, groups, compound commands, the brain) | `atulya/cognition/planner.py` |
+| Knowing you | Facts, habits, which confirmations to stop asking (opt-in) | `atulya/cognition/profile.py` |
 | Brain | Open conversation, reasoning, native tool calls, provider failover | `atulya/llm.py`, `atulya/intelligence.py`, `atulya/local_provider.py` |
 | Brain size | `ATULYA_BRAIN` tiers: tiny / balanced / power / cloud | `atulya/cognition/brain.py` |
 | Conscience | Which actions run vs. wait for confirmation | `atulya/cognition/safety.py` |
@@ -57,6 +59,9 @@ flowchart LR
 | Nervous system | Publish/subscribe events | `yantra/events.py` |
 | Reflexes | Event → rule → notify and/or act | `atulya/cognition/triggers.py` |
 | Interoception | Self-monitoring; publishes health *changes* | `atulya/heartbeat.py` |
+| Senses | Cameras (motion, people) and Home Assistant sensors → events | `yantra/senses/` |
+| Ears everywhere | Always-listening app: wake word, tray icon, speaks notifications | `atulya/ambient/` |
+| Personal accounts | Google sign-in: Gmail and Calendar per user | `yantra/capabilities/google_workspace.py` |
 | Personality & mood | Persona, emotion detection, mood state | `atulya/persona.py`, `atulya/emotion.py`, `atulya/soul.py` |
 
 ## A request's life
@@ -67,12 +72,16 @@ flowchart LR
    "yes" runs it and a clear "no" cancels it. Any other message drops the hold,
    so a stray "yes" later can never release it. Laughter ("ha ha") is not a yes.
    Holds are per user and expire after two minutes.
-3. **Understand.** The intent router maps clear commands ("turn off the
+3. **Learn and plan.** Statements about the user ("my wife's name is Priya") are
+   remembered; "what do you know about me?" and "forget …" are answered. A
+   routine phrase, a device group ("all the lights"), several commands joined by
+   "and"/"then", or a goal ("set the mood for movie night") becomes a **plan**.
+4. **Understand.** The intent router maps clear commands ("turn off the
    kitchen light", "remind me to call mom in 10 minutes", "weather in Delhi")
    to a tool and arguments deterministically, which is reliable even on a 0.6B
    model. Anything else goes to the brain, which can still call the same tools
    natively.
-4. **Decide.** `safety.assess()` returns *allow* or *confirm*. Confirmation is
+5. **Decide.** `safety.assess()` returns *allow* or *confirm*. Confirmation is
    needed for physical security (unlocking a door), speaking for the user
    (sending email), irreversible deletion (calendar events, reminders), and
    running code or modifying files. Confirmation-level actions also require an
@@ -82,10 +91,17 @@ flowchart LR
    makes them everyday actions for every user). Commands the user authored in
    advance (automations, trigger rules) are pre-authorized, and trigger rules
    additionally need `allow_risky`.
-5. **Act.** Tools run through the unified registry, so chat, voice and
-   automations all have the same hands.
-6. **Remember.** Every action is written to memory.
-7. **React.** Every action is published (`action.executed`, `action.pending`,
+   A plan with a risky step asks once for the whole plan. After five yeses in a
+   row to the same confirmation, Atulya offers to stop asking — only that user,
+   only if they agree, and never for running code or changing files.
+6. **Act.** Tools run through the unified registry, so chat, voice and
+   automations all have the same hands. Personal tools (Gmail, Calendar) act for
+   the user who asked. Each plan step is **checked** afterwards: device state is
+   read back (from Home Assistant when configured), so a device that claims
+   success but didn't change is reported.
+7. **Remember.** Every action is written to memory, and what the user does
+   becomes habits.
+8. **React.** Every action is published (`action.executed`, `action.pending`,
    `action.cancelled`). Trigger rules can react, and notifications are relayed
    to connected clients.
 
@@ -95,6 +111,8 @@ Atulya acts on three kinds of stimulus:
 
 - **What it's told.** Chat and voice go through the kernel.
 - **The clock.** Scheduled automations (`/api/cron/jobs`) run through the kernel.
+- **What it notices.** Cameras, doorbells and sensors, and habits that haven't
+  happened yet today, become events too.
 - **What happens.** Trigger rules (`/api/triggers`) react to events:
 
 | Event | Emitted by |
@@ -104,9 +122,15 @@ Atulya acts on three kinds of stimulus:
 | `automation.completed` / `automation.failed` | automation runner |
 | `action.executed` / `action.pending` / `action.cancelled` | kernel |
 | `trigger.fired`, `notification` | trigger engine |
+| `plan.started` / `plan.step` / `plan.completed` | kernel, for multi-step plans |
+| `vision.person` / `vision.motion` | cameras and Home Assistant person/motion sensors |
+| `doorbell.pressed` / `home.sensor` | Home Assistant doorbells and watched sensors |
+| `habit.due` | a usual action hasn't happened yet today |
+| `profile.learned` / `profile.trusted` | Atulya learned a fact / stopped asking about an action |
 
 Built-in rules (seeded on first run, editable): reminder alerts, system-health
-alerts and automation-failure alerts. A rule looks like this:
+alerts, automation-failure alerts, habit nudges and "someone at the door". New
+built-ins are added to older rule files once; a built-in you deleted stays deleted. A rule looks like this:
 
 ```json
 {
@@ -139,6 +163,11 @@ triggers, so rules can't loop.
   consciousness stream and node animation follow those real stages.
 - **Admin → Reflexes & Brain.** Add, test, pause and delete trigger rules; see
   the active brain tier; watch the live event feed.
+- **Admin → Routines.** Run, edit and add routines; "try a sentence" previews a plan.
+- **Admin → Senses.** Cameras (with the latest snapshot), Home Assistant sensors,
+  and the always-listening devices, with install commands for a new one.
+- **About you** (every user). What Atulya knows, habits, which actions it asks
+  about, and the Google account. Approvals are shown in plain words.
 
 ## Brain tiers
 
@@ -162,26 +191,36 @@ Assistant's REST API. Device ids map to entities by convention
 (`living_room_light` → `light.living_room`) or through `HOME_ASSISTANT_ENTITIES`.
 Failures are reported, never faked. Without Home Assistant, a simulation is used.
 
+## Always listening
+
+`atulya listen` (install with `pip install -e ".[ambient]"`) runs on a computer or a
+Raspberry Pi, independent of the browser. It detects speech with an adaptive noise
+floor, matches the wake word letter by letter (so "a tulia" still wakes it), sends
+the sentence to the server as the signed-in user, and speaks the reply and any
+notifications. After "should I unlock the front door?" the next yes/no needs no
+wake word. `--login` stores a 90-day device token; `--install-autostart` starts it
+at login (Windows, macOS, Linux) or at boot (`systemd`). Speech-to-text runs
+locally with faster-whisper when installed.
+
 ## Honest capability boundaries
 
-Built and tested: the unified loop, spoken and UI confirmation, deterministic
-action-taking, event-driven proactivity, self-monitoring, brain tiers, and a
-real smart-home bridge.
+Built and tested: the unified loop; spoken and UI confirmation; deterministic
+action-taking; multi-step plans with per-step checks; event-driven proactivity;
+self-monitoring; learning facts, habits and approval preferences; camera and
+doorbell perception; an always-listening app; Gmail and Google Calendar; brain
+tiers; and a real smart-home bridge.
 
-Still ahead on the road from assistant to more general intelligence:
+Still ahead on the road to more general intelligence:
 
-1. **Multi-step planning.** The router handles one action per command; goals
-   like "get the house ready for guests" need a planner that decomposes,
-   executes and checks steps (`yantra/orchestrator` is the starting point).
-2. **Learning from feedback.** Confirmations, cancellations and corrections are
-   now events; the next step is to learn preferences from them, for example to
-   stop asking about actions the user always approves.
-3. **Richer perception.** Camera and vision are wired, but not yet as
-   continuous perception that emits events ("someone is at the door").
-4. **Always-on ambient presence.** Wake-word listening lives in the web UI; a
-   background device runtime (desktop tray, phone app) would make it truly
-   always on.
-5. **Memory consolidation.** Episodic memory is stored; distilling it into a
-   durable user model (habits, people, preferences) is the next layer.
-6. **More integrations.** Email and calendar tools exist; OAuth-backed
-   connectors (Gmail, Google Calendar) are configured separately.
+1. **Open-ended planning.** Plans are sequences of known commands. Goals that need
+   research, branching or recovery ("plan my trip to Goa") need a planner that
+   reasons over results, not just a list.
+2. **Understanding what the camera sees.** Cameras detect motion and people;
+   recognising *who* (family vs. stranger) or describing a scene needs a
+   vision-language model running continuously.
+3. **Memory consolidation.** Facts come from explicit statements; distilling
+   conversations into a richer model of the user is the next step.
+4. **Voice identity.** The always-listening app acts as the signed-in account;
+   telling household members apart by voice would make permissions per person.
+5. **More connectors.** Gmail and Calendar are built in; others (WhatsApp,
+   banking, Drive) are still separate MCP integrations.

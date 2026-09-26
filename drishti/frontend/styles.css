@@ -2105,8 +2105,13 @@ main.immersive-layout {
   padding: 24px 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  /* More destinations than fit on a short screen: scroll, never squash or hide. */
+  height: 100dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
+.admin-drawer > * { flex-shrink: 0; }
 
 .admin-drawer.open {
   transform: translateX(0);

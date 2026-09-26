@@ -74,6 +74,50 @@ back with `needs_approval: true` and a `pending_tool`; confirm by replying "yes"
 | POST | `/api/events/emit` | Publish `{type, payload}` on the event bus (for testing rules) |
 | GET | `/api/events/recent?limit=50` | Recent event-bus activity |
 
+## Routines & plans (admin)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/routines` | Routines, with each one's steps expanded (`plan`) |
+| POST | `/api/routines` | Add or replace `{id?, name, phrases, steps, enabled?}`; every step must be a clear command |
+| DELETE | `/api/routines/{id}` | Delete a routine |
+| POST | `/api/routines/{id}/run` | Run it now (a routine with a risky step returns `needs_approval` + `pending_tool`) |
+| POST | `/api/plan/preview` | `{text}` → the plan Atulya would follow, without running it |
+
+## About you (the signed-in user)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/profile` | Facts, habits, approval streaks and which actions don't ask |
+| POST | `/api/profile/facts` | `{text}` — teach a fact ("my wife's name is Priya") or a note |
+| DELETE | `/api/profile/facts/{id}` | Forget one fact |
+| POST | `/api/profile/trust` | `{key, trusted}` — stop asking / ask again (only for approved, learnable actions) |
+| DELETE | `/api/profile` | Forget everything about the user |
+
+## Senses
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/senses` | Cameras, Home Assistant sensor watcher, always-listening devices (admin) |
+| POST | `/api/senses/cameras` | `{name, source}` — add a camera (admin) |
+| DELETE | `/api/senses/cameras/{name}` | Remove a camera (admin) |
+| GET | `/api/senses/cameras/{name}/snapshot` | Latest "someone is here" snapshot; accepts `?token=` (admin) |
+| POST | `/api/senses/heartbeat` | An always-listening device checking in |
+| POST | `/api/senses/device-token` | `{device}` → a 90-day sign-in token for an always-listening device |
+
+## Google (Gmail + Calendar)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/google/status` | Is Google set up, is this user connected, the redirect URI to register |
+| POST | `/api/google/client` | `{client_id, client_secret}` — one-time setup (admin) |
+| POST | `/api/google/connect` | → `{url}` of Google's consent screen (OAuth + PKCE, single-use state) |
+| GET | `/api/google/callback` | Google returns here; stores the user's tokens |
+| POST | `/api/google/disconnect` | Revoke and forget this user's Google tokens |
+
+`/api/voice/chat` also accepts `"source": "ambient"` (the always-listening app) and `"tts": false`
+(reply text only).
+
 ## System & Monitoring
 
 | Method | Path | Description |
