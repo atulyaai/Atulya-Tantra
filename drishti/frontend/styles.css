@@ -73,7 +73,7 @@ aside {
 
 h1 { margin: 0 0 24px; font-size: 22px; }
 h2 { margin: 0; font-size: 18px; }
-button, input, select {
+button, input, select, textarea {
   border: 1px solid var(--line);
   background: var(--panel-soft);
   color: var(--text);
@@ -81,6 +81,7 @@ button, input, select {
   padding: 10px 12px;
 }
 button { cursor: pointer; }
+textarea { font: inherit; resize: vertical; line-height: 1.5; }
 button.active, button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 button:disabled { opacity: 0.55; cursor: wait; }
 .theme-toggle {
@@ -3473,3 +3474,35 @@ button.small {
 :root.light button.danger { color: var(--bad); }
 :root.light .admin-drawer h1 { background: linear-gradient(135deg, #c25700 0%, #1b1f3b 100%); -webkit-background-clip: text; background-clip: text; }
 :root.light .chart { background: var(--panel-soft); }
+
+/* ── Routines, About you, Senses ─────────────────────────────────────── */
+.routine-steps { margin: 4px 0 0; padding-left: 22px; display: grid; gap: 2px; }
+.routine-steps li::marker { color: var(--accent); }
+.inline-form { display: flex; gap: 8px; margin-top: 12px; }
+.inline-form input { flex: 1; min-width: 0; }
+.preview-card { margin-top: 12px; }
+.pre-line { white-space: pre-line; }
+.fact-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.fact {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 6px 6px 12px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--panel-soft); font-size: 13px;
+}
+.icon-btn {
+  width: 24px; height: 24px; min-height: 0; padding: 0; border-radius: 50%; line-height: 1;
+  display: inline-grid; place-items: center; font-size: 15px;
+}
+.habit-list { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 6px; }
+.habit-list li::marker { color: var(--good); }
+.setup-steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 13px; }
+.copyable { display: block; margin-top: 4px; padding: 6px 8px; user-select: all; overflow-wrap: anywhere; }
+.camera-snapshot { width: 100%; max-width: 360px; border-radius: 8px; border: 1px solid var(--line); margin-top: 8px; }
+.reflex-body code { overflow-wrap: anywhere; }
+.bad-text { color: var(--bad); font-size: 13px; }
+.setup-box { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 12px; }
+.setup-box h3 { margin: 0 0 6px; font-size: 14px; }
+.setup-box .terminal, .approval-details .terminal { min-height: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.approval-details { margin: 8px 0 12px; font-size: 12px; color: var(--muted); }
+.approval-details summary { cursor: pointer; }
+@media (max-width: 520px) {
+  .inline-form { flex-direction: column; }
+}

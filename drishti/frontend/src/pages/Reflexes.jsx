@@ -12,6 +12,13 @@ const KNOWN_EVENTS = [
   ['action.executed', 'Atulya performs an action'],
   ['action.pending', 'An action waits for confirmation'],
   ['action.denied', 'An action is refused'],
+  ['vision.person', 'A camera or sensor sees someone'],
+  ['vision.motion', 'A camera or sensor sees movement'],
+  ['doorbell.pressed', 'The doorbell rings'],
+  ['home.sensor', 'A Home Assistant sensor changes'],
+  ['habit.due', 'A usual habit hasn\'t happened yet today'],
+  ['plan.completed', 'A routine or plan finishes'],
+  ['profile.learned', 'Atulya learns something about you'],
 ];
 
 const EMPTY_DRAFT = {

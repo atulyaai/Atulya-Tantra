@@ -11,6 +11,9 @@ const HolographicSpirit = lazy(() =>
 );
 // Admin-only: trigger rules, brain tier, and live event feed.
 const Reflexes = lazy(() => import('./src/pages/Reflexes.jsx').then((m) => ({ default: m.Reflexes })));
+const Routines = lazy(() => import('./src/pages/Routines.jsx').then((m) => ({ default: m.Routines })));
+const AboutYou = lazy(() => import('./src/pages/AboutYou.jsx').then((m) => ({ default: m.AboutYou })));
+const Senses = lazy(() => import('./src/pages/Senses.jsx').then((m) => ({ default: m.Senses })));
 
 function Metric({ label, value }) {
   return (
@@ -42,7 +45,9 @@ const DEFAULT_LIVE_MESSAGES = [
 ];
 const WAKE_PHRASES = ['hey atulya', 'atulya'];
 // Real pipeline stages (from the server's trace) -> the node the visual animates.
-const STAGE_AGENT = { understand: 'ATHENA', decide: 'ATHENA', act: 'FORGE', remember: 'MEMORY', think: 'ORACLE' };
+const STAGE_AGENT = {
+  understand: 'ATHENA', plan: 'ATHENA', decide: 'ATHENA', act: 'FORGE', check: 'ORACLE', remember: 'MEMORY', think: 'ORACLE',
+};
 const TRACE_STEP_MS = 180;
 
 function loadCachedMessages(key, fallback = []) {
@@ -1626,6 +1631,38 @@ function Chat({ bootstrap, toast }) {
       .map((msg) => ({ role: msg.role, content: msg.text }));
   }
 
+  function holdForApproval(done, text) {
+    if (!done?.needs_approval) return;
+    setPendingApproval({
+      prompt: text,
+      tool: done.tool,
+      tool_args: done.tool_args,
+      pending_tool: done.pending_tool || { tool: done.tool, arguments: done.tool_args || {} },
+    });
+  }
+
+  // A follow-up turn that answers a held action: Approve (approved_tool) or Cancel ("no").
+  function answerApproval(body) {
+    const id = Date.now();
+    setPendingApproval(null);
+    setBusy(true);
+    setMessages((prev) => [...prev, { role: 'assistant', text: '', id }]);
+    api.streamChat(
+      { model_id: provider, provider, history: historyPayload(), ...body },
+      (token) => setMessages((prev) => prev.map((msg) => msg.id === id ? { ...msg, text: msg.text + token } : msg)),
+      (done) => {
+        if (done?.steps) setToolSteps(done.steps);
+        holdForApproval(done, '');  // e.g. "want me to stop asking?" after the fifth yes
+        setBusy(false);
+      },
+      (err) => {
+        setBusy(false);
+        setMessages((prev) => prev.map((msg) => msg.id === id ? { ...msg, text: `Error: ${err.message}` } : msg));
+      },
+      (tool) => setToolSteps((prev) => [...prev, tool]),
+    );
+  }
+
   function send(event) {
     event.preventDefault();
     if (!prompt.trim() || busy) return;
@@ -1641,14 +1678,7 @@ function Chat({ bootstrap, toast }) {
       (token) => setMessages((prev) => prev.map((msg) => msg.id === id ? { ...msg, text: msg.text + token } : msg)),
       (done) => {
         if (done?.steps) setToolSteps(done.steps);
-        if (done?.needs_approval) {
-          setPendingApproval({
-            prompt: text,
-            tool: done.tool,
-            tool_args: done.tool_args,
-            pending_tool: done.pending_tool || { tool: done.tool, arguments: done.tool_args || {} },
-          });
-        }
+        holdForApproval(done, text);
         setBusy(false);
       },
       (err) => {
@@ -1709,39 +1739,19 @@ function Chat({ bootstrap, toast }) {
         <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Approve action">
           <div className="modal-card">
             <h2>Approve Action</h2>
-            <p className="muted">Review this tool call before Atulya runs it.</p>
-            <pre className="terminal">{JSON.stringify({ tool: pendingApproval.tool, args: pendingApproval.tool_args }, null, 2)}</pre>
+            <p>{pendingApproval.pending_tool?.description
+              ? `Should Atulya ${pendingApproval.pending_tool.description}?`
+              : 'Review this action before Atulya runs it.'}</p>
+            <details className="approval-details">
+              <summary>Details</summary>
+              <pre className="terminal">{JSON.stringify({ tool: pendingApproval.tool || pendingApproval.pending_tool?.tool, args: pendingApproval.tool_args || pendingApproval.pending_tool?.arguments }, null, 2)}</pre>
+            </details>
             <div className="terminal-actions">
-              <button type="button" onClick={() => setPendingApproval(null)}>Cancel</button>
+              <button type="button" onClick={() => answerApproval({ prompt: 'no' })}>Cancel</button>
               <button
                 type="button"
                 className="primary"
-                onClick={() => {
-                  const approved = pendingApproval.prompt;
-                  const id = Date.now();
-                  setPendingApproval(null);
-                  setBusy(true);
-                  setMessages((prev) => [...prev, { role: 'assistant', text: '', id }]);
-                  api.streamChat(
-                    {
-                      prompt: approved,
-                      model_id: provider,
-                      provider,
-                      history: historyPayload(),
-                      approved_tool: pendingApproval.pending_tool,
-                    },
-                    (token) => setMessages((prev) => prev.map((msg) => msg.id === id ? { ...msg, text: msg.text + token } : msg)),
-                    (done) => {
-                      if (done?.steps) setToolSteps(done.steps);
-                      setBusy(false);
-                    },
-                    (err) => {
-                      setBusy(false);
-                      setMessages((prev) => prev.map((msg) => msg.id === id ? { ...msg, text: `Error: ${err.message}` } : msg));
-                    },
-                    (tool) => setToolSteps((prev) => [...prev, tool]),
-                  );
-                }}
+                onClick={() => answerApproval({ prompt: pendingApproval.prompt, approved_tool: pendingApproval.pending_tool })}
               >
                 Approve and run
               </button>
@@ -1952,6 +1962,17 @@ function App() {
     return stop;
   }, [authenticated]);
 
+  useEffect(() => {
+    if (!authenticated) return;
+    const params = new URLSearchParams(window.location.search);
+    const google = params.get('google');
+    if (!google) return;
+    window.history.replaceState({}, '', window.location.pathname);
+    setTab('about');
+    if (google === 'connected') toast('success', 'Google connected — Gmail and Calendar are ready.');
+    else toast('error', "Google wasn't connected.");
+  }, [authenticated]);
+
   async function load() {
     setError('');
     try {
@@ -2018,6 +2039,11 @@ function App() {
         <HolographicSpirit />
       </Suspense>
     );
+    if (tab === 'about') return (
+      <Suspense fallback={<div className="lazy-loading">Loading…</div>}>
+        <AboutYou toast={toast} />
+      </Suspense>
+    );
     if (!isAdmin) return <LiveMode bootstrap={bootstrap} toast={toast} />; // Fallback for normal users
     
     // Admin-only views
@@ -2028,6 +2054,16 @@ function App() {
     if (tab === 'reflexes') return (
       <Suspense fallback={<div className="lazy-loading">Loading Reflexes…</div>}>
         <Reflexes toast={toast} />
+      </Suspense>
+    );
+    if (tab === 'routines') return (
+      <Suspense fallback={<div className="lazy-loading">Loading Routines…</div>}>
+        <Routines toast={toast} />
+      </Suspense>
+    );
+    if (tab === 'senses') return (
+      <Suspense fallback={<div className="lazy-loading">Loading Senses…</div>}>
+        <Senses toast={toast} />
       </Suspense>
     );
     return <Dashboard bootstrap={bootstrap} load={load} />;
@@ -2068,6 +2104,7 @@ function App() {
         <button className={tab === 'live' ? 'active' : ''} onClick={() => { setTab('live'); setAdminOpen(false); }}>Live Mode</button>
         <button className={tab === 'chat' ? 'active' : ''} onClick={() => { setTab('chat'); setAdminOpen(false); }}>Chat</button>
         <button className={tab === 'spirit' ? 'active' : ''} onClick={() => { setTab('spirit'); setAdminOpen(false); }}>⬡ Spirit UI</button>
+        <button className={tab === 'about' ? 'active' : ''} onClick={() => { setTab('about'); setAdminOpen(false); }}>About you</button>
         
         {isAdmin && (
           <>
@@ -2076,6 +2113,9 @@ function App() {
             <button className={tab === 'model' ? 'active' : ''} onClick={() => { setTab('model'); setAdminOpen(false); }}>Model Inspector</button>
             <button className={tab === 'dashboard' ? 'active' : ''} onClick={() => { setTab('dashboard'); setAdminOpen(false); }}>Dashboard</button>
             <button className={tab === 'users' ? 'active' : ''} onClick={() => { setTab('users'); setAdminOpen(false); }}>Manage Users</button>
+            <div className="drawer-section-label">JARVIS</div>
+            <button className={tab === 'routines' ? 'active' : ''} onClick={() => { setTab('routines'); setAdminOpen(false); }}>Routines</button>
+            <button className={tab === 'senses' ? 'active' : ''} onClick={() => { setTab('senses'); setAdminOpen(false); }}>Senses</button>
             <button className={tab === 'reflexes' ? 'active' : ''} onClick={() => { setTab('reflexes'); setAdminOpen(false); }}>Reflexes &amp; Brain</button>
           </>
         )}
