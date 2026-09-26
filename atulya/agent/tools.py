@@ -117,6 +117,9 @@ def register_reminder_callback(cb: Callable):
 def _parse_time(text: str) -> float | None:
     """Parse natural language time expressions."""
     text = text.lower().strip()
+    # "at 5pm", "today at 6pm", "tonight at 9", "on monday at 10am" -> the time itself
+    text = re.sub(r"^(?:(?:today|tonight|this evening)\s+)?(?:at|on|by)\s+", "", text)
+    text = re.sub(r"^(?:today|tonight)\s+", "", text)
     now = time.time()
     t = time.localtime(now)
 
@@ -244,8 +247,27 @@ async def cancel_reminder(reminder_id: str) -> str:
 
 
 # ── Tool: Email Skills ─────────────────────────────────────────────────────
+# With Google connected (Settings → Accounts) email and calendar use the
+# requesting user's Gmail and Google Calendar; otherwise IMAP/SMTP and the
+# built-in calendar.
 
 _EMAIL_CFG: dict[str, Any] = {}
+
+
+def _google():
+    """The current user's connected Google account, or None."""
+    try:
+        from yantra.capabilities.google_workspace import GoogleAccount
+
+        account = GoogleAccount.for_current_user()
+        return account if account.connected else None
+    except Exception:  # noqa: BLE001 - never let an integration break the basics
+        return None
+
+
+def _sender_name(value: str) -> str:
+    name = value.split("<", 1)[0].strip().strip('"')
+    return name or value
 
 
 def _load_email_config():
@@ -276,6 +298,15 @@ async def configure_email(imap_server: str, imap_port: int = 993, smtp_server: s
     "body": {"type": "string", "description": "Email body text"},
 })
 async def send_email(to: str, subject: str, body: str) -> str:
+    google = _google()
+    if google is not None:
+        from yantra.capabilities.google_workspace import GoogleError
+
+        try:
+            await google.send_message(to, subject, body)
+        except GoogleError as exc:
+            return f"Couldn't send with Gmail: {exc}"
+        return f"Email sent to {to}: '{subject}' (Gmail)"
     if not _EMAIL_CFG.get("smtp_server"):
         return "Email not configured. Use configure_email first."
     try:
@@ -296,8 +327,23 @@ async def send_email(to: str, subject: str, body: str) -> str:
 
 @tool("fetch_emails", "Fetch recent emails from inbox", {
     "limit": {"type": "integer", "description": "Number of emails to fetch (default 5)", "default": 5},
+    "query": {"type": "string", "description": "Optional Gmail search, e.g. 'is:unread' or 'from:rahul'",
+              "default": ""},
 })
-async def fetch_emails(limit: int = 5) -> str:
+async def fetch_emails(limit: int = 5, query: str = "") -> str:
+    google = _google()
+    if google is not None:
+        from yantra.capabilities.google_workspace import GoogleError
+
+        try:
+            messages = await google.list_messages(query or "in:inbox", limit)
+        except GoogleError as exc:
+            return f"Couldn't read Gmail: {exc}"
+        if not messages:
+            return "No emails found." if query else "Your inbox is empty."
+        lines = [f"{i}. {_sender_name(m['from'])} — {m['subject'] or '(no subject)'}"
+                 + (" (unread)" if m["unread"] else "") for i, m in enumerate(messages, 1)]
+        return "Latest emails:\n" + "\n".join(lines)
     if not _EMAIL_CFG.get("imap_server"):
         return "Email not configured. Use configure_email first."
     try:
@@ -428,11 +474,21 @@ _CALENDAR: dict[str, dict[str, Any]] = {}
     "description": {"type": "string", "description": "Optional description", "default": ""},
 })
 async def calendar_add(title: str, date: str, duration_minutes: int = 60, description: str = "") -> str:
-    import calendar as cal_mod
     try:
         evt_time = _parse_time(date) if not re.match(r"\d{4}-\d{2}-\d{2}", date) else time.mktime(time.strptime(date[:10], "%Y-%m-%d")) + (int(date[11:13]) * 3600 + int(date[14:16]) * 60 if len(date) > 10 else 0)
     except Exception:
+        evt_time = None
+    if not evt_time:
         return f"Could not parse date: '{date}'. Use YYYY-MM-DD HH:MM or natural language."
+    google = _google()
+    if google is not None:
+        from yantra.capabilities.google_workspace import GoogleError
+
+        try:
+            await google.create_event(title, evt_time, duration_minutes, description)
+        except GoogleError as exc:
+            return f"Couldn't add it to Google Calendar: {exc}"
+        return f"Added to Google Calendar: '{title}' on {time.strftime('%a %d %b at %H:%M', time.localtime(evt_time))}."
     eid = f"evt_{int(time.time() * 1000)}"
     entry = {"id": eid, "title": title, "time": evt_time, "duration": duration_minutes, "description": description, "created_at": time.time()}
     _CALENDAR[eid] = entry
@@ -444,6 +500,18 @@ async def calendar_add(title: str, date: str, duration_minutes: int = 60, descri
     "days": {"type": "integer", "description": "How many days ahead (default 7)", "default": 7},
 })
 async def calendar_list(days: int = 7) -> str:
+    google = _google()
+    if google is not None:
+        from yantra.capabilities.google_workspace import GoogleError, friendly_time
+
+        try:
+            events = await google.list_events(days)
+        except GoogleError as exc:
+            return f"Couldn't read Google Calendar: {exc}"
+        if not events:
+            return f"Nothing on your calendar in the next {days} day{'s' if days != 1 else ''}."
+        return "\n".join(f"{i}. {e['title']} — {friendly_time(e['start'])}" + (f" at {e['location']}" if e['location'] else "")
+                         + f" (id: {e['id']})" for i, e in enumerate(events, 1))
     now = time.time()
     cutoff = now + days * 86400
     upcoming = sorted([e for e in _CALENDAR.values() if now <= e["time"] <= cutoff], key=lambda x: x["time"])
@@ -460,6 +528,15 @@ async def calendar_list(days: int = 7) -> str:
     "event_id": {"type": "string", "description": "Event ID from calendar_add or calendar_list"},
 })
 async def calendar_remove(event_id: str) -> str:
+    google = _google()
+    if google is not None and event_id not in _CALENDAR:
+        from yantra.capabilities.google_workspace import GoogleError
+
+        try:
+            await google.delete_event(event_id)
+        except GoogleError as exc:
+            return f"Couldn't delete it from Google Calendar: {exc}"
+        return "Event removed from Google Calendar."
     if event_id in _CALENDAR:
         title = _CALENDAR[event_id]["title"]
         del _CALENDAR[event_id]

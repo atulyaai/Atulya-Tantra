@@ -37,6 +37,7 @@ from atulya.cognition.profile import (
 from atulya.cognition.toolbelt import EXCLUDED_FROM_BRAIN
 from atulya.llm import AtulyaLLM, LLMEvent, LLMResponse, _chunk_text, get_default_llm
 from yantra.events import EventBus, default_bus
+from yantra.identity import acting_as, current_user
 
 logger = logging.getLogger(__name__)
 
@@ -187,6 +188,12 @@ class CognitiveKernel:
         provider: str = "",
         tools_enabled: bool = True,
     ) -> LLMResponse:
+        # Personal tools (Gmail, Calendar) act for whoever is asking.
+        with acting_as(self._user_key(user)):
+            return await self._handle(text, user, history, source, approved_tool, provider, tools_enabled)
+
+    async def _handle(self, text: str, user: Any, history: list[dict[str, str]] | None, source: str,
+                      approved_tool: dict[str, Any] | None, provider: str, tools_enabled: bool) -> LLMResponse:
         fast = await self._fast_path(text, user, history, source, approved_tool, provider, tools_enabled)
         if fast is not None:
             return fast
@@ -208,6 +215,19 @@ class CognitiveKernel:
         provider: str = "",
         tools_enabled: bool = True,
     ) -> AsyncIterator[LLMEvent]:
+        token = current_user.set(self._user_key(user))
+        try:
+            async for event in self._stream(text, user, history, source, approved_tool, provider, tools_enabled):
+                yield event
+        finally:
+            try:
+                current_user.reset(token)
+            except ValueError:  # closed from another context (e.g. a dropped connection)
+                pass
+
+    async def _stream(self, text: str, user: Any, history: list[dict[str, str]] | None, source: str,
+                      approved_tool: dict[str, Any] | None, provider: str,
+                      tools_enabled: bool) -> AsyncIterator[LLMEvent]:
         fast = await self._fast_path(text, user, history, source, approved_tool, provider, tools_enabled)
         if fast is not None:
             for event in response_events(fast):
@@ -337,7 +357,7 @@ class CognitiveKernel:
         # Understand a goal: a routine, a device group or several commands at
         # once become a plan; goal-like requests ask the brain for the steps.
         plan = self.planner.plan(text)
-        if plan is None and self.planner.is_goal(text):
+        if plan is None and self.planner.is_goal(text) and route_intent(text) is None:
             plan = await self.planner.plan_with_brain(text, self.llm, provider=provider)
         if plan is not None:
             return await self._start_plan(plan, user=user, source=source, prompt=text)

@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from drishti.dashboard.helpers import _checkpoint_index, _load_cached_model
-from drishti.dashboard.routes import agent, auth, automation, chat, cortex, create, devices, model, notifications, openai, profile, routines, senses, system, train, triggers, upload, voice, ws
+from drishti.dashboard.routes import agent, auth, automation, chat, cortex, create, devices, google, model, notifications, openai, profile, routines, senses, system, train, triggers, upload, voice, ws
 from drishti.dashboard.automation_runner import AutomationRunner
 from yantra.mcp.external_client import MCPClientManager
 
@@ -162,7 +162,7 @@ app.add_middleware(
 )
 app.middleware("http")(_rate_limiter)
 
-for module in (auth, system, model, train, chat, cortex, automation, openai, voice, upload, devices, ws, notifications, agent, create, triggers, routines, profile, senses):
+for module in (auth, system, model, train, chat, cortex, automation, openai, voice, upload, devices, ws, notifications, agent, create, triggers, routines, profile, senses, google):
     app.include_router(module.router)
 
 

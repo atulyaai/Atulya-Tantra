@@ -127,8 +127,12 @@ def route_intent(text: str) -> RoutedIntent | None:
         return RoutedIntent("fetch_emails", {})
 
     # --- Calendar ----------------------------------------------------------
-    if re.search(r"\b(what'?s|whats|show|list).{0,20}\b(calendar|schedule|agenda)\b", t):
-        return RoutedIntent("calendar_list", {})
+    if re.search(r"\b(what'?s|whats|what is|show|list).{0,20}\b(calendar|schedule|agenda)\b", t):
+        days = 1 if re.search(r"\btoday\b", t) else 2 if re.search(r"\btomorrow\b", t) else 7
+        return RoutedIntent("calendar_list", {"days": days} if days != 7 else {})
+    scheduled = _schedule_intent(text.strip(), t)
+    if scheduled is not None:
+        return scheduled
 
     # --- Calculator --------------------------------------------------------
     m = re.search(r"\b(?:calculate|what(?:'s| is))\s+([-\d\s.+*/()x%]+)$", t)
@@ -152,6 +156,38 @@ async def route_and_execute(text: str) -> str | None:
     from .tools import execute_tool
 
     return await execute_tool(routed.tool, **routed.arguments)
+
+
+_WHEN_RE = re.compile(r"\b(?:today|tonight|tomorrow|next \w+day|on \w+day|(?:mon|tues|wednes|thurs|fri|satur|sun)day"
+                      r"|at \d|in \d+ (?:minute|hour|day))")
+
+
+def _schedule_intent(original: str, t: str) -> RoutedIntent | None:
+    """ "schedule a call with Rahul tomorrow at 3pm" -> calendar_add(title, date)."""
+    verb = re.search(r"\b(?:schedule|book)\b|\b(?:add|put|create)\b(?=.*\b(?:calendar|meeting|event|appointment)\b)", t)
+    if not verb:
+        return None
+    when = _WHEN_RE.search(t, verb.end())
+    if not when:
+        return None  # no time given: let the brain ask
+    same = len(original) == len(t)
+    title = (original if same else t)[verb.end():when.start()]
+    title = re.sub(r"^\s*(?:a|an|my|the|in)\s+", "", title.strip(), flags=re.I)
+    title = re.sub(r"\s+(?:to|on|in)\s+(?:my\s+)?calendar\s*$", "", title, flags=re.I).strip(" ,.")
+    date = t[when.start():]
+    duration = 60
+    d = re.search(r"\bfor (?:(\d+) (minute|min|hour)s?|an? (hour|half hour))\b", date)
+    if d:
+        duration = (int(d.group(1)) * (60 if d.group(2) == "hour" else 1)) if d.group(1) else (
+            60 if d.group(3) == "hour" else 30)
+        date = date[:d.start()] + date[d.end():]
+    date = re.sub(r"\s+(?:to|on|in)\s+(?:my\s+)?calendar\b", "", date).strip(" ,.")
+    if not title:
+        return None
+    args: dict[str, Any] = {"title": title[:1].upper() + title[1:], "date": date}
+    if duration != 60:
+        args["duration_minutes"] = duration
+    return RoutedIntent("calendar_add", args, confidence=0.85)
 
 
 def _extract_location(t: str) -> str | None:
