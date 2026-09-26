@@ -19,6 +19,7 @@ ALLOWED_ROOT_DIRS = {
     "config",
     "docs",
     "drishti",
+    "install",
     "outputs",
     "tantra",
     "tests",
