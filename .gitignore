@@ -31,6 +31,9 @@ outputs/npdna/benchmark.json
 
 # Runtime-local app state
 assets/agent/*.json
+assets/agent/profiles/
+assets/agent/google/
+assets/agent/snapshots/
 assets/memory/
 assets/audio/
 assets/admin_token.txt

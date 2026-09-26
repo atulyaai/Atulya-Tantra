@@ -129,6 +129,10 @@ async def api_voice_chat(
         raise HTTPException(status_code=400, detail="Prompt is required")
         
     voice = str(body.get("voice") or "en_male")
+    # The always-listening app speaks for itself; only these two surfaces are
+    # accepted, so a client can never claim a pre-authorized source.
+    source = "ambient" if body.get("source") == "ambient" else "voice"
+    surface = "ambient" if source == "ambient" else "live"
 
     # Route through the cognitive kernel (intent -> safety -> action, or the
     # brain). A risky action is answered with a spoken confirmation question;
@@ -162,7 +166,7 @@ async def api_voice_chat(
             user=user,
             history=history,
             provider=str(body.get("provider") or body.get("model_id") or ""),
-            source="voice",
+            source=source,
         )
         response_text, provider_name = response.text, response.provider
         needs_approval, pending_tool = response.needs_approval, response.pending_tool
@@ -173,10 +177,22 @@ async def api_voice_chat(
         response_text = get_atulya_fallback_response(prompt, voice)
         provider_name = "Diagnostics Fallback"
 
+    reply = {
+        "prompt": prompt,
+        "response_text": response_text,
+        "provider_name": provider_name,
+        "needs_approval": needs_approval,
+        "pending_tool": pending_tool,
+        "trace": trace,
+    }
+    if body.get("tts") is False:  # the device speaks with its own voice
+        chat_history.append_exchange(user, prompt, response_text, provider=provider_name, surface=surface)
+        return reply
+
     # 3. Synthesize generated text into premium audio
     try:
         tts_result = await voice_pipeline.tts.synthesize(text=response_text, voice=voice, save=True)
-        chat_history.append_exchange(user, prompt, response_text, provider=provider_name, surface="live")
+        chat_history.append_exchange(user, prompt, response_text, provider=provider_name, surface=surface)
         return {
             "prompt": prompt,
             "response_text": response_text,
@@ -190,7 +206,7 @@ async def api_voice_chat(
         }
     except Exception as e:
         logger.error(f"Voice chat TTS synthesis failed: {e}")
-        chat_history.append_exchange(user, prompt, response_text, provider=provider_name, surface="live")
+        chat_history.append_exchange(user, prompt, response_text, provider=provider_name, surface=surface)
         return {
             "prompt": prompt,
             "response_text": response_text,

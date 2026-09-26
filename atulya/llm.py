@@ -163,8 +163,9 @@ class AtulyaLLM:
         tools_enabled: bool = True,
         approved_tool_call: dict[str, Any] | None = None,
         provider: str = "",
+        context: str = "",
     ) -> LLMResponse:
-        system_prompt = self._build_system_prompt(history or [], user_prompt=prompt)
+        system_prompt = self._build_system_prompt(history or [], user_prompt=prompt, context=context)
         working_prompt = self._compose_prompt(prompt, history or [])
         steps: list[dict[str, Any]] = []
         requested_provider = provider
@@ -278,11 +279,12 @@ class AtulyaLLM:
         tools_enabled: bool = True,
         approved_tool_call: dict[str, Any] | None = None,
         provider: str = "",
+        context: str = "",
     ) -> AsyncIterator[LLMEvent]:
         # True incremental streaming when no tools/approval gate is involved:
         # each provider's chat_stream (llama-cpp token generator) is used directly.
         if not tools_enabled and not approved_tool_call:
-            system_prompt = self._build_system_prompt(history or [], user_prompt=prompt)
+            system_prompt = self._build_system_prompt(history or [], user_prompt=prompt, context=context)
             working_prompt = self._compose_prompt(prompt, history or [])
             parts: list[str] = []
             async for piece, provider_name in self.router.stream(
@@ -306,6 +308,7 @@ class AtulyaLLM:
             tools_enabled=tools_enabled,
             approved_tool_call=approved_tool_call,
             provider=provider,
+            context=context,
         )
         for step in response.tool_steps:
             yield LLMEvent("tool", metadata=step)
@@ -327,7 +330,7 @@ class AtulyaLLM:
             await asyncio.sleep(0)
         yield LLMEvent("done", metadata={"provider": response.provider, "steps": response.tool_steps})
 
-    def _build_system_prompt(self, history: list[dict[str, str]], user_prompt: str = "") -> str:
+    def _build_system_prompt(self, history: list[dict[str, str]], user_prompt: str = "", context: str = "") -> str:
         prompt = self.persona.get_system_prompt()
         tools = self.tools.list_tools()
         tool_lines = [f"- {item['name']}: {item['description']}" for item in tools]
@@ -335,6 +338,8 @@ class AtulyaLLM:
         emotional = self._human_context(user_prompt) if user_prompt else ""
         if emotional:
             human_block += f"\n{emotional}\n"
+        if context:  # what Atulya has learned about this user
+            human_block += f"\n{context}\n"
         return (
             f"{prompt}"
             f"{human_block}\n\n"

@@ -102,4 +102,18 @@ def describe_action(tool: str, arguments: dict[str, Any] | None = None) -> str:
         return f"delete calendar event {args.get('event_id', '')}".strip()
     if tool == "cancel_reminder":
         return f"cancel reminder {args.get('reminder_id', '')}".strip()
+    if tool == "run_plan":
+        return f"run “{args.get('title') or 'the plan'}” ({len(args.get('steps') or [])} steps)"
+    if tool == "trust_action":
+        return f"stop asking before I {args.get('label') or 'do that'}"
+    if tool == "forget_profile":
+        return "forget everything I've learned about you"
+    if tool in ("get_weather", "get_forecast"):
+        return f"check the weather in {args.get('location', 'your city')}"
+    if tool in _CHECKS:
+        return _CHECKS[tool]
     return f"run {tool}"
+
+
+_CHECKS = {"calendar_list": "check your calendar", "fetch_emails": "check your email", "current_time": "check the time",
+           "list_reminders": "check your reminders", "home_list_devices": "check your devices"}

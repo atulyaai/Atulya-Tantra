@@ -42,8 +42,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from atulya.agent.intent_router import route_intent
 from atulya.cognition import safety
+from atulya.cognition.planner import expand_command
 from yantra.events import Event, EventBus, default_bus
 
 logger = logging.getLogger(__name__)
@@ -77,7 +77,27 @@ DEFAULT_RULES: list[dict[str, Any]] = [
         "enabled": True,
         "cooldown_seconds": 300,
     },
+    {
+        "id": "trg_habit_nudge",
+        "name": "Habit nudges",
+        "event": "habit.due",
+        "notify": "You usually {label} {when} — just say the word.",
+        "enabled": True,
+        "cooldown_seconds": 0,
+    },
+    {
+        "id": "trg_someone_at_door",
+        "name": "Someone at the door",
+        "event": ["vision.person", "doorbell.pressed"],
+        "match": {"camera": "door"},
+        "notify": "Someone is at the {camera}.",
+        "enabled": True,
+        "cooldown_seconds": 60,
+    },
 ]
+# Rules shipped before new defaults were added; used to top up older rule files
+# without bringing back a default the user deleted.
+_ORIGINAL_DEFAULTS = {"trg_reminder_alert", "trg_health_alert", "trg_automation_failed"}
 
 _FIELD_RE = re.compile(r"\{(\w+)\}")
 
@@ -117,8 +137,8 @@ class TriggerEngine:
         self._started = False
         self._last_fired: dict[str, float] = {}
         self._tasks: set[asyncio.Task] = set()
-        if seed_defaults and not self.rules_file.exists():
-            self._save([dict(rule) for rule in DEFAULT_RULES])
+        if seed_defaults:
+            self._seed_defaults()
 
     @property
     def kernel(self) -> Any:
@@ -138,6 +158,26 @@ class TriggerEngine:
         if self._started:
             self.events.unsubscribe("*", self._on_event)
             self._started = False
+
+    def _seed_defaults(self) -> None:
+        """First run: every built-in rule. Later: only built-ins added since, once."""
+        seeded_file = self.rules_file.with_name(self.rules_file.stem + ".seeded.json")
+        if not self.rules_file.exists():
+            self._save([dict(rule) for rule in DEFAULT_RULES])
+        else:
+            try:
+                seeded = set(json.loads(seeded_file.read_text(encoding="utf-8")))
+            except (OSError, json.JSONDecodeError, TypeError):
+                seeded = set(_ORIGINAL_DEFAULTS)
+            rules = self.list_rules()
+            have = {r.get("id") for r in rules}
+            new = [dict(r) for r in DEFAULT_RULES if r["id"] not in seeded and r["id"] not in have]
+            if new:
+                self._save(rules + new)
+        try:
+            seeded_file.write_text(json.dumps(sorted(r["id"] for r in DEFAULT_RULES)), encoding="utf-8")
+        except OSError:
+            pass
 
     # ── rules ──────────────────────────────────────────────────────────────
     def list_rules(self) -> list[dict[str, Any]]:
@@ -221,9 +261,12 @@ class TriggerEngine:
 
         command = str(rule.get("command") or "").strip()
         if command:
-            routed = route_intent(command)
-            if routed and safety.needs_confirmation(routed.tool, routed.arguments) and not rule.get("allow_risky"):
-                blocked = (f"Trigger '{name}' wanted to {safety.describe_action(routed.tool, routed.arguments)}, "
+            # A command may be a routine or several commands: check every step.
+            planner = getattr(self.kernel, "planner", None)
+            steps = expand_command(command, getattr(planner, "routines", None))
+            risky = [s for s in steps if safety.needs_confirmation(s.tool, s.arguments)]
+            if risky and not rule.get("allow_risky"):
+                blocked = (f"Trigger '{name}' wanted to {safety.describe_action(risky[0].tool, risky[0].arguments)}, "
                            "but risky actions need allow_risky on the rule.")
                 await self._notify(name, blocked)
                 result["blocked"] = blocked

@@ -334,7 +334,21 @@ class TestTriggers:
     def test_defaults_seeded(self, tmp_path):
         engine, _, _ = self.make(tmp_path)
         assert {r["id"] for r in engine.list_rules()} == {
-            "trg_reminder_alert", "trg_health_alert", "trg_automation_failed"}
+            "trg_reminder_alert", "trg_health_alert", "trg_automation_failed", "trg_habit_nudge",
+            "trg_someone_at_door"}
+
+    def test_new_defaults_top_up_old_rule_files_once(self, tmp_path):
+        """An older rules file gets new built-ins, but a deleted built-in never returns."""
+        from atulya.cognition.triggers import TriggerEngine
+
+        rules_file = tmp_path / "old.json"
+        rules_file.write_text(json.dumps([{"id": "trg_reminder_alert", "event": "reminder.due", "notify": "x"}]))
+        engine = TriggerEngine(rules_file=rules_file, events=EventBus())
+        ids = {r["id"] for r in engine.list_rules()}
+        assert "trg_habit_nudge" in ids and "trg_health_alert" not in ids  # the user had deleted it
+        engine.remove_rule("trg_habit_nudge")
+        again = TriggerEngine(rules_file=rules_file, events=EventBus())
+        assert "trg_habit_nudge" not in {r["id"] for r in again.list_rules()}
 
     def test_reminder_alert_and_command_rule(self, tmp_path):
         from atulya.agent.tools import _HOME_DEVICES
