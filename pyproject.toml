@@ -58,12 +58,18 @@ docs = [
 browser = [
     "playwright>=1.40",
 ]
+# Cameras: motion + person detection for "someone is at the door".
+vision = [
+    "opencv-python-headless>=4.8",
+    "numpy>=1.24",
+]
 voice = [
     "faster-whisper>=1.0",
     "openai>=1.0",
     "edge-tts>=6.0",
 ]
 dev = [
+    "numpy>=1.24",
     "pytest>=7.0",
     "pytest-asyncio>=0.23",
     "pytest-benchmark>=4.0",

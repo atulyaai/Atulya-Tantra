@@ -53,6 +53,14 @@ def route_intent(text: str) -> RoutedIntent | None:
         return None
     t = text.strip().lower()
 
+    # --- Senses: "is anyone at the door?" ----------------------------------
+    if not re.search(r"\b(?:lock|unlock|open|close|turn|switch)\b", t) and (
+            re.match(r"(?:is|are|was|has|did|who|who's|whos|any|anyone|anybody|someone|somebody|check)\b", t)
+            and re.search(r"\b(?:anyone|anybody|someone|somebody|who'?s|who is|who was)\b", t)
+            and re.search(r"\b(?:door|outside|porch|gate|camera|cameras)\b", t)
+            or re.search(r"\bwhat (?:do|can) (?:the |my )?cameras? see\b|\bany (?:motion|movement)\b", t)):
+        return RoutedIntent("camera_status", {})
+
     # --- Home / device control ---------------------------------------------
     # Lock / unlock the door
     if re.search(r"\b(lock|unlock)\b", t) and ("door" in t or "lock" in t):

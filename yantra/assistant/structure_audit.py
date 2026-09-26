@@ -58,7 +58,7 @@ ALLOWED_ROOT_FILES = {
 }
 
 EXPECTED_PACKAGE_DIRS = {
-    "atulya": {"agent", "cognition", "docs", "memory", "observability", "tokenjuice"},
+    "atulya": {"agent", "ambient", "cognition", "docs", "memory", "observability", "tokenjuice"},
     "tantra": {"config", "core", "npdna", "outputs", "scripts", "training"},
     "yantra": {
         "assistant",
@@ -69,6 +69,7 @@ EXPECTED_PACKAGE_DIRS = {
         "orchestrator",
         "plugins",
         "selfimprovement",
+        "senses",
     },
     "drishti": {"dashboard", "frontend", "nginx", "public"},
 }

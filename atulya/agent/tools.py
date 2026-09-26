@@ -603,6 +603,18 @@ def _simulate_home_control(device_id: str, action: str, value: str = "") -> str:
     return f"Unknown device type: {dev['type']}."
 
 
+# ── Tool: Senses (cameras, doorbells) ────────────────────────────────────
+
+@tool("camera_status", "What the cameras and door sensors have seen recently (is anyone at the door?)", {})
+async def camera_status() -> str:
+    from yantra.senses import current_senses
+
+    senses = current_senses()
+    if senses is None:
+        return "No cameras are set up yet. Add one under Admin → Senses."
+    return senses.describe()
+
+
 # ── Tool: Calculator / Utility Skills ─────────────────────────────────────
 
 @tool("calculate", "Perform a calculation (safe math evaluation)", {

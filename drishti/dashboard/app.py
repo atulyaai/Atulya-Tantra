@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from drishti.dashboard.helpers import _checkpoint_index, _load_cached_model
-from drishti.dashboard.routes import agent, auth, automation, chat, cortex, create, devices, model, notifications, openai, profile, routines, system, train, triggers, upload, voice, ws
+from drishti.dashboard.routes import agent, auth, automation, chat, cortex, create, devices, model, notifications, openai, profile, routines, senses, system, train, triggers, upload, voice, ws
 from drishti.dashboard.automation_runner import AutomationRunner
 from yantra.mcp.external_client import MCPClientManager
 
@@ -91,6 +91,11 @@ async def lifespan(app: FastAPI):
     from atulya.cognition.profile import watch_habits
 
     app.state.habit_task = asyncio.create_task(watch_habits(get_kernel(app.state.llm).profiles, default_bus))
+    # Senses: cameras and Home Assistant sensors publish what they perceive.
+    from yantra.senses import Senses
+
+    app.state.senses = Senses(default_bus)
+    await app.state.senses.start()
 
     threading.Thread(target=_warm_latest_model, daemon=True).start()
     try:
@@ -101,6 +106,7 @@ async def lifespan(app: FastAPI):
         await app.state.heartbeat.stop()
         app.state.heartbeat_task.cancel()
         app.state.habit_task.cancel()
+        await app.state.senses.stop()
         await app.state.automation_runner.stop()
         app.state.automation_task.cancel()
         await app.state.mcp_manager.shutdown_all()
@@ -156,7 +162,7 @@ app.add_middleware(
 )
 app.middleware("http")(_rate_limiter)
 
-for module in (auth, system, model, train, chat, cortex, automation, openai, voice, upload, devices, ws, notifications, agent, create, triggers, routines, profile):
+for module in (auth, system, model, train, chat, cortex, automation, openai, voice, upload, devices, ws, notifications, agent, create, triggers, routines, profile, senses):
     app.include_router(module.router)
 
 
