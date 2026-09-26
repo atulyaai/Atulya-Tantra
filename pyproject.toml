@@ -73,6 +73,9 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 120
 target-version = "py310"
+# The NP-DNA model and its training code now live in a separate model repo;
+# they are kept here only as reference/compat and are not linted in this app repo.
+extend-exclude = ["tantra/npdna", "tantra/training", "tantra/eval_npdna.py"]
 
 [tool.ruff.lint]
 select = ["E", "F"]

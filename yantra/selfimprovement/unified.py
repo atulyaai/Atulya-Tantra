@@ -185,7 +185,7 @@ class UnifiedSelfImprovement:
             if pat.frequency >= 3 and not pat.skill_name:
                 tokens = sorted(set(pat.tokens), key=len, reverse=True)[:3]
                 skill_name = "_".join(tokens) if tokens else f"skill_{fingerprint[:8]}"
-                skill = self.add_skill(skill_name, category="auto_learned")
+                self.add_skill(skill_name, category="auto_learned")
                 pat.skill_name = skill_name
                 self.log_learning("pattern_detected",
                     f"Auto-created skill '{skill_name}' from {pat.frequency} repeated tasks")
@@ -287,20 +287,20 @@ class UnifiedSelfImprovement:
                         if skill_name.replace("_", " ") in t.get("prompt", "").lower()]
         content = [
             f"# Skill: {skill_name}",
-            f"",
+            "",
             f"- **Category:** {skill.category}",
             f"- **Level:** {skill.level:.1f}/10.0",
             f"- **Usage count:** {skill.usage_count}",
             f"- **Avg duration saved:** {skill.avg_duration_saved:.1f}s",
-            f"",
-            f"## Example tasks",
+            "",
+            "## Example tasks",
         ]
         for t in related_tasks[-5:]:
             content.append(f"- {t.get('prompt', '')[:100]}")
         content.append("")
         content.append("## Instructions")
         content.append(f"1. When asked about {skill_name.replace('_', ' ')}, use this skill")
-        content.append(f"2. Follow the learned pattern from previous successful executions")
-        content.append(f"3. Adapt the approach as needed for the specific context")
+        content.append("2. Follow the learned pattern from previous successful executions")
+        content.append("3. Adapt the approach as needed for the specific context")
 
         return "\n".join(content)

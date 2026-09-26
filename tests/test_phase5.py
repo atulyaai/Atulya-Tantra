@@ -153,7 +153,6 @@ def test_registry_integration():
 
 
 
-from pathlib import Path
 
 
 def test_session_round_trip_uses_safe_name(tmp_path, monkeypatch):
@@ -233,7 +232,6 @@ def test_ollama_provider_in_failover_chain():
 
 
 import asyncio
-import json
 
 
 def test_automation_runner_executes_due_job(tmp_path):
@@ -321,7 +319,6 @@ def test_automation_runner_run_job_reports_missing_command(tmp_path):
 
 
 
-import json
 
 
 def test_dataset_index_exposes_trainable_files_only(tmp_path, monkeypatch):
@@ -380,7 +377,6 @@ def test_training_start_all_datasets_materializes_jsonl_bundle(tmp_path, monkeyp
 
 
 
-import json
 
 
 def test_readiness_reports_candidate_without_provider(tmp_path, monkeypatch):
@@ -459,7 +455,6 @@ def test_readiness_blocks_enabled_gmail_without_oauth(tmp_path, monkeypatch):
 
 
 
-import json
 
 
 def test_tantra_benchmark_gate_rejects_missing_benchmark(tmp_path, monkeypatch):
@@ -520,8 +515,6 @@ def test_provider_router_can_prefer_tantra_for_local_tests(monkeypatch):
 
 
 
-import asyncio
-import json
 
 
 def test_office_tools_are_registered(tmp_path):

@@ -16,11 +16,6 @@ class TestMemoryManagerIntegration:
         with tempfile.TemporaryDirectory() as d:
             yield Path(d)
 
-    @pytest.fixture
-    def tmp_dir(self):
-        with tempfile.TemporaryDirectory() as d:
-            yield Path(d)
-
     def _auto_close(self, mgr):
         import gc
         gc.collect()

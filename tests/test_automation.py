@@ -85,7 +85,7 @@ class TestAutomationRoutes:
         mock_request = MagicMock()
         mock_request.app.state.automation_runner = None
 
-        with patch("atulya.llm.get_default_llm") as llm:
+        with patch("atulya.llm.get_default_llm"):
             with patch("drishti.dashboard.automation_runner.AutomationRunner") as runner_cls:
                 runner = MagicMock()
                 runner.run_job = AsyncMock()

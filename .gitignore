@@ -55,3 +55,6 @@ Thumbs.db
 # Portable runtime (models, binaries, venv) — downloaded by install/setup
 runtime/
 assets/state/
+
+# Runtime scratch / generated reports
+tmp/

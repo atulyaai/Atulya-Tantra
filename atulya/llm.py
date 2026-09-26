@@ -11,7 +11,10 @@ import json
 import re
 from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import Any, AsyncIterator
+from typing import TYPE_CHECKING, Any, AsyncIterator
+
+if TYPE_CHECKING:
+    from atulya.memory.manager import MemoryManager
 
 from atulya.intelligence import ProviderRouter
 from atulya.persona import Persona, get_atulya_fallback_response
@@ -152,7 +155,7 @@ class AtulyaLLM:
             memories = await self._retrieve_memory_context(prompt)
             if memories:
                 working_prompt = (
-                    f"Relevant past interactions:\n"
+                    "Relevant past interactions:\n"
                     + "\n".join(f"- {m}" for m in memories)
                     + f"\n\n{working_prompt}"
                 )

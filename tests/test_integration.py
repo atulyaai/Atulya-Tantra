@@ -123,7 +123,7 @@ async def test_rate_limiter_exceeded():
     client_ip = "192.168.1.1"
     now = __import__("time").time()
     _RATE_STORE[client_ip] = [now - 1 for _ in range(_RATE_LIMIT_MAX)]
-    from unittest.mock import AsyncMock, Mock
+    from unittest.mock import AsyncMock
     request = Mock()
     request.client.host = client_ip
     resp = await _rate_limiter(request, AsyncMock())
@@ -182,7 +182,6 @@ async def test_agent_loop_very_long_input(mock_llm):
 
 @pytest.mark.asyncio
 async def test_agent_loop_no_tools_configured():
-    responses = iter([json.dumps({"content": "hello"})])
     class NoToolProvider:
         async def chat(self, prompt, system_prompt=None, tools=None):
             return {"content": "hello"}

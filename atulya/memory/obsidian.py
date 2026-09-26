@@ -92,13 +92,13 @@ class ObsidianExporter:
         filepath = self.vault_dir / f"daily-{date_str}.md"
         content = [
             f"# Daily Note: {date_str}",
-            f"",
+            "",
             f"*Created: {time.strftime('%Y-%m-%d %H:%M')}*",
-            f"",
-            f"---",
-            f"",
-            f"## Highlights",
-            f"",
+            "",
+            "---",
+            "",
+            "## Highlights",
+            "",
         ]
         for h in highlights:
             content.append(f"- {h}")
