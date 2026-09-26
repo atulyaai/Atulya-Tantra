@@ -10,7 +10,7 @@ import logging
 from typing import Any
 
 from .tools import get_tool_schemas, execute_tool
-from .intent_router import route_intent
+from .intent_router import route_intent, route_and_execute
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ async def agent_loop(
     if routed is not None:
         logger.info("Intent router matched tool '%s' (confidence %.2f)", routed.tool, routed.confidence)
         try:
-            return await execute_tool(routed.tool, **routed.arguments)
+            return await route_and_execute(user_input)
         except Exception as exc:  # noqa: BLE001 - fall back to the LLM on any tool error
             logger.warning("Routed tool '%s' failed (%s); falling back to LLM.", routed.tool, exc)
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from atulya.agent.intent_router import route_intent
+from atulya.agent.intent_router import route_intent, route_and_execute
 from atulya.agent import tools as agent_tools
 
 
@@ -68,6 +68,14 @@ class TestIntentRouting:
     ])
     def test_no_match_falls_through(self, msg):
         assert route_intent(msg) is None
+
+    async def test_route_and_execute_runs_tool(self):
+        out = await route_and_execute("turn on the kitchen light")
+        assert out is not None
+        assert "kitchen" in out.lower() and "on" in out.lower()
+
+    async def test_route_and_execute_none_for_chat(self):
+        assert await route_and_execute("tell me about the weather on mars generally") is None
 
     def test_routed_tools_are_registered(self):
         """Every tool the router can emit must exist in the tool registry."""

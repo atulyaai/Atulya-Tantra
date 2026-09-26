@@ -131,6 +131,21 @@ def route_intent(text: str) -> RoutedIntent | None:
     return None
 
 
+async def route_and_execute(text: str) -> str | None:
+    """If the text is a clear command, execute the matched tool and return its
+    result string. Return None when nothing matches (caller should fall back to
+    the LLM). Used by both the interactive agent loop and scheduled automations
+    so actions are reliable regardless of the model's tool-calling ability.
+    """
+    routed = route_intent(text)
+    if routed is None:
+        return None
+    # Imported lazily to avoid a circular import (tools -> intent_router).
+    from .tools import execute_tool
+
+    return await execute_tool(routed.tool, **routed.arguments)
+
+
 def _extract_location(t: str) -> str | None:
     """Pull a location out of 'weather in X' / 'forecast for X' phrasing."""
     m = re.search(r"\b(?:in|for|at)\s+([a-z][a-z .'-]+)$", t)
