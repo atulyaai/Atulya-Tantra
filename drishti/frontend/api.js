@@ -144,25 +144,38 @@ export const api = {
       .catch(onError);
   },
   connectWebSocket(onMessage) {
+    // Live server push (notifications, reminders, alerts). The server requires
+    // the session token as a query param — browsers can't set WebSocket headers.
+    // Returns a stop() that also cancels any pending reconnect.
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/api/ws`;
-    let ws = new WebSocket(wsUrl);
+    let ws = null;
     let reconnectTimer = null;
+    let stopped = false;
+    let attempts = 0;
 
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'ping' }));
+    const open = () => {
+      const token = getToken();
+      if (stopped || !token) return;
+      ws = new WebSocket(`${protocol}//${window.location.host}/api/ws?token=${encodeURIComponent(token)}`);
+      ws.onopen = () => {
+        attempts = 0;
+        ws.send(JSON.stringify({ type: 'ping' }));
+      };
+      ws.onmessage = (event) => {
+        try { onMessage(JSON.parse(event.data)); } catch {}
+      };
+      ws.onclose = () => {
+        if (stopped) return;
+        attempts += 1;
+        const delay = Math.min(30000, 1000 * 2 ** Math.min(attempts, 5));
+        reconnectTimer = setTimeout(open, delay);
+      };
     };
-    ws.onmessage = (event) => {
-      try { onMessage(JSON.parse(event.data)); } catch {}
-    };
-    ws.onclose = () => {
-      reconnectTimer = setTimeout(() => {
-        this.connectWebSocket(onMessage);
-      }, 3000);
-    };
+    open();
     return () => {
+      stopped = true;
       clearTimeout(reconnectTimer);
-      ws.close();
+      if (ws) ws.close();
     };
   },
   async subscribePush() {

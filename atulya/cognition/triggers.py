@@ -166,7 +166,13 @@ class TriggerEngine:
             "cooldown_seconds": max(0, int(rule.get("cooldown_seconds", 60))),
             "enabled": bool(rule.get("enabled", True)),
         }
-        rules = [r for r in self.list_rules() if r.get("id") != clean["id"]]
+        rules = self.list_rules()
+        previous = next((r for r in rules if r.get("id") == clean["id"]), None)
+        if previous:  # editing (e.g. pause/resume) keeps the rule's history
+            for key in ("fire_count", "last_fired", "last_result"):
+                if key in previous:
+                    clean[key] = previous[key]
+        rules = [r for r in rules if r.get("id") != clean["id"]]
         rules.append(clean)
         self._save(rules)
         return clean

@@ -102,6 +102,44 @@ def _kernel_tools() -> set[str]:
     return set(agent_tools.TOOL_REGISTRY) - EXCLUDED_FROM_BRAIN
 
 
+# ── trace: the real stages a request went through, for UIs to display ──────
+def _step(stage: str, title: str, detail: str) -> dict[str, str]:
+    return {"stage": stage, "title": title, "detail": str(detail)[:240]}
+
+
+def _describe_call(tool: str, args: dict[str, Any]) -> str:
+    shown = ", ".join(f"{k}={v}" for k, v in args.items() if v not in ("", None))
+    return f"{tool}({shown})"
+
+
+def _brain_trace(response: Any, lead: list[dict[str, str]]) -> list[dict[str, str]]:
+    steps = list(lead)
+    for s in getattr(response, "tool_steps", None) or []:
+        steps.append(_step("act", "Tool", f"{s.get('tool')}: {'done' if s.get('success') else 'failed'}"))
+    if getattr(response, "needs_approval", False):
+        pending = getattr(response, "pending_tool", None) or {}
+        steps.append(_step("decide", "Needs confirmation",
+                           safety.describe_action(pending.get("tool", ""), pending.get("arguments"))))
+    else:
+        steps.append(_step("think", "Answer", f"Answered by {getattr(response, 'provider', '') or 'the brain'}"))
+    return steps
+
+
+def _set_trace(response: Any, trace: list[dict[str, str]]) -> Any:
+    try:
+        response.trace = trace
+    except (AttributeError, TypeError):  # a foreign response object
+        pass
+    return response
+
+
+def _lead_step(approved_tool: dict[str, Any] | None) -> list[dict[str, str]]:
+    if approved_tool:
+        phrase = safety.describe_action(approved_tool.get("tool", ""), approved_tool.get("arguments"))
+        return [_step("decide", "Approved", f"You approved: {phrase}")]
+    return [_step("understand", "Conversation", "No direct command — thinking it through")]
+
+
 class CognitiveKernel:
     def __init__(self, llm: Any = None, events: EventBus | None = None):
         self._llm = llm
@@ -134,7 +172,7 @@ class CognitiveKernel:
             await self._publish_step(step, user, source)
         if getattr(response, "needs_approval", False):
             self._hold(user, getattr(response, "pending_tool", None), origin="llm")
-        return response
+        return _set_trace(response, _brain_trace(response, _lead_step(approved_tool)))
 
     async def stream(
         self,
@@ -152,11 +190,20 @@ class CognitiveKernel:
             for event in response_events(fast):
                 yield event
             return
+        tool_steps: list[dict[str, Any]] = []
         async for event in self.llm.stream(text, **_brain_kwargs(history, approved_tool, provider, tools_enabled)):
             if event.type == "tool" and isinstance(event.metadata, dict):
+                tool_steps.append(event.metadata)
                 await self._publish_step(event.metadata, user, source)
-            if event.type == "done" and event.metadata.get("needs_approval"):
-                self._hold(user, event.metadata.get("pending_tool"), origin="llm")
+            if event.type == "done":
+                meta = dict(event.metadata or {})
+                if meta.get("needs_approval"):
+                    self._hold(user, meta.get("pending_tool"), origin="llm")
+                summary = LLMResponse(text="", provider=str(meta.get("provider") or ""), tool_steps=tool_steps,
+                                      needs_approval=bool(meta.get("needs_approval")),
+                                      pending_tool=meta.get("pending_tool"))
+                meta["trace"] = _brain_trace(summary, _lead_step(approved_tool))
+                event = LLMEvent("done", content=event.content, metadata=meta)
             yield event
 
     def pending_action(self, user: Any = None) -> dict[str, Any] | None:
@@ -194,7 +241,8 @@ class CognitiveKernel:
             if denied is not None:
                 return denied
             if approved_tool.get("origin") == KERNEL_ORIGIN and approved_tool.get("tool") in _kernel_tools():
-                return await self._act(approved_tool, user=user, source=source, prompt=text)
+                return await self._act(approved_tool, user=user, source=source, prompt=text,
+                                       trace=_lead_step(approved_tool))
             return None
 
         # A spoken/typed yes or no resolves the held action. Any other message
@@ -204,21 +252,23 @@ class CognitiveKernel:
         if pending is not None:
             self._pending.pop(key, None)
             intent = confirmation_intent(text)
+            phrase = safety.describe_action(pending.get("tool", ""), pending.get("arguments"))
             if intent == "affirm":
                 denied = await self._deny_if_unprivileged(pending, user, source)
                 if denied is not None:
                     return denied
+                confirmed = [_step("decide", "Confirmed", f"You confirmed: {phrase}")]
                 if pending.get("origin") == KERNEL_ORIGIN:
-                    return await self._act(pending, user=user, source=source, prompt=text)
+                    return await self._act(pending, user=user, source=source, prompt=text, trace=confirmed)
                 llm_call = {k: v for k, v in pending.items() if k != "origin"}
                 response = await self.llm.ask(text, **_brain_kwargs(history, llm_call, provider, True))
                 for step in getattr(response, "tool_steps", None) or []:
                     await self._publish_step(step, user, source)
-                return response
+                return _set_trace(response, _brain_trace(response, confirmed))
             if intent == "deny":
-                phrase = safety.describe_action(pending.get("tool", ""), pending.get("arguments"))
                 await self._emit("action.cancelled", {"tool": pending.get("tool"), "user": key, "source": source})
-                return LLMResponse(text=f"Okay, I won't {phrase}.", provider=KERNEL_PROVIDER)
+                return LLMResponse(text=f"Okay, I won't {phrase}.", provider=KERNEL_PROVIDER,
+                                   trace=[_step("decide", "Cancelled", f"Cancelled: {phrase}")])
 
         if not tools_enabled or not text:
             return None
@@ -228,13 +278,14 @@ class CognitiveKernel:
         if routed is None:
             return None
         action = {"tool": routed.tool, "arguments": dict(routed.arguments), "origin": KERNEL_ORIGIN}
+        understood = _step("understand", "Intent", _describe_call(routed.tool, routed.arguments))
 
         # Decide: risky actions need an admin, and wait for confirmation unless
         # pre-authorized.
         assessment = safety.assess(routed.tool, routed.arguments)
         denied = await self._deny_if_unprivileged(action, user, source)
         if denied is not None:
-            return denied
+            return _set_trace(denied, [understood, *denied.trace])
         if assessment.needs_confirmation and source not in PRE_AUTHORIZED_SOURCES:
             self._hold(user, action, origin=KERNEL_ORIGIN)
             phrase = safety.describe_action(routed.tool, routed.arguments)
@@ -246,10 +297,13 @@ class CognitiveKernel:
                 provider=KERNEL_PROVIDER,
                 needs_approval=True,
                 pending_tool=action,
+                trace=[understood, _step("decide", "Needs confirmation", f"That {assessment.reason}")],
             )
 
         # Act.
-        return await self._act(action, user=user, source=source, prompt=text)
+        decided = _step("decide", "Allowed",
+                        "Pre-authorized by you" if assessment.needs_confirmation else "Safe to run now")
+        return await self._act(action, user=user, source=source, prompt=text, trace=[understood, decided])
 
     async def _deny_if_unprivileged(self, action: dict[str, Any], user: Any, source: str) -> LLMResponse | None:
         """Refuse a confirmation-level action for a non-admin web user."""
@@ -264,20 +318,31 @@ class CognitiveKernel:
         return LLMResponse(
             text=f"Sorry — only an admin can {phrase}. That {assessment.reason}.",
             provider=KERNEL_PROVIDER,
+            trace=[_step("decide", "Refused", f"Admin only — that {assessment.reason}")],
         )
 
-    async def _act(self, action: dict[str, Any], *, user: Any, source: str, prompt: str) -> LLMResponse:
+    async def _act(
+        self,
+        action: dict[str, Any],
+        *,
+        user: Any,
+        source: str,
+        prompt: str,
+        trace: list[dict[str, str]] | None = None,
+    ) -> LLMResponse:
         tool = str(action.get("tool") or "")
         args = dict(action.get("arguments") or {})
         step = await self._execute(tool, args)
         ok = bool(step.get("success"))
         text = step.get("output") if ok else f"I couldn't do that — {step.get('error') or 'the tool failed'}."
         text = text or "Done."
+        steps = [*(trace or []), _step("act", "Action" if ok else "Action failed", text)]
         # Remember what was done, and let the rest of the system react to it.
-        await self._remember(prompt or safety.describe_action(tool, args), text)
+        if await self._remember(prompt or safety.describe_action(tool, args), text):
+            steps.append(_step("remember", "Memory", "Saved to memory"))
         await self._emit("action.executed", {"tool": tool, "arguments": args, "success": ok,
                                              "source": source, "user": self._user_key(user), "result": text[:500]})
-        return LLMResponse(text=text, provider=KERNEL_PROVIDER, tool_steps=[step])
+        return LLMResponse(text=text, provider=KERNEL_PROVIDER, tool_steps=[step], trace=steps)
 
     async def _execute(self, tool: str, args: dict[str, Any]) -> dict[str, Any]:
         if isinstance(self.llm, AtulyaLLM) and self.llm.tools.get(tool) is not None:
@@ -297,12 +362,15 @@ class CognitiveKernel:
             "result": str(step.get("output") or step.get("error") or "")[:500], "via": "brain",
         })
 
-    async def _remember(self, prompt: str, text: str) -> None:
-        if isinstance(self.llm, AtulyaLLM):
+    async def _remember(self, prompt: str, text: str) -> bool:
+        """Write to long-term memory; True when the brain actually keeps memory."""
+        if isinstance(self.llm, AtulyaLLM) and self.llm.use_memory:
             try:
                 await self.llm.remember(prompt, text)
+                return True
             except Exception as exc:  # noqa: BLE001 - memory is best-effort
                 logger.debug("kernel memory write failed: %s", exc)
+        return False
 
     async def _emit(self, event_type: str, payload: dict[str, Any]) -> None:
         try:
@@ -330,7 +398,7 @@ def response_events(response: LLMResponse) -> list[LLMEvent]:
     """Render a finished response as the same event sequence the brain streams."""
     events = [LLMEvent("tool", metadata=step) for step in response.tool_steps]
     events += [LLMEvent("token", content=chunk) for chunk in _chunk_text(response.text)]
-    meta: dict[str, Any] = {"provider": response.provider, "steps": response.tool_steps}
+    meta: dict[str, Any] = {"provider": response.provider, "steps": response.tool_steps, "trace": response.trace}
     if response.needs_approval:
         pending = response.pending_tool or {}
         meta.update({"needs_approval": True, "pending_tool": pending,

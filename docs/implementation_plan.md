@@ -115,7 +115,7 @@ Atulya tries providers in order until one responds:
 - PWA (manifest + service worker + Add to Home Screen)
 - Digital Nervous System with stimulated strand animations
 - Memory Galaxy constellation visualization
-- 459 tests passing
+- 464 tests passing
 
 ### Cognition layer ✅ (see [atulya/docs/COGNITIVE_ARCHITECTURE.md](../atulya/docs/COGNITIVE_ARCHITECTURE.md))
 - One cognitive kernel for chat, streaming chat, voice, automations and triggers
@@ -138,7 +138,11 @@ Atulya tries providers in order until one responds:
 - Multi-user support with roles
 - Conversation context window (recent history is sent to the brain)
 - File/image upload through the UI
-- Proactive notifications pushed to Drishti over WebSocket
+- Proactive notifications pushed to Drishti over WebSocket (shown as notifications; spoken in Live mode)
+- Live mode shows the kernel's real reasoning steps instead of a scripted animation
+- Hands-free confirmation: a plain "yes"/"no" answers Atulya without the wake word
+- Admin "Reflexes & Brain" screen: trigger rules, active brain tier, live event feed
+- PWA service worker installs (offline shell + push notification handler)
 - Light theme option and keyboard shortcuts
 
 ### Missing / TODO 🚧

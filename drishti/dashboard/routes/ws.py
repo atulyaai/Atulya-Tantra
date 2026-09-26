@@ -38,9 +38,9 @@ async def websocket_endpoint(websocket: WebSocket):
 
     await websocket.send_json({"type": "welcome", "user": user.get("username"), "role": user.get("role")})
 
-    # Send recent history
+    # Send recent history, flagged so clients can show it without re-alerting.
     for msg in _broadcast_history[-20:]:
-        await websocket.send_json(msg)
+        await websocket.send_json({**msg, "replay": True})
 
     try:
         while True:

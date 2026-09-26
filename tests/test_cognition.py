@@ -268,6 +268,41 @@ class TestKernel:
         asyncio.run(CognitiveKernel(llm=ToolUsingBrain(), events=bus).handle("how's the sky", user="u"))
         assert seen and seen[0]["tool"] == "get_weather" and seen[0]["via"] == "brain"
 
+    def test_trace_records_real_stages(self):
+        kernel, _ = make_kernel()
+        admin = {"username": "a", "role": "admin"}
+        guest = {"username": "g", "role": "user"}
+
+        async def run():
+            direct = await kernel.handle("turn on the kitchen light", user=admin)
+            held = await kernel.handle("unlock the front door", user=admin)
+            confirmed = await kernel.handle("yes", user=admin)
+            refused = await kernel.handle("unlock the front door", user=guest)
+            chat = await kernel.handle("tell me a joke", user=admin)
+            return direct, held, confirmed, refused, chat
+
+        direct, held, confirmed, refused, chat = asyncio.run(run())
+        stages = lambda r: [s["stage"] for s in r.trace]  # noqa: E731
+        assert stages(direct) == ["understand", "decide", "act"]
+        assert direct.trace[0]["detail"].startswith("home_control(")
+        assert direct.trace[1]["title"] == "Allowed"
+        assert stages(held) == ["understand", "decide"] and held.trace[1]["title"] == "Needs confirmation"
+        assert confirmed.trace[0]["title"] == "Confirmed" and stages(confirmed)[-1] == "act"
+        assert refused.trace[-1]["title"] == "Refused"
+        assert stages(chat) == ["understand", "think"] and chat.trace[0]["title"] == "Conversation"
+
+    def test_stream_done_event_carries_trace(self):
+        kernel, _ = make_kernel()
+
+        async def run():
+            direct = [e async for e in kernel.stream("what time is it", user="u")]
+            brain = [e async for e in kernel.stream("tell me a joke", user="u")]
+            return direct[-1], brain[-1]
+
+        direct_done, brain_done = asyncio.run(run())
+        assert [s["stage"] for s in direct_done.metadata["trace"]] == ["understand", "decide", "act"]
+        assert brain_done.metadata["trace"][-1]["stage"] == "think"
+
     def test_works_with_brains_that_have_narrow_ask(self):
         from atulya.cognition.kernel import CognitiveKernel
 
@@ -365,6 +400,19 @@ class TestTriggers:
             engine.add_rule({"notify": "hi"})
         rule = engine.add_rule({"event": "x", "notify": "hi"})
         assert engine.remove_rule(rule["id"]) and not engine.remove_rule(rule["id"])
+
+    def test_editing_a_rule_keeps_its_history(self, tmp_path):
+        engine, bus, _ = self.make(tmp_path)
+        rule = engine.add_rule({"id": "r", "event": "custom.x", "notify": "hi", "cooldown_seconds": 0})
+
+        async def run():
+            await bus.emit("custom.x", {})
+            await engine.drain()
+
+        asyncio.run(run())
+        engine.add_rule({**rule, "enabled": False})  # e.g. Pause in the UI
+        saved = next(r for r in engine.list_rules() if r["id"] == "r")
+        assert saved["enabled"] is False and saved["fire_count"] == 1 and saved["last_fired"]
 
     def test_stop_unsubscribes(self, tmp_path):
         engine, bus, notes = self.make(tmp_path)
@@ -511,6 +559,27 @@ class TestRoutes:
         assert r["needs_approval"] and r["provider"] == "Atulya Kernel"
         r = client.post("/api/chat", json={"prompt": "", "approved_tool": r["pending_tool"]}, headers=h).json()
         assert r["response"] == "Front Door is now unlocked."
+
+    def test_chat_returns_trace(self, client):
+        r = client.post("/api/chat", json={"prompt": "turn off the kitchen light"},
+                        headers={"X-Atulya-Token": "test_token"}).json()
+        assert [s["stage"] for s in r["trace"]] == ["understand", "decide", "act"]
+
+    def test_websocket_replays_history_flagged_as_replay(self, client):
+        from drishti.dashboard.routes import ws as ws_mod
+
+        ws_mod._broadcast_history.append({"type": "event", "data": {"title": "old"}, "timestamp": 1.0})
+        try:
+            with client.websocket_connect("/api/ws?token=test_token") as sock:
+                assert sock.receive_json()["type"] == "welcome"
+                replayed = sock.receive_json()
+                while replayed.get("data", {}).get("title") != "old":
+                    replayed = sock.receive_json()
+                assert replayed["replay"] is True
+            # Stored history itself is unchanged.
+            assert "replay" not in ws_mod._broadcast_history[-1]
+        finally:
+            ws_mod._broadcast_history.pop()
 
     def test_triggers_api_is_admin_only(self, client):
         assert client.get("/api/triggers").status_code == 401

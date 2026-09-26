@@ -125,6 +125,21 @@ event (for example an email subject) can't smuggle in an instruction. Risky
 commands need `allow_risky`. Events caused by trigger actions don't fire further
 triggers, so rules can't loop.
 
+## In the web UI
+
+- **Notifications.** The page keeps a live WebSocket connection. Reminders,
+  health alerts and trigger results appear as notifications and, in Live mode,
+  are spoken aloud (routine successes are shown but not spoken). Reconnecting
+  doesn't re-alert old events; replayed history is flagged `replay: true`.
+- **Confirmation.** Typed chat shows an Approve dialog. In Live mode Atulya asks
+  aloud, and the next "yes" or "no" answers it — in hands-free mode too,
+  without the wake word.
+- **Real reasoning display.** Chat and voice responses carry the kernel's
+  `trace` (understand → decide → act → remember, or think). Live mode's
+  consciousness stream and node animation follow those real stages.
+- **Admin → Reflexes & Brain.** Add, test, pause and delete trigger rules; see
+  the active brain tier; watch the live event feed.
+
 ## Brain tiers
 
 | `ATULYA_BRAIN` | Local model | Download | RAM | Use it when |

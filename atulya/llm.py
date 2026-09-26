@@ -50,6 +50,9 @@ class LLMResponse:
     tool_steps: list[dict[str, Any]] = field(default_factory=list)
     needs_approval: bool = False
     pending_tool: dict[str, Any] | None = None
+    # The real stages the cognitive kernel went through (understand / decide /
+    # act / remember / think), for UIs to show what actually happened.
+    trace: list[dict[str, Any]] = field(default_factory=list)
 
 
 # Which tools the model sees first when the advertised list is capped.

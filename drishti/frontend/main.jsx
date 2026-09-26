@@ -9,6 +9,8 @@ import './styles.css';
 const HolographicSpirit = lazy(() =>
   import('./src/pages/HolographicSpirit.jsx').then((m) => ({ default: m.HolographicSpirit })),
 );
+// Admin-only: trigger rules, brain tier, and live event feed.
+const Reflexes = lazy(() => import('./src/pages/Reflexes.jsx').then((m) => ({ default: m.Reflexes })));
 
 function Metric({ label, value }) {
   return (
@@ -39,6 +41,9 @@ const DEFAULT_LIVE_MESSAGES = [
   { role: 'assistant', text: 'Atulya OS online. Systems configured at peak efficiency. Ready to orchestrate, sir.' },
 ];
 const WAKE_PHRASES = ['hey atulya', 'atulya'];
+// Real pipeline stages (from the server's trace) -> the node the visual animates.
+const STAGE_AGENT = { understand: 'ATHENA', decide: 'ATHENA', act: 'FORGE', remember: 'MEMORY', think: 'ORACLE' };
+const TRACE_STEP_MS = 180;
 
 function loadCachedMessages(key, fallback = []) {
   try {
@@ -67,76 +72,6 @@ function normalizeHistoryMessages(messages = []) {
       surface: msg.surface,
       created_at: msg.created_at,
     }));
-}
-
-function classifyIntent(text) {
-  const input = String(text || '').toLowerCase().trim();
-  if (!input) return { label: 'General Reasoning Context', agent: 'ORACLE', confidence: 50 };
-
-  const intentPrototypes = {
-    FORGE: {
-      label: 'Forge Syntax Synthesis',
-      examples: ['write code', 'build a website', 'fix this bug', 'create a function', 'write a script', 'debug this', 'implement a class', 'refactor this code', 'write a python program', 'make an app'],
-      boost: ['code', 'build', 'fix', 'bug', 'website', 'app', 'function', 'script', 'test', 'implement', 'refactor', 'debug', 'class', 'module', 'api', 'database', 'sql', 'html', 'css', 'javascript', 'python'],
-    },
-    VISION: {
-      label: 'Visual Object Assessment',
-      examples: ['what do you see', 'look at this image', 'analyze this photo', 'describe the camera frame', 'scan this visual', 'what is in this picture'],
-      boost: ['see', 'camera', 'look', 'image', 'photo', 'frame', 'scan', 'visual', 'picture', 'describe', 'analyze image', 'vision'],
-    },
-    ATHENA: {
-      label: 'Yantra System Command',
-      examples: ['open the browser', 'run the automation', 'search the web', 'start the device', 'stop the process', 'control the system', 'execute this command'],
-      boost: ['open', 'run', 'search', 'start', 'stop', 'device', 'automation', 'control', 'execute', 'launch', 'deploy', 'schedule', 'automate'],
-    },
-    MEMORY: {
-      label: 'Memory Retrieval',
-      examples: ['what did we discuss before', 'recall our previous conversation', 'what do you remember', 'search my history', 'find saved information'],
-      boost: ['remember', 'history', 'previous', 'recall', 'memory', 'saved', 'before', 'earlier', 'last time', 'forgot', 'forget'],
-    },
-    ORACLE: {
-      label: 'General Reasoning Context',
-      examples: ['explain quantum physics', 'what is the meaning of life', 'how does photosynthesis work', 'compare these options', 'summarize this article'],
-      boost: [],
-    },
-  };
-
-  const scores = {};
-  for (const [agent, proto] of Object.entries(intentPrototypes)) {
-    let score = 0;
-
-    for (const word of proto.boost) {
-      if (input.includes(word)) score += 2;
-    }
-
-    for (const example of proto.examples) {
-      const exampleWords = example.split(/\s+/);
-      const matched = exampleWords.filter((w) => input.includes(w)).length;
-      if (matched > 0) score += (matched / exampleWords.length) * 4;
-    }
-
-    const inputWords = input.split(/\s+/);
-    const commonWords = proto.examples.join(' ').split(/\s+/);
-    const overlap = inputWords.filter((w) => commonWords.includes(w)).length;
-    score += overlap * 0.5;
-
-    scores[agent] = score;
-  }
-
-  const maxScore = Math.max(...Object.values(scores));
-  const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
-  const winnerAgent = Object.entries(scores).sort((a, b) => b[1] - a[1])[0][0];
-  const winner = intentPrototypes[winnerAgent];
-
-  const confidence = maxScore === 0
-    ? 50
-    : Math.min(98, 60 + (maxScore / Math.max(totalScore, 1)) * 30 + Math.min(8, Math.floor(input.length / 30)));
-
-  return {
-    label: winner.label,
-    agent: winnerAgent,
-    confidence: Math.round(confidence),
-  };
 }
 
 function stripWakePhrase(text) {
@@ -423,8 +358,8 @@ function HolographicVortex({ activeAgent, status, mode, onNodeSelect }) {
       ctx.fillRect(0, 0, width, height);
 
       const glow = ctx.createRadialGradient(cx + mouseX * 0.25, cy + mouseY * 0.25, 0, cx, cy, 230);
-      glow.addColorStop(0, mode === 'gold' ? 'rgba(255, 196, 64, 0.26)' : mode === 'dna' ? 'rgba(255, 110, 30, 0.22)' : 'rgba(124, 92, 255, 0.24)');
-      glow.addColorStop(0.45, 'rgba(0, 245, 255, 0.07)');
+      glow.addColorStop(0, mode === 'gold' ? 'rgba(255, 196, 64, 0.26)' : mode === 'dna' ? 'rgba(255, 110, 30, 0.22)' : 'rgba(255, 153, 51, 0.24)');
+      glow.addColorStop(0.45, 'rgba(255, 244, 230, 0.07)');
       glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
       ctx.fillStyle = glow;
       ctx.beginPath();
@@ -434,7 +369,7 @@ function HolographicVortex({ activeAgent, status, mode, onNodeSelect }) {
       for (let ring = 0; ring < 4; ring += 1) {
         ctx.beginPath();
         ctx.arc(cx, cy, 70 + ring * 58 + Math.sin(frame * 0.018 + ring) * 5, 0, Math.PI * 2);
-        ctx.strokeStyle = ring % 2 ? 'rgba(168, 85, 247, 0.16)' : 'rgba(0, 245, 255, 0.15)';
+        ctx.strokeStyle = ring % 2 ? 'rgba(244, 196, 48, 0.16)' : 'rgba(255, 244, 230, 0.15)';
         ctx.lineWidth = 1;
         ctx.stroke();
       }
@@ -470,7 +405,7 @@ function HolographicVortex({ activeAgent, status, mode, onNodeSelect }) {
           ctx.beginPath();
           ctx.arc(x, y1, 2.4, 0, Math.PI * 2);
           ctx.fill();
-          ctx.fillStyle = 'rgba(0, 245, 255, 0.68)';
+          ctx.fillStyle = 'rgba(255, 244, 230, 0.68)';
           ctx.beginPath();
           ctx.arc(x, y2, 2.4, 0, Math.PI * 2);
           ctx.fill();
@@ -485,13 +420,13 @@ function HolographicVortex({ activeAgent, status, mode, onNodeSelect }) {
         ctx.beginPath();
         ctx.moveTo(cx, cy);
         ctx.lineTo(x, y);
-        ctx.strokeStyle = active ? 'rgba(0, 245, 255, 0.42)' : 'rgba(124, 92, 255, 0.13)';
+        ctx.strokeStyle = active ? 'rgba(255, 244, 230, 0.42)' : 'rgba(255, 153, 51, 0.13)';
         ctx.stroke();
         ctx.beginPath();
         ctx.arc(x, y, active ? 11 : 7, 0, Math.PI * 2);
-        ctx.fillStyle = active ? 'rgba(0, 245, 255, 0.82)' : 'rgba(168, 85, 247, 0.48)';
+        ctx.fillStyle = active ? 'rgba(255, 244, 230, 0.82)' : 'rgba(244, 196, 48, 0.48)';
         ctx.fill();
-        ctx.fillStyle = active ? '#ffffff' : 'rgba(218, 226, 255, 0.68)';
+        ctx.fillStyle = active ? '#ffffff' : 'rgba(243, 234, 223, 0.68)';
         ctx.font = '700 9px Orbitron, system-ui, sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText(name, x, y + 25);
@@ -573,7 +508,7 @@ function LiveMode({ bootstrap, toast }) {
   // Digital Nervous System States
   const [activeAgent, setActiveAgent] = useState('NONE');
   const [intentDetected, setIntentDetected] = useState('');
-  const [intentConfidence, setIntentConfidence] = useState(0);
+  const [routePath, setRoutePath] = useState('');  // Direct action / Brain / Awaiting your OK
   const [mindStream, setMindStream] = useState([
     { time: '22:00:01', title: 'System Bootup', desc: 'Atulya organic core initialized.', type: 'system' },
     { time: '22:00:03', title: 'Strand Diagnostic', desc: 'Memory galaxy, vision lens, and vocal echo systems synced.', type: 'ready' }
@@ -587,6 +522,13 @@ function LiveMode({ bootstrap, toast }) {
   const replyRef = useRef('');
   const audioRef = useRef(null);
   const mediaRecorderRef = useRef(null);
+  // Set when Atulya has just asked "should I…?": the next utterance is the
+  // answer, so hands-free mode accepts it without the wake word.
+  const awaitingConfirmRef = useRef(false);
+  const awaitingTimerRef = useRef(null);
+  // Latest state / speak function for listeners that are registered once.
+  const liveStateRef = useRef({ status: 'ready', busy: false, listening: false, autoSpeak: true });
+  const speakRef = useRef(null);
 
   const galaxyNodes = [
     { id: 'tantra_voice', name: 'Vocal Echo', desc: 'Neural audio speech synthesis configuration', cluster: 'Tantra', x: 80, y: 55 },
@@ -626,8 +568,10 @@ function LiveMode({ bootstrap, toast }) {
     loadVoices();
   }, []);
 
+  const eventSeq = useRef(0);
   function addEvent(label, state = 'active') {
-    setEvents((prev) => [{ id: Date.now(), label, state }, ...prev].slice(0, 8));
+    eventSeq.current += 1;
+    setEvents((prev) => [{ id: `${Date.now()}-${eventSeq.current}`, label, state }, ...prev].slice(0, 8));
   }
 
   function addMindStep(title, desc, type = 'process') {
@@ -638,6 +582,39 @@ function LiveMode({ bootstrap, toast }) {
       ...prev
     ].slice(0, 10));
   }
+
+  function setAwaitingConfirm(on) {
+    awaitingConfirmRef.current = on;
+    clearTimeout(awaitingTimerRef.current);
+    // The server drops an unanswered hold after two minutes; stop waiting sooner.
+    if (on) awaitingTimerRef.current = setTimeout(() => { awaitingConfirmRef.current = false; }, 60000);
+  }
+
+  useEffect(() => {
+    liveStateRef.current = { status, busy, listening, autoSpeak };
+  }, [status, busy, listening, autoSpeak]);
+
+  // Proactive notifications from the server (reminders, alerts, trigger
+  // results): log them, and say them aloud unless Atulya is busy, listening or
+  // already speaking. Routine successes are shown but not spoken.
+  useEffect(() => {
+    function onNotification(event) {
+      const data = event.detail || {};
+      const text = data.desc || data.title || '';
+      if (!text) return;
+      addEvent(text, 'ready');
+      addMindStep(data.title || 'Notification', text, 'system');
+      const s = liveStateRef.current;
+      if (s.autoSpeak && data.type !== 'success' && !s.busy && !s.listening && s.status !== 'speaking') {
+        speakRef.current?.(text);
+      }
+    }
+    window.addEventListener('atulya:notification', onNotification);
+    return () => {
+      window.removeEventListener('atulya:notification', onNotification);
+      clearTimeout(awaitingTimerRef.current);
+    };
+  }, []);
 
   function normalizeTelemetryEvent(item, idx) {
     const now = new Date();
@@ -719,6 +696,7 @@ function LiveMode({ bootstrap, toast }) {
     addMindStep('Visual Frame Cached', 'Image matrix captured. Analyzing visual components.', 'seeing');
   }
 
+  speakRef.current = speakNeural;
   function speakNeural(text) {
     if (!text.trim()) return;
     setStatus('speaking');
@@ -842,7 +820,7 @@ function LiveMode({ bootstrap, toast }) {
       if (event.results[event.results.length - 1].isFinal) {
         recognition.stop();
         const lower = text.trim().toLowerCase();
-        if (continuous && !WAKE_PHRASES.some((phrase) => lower.includes(phrase))) {
+        if (continuous && !awaitingConfirmRef.current && !WAKE_PHRASES.some((phrase) => lower.includes(phrase))) {
           addEvent('Wake word not detected. Standing by...', 'ready');
           addMindStep('Wake Word Gate', 'Hands-free mode ignored ambient speech without wake phrase.', 'ready');
           setStatus('ready');
@@ -910,7 +888,7 @@ function LiveMode({ bootstrap, toast }) {
           }
           setPrompt(text);
           const lower = text.toLowerCase();
-          if (continuous && !WAKE_PHRASES.some((phrase) => lower.includes(phrase))) {
+          if (continuous && !awaitingConfirmRef.current && !WAKE_PHRASES.some((phrase) => lower.includes(phrase))) {
             setStatus('ready');
             addEvent('Wake word not detected. Standing by…', 'ready');
             return;
@@ -1008,18 +986,30 @@ function LiveMode({ bootstrap, toast }) {
   }
 
   // The Digital Nervous System Sequential State Stimulation Flow
+  // Render the server's real pipeline trace (understand → decide → act →
+  // remember / think) into the mind stream, animating the matching node.
+  // Steps are lightly staggered only so they're readable.
+  function playTrace(trace) {
+    trace.forEach((step, i) => {
+      setTimeout(() => {
+        setActiveAgent(STAGE_AGENT[step.stage] || 'ORACLE');
+        const failed = /Refused|failed/i.test(step.title || '');
+        addMindStep(step.title || step.stage, step.detail || '', failed ? 'error' : 'process');
+      }, i * TRACE_STEP_MS);
+    });
+  }
+
   function sendLive(voiceText) {
     const text = (voiceText || prompt).trim();
     if (!text || busy) return;
     const id = Date.now();
     const cameraNote = capturedFrame ? '\n\nCamera frame is captured in the Live Mode panel. Use vision when vision processing is active.' : '';
-    const intent = classifyIntent(text);
-    
+    const answeringConfirmation = awaitingConfirmRef.current;
+    setAwaitingConfirm(false);
+
     setPrompt('');
     setBusy(true);
     setStatus('thinking');
-    setIntentDetected(intent.label);
-    setIntentConfidence(intent.confidence);
     replyRef.current = '';
     setMessages((prev) => [
       ...prev,
@@ -1027,113 +1017,100 @@ function LiveMode({ bootstrap, toast }) {
       { role: 'assistant', text: '', id },
     ]);
 
-    // Step 1: Echo inputs
+    // The request goes out immediately; what the mind stream shows next is
+    // what the server actually did (its trace), not a script.
     setActiveAgent('ECHO');
-    addMindStep('Vocal Input Cached', `Acoustic query transcribed: "${text}"`, 'process');
-    addEvent('Query transcribed. Aligning intent...', 'thinking');
+    addMindStep('Heard', `"${text}"`, 'process');
+    addEvent(answeringConfirmation ? 'Answer received — checking…' : 'Understanding your request…', 'thinking');
 
-    // Step 2: Routing to Athena Planning Strand after 400ms
-    setTimeout(() => {
-      setActiveAgent('ATHENA');
-      addMindStep('Routing to Athena Strand', 'Athena strand planning logical execution tree.', 'process');
-      
-      // Step 3: Routing to Long-Term Memory Galaxy after 800ms
-      setTimeout(() => {
-        setActiveAgent('MEMORY');
-        addMindStep('Querying Memory Galaxy', 'Memory galaxy stars parsed for related vector context.', 'process');
-        
-        // Step 4: Routing to Oracle Research Strand after 1200ms
+    api.post('/api/voice/chat', {
+      prompt: `${text}${cameraNote}`,
+      voice: selectedVoice,
+      model_id: provider,
+      provider,
+      history: messages
+        .filter((msg) => msg.text)
+        .slice(-10)
+        .map((msg) => ({ role: msg.role, content: msg.text })),
+    })
+      .then((res) => {
+        setBusy(false);
+        if (res.error && !res.response_text) throw new Error(res.error);
+
+        replyRef.current = res.response_text || "";
+        setMessages((prev) => prev.map((msg) => msg.id === id ? { ...msg, text: res.response_text } : msg));
+
+        const trace = Array.isArray(res.trace) ? res.trace : [];
+        playTrace(trace);
+        const understood = trace.find((step) => step.stage === 'understand');
+        setIntentDetected(
+          understood ? (understood.title === 'Intent' ? understood.detail.split('(')[0] : understood.title)
+            : (answeringConfirmation ? 'Confirmation' : ''),
+        );
+        const direct = res.provider_name === 'Atulya Kernel';
+        setRoutePath(res.needs_approval ? 'Awaiting your OK' : direct ? 'Direct action' : 'Brain');
+        // A confirmation question: the next utterance is the answer.
+        setAwaitingConfirm(Boolean(res.needs_approval));
+        addEvent(
+          res.needs_approval ? 'Waiting for your yes or no…' : `Answered via ${res.provider_name || 'Atulya'}`,
+          res.needs_approval ? 'listening' : 'speaking',
+        );
+
         setTimeout(() => {
-          setActiveAgent(intent.agent);
-          addMindStep('Intent Determined', `Classified as ${intent.label} (${intent.confidence}% confidence)`, 'process');
-          addMindStep('Oracle Logic Mapping', 'Oracle strand querying local knowledge core.', 'process');
-          
-          // Step 5: Execute API route after 1600ms
-          setTimeout(() => {
-            addEvent('Routing command to brain strand...', 'thinking');
-            
-            api.post('/api/voice/chat', {
-              prompt: `${text}${cameraNote}`,
-              voice: selectedVoice,
-              model_id: provider,
-              provider,
-              history: messages
-                .filter((msg) => msg.text)
-                .slice(-10)
-                .map((msg) => ({ role: msg.role, content: msg.text })),
-            })
-              .then((res) => {
-                setBusy(false);
-                if (res.error && !res.response_text) throw new Error(res.error);
-                
-                replyRef.current = res.response_text || "";
-                setMessages((prev) => prev.map((msg) => msg.id === id ? { ...msg, text: res.response_text } : msg));
-                
-                // Step 6: Synthesis active (Forge node stimulation)
-                setActiveAgent('FORGE');
-                const provider = res.provider_name || 'Atulya OS Core';
-                addMindStep('Provider Brain Responded', `Atulya OS obtained answer from provider: ${provider}`, 'process');
-                addEvent(`Computed via ${provider}. Voicing output...`, 'speaking');
-                
-                setTimeout(() => {
-                  if (!autoSpeak) {
-                    setStatus('ready');
-                    setActiveAgent('NONE');
-                    addEvent('Auto-speak off — reply shown as text.', 'ready');
-                    return;
-                  }
-                  if (res.audio_base64) {
-                    const audio = new Audio("data:audio/mp3;base64," + res.audio_base64);
-                    audioRef.current = audio;
-                    setStatus('speaking');
-                    setActiveAgent('ECHO');
-                    audio.onplay = () => {
-                      setStatus('speaking');
-                      setActiveAgent('ECHO');
-                      addMindStep('Consciousness Vocalizing', 'Streaming response through speakers.', 'speaking');
-                    };
-                    audio.onended = () => {
-                      setStatus('ready');
-                      setActiveAgent('NONE');
-                      audioRef.current = null;
-                      addEvent('Assistant reply vocalized successfully', 'ready');
-                      addMindStep('Voice Flow Complete', 'Consciousness returned to standby.', 'ready');
-                      
-                      if (continuous) {
-                        setTimeout(() => {
-                          if (continuous && !listening && !busy) {
-                            addEvent('Continuous Mode active. Opening microphone...', 'listening');
-                            startListening();
-                          }
-                        }, 400);
-                      }
-                    };
-                    audio.play().catch((err) => {
-                      console.error('Play action failed', err);
-                      speakBrowserFallback(replyRef.current);
-                    });
-                  } else {
-                    if (res.error) addEvent(res.error, 'error');
-                    speakBrowserFallback(replyRef.current);
-                  }
-                }, 400);
-              })
-              .catch((err) => {
-                setBusy(false);
+            if (!autoSpeak) {
+              setStatus('ready');
+              setActiveAgent('NONE');
+              addEvent('Auto-speak off — reply shown as text.', 'ready');
+              return;
+            }
+            if (res.audio_base64) {
+              const audio = new Audio("data:audio/mp3;base64," + res.audio_base64);
+              audioRef.current = audio;
+              setStatus('speaking');
+              setActiveAgent('ECHO');
+              audio.onplay = () => {
+                setStatus('speaking');
+                setActiveAgent('ECHO');
+                addMindStep('Consciousness Vocalizing', 'Streaming response through speakers.', 'speaking');
+              };
+              audio.onended = () => {
                 setStatus('ready');
                 setActiveAgent('NONE');
-                addEvent('Oracle response execution failed', 'error');
-                addMindStep('System Error', ` strand execution failed: ${err.message}`, 'error');
-                setMessages((prev) => prev.map((msg) => msg.id === id ? { ...msg, text: `Command Failure: ${err.message}` } : msg));
+                audioRef.current = null;
+                addEvent('Assistant reply vocalized successfully', 'ready');
+                addMindStep('Voice Flow Complete', 'Consciousness returned to standby.', 'ready');
                 
                 if (continuous) {
-                  setTimeout(() => startListening(), 2000);
+                  setTimeout(() => {
+                    if (continuous && !listening && !busy) {
+                      addEvent('Continuous Mode active. Opening microphone...', 'listening');
+                      startListening();
+                    }
+                  }, 400);
                 }
+              };
+              audio.play().catch((err) => {
+                console.error('Play action failed', err);
+                speakBrowserFallback(replyRef.current);
               });
-          }, 400);
-        }, 400);
-      }, 400);
-    }, 400);
+            } else {
+              if (res.error) addEvent(res.error, 'error');
+              speakBrowserFallback(replyRef.current);
+            }
+        }, Math.min(1200, trace.length * TRACE_STEP_MS));
+      })
+      .catch((err) => {
+        setBusy(false);
+        setStatus('ready');
+        setActiveAgent('NONE');
+        addEvent('Request failed', 'error');
+        addMindStep('Error', err.message, 'error');
+        setMessages((prev) => prev.map((msg) => msg.id === id ? { ...msg, text: `Command Failure: ${err.message}` } : msg));
+
+        if (continuous) {
+          setTimeout(() => startListening(), 2000);
+        }
+      });
   }
 
   if (!showTelemetry) {
@@ -1207,7 +1184,7 @@ function LiveMode({ bootstrap, toast }) {
             <div className="v3-hud br"><span>Wake: {continuous ? 'Hey Atulya' : 'Manual'}</span><span>Voice: {selectedVoice}</span></div>
 
             <div className="v3-float-panel oracle"><b>Oracle</b><span>Research: {activeAgent === 'ORACLE' ? 'Active' : 'Idle'}</span><span>Depth: {messages.length}</span></div>
-            <div className="v3-float-panel neural"><b>Neural</b><span>Signal: {busy ? 'Routing' : 'Stable'}</span><span>Intent: {intentConfidence || '--'}%</span></div>
+            <div className="v3-float-panel neural"><b>Neural</b><span>Signal: {busy ? 'Routing' : 'Stable'}</span><span>Path: {routePath || '--'}</span></div>
             <div className="v3-float-panel forge"><b>Forge</b><span>Output: {status === 'speaking' ? 'Vocal' : 'Text'}</span><span>Queue: {busy ? 1 : 0}</span></div>
             <div className="v3-float-panel echo"><b>Echo</b><span>Mic: {listening ? 'Live' : 'Idle'}</span><span>Wake: {continuous ? 'Ready' : 'Off'}</span></div>
 
@@ -1583,12 +1560,12 @@ function LiveMode({ bootstrap, toast }) {
               <strong>{listening ? 'LISTENING...' : busy ? 'ATULYA' : 'ATUL (USER)'}</strong>
             </div>
             <div className="meta-box">
-              <small>INTENT CLASSIFIED</small>
+              <small>INTENT</small>
               <strong>{intentDetected || 'STANDBY'}</strong>
             </div>
             <div className="meta-box">
-              <small>ACCURACY CONFIDENCE</small>
-              <strong>{intentConfidence ? `${intentConfidence}%` : '--'}</strong>
+              <small>ROUTE</small>
+              <strong>{routePath || '--'}</strong>
             </div>
           </div>
           <div className="voice-visualizer-container">
@@ -1951,12 +1928,29 @@ function App() {
   
   const currentUser = getUser();
   const isAdmin = currentUser?.role === 'admin';
+  const toastSeq = useRef(0);
 
-  function toast(type, message) {
-    const id = Date.now();
-    setToasts((prev) => [...prev, { id, type, message }]);
-    setTimeout(() => setToasts((prev) => prev.filter((item) => item.id !== id)), 3500);
+  function toast(type, message, { title = '', duration = 3500 } = {}) {
+    toastSeq.current += 1;
+    const id = `${Date.now()}-${toastSeq.current}`;
+    setToasts((prev) => [...prev, { id, type, message, title }].slice(-5));
+    setTimeout(() => setToasts((prev) => prev.filter((item) => item.id !== id)), duration);
   }
+
+  // Live server push: reminders, health alerts, trigger results and automation
+  // outcomes arrive here. Shown as notifications app-wide and re-broadcast as a
+  // DOM event so Live mode can speak them. Replayed history is not re-alerted.
+  useEffect(() => {
+    if (!authenticated) return undefined;
+    const stop = api.connectWebSocket((msg) => {
+      if (msg?.type !== 'event' || msg.replay) return;
+      const data = msg.data || {};
+      const kind = data.type === 'error' ? 'error' : data.type === 'success' ? 'success' : 'info';
+      toast(kind, data.desc || data.title || 'Notification', { title: data.desc ? data.title : '', duration: 8000 });
+      window.dispatchEvent(new CustomEvent('atulya:notification', { detail: data }));
+    });
+    return stop;
+  }, [authenticated]);
 
   async function load() {
     setError('');
@@ -2031,6 +2025,11 @@ function App() {
     if (tab === 'model') return <ModelInspector bootstrap={bootstrap} toast={toast} />;
     if (tab === 'training') return <Training bootstrap={bootstrap} load={load} toast={toast} />;
     if (tab === 'users') return <UserManagement toast={toast} />;
+    if (tab === 'reflexes') return (
+      <Suspense fallback={<div className="lazy-loading">Loading Reflexes…</div>}>
+        <Reflexes toast={toast} />
+      </Suspense>
+    );
     return <Dashboard bootstrap={bootstrap} load={load} />;
   }, [tab, bootstrap, isAdmin]);
 
@@ -2077,6 +2076,7 @@ function App() {
             <button className={tab === 'model' ? 'active' : ''} onClick={() => { setTab('model'); setAdminOpen(false); }}>Model Inspector</button>
             <button className={tab === 'dashboard' ? 'active' : ''} onClick={() => { setTab('dashboard'); setAdminOpen(false); }}>Dashboard</button>
             <button className={tab === 'users' ? 'active' : ''} onClick={() => { setTab('users'); setAdminOpen(false); }}>Manage Users</button>
+            <button className={tab === 'reflexes' ? 'active' : ''} onClick={() => { setTab('reflexes'); setAdminOpen(false); }}>Reflexes &amp; Brain</button>
           </>
         )}
         
@@ -2122,8 +2122,13 @@ function App() {
         </div>
       )}
 
-      <div className="toasts">
-        {toasts.map((item) => <div className={`toast ${item.type}`} key={item.id}>{item.message}</div>)}
+      <div className="toasts" role="status" aria-live="polite">
+        {toasts.map((item) => (
+          <div className={`toast ${item.type}`} key={item.id}>
+            {item.title && <strong className="toast-title">{item.title}</strong>}
+            {item.message}
+          </div>
+        ))}
       </div>
     </main>
   );
