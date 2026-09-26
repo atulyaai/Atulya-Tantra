@@ -43,6 +43,7 @@ config/chat_history.json
 config/sessions.json
 config/push_subs.json
 config/admin_token.json
+config/jwt_secret.key
 config/users.json
 
 # Node / frontend

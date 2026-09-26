@@ -115,7 +115,7 @@ Atulya tries providers in order until one responds:
 - PWA (manifest + service worker + Add to Home Screen)
 - Digital Nervous System with stimulated strand animations
 - Memory Galaxy constellation visualization
-- 464 tests passing
+- 618 tests passing
 
 ### Cognition layer ✅ (see [atulya/docs/COGNITIVE_ARCHITECTURE.md](../atulya/docs/COGNITIVE_ARCHITECTURE.md))
 - One cognitive kernel for chat, streaming chat, voice, automations and triggers
@@ -128,6 +128,16 @@ Atulya tries providers in order until one responds:
 - Self-monitoring heartbeat publishes health changes (edge-triggered)
 - Brain tiers: `ATULYA_BRAIN=tiny|balanced|power|cloud`
 - Real smart-home control through Home Assistant (`HOME_ASSISTANT_URL` + `HOME_ASSISTANT_TOKEN`)
+
+### Jarvis layer ✅
+- Multi-step plans: routines ("get the house ready for guests", "good night"), device groups
+  ("turn off all the lights"), compound commands, and brain-planned goals — each step checked
+- Learning about the user: facts, habits, and offering to stop asking about approvals (opt-in)
+- Seeing: camera motion/person detection and Home Assistant doorbells/sensors raise events;
+  built-in "Someone at the door" reflex; "is anyone at the door?"
+- Always listening: `atulya listen` — wake word, tray icon, speaks notifications, autostart
+- Google sign-in: Gmail and Google Calendar per user, one click
+- Web UI: Routines, About you, Senses; plain-language approvals
 
 ### Done since the original TODO list ✅
 - Persistent chat history (server-side, `drishti/dashboard/chat_history.py`)

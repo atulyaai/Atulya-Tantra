@@ -179,9 +179,8 @@ class ExecTool(Tool):
         if not allow_exec:
             return ToolResult(success=False, error="Execution requires allow_exec=True and RiskLevel.CRITICAL approval")
         from tantra.core.security import ApprovalSystem, RiskLevel
-        approval = ApprovalSystem()
-        if approval.requires_approval(command, level=RiskLevel.CRITICAL):
-            return ToolResult(success=False, error="Command rejected by approval system")
+        if ApprovalSystem().assess_risk(command) == RiskLevel.CRITICAL:
+            return ToolResult(success=False, error="Command rejected by approval system (critical risk)")
         allowed = allow_list or os.environ.get("ATULYA_EXEC_ALLOWLIST", "").split(",")
         allowed = [item.strip() for item in allowed if item.strip()]
         try:
@@ -213,13 +212,58 @@ class WebSearchTool(Tool):
 
 
 class WebFetchTool(Tool):
+    """Fetch a public web page.
+
+    Only http(s) to public addresses: no file://, no localhost, no private
+    network, no cloud metadata endpoint — the model can be steered by text it
+    reads, so it must not be able to read the machine's own files or services.
+    Every redirect is checked again, and so is the address actually connected
+    to (defeats DNS rebinding). ``ATULYA_FETCH_ALLOW_PRIVATE=1`` allows the LAN.
+    """
+
     name = "web_fetch"
     description = "Fetch URL content"
+    MAX_BYTES = 1_000_000
+    MAX_REDIRECTS = 5
+
+    def __init__(self, transport: Any = None, resolver: Any = None):
+        self._transport = transport
+        self._resolver = resolver
+
     async def execute(self, url: str, **kwargs: Any) -> ToolResult:
+        import httpx
+        from tantra.core.security import SSRFProtection, is_public_ip
+
+        allow_private = os.environ.get("ATULYA_FETCH_ALLOW_PRIVATE", "").lower() in ("1", "true", "yes")
+        guard = SSRFProtection(resolver=self._resolver)
+
+        def allowed(target: str) -> bool:
+            if allow_private:
+                return target.lower().startswith(("http://", "https://"))
+            return guard.check_url(target)
+
         try:
-            import urllib.request
-            with urllib.request.urlopen(url, timeout=10) as resp:
-                return ToolResult(success=True, output=resp.read().decode()[:5000])
+            async with httpx.AsyncClient(timeout=10, follow_redirects=False, transport=self._transport) as client:
+                for _ in range(self.MAX_REDIRECTS + 1):
+                    if not allowed(url):
+                        return ToolResult(success=False, error=f"Refused to fetch {url}: only public http(s) addresses are allowed")
+                    async with client.stream("GET", url, headers={"User-Agent": "Atulya/1.0"}) as resp:
+                        stream = resp.extensions.get("network_stream")
+                        peer = stream.get_extra_info("server_addr") if stream is not None else None
+                        if peer and not allow_private and not is_public_ip(str(peer[0])):
+                            return ToolResult(success=False, error=f"Refused to fetch {url}: it resolved to a private address")
+                        if resp.is_redirect and resp.headers.get("location"):
+                            url = str(resp.url.join(resp.headers["location"]))
+                            continue
+                        body = b""
+                        async for chunk in resp.aiter_bytes():
+                            body += chunk
+                            if len(body) >= self.MAX_BYTES:
+                                break
+                        if resp.status_code >= 400:
+                            return ToolResult(success=False, error=f"HTTP {resp.status_code} from {url}")
+                        return ToolResult(success=True, output=body.decode(resp.encoding or "utf-8", "replace")[:5000])
+            return ToolResult(success=False, error="Too many redirects")
         except Exception as e:
             return ToolResult(success=False, error=str(e))
 

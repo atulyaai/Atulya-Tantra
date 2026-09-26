@@ -2867,7 +2867,8 @@ class TestSSRFProtection:
 
     def test_validate_url_external_allowed(self):
         from tantra.core.security import SSRFProtection
-        ssrf = SSRFProtection()
+        # Hostnames are resolved now; a public address is allowed.
+        ssrf = SSRFProtection(resolver=lambda host: {"93.184.215.14"})
         allowed = ssrf.check_url("https://api.example.com/data")
         assert allowed is True
 
@@ -2906,8 +2907,10 @@ class TestInjectionGuard:
 class TestSecurityManager:
     """Tests for SecurityManager â€” unified security facade."""
 
-    def test_check_url(self):
+    def test_check_url(self, monkeypatch):
+        from tantra.core import security
         from tantra.core.security import SecurityManager
+        monkeypatch.setattr(security, "_resolve", lambda host: {"93.184.215.14"})  # a public address
         sm = SecurityManager()
         assert sm.check_url("http://10.0.0.1/admin") is False
         assert sm.check_url("https://api.example.com") is True

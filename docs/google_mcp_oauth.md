@@ -1,5 +1,10 @@
 # Google MCP OAuth Setup
 
+> **Simpler option:** Atulya now has built-in Google sign-in for Gmail and Calendar. In the web
+> UI open **About you → Google account**: an admin pastes an OAuth client ID and secret once
+> (the page shows the redirect URI to register), then each user clicks **Connect Google**. The
+> MCP servers below are only needed for Google Drive or other MCP clients.
+
 Atulya ships Google Drive and Gmail MCP servers disabled by default. Enable them only after the local credentials below exist in `.env`.
 
 Never commit `.env` or downloaded Google credential JSON files.

@@ -16,11 +16,11 @@ from typing import Any
 
 from fastapi import Header, HTTPException
 
-from .state import ADMIN_TOKEN, DATASETS_DIR, DashboardState, MODEL_OUTPUT_DIRS, OUTPUTS_DIR
+from .state import ADMIN_TOKEN, DATASETS_DIR, JWT_SECRET, DashboardState, MODEL_OUTPUT_DIRS, OUTPUTS_DIR
 
 logger = logging.getLogger(__name__)
 
-_JWT_SECRET = os.environ.get("ATULYA_JWT_SECRET", ADMIN_TOKEN)
+_JWT_SECRET = JWT_SECRET
 
 
 def _jwt_encode(payload: dict, expires_in: int = 86400) -> str:
