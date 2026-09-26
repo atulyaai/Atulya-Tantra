@@ -565,6 +565,10 @@ function LiveMode({ bootstrap, toast }) {
 
   const [selectedVoice, setSelectedVoice] = useState('en_male');
   const [continuous, setContinuous] = useState(false);
+  // Voice/conversation options
+  const [sttEngine, setSttEngine] = useState('browser'); // 'browser' (cloud, hands-free) | 'local' (Whisper, private, push-to-talk)
+  const [autoSpeak, setAutoSpeak] = useState(true);       // speak replies aloud
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false);
 
   // Digital Nervous System States
   const [activeAgent, setActiveAgent] = useState('NONE');
@@ -582,6 +586,7 @@ function LiveMode({ bootstrap, toast }) {
   const recognitionRef = useRef(null);
   const replyRef = useRef('');
   const audioRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
 
   const galaxyNodes = [
     { id: 'tantra_voice', name: 'Vocal Echo', desc: 'Neural audio speech synthesis configuration', cluster: 'Tantra', x: 80, y: 55 },
@@ -875,18 +880,94 @@ function LiveMode({ bootstrap, toast }) {
     recognition.start();
   }
 
+  // Local, private speech-to-text via backend Whisper. Push-to-talk: start
+  // recording, then call stopListening() (tap the mic again) to transcribe.
+  async function startListeningLocal() {
+    if (audioRef.current) {
+      try { audioRef.current.pause(); } catch (e) {}
+      audioRef.current = null;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const chunks = [];
+      const recorder = new MediaRecorder(stream);
+      recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setListening(false);
+        const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+        setStatus('thinking');
+        addEvent('Transcribing locally (Whisper)…', 'thinking');
+        try {
+          const lang = (voiceList.find((v) => v.id === selectedVoice)?.lang) || 'en';
+          const res = await api.stt(blob, lang);
+          const text = String(res.text || '').trim();
+          if (res.error) throw new Error(res.error);
+          if (!text) {
+            setStatus('ready');
+            addEvent('No speech detected', 'ready');
+            return;
+          }
+          setPrompt(text);
+          const lower = text.toLowerCase();
+          if (continuous && !WAKE_PHRASES.some((phrase) => lower.includes(phrase))) {
+            setStatus('ready');
+            addEvent('Wake word not detected. Standing by…', 'ready');
+            return;
+          }
+          sendLive(stripWakePhrase(text));
+        } catch (err) {
+          setStatus('ready');
+          setActiveAgent('NONE');
+          toast('error', err.message || 'Local transcription failed');
+          addEvent('Local STT failed: ' + (err.message || 'error'), 'error');
+        }
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setListening(true);
+      setStatus('listening');
+      setActiveAgent('ECHO');
+      addEvent('Recording (local Whisper). Tap mic again to transcribe.', 'listening');
+      addMindStep('Local Vocal Capture', 'Recording audio for private on-device transcription.', 'listening');
+    } catch (err) {
+      toast('error', 'Microphone access denied');
+      addEvent('Mic access denied', 'error');
+    }
+  }
+
   function stopListening() {
-    recognitionRef.current?.stop();
+    try { recognitionRef.current?.stop(); } catch (e) {}
+    try {
+      const rec = mediaRecorderRef.current;
+      if (rec && rec.state !== 'inactive') rec.stop(); // triggers onstop -> transcribe
+    } catch (e) {}
     setListening(false);
-    setStatus('ready');
-    setActiveAgent('NONE');
+    if (status === 'listening') setStatus('ready');
     addEvent('Microphone sensor offline', 'standby');
     addMindStep('Vocal Input Sensor Disengaged', 'Microphone offline.', 'ready');
   }
 
+  // Barge-in: cut off Atulya mid-speech and immediately start a new turn.
+  function bargeIn() {
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    if (audioRef.current) {
+      try { audioRef.current.pause(); } catch (e) {}
+      audioRef.current = null;
+    }
+    setStatus('ready');
+    setActiveAgent('NONE');
+    addEvent('Interrupted — listening…', 'listening');
+    if (sttEngine === 'local') startListeningLocal();
+    else startListening();
+  }
+
   function toggleVoice() {
+    if (status === 'speaking') { bargeIn(); return; }
     if (listening) {
       stopListening();
+    } else if (sttEngine === 'local') {
+      startListeningLocal();
     } else {
       startListening();
     }
@@ -995,6 +1076,12 @@ function LiveMode({ bootstrap, toast }) {
                 addEvent(`Computed via ${provider}. Voicing output...`, 'speaking');
                 
                 setTimeout(() => {
+                  if (!autoSpeak) {
+                    setStatus('ready');
+                    setActiveAgent('NONE');
+                    addEvent('Auto-speak off — reply shown as text.', 'ready');
+                    return;
+                  }
                   if (res.audio_base64) {
                     const audio = new Audio("data:audio/mp3;base64," + res.audio_base64);
                     audioRef.current = audio;
@@ -1212,7 +1299,28 @@ function LiveMode({ bootstrap, toast }) {
         <footer className="v3-bottom">
           <div><b>System Matrix</b><span>CPU {telemetry?.system?.cpu_pct ?? '--'}%</span><span>RAM {telemetry?.system?.ram_pct ?? '--'}%</span><span>Node {activeAgent}</span></div>
           <div className={`v3-waveform ${status}`}>{Array.from({ length: 22 }).map((_, idx) => <span key={idx} />)}</div>
-          <div><b>Quick Actions</b><button type="button" onClick={() => setPrompt('Save this as a memory: ')}>+ Mem</button><button type="button" onClick={cycleVortexMode}>Vortex</button><label><input type="checkbox" checked={continuous} onChange={(e) => setContinuous(e.target.checked)} /> Hands-Free</label></div>
+          <div><b>Quick Actions</b><button type="button" onClick={() => setPrompt('Save this as a memory: ')}>+ Mem</button><button type="button" onClick={cycleVortexMode}>Vortex</button><label><input type="checkbox" checked={continuous} onChange={(e) => setContinuous(e.target.checked)} /> Hands-Free</label><button type="button" onClick={() => setShowVoiceSettings((v) => !v)}>⚙ Voice</button></div>
+          {showVoiceSettings && (
+            <div className="voice-settings-panel">
+              <b>Conversation Settings</b>
+              <label>
+                Voice
+                <select value={selectedVoice} onChange={(e) => setSelectedVoice(e.target.value)}>
+                  {voiceList.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                </select>
+              </label>
+              <label>
+                Listening
+                <select value={sttEngine} onChange={(e) => setSttEngine(e.target.value)}>
+                  <option value="browser">Browser (hands-free, cloud)</option>
+                  <option value="local">Local Whisper (private, push-to-talk)</option>
+                </select>
+              </label>
+              <label><input type="checkbox" checked={autoSpeak} onChange={(e) => setAutoSpeak(e.target.checked)} /> Speak replies aloud</label>
+              <label><input type="checkbox" checked={continuous} onChange={(e) => setContinuous(e.target.checked)} /> Hands-free wake word ("Hey Atulya")</label>
+              <small>Tip: barge in anytime — tap the mic while Atulya is speaking to interrupt and reply.</small>
+            </div>
+          )}
         </footer>
       </div>
     );

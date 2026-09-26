@@ -72,6 +72,22 @@ export const api = {
   async tts(text, voice) {
     return this.post('/api/voice/tts', { text, voice });
   },
+  async stt(blob, language = 'en') {
+    // Local, private speech-to-text via the backend faster-whisper endpoint.
+    // Works in any browser (unlike webkitSpeechRecognition) and stays offline.
+    const token = getToken();
+    const form = new FormData();
+    form.append('file', blob, 'speech.webm');
+    form.append('language', language);
+    const headers = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+      headers['X-Atulya-Token'] = token;
+    }
+    const res = await fetch('/api/voice/stt', { method: 'POST', headers, body: form });
+    if (!res.ok) throw new Error(`Local transcription failed (${res.status})`);
+    return res.json();
+  },
   async voiceChat(prompt, voice, model_id) {
     return this.post('/api/voice/chat', { prompt, voice, model_id });
   },
