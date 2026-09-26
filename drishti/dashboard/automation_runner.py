@@ -94,7 +94,7 @@ class AutomationRunner:
         try:
             from drishti.dashboard.routes.ws import broadcast_event
             desc = (error or "job finished")[:280]
-            broadcast_event(
+            await broadcast_event(
                 f"Automation job: {name}",
                 desc,
                 event_type="success" if not error else "error",

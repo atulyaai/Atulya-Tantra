@@ -109,7 +109,7 @@ class RepoStructureAuditor:
                     root_dirs.append(name)
                     if name not in {"atulya", "tantra", "yantra", "drishti"}:
                         support_dirs.append(name)
-                elif name in GENERATED_ROOT_DIRS:
+                elif name in GENERATED_ROOT_DIRS or name.endswith(".egg-info"):
                     issues.append(StructureIssue(
                         "warning",
                         name,
