@@ -3384,3 +3384,15 @@ button.small {
   .holo-pill { display: none; }
   .holo-name { font-size: 14px; letter-spacing: 4px; }
 }
+
+/* Suspense fallback shown while a lazy-loaded view (e.g. Spirit UI) is fetched. */
+.lazy-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  color: var(--muted);
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  opacity: 0.8;
+}
