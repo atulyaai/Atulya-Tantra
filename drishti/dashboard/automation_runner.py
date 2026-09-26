@@ -72,9 +72,23 @@ class AutomationRunner:
             await self._notify_job(job, error="No command configured")
             return job
         try:
-            response = await self.llm.ask(command, tools_enabled=True)
-            job["last_result"] = (response.text or "")[:2000] if response.text is not None else ""
-            job["last_provider"] = response.provider if response.provider is not None else ""
+            # Deterministic first: if the command is a clear action ("turn off
+            # the lights", "lock the front door"), execute it directly so the
+            # automation doesn't depend on the model's tool-calling. Fall back
+            # to the LLM for open-ended commands ("summarize my unread email").
+            routed_result = None
+            try:
+                from atulya.agent.intent_router import route_and_execute
+                routed_result = await route_and_execute(command)
+            except Exception:  # pragma: no cover - router is best-effort
+                routed_result = None
+            if routed_result is not None:
+                job["last_result"] = routed_result[:2000]
+                job["last_provider"] = "intent-router"
+            else:
+                response = await self.llm.ask(command, tools_enabled=True)
+                job["last_result"] = (response.text or "")[:2000] if response.text is not None else ""
+                job["last_provider"] = response.provider if response.provider is not None else ""
             job["last_error"] = ""
         except Exception as exc:
             job["last_error"] = str(exc)

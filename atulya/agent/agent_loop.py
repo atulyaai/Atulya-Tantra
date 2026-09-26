@@ -10,6 +10,7 @@ import logging
 from typing import Any
 
 from .tools import get_tool_schemas, execute_tool
+from .intent_router import route_intent, route_and_execute
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,18 @@ async def agent_loop(
     Returns:
         The final assistant reply as a string.
     """
+    # Deterministic fast-path: if the message is a clear command (turn on a
+    # light, set a reminder, weather in X…), execute the matching tool directly
+    # instead of relying on the model's tool-calling. Keeps actions reliable
+    # even with a small local model. Falls through to the LLM otherwise.
+    routed = route_intent(user_input)
+    if routed is not None:
+        logger.info("Intent router matched tool '%s' (confidence %.2f)", routed.tool, routed.confidence)
+        try:
+            return await route_and_execute(user_input)
+        except Exception as exc:  # noqa: BLE001 - fall back to the LLM on any tool error
+            logger.warning("Routed tool '%s' failed (%s); falling back to LLM.", routed.tool, exc)
+
     tools = get_tool_schemas()
 
     messages = list(conversation_history or [])
