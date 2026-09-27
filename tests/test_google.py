@@ -2,6 +2,8 @@
 email/calendar tools acting for the right user — against a fake Google."""
 from __future__ import annotations
 
+import os
+
 import asyncio
 import base64
 import email
@@ -121,7 +123,8 @@ class TestSignIn:
         connect(google)
         account = GoogleAccount("atul")
         assert account.status()["connected"] and account.status()["email"] == "atul@gmail.com"
-        assert oct(account.path.stat().st_mode & 0o777) == "0o600"
+        if os.name == "posix":
+            assert oct(account.path.stat().st_mode & 0o777) == "0o600"
         assert not GoogleAccount("meera").connected  # per user
 
     def test_state_is_single_use_and_bound(self, google):
@@ -155,7 +158,8 @@ class TestSignIn:
             save_client_config("not-a-client-id", "s")
         save_client_config(CLIENT_ID, "secret")
         assert client_config()["source"] == "settings"
-        assert oct((tmp_path / "client.json").stat().st_mode & 0o777) == "0o600"
+        if os.name == "posix":
+            assert oct((tmp_path / "client.json").stat().st_mode & 0o777) == "0o600"
 
 
 # ── tokens ────────────────────────────────────────────────────────────────
