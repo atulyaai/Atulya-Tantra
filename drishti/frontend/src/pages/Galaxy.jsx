@@ -1,46 +1,57 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../api.js';
 
-// Tantra palette: saffron sun, white Atulya, India green skills, chakra blue topics.
-const GROUP_STYLE = {
-  you: { color: '#ff9933', ring: 0 },
-  about: { color: '#ffb366', ring: 1 },
-  habit: { color: '#f4c430', ring: 1 },
-  trust: { color: '#7ee2a0', ring: 1 },
-  topic: { color: '#6fa8ff', ring: 2 },
-  memory: { color: '#fbf6ee', ring: 2 },
-  skill: { color: '#2eb85c', ring: 2 },
+// One galaxy disc, like a scatter of thousands of experiments: every dot is
+// something Atulya knows. What matters most about you sits in the bright core;
+// Atulya's skills form the outer arms. Size = importance, colour = constellation.
+const GROUPS = {
+  you: { color: [255, 153, 51], depth: 0.0 },
+  about: { color: [255, 179, 102], depth: 0.18 },
+  habit: { color: [244, 196, 48], depth: 0.3 },
+  trust: { color: [126, 226, 160], depth: 0.38 },
+  topic: { color: [251, 246, 238], depth: 0.5 },
+  memory: { color: [180, 200, 255], depth: 0.64 },
+  skill: { color: [46, 184, 92], depth: 0.82 },
 };
-// Where each constellation sits around the sun (radians).
-const CLUSTER_ANGLE = { about: -1.9, habit: -0.9, trust: 0.1, topic: 1.2, memory: 2.3, skill: 3.4 };
+const TILT = 0.42; // vertical squash of the disc
+const GOLDEN = 2.399963;
 
-function layout(data) {
-  const byGroup = {};
-  data.nodes.forEach((n) => { (byGroup[n.group] ||= []).push(n); });
-  const placed = {};
-  (byGroup.you || []).forEach((n, i) => {
-    placed[n.id] = { ...n, x: i === 0 ? 0 : 150, y: i === 0 ? 0 : -60, r: 6 + n.weight * 3, orbit: 0 };
+const rgba = ([r, g, b], a) => `rgba(${r},${g},${b},${a})`;
+// Dust colour by radius: saffron core → ivory → India green rim.
+function dustColor(t) {
+  const stops = [[255, 153, 51], [255, 214, 170], [251, 246, 238], [140, 210, 170], [46, 184, 92]];
+  const x = Math.min(0.999, t) * (stops.length - 1);
+  const i = Math.floor(x); const f = x - i;
+  return stops[i].map((v, k) => Math.round(v + (stops[i + 1][k] - v) * f));
+}
+
+function build(data) {
+  const groups = {};
+  data.nodes.forEach((n) => (groups[n.group] ||= []).push(n));
+  const stars = [];
+  Object.entries(groups).forEach(([g, nodes]) => {
+    const base = GROUPS[g] || GROUPS.memory;
+    nodes
+      .slice()
+      .sort((a, b) => b.weight - a.weight)
+      .forEach((n, i) => {
+        // Scattered across a wide band (not a ring) so groups blend like a real galaxy.
+        const band = base.depth + (Math.random() - 0.35) * 0.3;
+        const r = g === 'you' ? (i === 0 ? 0 : 0.16) : Math.min(0.98, Math.max(0.1, band));
+        stars.push({
+          ...n, r, a: g === 'you' ? -Math.PI / 2 : i * GOLDEN + Math.random() * 0.8, color: base.color,
+          size: g === 'you' ? 9 - i * 2 : Math.min(7, 2.4 + n.weight * 1.4),
+        });
+      });
   });
-  Object.entries(byGroup).forEach(([group, nodes]) => {
-    if (group === 'you') return;
-    const base = CLUSTER_ANGLE[group] ?? 0;
-    const dist = 260 + (GROUP_STYLE[group]?.ring || 1) * 90;
-    const cx = Math.cos(base) * dist;
-    const cy = Math.sin(base) * dist;
-    nodes.forEach((n, i) => {
-      // Golden-angle spiral keeps each constellation compact and readable.
-      const a = i * 2.399963;
-      const rad = 18 + Math.sqrt(i) * 34;
-      placed[n.id] = {
-        ...n, cx, cy, a, rad,
-        x: cx + Math.cos(a) * rad, y: cy + Math.sin(a) * rad,
-        r: Math.min(9, 2.5 + n.weight * 1.8),
-        speed: 0.00008 + (i % 5) * 0.00002,
-        twinkle: Math.random() * Math.PI * 2,
-      };
-    });
+  // Dust: denser toward the core, in two faint spiral arms.
+  const dust = Array.from({ length: 4200 }, (_, i) => {
+    const r = Math.pow(Math.random(), 0.9);
+    const arm = i % 2 ? 0 : Math.PI;
+    const spread = i % 3 ? 1.1 : 3.2; // two soft arms plus an even halo
+    return { r, a: arm + r * 5.5 + (Math.random() - 0.5) * spread, s: 0.6 + Math.random() * 2.2 * (1 - r * 0.5), c: dustColor(r), o: 0.18 + Math.random() * 0.4 };
   });
-  return placed;
+  return { stars, dust };
 }
 
 export function Galaxy() {
@@ -52,198 +63,155 @@ export function Galaxy() {
   const [pinned, setPinned] = useState(null);
   const [hidden, setHidden] = useState({});
   const [query, setQuery] = useState('');
-  const view = useRef({ x: 0, y: 0, k: 0.85, drag: null });
-  const nodesRef = useRef({});
+  const [tip, setTip] = useState({ x: 0, y: 0 });
+  const view = useRef({ zoom: 1, px: 0, py: 0, drag: null, spin: 0 });
+  const screen = useRef([]); // last drawn star positions, for hit testing
 
-  useEffect(() => {
-    api.get('/api/knowledge/galaxy').then(setData).catch((e) => setError(e.message));
-  }, []);
-
-  const placed = useMemo(() => (data ? layout(data) : {}), [data]);
-  useEffect(() => {
-    nodesRef.current = placed;
-    // Zoom to fit every constellation on first view.
-    const pts = Object.values(placed);
-    const box = wrapRef.current?.getBoundingClientRect();
-    if (!pts.length || !box) return;
-    const span = Math.max(...pts.map((n) => Math.max(Math.abs(n.x), Math.abs(n.y)) + 40));
-    view.current.k = Math.min(1.2, Math.max(0.3, Math.min(box.width, box.height) / 2 / span));
-  }, [placed]);
-
+  useEffect(() => { api.get('/api/knowledge/galaxy').then(setData).catch((e) => setError(e.message)); }, []);
+  const world = useMemo(() => (data ? build(data) : null), [data]);
+  const byId = useMemo(() => Object.fromEntries((world?.stars || []).map((s) => [s.id, s])), [world]);
   const neighbours = useMemo(() => {
-    const map = {};
-    (data?.links || []).forEach(({ source, target }) => {
-      (map[source] ||= new Set()).add(target);
-      (map[target] ||= new Set()).add(source);
-    });
-    return map;
+    const m = {};
+    (data?.links || []).forEach(({ source, target }) => { (m[source] ||= new Set()).add(target); (m[target] ||= new Set()).add(source); });
+    return m;
   }, [data]);
 
   const focus = pinned || hover;
   const q = query.trim().toLowerCase();
 
   useEffect(() => {
+    if (!world) return undefined;
     const canvas = canvasRef.current;
-    if (!canvas || !data) return undefined;
     const ctx = canvas.getContext('2d');
-    const stars = Array.from({ length: 260 }, () => ({
-      x: Math.random(), y: Math.random(), s: Math.random() * 1.3, p: Math.random() * 6,
-    }));
-    let raf;
     const dpr = window.devicePixelRatio || 1;
-
-    function resize() {
+    let raf; let last = performance.now();
+    const resize = () => {
       const { width, height } = wrapRef.current.getBoundingClientRect();
       canvas.width = width * dpr; canvas.height = height * dpr;
       canvas.style.width = `${width}px`; canvas.style.height = `${height}px`;
-    }
+    };
     resize();
     window.addEventListener('resize', resize);
 
-    function draw(t) {
-      const W = canvas.width / dpr; const H = canvas.height / dpr;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const bg = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7);
-      bg.addColorStop(0, '#141a3a'); bg.addColorStop(1, '#05070f');
-      ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-      stars.forEach((s) => {
-        ctx.globalAlpha = 0.25 + 0.35 * Math.sin(t / 900 + s.p) ** 2;
-        ctx.fillStyle = '#fbf6ee';
-        ctx.fillRect(s.x * W, s.y * H, s.s, s.s);
-      });
-      ctx.globalAlpha = 1;
-
+    const draw = (now) => {
       const v = view.current;
-      ctx.translate(W / 2 + v.x, H / 2 + v.y);
-      ctx.scale(v.k, v.k);
+      if (!focus) v.spin += (now - last) * 0.00003; // slow drift, paused while inspecting
+      last = now;
+      const W = canvas.width / dpr; const H = canvas.height / dpr;
+      const R = Math.min(W * 0.46, H / TILT * 0.44) * v.zoom;
+      const cx = W / 2 + v.px; const cy = H / 2 + v.py;
+      const project = (r, a) => {
+        const ang = a + v.spin / Math.max(0.25, r); // inner parts turn faster, like a real disc
+        return [cx + Math.cos(ang) * r * R, cy + Math.sin(ang) * r * R * TILT];
+      };
 
-      const nodes = nodesRef.current;
-      Object.values(nodes).forEach((n) => {
-        if (n.cx === undefined) return;
-        const a = n.a + t * n.speed;
-        n.x = n.cx + Math.cos(a) * n.rad; n.y = n.cy + Math.sin(a) * n.rad;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = '#070a18';
+      ctx.fillRect(0, 0, W, H);
+      const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 0.5);
+      glow.addColorStop(0, 'rgba(255,153,51,0.28)'); glow.addColorStop(1, 'rgba(255,153,51,0)');
+      ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
+
+      world.dust.forEach((d) => {
+        const [x, y] = project(d.r, d.a);
+        ctx.fillStyle = rgba(d.c, focus || q ? d.o * 0.35 : d.o);
+        ctx.beginPath(); ctx.arc(x, y, d.s / 2, 0, Math.PI * 2); ctx.fill();
       });
 
       const near = focus ? neighbours[focus] || new Set() : null;
-      ctx.lineWidth = 1 / v.k;
-      data.links.forEach(({ source, target }) => {
-        const a = nodes[source]; const b = nodes[target];
-        if (!a || !b || hidden[a.group] || hidden[b.group]) return;
-        const lit = focus && (source === focus || target === focus);
-        ctx.strokeStyle = lit ? 'rgba(255,153,51,0.8)' : 'rgba(255,153,51,0.07)';
-        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-      });
+      const drawn = [];
+      world.stars.forEach((s) => { if (!hidden[s.group]) { const [x, y] = project(s.r, s.a); drawn.push({ s, x, y }); } });
 
-      Object.values(nodes).forEach((n) => {
-        if (hidden[n.group]) return;
-        const style = GROUP_STYLE[n.group] || GROUP_STYLE.memory;
-        const match = !q || n.label.toLowerCase().includes(q) || n.detail.toLowerCase().includes(q);
-        const dim = (focus && n.id !== focus && !near.has(n.id)) || !match;
-        const tw = n.twinkle !== undefined ? 0.75 + 0.25 * Math.sin(t / 600 + n.twinkle) : 1;
-        ctx.globalAlpha = dim ? 0.15 : tw;
-        const glow = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.r * 4);
-        glow.addColorStop(0, style.color); glow.addColorStop(1, 'transparent');
-        ctx.fillStyle = glow;
-        ctx.beginPath(); ctx.arc(n.x, n.y, n.r * 4, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = n.group === 'you' && n.id === 'atulya' ? '#ffffff' : style.color;
-        ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2); ctx.fill();
-        if (!dim && (n.group === 'you' || n.id === focus || v.k > 1.4 || (q && match))) {
-          ctx.globalAlpha = 1;
-          ctx.fillStyle = '#fbf6ee';
-          ctx.font = `${n.group === 'you' ? 14 : 11}px Inter, system-ui, sans-serif`;
-          ctx.textAlign = 'center';
-          ctx.fillText(n.label, n.x, n.y + n.r + 14);
+      if (focus) {
+        const f = drawn.find((d) => d.s.id === focus);
+        if (f) {
+          ctx.strokeStyle = 'rgba(255,153,51,0.55)'; ctx.lineWidth = 1;
+          drawn.forEach((d) => { if (near.has(d.s.id)) { ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(d.x, d.y); ctx.stroke(); } });
+        }
+      }
+
+      drawn.forEach(({ s, x, y }) => {
+        const match = !q || s.label.toLowerCase().includes(q) || (s.detail || '').toLowerCase().includes(q);
+        const dim = (focus && s.id !== focus && !near.has(s.id)) || !match;
+        const size = s.size * (s.id === focus ? 1.6 : 1) * Math.sqrt(v.zoom);
+        ctx.fillStyle = rgba(s.color, dim ? 0.12 : 0.9);
+        ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI * 2); ctx.fill();
+        if (!dim) {
+          ctx.strokeStyle = rgba(s.color, 0.35); ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.arc(x, y, size + 2.5, 0, Math.PI * 2); ctx.stroke();
+        }
+        if (!dim && (s.group === 'you' || s.id === focus || (q && match) || (v.zoom > 1.8 && size > 4))) {
+          ctx.fillStyle = '#fbf6ee'; ctx.font = '12px Inter, system-ui, sans-serif'; ctx.textAlign = 'center';
+          ctx.fillText(s.label, x, y - size - 7);
         }
       });
-      ctx.globalAlpha = 1;
+      screen.current = drawn;
       raf = requestAnimationFrame(draw);
-    }
+    };
     raf = requestAnimationFrame(draw);
     return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', resize); };
-  }, [data, focus, hidden, neighbours, q]);
+  }, [world, focus, hidden, neighbours, q]);
 
-  function toWorld(e) {
+  function pick(e) {
     const rect = canvasRef.current.getBoundingClientRect();
-    const v = view.current;
-    return {
-      x: (e.clientX - rect.left - rect.width / 2 - v.x) / v.k,
-      y: (e.clientY - rect.top - rect.height / 2 - v.y) / v.k,
-      sx: e.clientX - rect.left, sy: e.clientY - rect.top,
-    };
+    const mx = e.clientX - rect.left; const my = e.clientY - rect.top;
+    let best = null; let bd = 14;
+    screen.current.forEach(({ s, x, y }) => { const d = Math.hypot(x - mx, y - my); if (d < Math.max(bd, s.size + 3) && d < bd + s.size) { best = s; bd = d; } });
+    return { star: best, mx, my };
   }
-
-  function hit(e) {
-    const p = toWorld(e);
-    let best = null; let bestD = Infinity;
-    Object.values(nodesRef.current).forEach((n) => {
-      if (hidden[n.group]) return;
-      const d = Math.hypot(n.x - p.x, n.y - p.y);
-      if (d < Math.max(n.r * 2.2, 10 / view.current.k) && d < bestD) { best = n; bestD = d; }
-    });
-    return { node: best, p };
-  }
-
-  const [tipPos, setTipPos] = useState({ x: 0, y: 0 });
   function onMove(e) {
     const v = view.current;
-    if (v.drag) {
-      v.x = v.drag.vx + e.clientX - v.drag.x; v.y = v.drag.vy + e.clientY - v.drag.y;
-      return;
-    }
-    const { node, p } = hit(e);
-    setHover(node ? node.id : null);
-    setTipPos({ x: p.sx, y: p.sy });
-    canvasRef.current.style.cursor = node ? 'pointer' : 'grab';
+    if (v.drag) { v.px = v.drag.px + e.clientX - v.drag.x; v.py = v.drag.py + e.clientY - v.drag.y; return; }
+    const { star, mx, my } = pick(e);
+    setHover(star?.id || null); setTip({ x: mx, y: my });
+    canvasRef.current.style.cursor = star ? 'pointer' : 'grab';
   }
-  function onDown(e) { view.current.drag = { x: e.clientX, y: e.clientY, vx: view.current.x, vy: view.current.y, moved: false }; }
   function onUp(e) {
     const d = view.current.drag; view.current.drag = null;
-    if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 4) {
-      const { node } = hit(e);
-      setPinned(node ? node.id : null);
-    }
-  }
-  function onWheel(e) {
-    const v = view.current;
-    v.k = Math.min(4, Math.max(0.3, v.k * (e.deltaY < 0 ? 1.1 : 0.9)));
+    if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 4) setPinned(pick(e).star?.id || null);
   }
 
-  const shown = focus ? placed[focus] : null;
-  const cluster = (g) => data?.clusters.find((c) => c.id === g)?.label || g;
+  const shown = focus ? byId[focus] : null;
+  const label = (g) => data?.clusters.find((c) => c.id === g)?.label || g;
+  const W = wrapRef.current?.clientWidth || 0;
 
   return (
     <div className="galaxy">
       <div className="galaxy-bar">
-        <h2>Knowledge galaxy</h2>
-        <input className="galaxy-search" placeholder="Find a star…" value={query} onChange={(e) => setQuery(e.target.value)} />
-        <div className="galaxy-legend">
-          {(data?.clusters || []).map((c) => (
-            <button key={c.id} className={hidden[c.id] ? 'off' : ''}
-              onClick={() => setHidden((h) => ({ ...h, [c.id]: !h[c.id] }))}>
-              <span className="dot" style={{ background: GROUP_STYLE[c.id]?.color }} />
-              {c.label} <small>{c.count}</small>
-            </button>
-          ))}
+        <div>
+          <h2>Knowledge map</h2>
+          <p className="muted">Everything Atulya knows. Brighter and closer to the centre means more about you; size shows importance.</p>
         </div>
+        <input className="galaxy-search" placeholder="Search…" value={query} onChange={(e) => setQuery(e.target.value)} />
+      </div>
+      <div className="galaxy-legend">
+        {(data?.clusters || []).map((c) => (
+          <button type="button" key={c.id} className={hidden[c.id] ? 'off' : ''} onClick={() => setHidden((h) => ({ ...h, [c.id]: !h[c.id] }))}>
+            <span className="dot" style={{ background: rgba((GROUPS[c.id] || GROUPS.memory).color, 1) }} />
+            {c.label} <small>{c.count}</small>
+          </button>
+        ))}
       </div>
       <div className="galaxy-canvas" ref={wrapRef}>
         {error && <div className="alert">{error}</div>}
-        {!data && !error && <div className="lazy-loading">Mapping the stars…</div>}
-        <canvas ref={canvasRef} onMouseMove={onMove} onMouseDown={onDown} onMouseUp={onUp}
-          onMouseLeave={() => { view.current.drag = null; setHover(null); }} onWheel={onWheel} />
+        {!data && !error && <div className="lazy-loading">Mapping what I know…</div>}
+        <canvas ref={canvasRef} onMouseMove={onMove}
+          onMouseDown={(e) => { view.current.drag = { x: e.clientX, y: e.clientY, px: view.current.px, py: view.current.py }; }}
+          onMouseUp={onUp} onMouseLeave={() => { view.current.drag = null; setHover(null); }}
+          onWheel={(e) => { const v = view.current; v.zoom = Math.min(5, Math.max(0.5, v.zoom * (e.deltaY < 0 ? 1.12 : 0.89))); }} />
         {shown && (
-          <div className="galaxy-tip" style={pinned ? { right: 16, top: 16 } : { left: tipPos.x + 16, top: tipPos.y + 16 }}>
-            <div className="galaxy-tip-kind" style={{ color: GROUP_STYLE[shown.group]?.color }}>{shown.id === 'atulya' ? 'Assistant' : cluster(shown.group)}</div>
+          <div className="galaxy-tip" style={pinned ? { right: 16, top: 16 } : { left: Math.min(tip.x + 16, W - 316), top: tip.y + 16 }}>
+            <div className="galaxy-tip-kind" style={{ color: rgba(shown.color, 1) }}>{shown.id === 'atulya' ? 'Assistant' : label(shown.group)}</div>
             <div className="galaxy-tip-title">{shown.label}</div>
             {shown.detail && shown.detail !== shown.label && <p>{shown.detail}</p>}
-            {Object.entries(shown.meta || {}).filter(([, v]) => v !== '' && v !== null).map(([k, v]) => (
+            {Object.entries(shown.meta || {}).filter(([, v]) => v !== '' && v !== null && v !== undefined).map(([k, v]) => (
               <div key={k} className="galaxy-tip-meta"><span>{k}</span><b>{String(v)}</b></div>
             ))}
             <div className="galaxy-tip-meta"><span>connections</span><b>{neighbours[shown.id]?.size || 0}</b></div>
-            {pinned && <small className="muted">Click empty space to unpin</small>}
+            {pinned && <small className="muted">Click empty space to let go</small>}
           </div>
         )}
-        <div className="galaxy-hint">Drag to pan · scroll to zoom · click a star to pin it</div>
+        <div className="galaxy-hint">Hover a dot for details · click to pin · drag to move · scroll to zoom</div>
       </div>
     </div>
   );

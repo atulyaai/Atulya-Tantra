@@ -6,9 +6,6 @@ import './styles.css';
 
 // Lazy-load the heavy Spirit view so it is fetched only when opened, keeping
 // the initial bundle (and first paint) small.
-const HolographicSpirit = lazy(() =>
-  import('./src/pages/HolographicSpirit.jsx').then((m) => ({ default: m.HolographicSpirit })),
-);
 // Admin-only: trigger rules, brain tier, and live event feed.
 const Reflexes = lazy(() => import('./src/pages/Reflexes.jsx').then((m) => ({ default: m.Reflexes })));
 const Routines = lazy(() => import('./src/pages/Routines.jsx').then((m) => ({ default: m.Routines })));
@@ -41,9 +38,7 @@ function renderMarkdown(text) {
 
 const CHAT_CACHE_KEY = 'atulya-chat-messages';
 const LIVE_CACHE_KEY = 'atulya-live-messages';
-const DEFAULT_LIVE_MESSAGES = [
-  { role: 'assistant', text: 'Atulya OS online. Systems configured at peak efficiency. Ready to orchestrate, sir.' },
-];
+const DEFAULT_LIVE_MESSAGES = [];
 const WAKE_PHRASES = ['hey atulya', 'atulya'];
 // Real pipeline stages (from the server's trace) -> the node the visual animates.
 const STAGE_AGENT = {
@@ -295,195 +290,12 @@ function lineClass(line) {
   return 'log-line';
 }
 
-const VORTEX_NODES = ['ECHO', 'ORACLE', 'ATHENA', 'VISION', 'FORGE', 'MEMORY'];
-
-function HolographicVortex({ activeAgent, status, mode, onNodeSelect }) {
-  const canvasRef = useRef(null);
-  const particlesRef = useRef([]);
-  const mouseRef = useRef({ x: 0.5, y: 0.5 });
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return undefined;
-    const ctx = canvas.getContext('2d');
-    let raf = 0;
-    let frame = 0;
-
-    function resize() {
-      const parent = canvas.parentElement;
-      const rect = parent?.getBoundingClientRect();
-      canvas.width = Math.max(320, Math.floor(rect?.width || 720));
-      canvas.height = Math.max(280, Math.floor(rect?.height || 520));
-      if (!particlesRef.current.length) {
-        particlesRef.current = Array.from({ length: 1800 }, () => {
-          const radius = 18 + Math.random() * 235;
-          return {
-            angle: Math.random() * Math.PI * 2,
-            radius,
-            baseRadius: radius,
-            speed: (0.0015 + Math.random() * 0.0045) * (Math.random() > 0.5 ? 1 : -1),
-            size: 0.45 + Math.random() * 1.35,
-            alpha: 0.25 + Math.random() * 0.7,
-            phase: Math.random() * Math.PI * 2,
-            layer: Math.random(),
-          };
-        });
-      }
-    }
-
-    function colorFor(particle) {
-      if (mode === 'dna') {
-        return `rgba(${220 + particle.layer * 35}, ${90 + particle.layer * 80}, 20, ${particle.alpha})`;
-      }
-      if (mode === 'chaos') {
-        const r = Math.floor(120 + 100 * Math.sin(frame * 0.012 + particle.phase));
-        const g = Math.floor(90 + 120 * particle.layer);
-        const b = Math.floor(190 + 55 * Math.cos(frame * 0.01 + particle.phase));
-        return `rgba(${r}, ${g}, ${b}, ${particle.alpha})`;
-      }
-      const heat = particle.radius / 255;
-      const r = Math.floor(190 + 65 * Math.min(1, heat));
-      const g = Math.floor(90 + 120 * Math.max(0, 1 - heat * 0.8));
-      const b = Math.floor(45 + 120 * Math.max(0, 0.55 - heat));
-      return `rgba(${r}, ${g}, ${b}, ${particle.alpha})`;
-    }
-
-    function draw() {
-      raf = window.requestAnimationFrame(draw);
-      frame += 1;
-      const width = canvas.width;
-      const height = canvas.height;
-      const cx = width / 2;
-      const cy = height / 2;
-      const mouse = mouseRef.current;
-      const statusBoost = status === 'thinking' ? 1.8 : status === 'speaking' ? 1.45 : status === 'listening' ? 1.25 : 1;
-      const mouseX = (mouse.x - 0.5) * 70;
-      const mouseY = (mouse.y - 0.5) * 45;
-
-      ctx.fillStyle = 'rgba(2, 4, 10, 0.16)';
-      ctx.fillRect(0, 0, width, height);
-
-      const glow = ctx.createRadialGradient(cx + mouseX * 0.25, cy + mouseY * 0.25, 0, cx, cy, 230);
-      glow.addColorStop(0, mode === 'gold' ? 'rgba(255, 196, 64, 0.26)' : mode === 'dna' ? 'rgba(255, 110, 30, 0.22)' : 'rgba(255, 153, 51, 0.24)');
-      glow.addColorStop(0.45, 'rgba(255, 244, 230, 0.07)');
-      glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = glow;
-      ctx.beginPath();
-      ctx.arc(cx, cy, 235, 0, Math.PI * 2);
-      ctx.fill();
-
-      for (let ring = 0; ring < 4; ring += 1) {
-        ctx.beginPath();
-        ctx.arc(cx, cy, 70 + ring * 58 + Math.sin(frame * 0.018 + ring) * 5, 0, Math.PI * 2);
-        ctx.strokeStyle = ring % 2 ? 'rgba(244, 196, 48, 0.16)' : 'rgba(255, 244, 230, 0.15)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      }
-
-      particlesRef.current.forEach((particle) => {
-        particle.angle += particle.speed * statusBoost;
-        if (mode === 'dna') {
-          particle.radius = particle.baseRadius + Math.sin(frame * 0.025 + particle.phase) * 35;
-        } else {
-          particle.radius += (particle.baseRadius - particle.radius) * 0.035 + Math.sin(frame * 0.012 + particle.phase) * 0.45;
-        }
-        const pull = 1 / Math.max(1, particle.radius / 72);
-        const x = cx + Math.cos(particle.angle) * particle.radius + mouseX * pull;
-        const y = cy + Math.sin(particle.angle) * particle.radius * 0.66 + mouseY * pull;
-        ctx.beginPath();
-        ctx.arc(x, y, particle.size, 0, Math.PI * 2);
-        ctx.fillStyle = colorFor(particle);
-        ctx.fill();
-      });
-
-      if (mode === 'dna') {
-        for (let i = 0; i < 48; i += 1) {
-          const t = i / 47;
-          const x = cx - 145 + t * 290;
-          const y1 = cy + Math.sin(t * Math.PI * 4 + frame * 0.035) * 46;
-          const y2 = cy + Math.sin(t * Math.PI * 4 + frame * 0.035 + Math.PI) * 46;
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-          ctx.beginPath();
-          ctx.moveTo(x, y1);
-          ctx.lineTo(x, y2);
-          ctx.stroke();
-          ctx.fillStyle = 'rgba(255, 170, 0, 0.72)';
-          ctx.beginPath();
-          ctx.arc(x, y1, 2.4, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = 'rgba(255, 244, 230, 0.68)';
-          ctx.beginPath();
-          ctx.arc(x, y2, 2.4, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-
-      VORTEX_NODES.forEach((name, index) => {
-        const angle = frame * 0.004 + index * ((Math.PI * 2) / VORTEX_NODES.length);
-        const x = cx + Math.cos(angle) * Math.min(width * 0.34, 270);
-        const y = cy + Math.sin(angle) * Math.min(height * 0.26, 165);
-        const active = name === activeAgent;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(x, y);
-        ctx.strokeStyle = active ? 'rgba(255, 244, 230, 0.42)' : 'rgba(255, 153, 51, 0.13)';
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(x, y, active ? 11 : 7, 0, Math.PI * 2);
-        ctx.fillStyle = active ? 'rgba(255, 244, 230, 0.82)' : 'rgba(244, 196, 48, 0.48)';
-        ctx.fill();
-        ctx.fillStyle = active ? '#ffffff' : 'rgba(243, 234, 223, 0.68)';
-        ctx.font = '700 9px Orbitron, system-ui, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(name, x, y + 25);
-      });
-    }
-
-    resize();
-    window.addEventListener('resize', resize);
-    raf = window.requestAnimationFrame(draw);
-    return () => {
-      window.cancelAnimationFrame(raf);
-      window.removeEventListener('resize', resize);
-    };
-  }, [activeAgent, mode, status]);
-
-  function handlePointerMove(event) {
-    const rect = event.currentTarget.getBoundingClientRect();
-    mouseRef.current = {
-      x: (event.clientX - rect.left) / rect.width,
-      y: (event.clientY - rect.top) / rect.height,
-    };
-  }
-
-  function handleClick(event) {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const rx = (event.clientX - rect.left) / rect.width;
-    const ry = (event.clientY - rect.top) / rect.height;
-    const angle = Math.atan2(ry - 0.5, rx - 0.5);
-    const normalized = (angle + Math.PI * 2) % (Math.PI * 2);
-    const index = Math.round(normalized / ((Math.PI * 2) / VORTEX_NODES.length)) % VORTEX_NODES.length;
-    onNodeSelect?.(VORTEX_NODES[index]);
-  }
-
-  return (
-    <canvas
-      ref={canvasRef}
-      className={`webui-vortex-canvas ${mode}`}
-      onPointerMove={handlePointerMove}
-      onClick={handleClick}
-      aria-label="Interactive holographic particle field"
-    />
-  );
-}
-
 function LiveMode({ bootstrap, toast }) {
   const checkpoints = bootstrap?.checkpoints || [];
   const providerOptions = bootstrap?.providers || [{ id: 'auto', name: 'Auto Provider', available: true }];
   const [showTelemetry, setShowTelemetry] = useState(false);
   const [telemetry, setTelemetry] = useState(null);
   const [provider, setProvider] = useState('auto');
-  const [vortexMode, setVortexMode] = useState('gold');
   const [prompt, setPrompt] = useState('');
   const [messages, setMessages] = useState(() => loadCachedMessages(LIVE_CACHE_KEY, DEFAULT_LIVE_MESSAGES));
   const [events, setEvents] = useState([
@@ -519,7 +331,6 @@ function LiveMode({ bootstrap, toast }) {
     { time: '22:00:01', title: 'System Bootup', desc: 'Atulya organic core initialized.', type: 'system' },
     { time: '22:00:03', title: 'Strand Diagnostic', desc: 'Memory galaxy, vision lens, and vocal echo systems synced.', type: 'ready' }
   ]);
-  const [selectedGalaxyNode, setSelectedGalaxyNode] = useState(null);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -536,16 +347,6 @@ function LiveMode({ bootstrap, toast }) {
   const liveStateRef = useRef({ status: 'ready', busy: false, listening: false, autoSpeak: true });
   const speakRef = useRef(null);
 
-  const galaxyNodes = [
-    { id: 'tantra_voice', name: 'Vocal Echo', desc: 'Neural audio speech synthesis configuration', cluster: 'Tantra', x: 80, y: 55 },
-    { id: 'tantra_mem', name: 'Memory Strands', desc: 'Hierarchical vector memory storage layer', cluster: 'Tantra', x: 190, y: 40 },
-    { id: 'tantra_agent', name: 'Consciousness Core', desc: 'Specialist strand coordination router', cluster: 'Tantra', x: 280, y: 70 },
-    { id: 'web_dns', name: 'Optical Vision', desc: 'Visual cognitive processing and scanner coordinates', cluster: 'Drishti', x: 90, y: 140 },
-    { id: 'web_seo', name: 'Forge Compiler', desc: 'Syntax and code generation modules', cluster: 'Drishti', x: 220, y: 150 },
-    { id: 'web_host', name: 'Athena Planner', desc: 'Strategic action pipeline planner', cluster: 'Drishti', x: 300, y: 120 },
-    { id: 'device_ir', name: 'IR Protocol Transceiver', desc: 'Infrared appliance automation signal', cluster: 'Yantra', x: 130, y: 220 },
-    { id: 'device_wifi', name: 'WiFi Transceiver', desc: 'Wireless local area network device scanning', cluster: 'Yantra', x: 250, y: 210 }
-  ];
 
   useEffect(() => {
     cacheMessages(LIVE_CACHE_KEY, messages);
@@ -696,7 +497,7 @@ function LiveMode({ bootstrap, toast }) {
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
     const frame = canvas.toDataURL('image/jpeg', 0.8);
     setCapturedFrame(frame);
-    setPrompt('Analyze this camera frame and describe what is visible.');
+    setPrompt((p) => p || 'What do you see?');
     setStatus('reading');
     addEvent('Visual frame captured. Analyzing pixels...', 'seeing');
     addMindStep('Visual Frame Cached', 'Image matrix captured. Analyzing visual components.', 'seeing');
@@ -906,7 +707,7 @@ function LiveMode({ bootstrap, toast }) {
         } catch (err) {
           setStatus('ready');
           setActiveAgent('NONE');
-          toast('error', err.message || 'Local transcription failed');
+          toast('error', /Failed to fetch|NetworkError/i.test(err.message || '') ? 'Can’t reach the Atulya server — is it running?' : (err.message || 'Could not understand the audio'));
           addEvent('Local STT failed: ' + (err.message || 'error'), 'error');
         }
       };
@@ -985,39 +786,8 @@ function LiveMode({ bootstrap, toast }) {
     }
   }
 
-  function activateNode(agent, label, desc) {
-    setActiveAgent(agent);
-    addEvent(`${label} node selected`, 'ready');
-    addMindStep(label, desc, 'ready');
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: 'assistant',
-        text: `${label} online. ${desc}`,
-        id: `${Date.now()}-${agent}`,
-      },
-    ].slice(-40));
-  }
 
-  function handleVortexNode(agent) {
-    const descriptions = {
-      ORACLE: 'Research and general reasoning prompts route through this strand.',
-      ATHENA: 'Planning state is active; requests will show routing and execution steps.',
-      FORGE: 'Synthesis state is active after provider responses and tool results.',
-      MEMORY: 'Persistent chat history is available; vector memory remains a deeper backend upgrade.',
-      VISION: 'Camera capture can be opened from Start Vision; model vision analysis is limited.',
-      ECHO: 'Voice input and speech output controls are available from the mic and hands-free controls.',
-    };
-    activateNode(agent, agent, descriptions[agent] || 'Node selected.');
-  }
 
-  function cycleVortexMode() {
-    const modes = ['gold', 'dna', 'chaos'];
-    const next = modes[(modes.indexOf(vortexMode) + 1) % modes.length];
-    setVortexMode(next);
-    addEvent(`Hologram mode set to ${next.toUpperCase()}`, 'ready');
-    addMindStep('Hologram Mode', `Particle field renderer switched to ${next.toUpperCase()} mode.`, 'ready');
-  }
 
   // The Digital Nervous System Sequential State Stimulation Flow
   // Render the server's real pipeline trace (understand → decide → act →
@@ -1037,7 +807,7 @@ function LiveMode({ bootstrap, toast }) {
     const text = (voiceText || prompt).trim();
     if (!text || busy) return;
     const id = Date.now();
-    const cameraNote = capturedFrame ? '\n\nCamera frame is captured in the Live Mode panel. Use vision when vision processing is active.' : '';
+    const image = capturedFrame; // sent for real: read on the server (OCR / vision)
     const answeringConfirmation = awaitingConfirmRef.current;
     setAwaitingConfirm(false);
 
@@ -1047,9 +817,10 @@ function LiveMode({ bootstrap, toast }) {
     replyRef.current = '';
     setMessages((prev) => [
       ...prev,
-      { role: 'user', text, id: `${id}-user` },
+      { role: 'user', text, image, id: `${id}-user` },
       { role: 'assistant', text: '', id },
     ]);
+    setCapturedFrame('');
 
     // The request goes out immediately; what the mind stream shows next is
     // what the server actually did (its trace), not a script.
@@ -1058,7 +829,8 @@ function LiveMode({ bootstrap, toast }) {
     addEvent(answeringConfirmation ? 'Answer received — checking…' : 'Understanding your request…', 'thinking');
 
     api.post('/api/voice/chat', {
-      prompt: `${text}${cameraNote}`,
+      prompt: text,
+      ...(image ? { image } : {}),
       voice: selectedVoice,
       model_id: provider,
       provider,
@@ -1139,7 +911,7 @@ function LiveMode({ bootstrap, toast }) {
         setActiveAgent('NONE');
         addEvent('Request failed', 'error');
         addMindStep('Error', err.message, 'error');
-        setMessages((prev) => prev.map((msg) => msg.id === id ? { ...msg, text: `Command Failure: ${err.message}` } : msg));
+        setMessages((prev) => prev.map((msg) => msg.id === id ? { ...msg, text: /Failed to fetch|NetworkError|Load failed/i.test(err.message) ? 'I can’t reach the Atulya server right now. Is it running (start.bat)?' : `Sorry, that failed: ${err.message}` } : msg));
 
         if (continuous) {
           setTimeout(() => startListening(), 2000);
@@ -1147,483 +919,91 @@ function LiveMode({ bootstrap, toast }) {
       });
   }
 
-  if (!showTelemetry) {
-    const visibleStream = mindStream.slice(0, 8);
-    const galaxyPreviewNodes = galaxyNodes.slice(0, 8);
-    const readyProviderCount = providerOptions.filter((item) => item.available && item.id !== 'auto').length;
-    return (
-      <div className="v3-shell">
-        <header className="v3-topbar">
-          <div className="v3-logo">ATULYA <span>NEURAL OS v3</span></div>
-          <nav className="v3-topnav">
-            <button className="on" type="button">Neural Core</button>
-            <button type="button" onClick={() => setShowTelemetry(true)}>Telemetry</button>
-            <button type="button" onClick={cycleVortexMode}>Hologram</button>
-          </nav>
-          <div className="v3-topright">
-            <span>Gesture: {listening ? 'Listening' : 'Ready'}</span>
-            <span>Providers: {readyProviderCount}</span>
-            <span>Model: {provider.toUpperCase()}</span>
-            <span className="v3-user-pill">{bootstrap?.user?.role?.toUpperCase?.() || 'USER'}</span>
-          </div>
-        </header>
-
-        <main className="v3-main">
-          <aside className="v3-panel v3-left-panel">
-            <div className="v3-panel-hdr">
-              <span>Consciousness Stream</span>
-              <strong>{busy ? 'Active' : 'Ready'}</strong>
-            </div>
-            <div className="v3-stream-list">
-              {visibleStream.map((item, idx) => (
-                <button type="button" className={`v3-stream-item ${item.type}`} key={`${item.time}-${idx}`}>
-                  <small>[{item.time}]</small>
-                  <b>{item.title}</b>
-                  <span>{item.desc}</span>
-                </button>
-              ))}
-            </div>
-            <div className="v3-gesture-panel">
-              <div className="v3-subtitle">Gesture Control Map</div>
-              <div className="v3-gesture-grid">
-                {[
-                  ['Open Palm', 'Expand Orb'],
-                  ['Fist', 'Collapse'],
-                  ['Point', 'Select Node'],
-                  ['Peace', 'Oracle Mode'],
-                  ['Pinch', 'Zoom Core'],
-                  ['OK Sign', 'Confirm'],
-                ].map(([name, action]) => (
-                  <button type="button" key={name} onClick={cycleVortexMode}>
-                    <b>{name}</b>
-                    <span>{action}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </aside>
-
-          <section className="v3-holo-center">
-            {cameraOn && <video className="v3-camera-feed" ref={videoRef} autoPlay playsInline muted />}
-            <HolographicVortex activeAgent={activeAgent} status={status} mode={vortexMode} onNodeSelect={handleVortexNode} />
-            <div className="v3-scan-line" />
-            <div className="v3-corner tl" />
-            <div className="v3-corner tr" />
-            <div className="v3-corner bl" />
-            <div className="v3-corner br" />
-
-            <div className="v3-hud tl"><span>ATULYA OS v3.0</span><span>Neural Mesh: Active</span><span>Particles: 1800</span></div>
-            <div className="v3-hud tr"><span>Status: {status.toUpperCase()}</span><span>Vortex: {vortexMode.toUpperCase()}</span><span>Provider: {provider.toUpperCase()}</span></div>
-            <div className="v3-hud bl"><span>Node: {activeAgent}</span><span>Intent: {intentDetected || 'Standby'}</span></div>
-            <div className="v3-hud br"><span>Wake: {continuous ? 'Hey Atulya' : 'Manual'}</span><span>Voice: {selectedVoice}</span></div>
-
-            <div className="v3-float-panel oracle"><b>Oracle</b><span>Research: {activeAgent === 'ORACLE' ? 'Active' : 'Idle'}</span><span>Depth: {messages.length}</span></div>
-            <div className="v3-float-panel neural"><b>Neural</b><span>Signal: {busy ? 'Routing' : 'Stable'}</span><span>Path: {routePath || '--'}</span></div>
-            <div className="v3-float-panel forge"><b>Forge</b><span>Output: {status === 'speaking' ? 'Vocal' : 'Text'}</span><span>Queue: {busy ? 1 : 0}</span></div>
-            <div className="v3-float-panel echo"><b>Echo</b><span>Mic: {listening ? 'Live' : 'Idle'}</span><span>Wake: {continuous ? 'Ready' : 'Off'}</span></div>
-
-            <div className="v3-node-ring">
-              {VORTEX_NODES.map((node) => (
-                <button key={node} type="button" className={activeAgent === node ? 'active' : ''} onClick={() => handleVortexNode(node)}>
-                  {node}
-                </button>
-              ))}
-            </div>
-
-            <button type="button" className={`v3-core ${status}`} onClick={toggleVoice} aria-label="Toggle voice input"><span /></button>
-
-            <div className="v3-engage-bar">
-              <button type="button" onClick={() => handleVortexNode('ORACLE')}>Engage Oracle</button>
-              <button type="button" onClick={toggleVoice}>{listening ? 'Stop Mic' : 'Enable Voice'}</button>
-              <button type="button" onClick={cameraOn ? stopCamera : startCamera}>{cameraOn ? 'Close Lens' : 'Neural Lens'}</button>
-              <button type="button" onClick={captureFrame} disabled={!cameraOn}>Scan</button>
-              <button type="button" onClick={cycleVortexMode}>Vortex</button>
-              <select value={provider} onChange={(event) => setProvider(event.target.value)}>
-                {providerOptions.map((item) => (
-                  <option key={item.id} value={item.id}>{item.available ? 'Ready - ' : 'Off - '}{item.name}</option>
-                ))}
-              </select>
-              <select value={selectedVoice} onChange={(event) => setSelectedVoice(event.target.value)}>
-                {voiceList.map((voice) => <option key={voice.id} value={voice.id}>{voice.name}</option>)}
-              </select>
-            </div>
-          </section>
-
-          <aside className="v3-panel v3-right-panel">
-            <section className="v3-vision-wrap">
-              <div className="v3-panel-hdr"><span>Vision / Hand Track</span><strong>{cameraOn ? 'Live' : capturedFrame ? 'Captured' : 'Standby'}</strong></div>
-              <div className="v3-vision-inner" onClick={(event) => {
-                const rect = event.currentTarget.getBoundingClientRect();
-                const x = Math.round(((event.clientX - rect.left) / rect.width) * 100);
-                const y = Math.round(((event.clientY - rect.top) / rect.height) * 100);
-                addMindStep('Vision Coordinate', `Scanner coordinate selected at X ${x}%, Y ${y}%.`, 'seeing');
-              }}>
-                {cameraOn ? <video ref={videoRef} autoPlay playsInline muted /> : capturedFrame ? <img src={capturedFrame} alt="Captured visual frame" /> : <div className="v3-vision-empty">Optical System Standby</div>}
-                <div className="v3-vision-overlay"><span className="box one">User</span><span className="box two">Display</span><span className="box three">Input</span></div>
-                <canvas ref={canvasRef} hidden />
-              </div>
-            </section>
-
-            <section className="v3-memory-wrap">
-              <div className="v3-panel-hdr"><span>Memory Galaxy</span><strong>{galaxyPreviewNodes.length} Stars</strong></div>
-              <div className="v3-memory-canvas">
-                <svg viewBox="0 0 360 220" role="img" aria-label="Memory galaxy">
-                  <circle cx="180" cy="110" r="8" className="core" />
-                  {galaxyPreviewNodes.map((node) => (
-                    <g key={node.id} onMouseEnter={() => setSelectedGalaxyNode(node)} onClick={() => {
-                      setSelectedGalaxyNode(node);
-                      setPrompt(`Recall memory node: ${node.name}. ${node.desc}`);
-                      addMindStep('Memory Node Retrieved', `${node.name}: ${node.desc}`, 'ready');
-                    }}>
-                      <line x1="180" y1="110" x2={node.x} y2={node.y} />
-                      <circle cx={node.x} cy={node.y} r={selectedGalaxyNode?.id === node.id ? 7 : 5} />
-                      <text x={node.x} y={node.y - 9} textAnchor="middle">{node.name}</text>
-                    </g>
-                  ))}
-                </svg>
-                <div className="v3-memory-info">{selectedGalaxyNode ? `${selectedGalaxyNode.name}: ${selectedGalaxyNode.desc}` : 'Hover or click a memory node to inspect'}</div>
-              </div>
-            </section>
-
-            <section className="v3-chat-wrap">
-              <div className="v3-panel-hdr">
-                <span>Atulya Chat</span>
-                <div><strong>{busy ? 'Thinking' : 'Ready'}</strong><button type="button" onClick={() => { api.delete('/api/chat/history').catch(() => {}); setMessages(DEFAULT_LIVE_MESSAGES); }}>CLR</button></div>
-              </div>
-              <div className="v3-chat-msgs">
-                {messages.map((msg, idx) => (
-                  <div className={`v3-msg ${msg.role}`} key={msg.id || idx}>
-                    <div>{renderMarkdown(msg.text || (msg.role === 'assistant' ? 'Atulya is thinking...' : ''))}</div>
-                    <small>{msg.role === 'user' ? 'USER' : 'ATULYA'}</small>
-                  </div>
-                ))}
-                {busy && <div className="v3-msg assistant thinking"><div>Atulya is thinking...</div></div>}
-              </div>
-              <form className="v3-chat-input" onSubmit={(event) => { event.preventDefault(); sendLive(); }}>
-                <input value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={continuous ? 'Say: Hey Atulya...' : 'Type or say: Hey Atulya...'} disabled={busy} />
-                <button type="submit" disabled={busy || !prompt.trim()}>{busy ? '...' : 'Send'}</button>
-              </form>
-            </section>
-          </aside>
-        </main>
-
-        <footer className="v3-bottom">
-          <div><b>System Matrix</b><span>CPU {telemetry?.system?.cpu_pct ?? '--'}%</span><span>RAM {telemetry?.system?.ram_pct ?? '--'}%</span><span>Node {activeAgent}</span></div>
-          <div className={`v3-waveform ${status}`}>{Array.from({ length: 22 }).map((_, idx) => <span key={idx} />)}</div>
-          <div><b>Quick Actions</b><button type="button" onClick={() => setPrompt('Save this as a memory: ')}>+ Mem</button><button type="button" onClick={cycleVortexMode}>Vortex</button><label><input type="checkbox" checked={continuous} onChange={(e) => setContinuous(e.target.checked)} /> Hands-Free</label><button type="button" onClick={() => setShowVoiceSettings((v) => !v)}>⚙ Voice</button></div>
-          {showVoiceSettings && (
-            <div className="voice-settings-panel">
-              <b>Conversation Settings</b>
-              <label>
-                Voice
-                <select value={selectedVoice} onChange={(e) => setSelectedVoice(e.target.value)}>
-                  {voiceList.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-                </select>
-              </label>
-              <label>
-                Listening
-                <select value={sttEngine} onChange={(e) => setSttEngine(e.target.value)}>
-                  <option value="local">On this PC (private, Whisper)</option>
-                  <option value="browser">Browser (cloud)</option>
-                </select>
-              </label>
-              <label><input type="checkbox" checked={autoSpeak} onChange={(e) => setAutoSpeak(e.target.checked)} /> Speak replies aloud</label>
-              <label><input type="checkbox" checked={continuous} onChange={(e) => setContinuous(e.target.checked)} /> Hands-free wake word ("Hey Atulya")</label>
-              <small>Tip: barge in anytime — tap the mic while Atulya is speaking to interrupt and reply.</small>
-            </div>
-          )}
-        </footer>
-      </div>
-    );
-  }
+  const STATUS_TEXT = {
+    ready: continuous ? 'Say “Hey Atulya”…' : 'Tap the mic and talk',
+    listening: 'Listening…', thinking: 'Thinking…', speaking: 'Speaking — tap to interrupt',
+    seeing: 'Camera on', reading: 'Ready to ask about the picture',
+  };
+  const QUICK = ['What’s on my calendar today?', 'Turn off the lights', 'Remind me in 10 minutes to stretch', 'What do you know about me?'];
 
   return (
-    <section className="digital-organism-shell">
-      <header className="panel-title telemetry-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <h2>Telemetry Cockpit</h2>
-        <button onClick={() => setShowTelemetry(false)} className="primary">✨ ENTER HOLOGRAM MODE</button>
-      </header>
-      <div className="telemetry-metrics-strip">
-        <Metric label="CPU" value={`${telemetry?.system?.cpu_pct ?? '--'}%`} />
-        <Metric label="RAM" value={`${telemetry?.system?.ram_pct ?? '--'}%`} />
-        <Metric label="Disk Free" value={`${telemetry?.system?.disk_free_gb ?? '--'} GB`} />
-        <Metric label="Uptime" value={telemetry?.system?.uptime || '--'} />
-        <Metric label="Providers" value={`${(telemetry?.providers || providerOptions).filter((item) => item.available && item.id !== 'auto').length} ready`} />
+    <div className="talk">
+      <div className="talk-thread">
+        {messages.length === 0 && (
+          <div className="talk-empty">
+            <h2>Hi, I’m Atulya.</h2>
+            <p>Tap the mic and talk, or type below.</p>
+          </div>
+        )}
+        {messages.map((msg, idx) => (
+          <div className={`talk-msg ${msg.role}`} key={msg.id || idx}>
+            {msg.image && <img src={msg.image} alt="What you showed Atulya" />}
+            <div>{renderMarkdown(msg.text || (msg.role === 'assistant' ? '…' : ''))}</div>
+          </div>
+        ))}
+        {routePath && !busy && <div className="talk-route">{intentDetected ? `${intentDetected} · ` : ''}{routePath}</div>}
       </div>
-      <div className="cockpit-grid">
-        
-        {/* LEFT PANEL: Consciousness Stream */}
-        <div className="panel consciousness-stream-panel">
-          <div className="panel-title">
-            <h2>Consciousness Stream</h2>
-            <div className="flow-badge"><span className="pulse-indicator"></span>{telemetry?.error ? 'DEGRADED' : 'LIVE FLOW'}</div>
-          </div>
-          <div className="mind-flow-container">
-            {(telemetry?.events?.length ? telemetry.events.map(normalizeTelemetryEvent) : mindStream).map((item, idx) => (
-              <div className={`mind-step ${item.type}`} key={idx}>
-                <span className="mind-time">[{item.time}]</span>
-                <div className="mind-marker">
-                  <div className="marker-dot" />
-                  {idx < mindStream.length - 1 && <div className="marker-line" />}
-                </div>
-                <div className="mind-content">
-                  <strong>{item.title.toUpperCase()}</strong>
-                  <p>{item.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
 
-        {/* CENTER COLUMN: Living Core & Agent Chamber */}
-        <div className="panel center-core-panel">
-          <div className="panel-title">
-            <h2>Digital Organism Core</h2>
-            <span className="organism-id">ATULYA SYSTEM OS</span>
-          </div>
-
-          <div className="chamber-stage">
-            {/* The Floating Agent Chamber */}
-            <div className="agent-chamber">
-              {/* Digital Nervous System Connecting Strands */}
-              <svg className="nervous-system-svg" viewBox="0 0 360 360">
-                <path d="M180,45 L180,180" className={`nervous-strand oracle-strand ${activeAgent === 'ORACLE' ? 'stimulated' : ''}`} />
-                <path d="M275,95 L180,180" className={`nervous-strand athena-strand ${activeAgent === 'ATHENA' ? 'stimulated' : ''}`} />
-                <path d="M275,265 L180,180" className={`nervous-strand forge-strand ${activeAgent === 'FORGE' ? 'stimulated' : ''}`} />
-                <path d="M180,315 L180,180" className={`nervous-strand memory-strand ${activeAgent === 'MEMORY' ? 'stimulated' : ''}`} />
-                <path d="M85,265 L180,180" className={`nervous-strand vision-strand ${activeAgent === 'VISION' ? 'stimulated' : ''}`} />
-                <path d="M85,95 L180,180" className={`nervous-strand echo-strand ${activeAgent === 'ECHO' ? 'stimulated' : ''}`} />
-              </svg>
-
-              {/* Orbital Nodes */}
-              <div className={`agent-node node-oracle ${activeAgent === 'ORACLE' ? 'active' : ''}`} onClick={() => setActiveAgent('ORACLE')}>
-                <div className="node-glow" />
-                <span>ORACLE</span>
-                <small>Research</small>
-              </div>
-
-              <div className={`agent-node node-athena ${activeAgent === 'ATHENA' ? 'active' : ''}`} onClick={() => setActiveAgent('ATHENA')}>
-                <div className="node-glow" />
-                <span>ATHENA</span>
-                <small>Planning</small>
-              </div>
-
-              <div className={`agent-node node-forge ${activeAgent === 'FORGE' ? 'active' : ''}`} onClick={() => setActiveAgent('FORGE')}>
-                <div className="node-glow" />
-                <span>FORGE</span>
-                <small>Synthesis</small>
-              </div>
-
-              <div className={`agent-node node-memory ${activeAgent === 'MEMORY' ? 'active' : ''}`} onClick={() => setActiveAgent('MEMORY')}>
-                <div className="node-glow" />
-                <span>MEMORY</span>
-                <small>Cognition</small>
-              </div>
-
-              <div className={`agent-node node-vision ${activeAgent === 'VISION' ? 'active' : ''}`} onClick={() => setActiveAgent('VISION')}>
-                <div className="node-glow" />
-                <span>VISION</span>
-                <small>Perception</small>
-              </div>
-
-              <div className={`agent-node node-echo ${activeAgent === 'ECHO' ? 'active' : ''}`} onClick={() => setActiveAgent('ECHO')}>
-                <div className="node-glow" />
-                <span>ECHO</span>
-                <small>Vocalize</small>
-              </div>
-
-              {/* The Living Core */}
-              <div className={`central-organism-core ${status}`}>
-                <div className="hologram-glow" />
-                <div className="hologram-orb">
-                  <div className="hologram-core" />
-                  <div className="hologram-ring ring-1" />
-                  <div className="hologram-ring ring-2" />
-                  <div className="hologram-ring ring-3" />
-                </div>
-                {status === 'speaking' && (
-                  <div className="waveform-active">
-                    <div className="bar bar-1" />
-                    <div className="bar bar-2" />
-                    <div className="bar bar-3" />
-                    <div className="bar bar-4" />
-                    <div className="bar bar-5" />
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="live-controls organism-controls">
-            <button type="button" className={listening ? 'danger active-btn' : 'primary'} onClick={toggleVoice}>
-              {listening ? 'STIMULATE MIC' : 'ENGAGE ORACLE'}
-            </button>
-            <button type="button" onClick={cameraOn ? stopCamera : startCamera}>
-              {cameraOn ? 'CLOSE LENS' : 'ENGAGE VISION'}
-            </button>
-            <button type="button" onClick={captureFrame} disabled={!cameraOn}>SCAN FRAME</button>
-            
-            <select value={provider} onChange={(e) => setProvider(e.target.value)}>
-              {providerOptions.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.available ? 'Ready - ' : 'Off - '}{item.name}
-                </option>
-              ))}
-            </select>
-            
-            <select value={selectedVoice} onChange={(e) => {
-              setSelectedVoice(e.target.value);
-              addEvent('Consciousness voice altered', 'ready');
-            }}>
-              {voiceList.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-            </select>
-
-            <label className="check hands-free-chk">
-              <input type="checkbox" checked={continuous} onChange={(e) => {
-                setContinuous(e.target.checked);
-                addEvent(e.target.checked ? 'Hands-Free continuous active' : 'Hands-Free deactivated', 'ready');
-                if (e.target.checked && !listening && !busy && status === 'ready') {
-                  startListening();
-                }
-              }} />
-              HANDS-FREE
-            </label>
-          </div>
-        </div>
-
-        {/* RIGHT COLUMN: Memory Galaxy & Vision Screen */}
-        <div className="panel right-vision-galaxy-panel">
-          
-          {/* Vision Screen with overlays */}
-          <div className="vision-header">
-            <h2>Vision Screen</h2>
-            <span className="vision-mode">{cameraOn ? 'ACTIVE OPTICS' : 'STANDBY'}</span>
-          </div>
-          
-          <div className="vision-stage-container">
-            <video ref={videoRef} autoPlay playsInline muted />
-            {!cameraOn && !capturedFrame && <div className="vision-empty">OPTICAL SYSTEM STANDBY</div>}
-            {capturedFrame && !cameraOn && <img src={capturedFrame} alt="Scan analysis" />}
-            
-            {cameraOn && (
-              <div className="vision-overlay">
-                <div className="scanner-line" />
-                <div className="bounding-box box-1">
-                  <span className="box-label">USER: ATUL (CODING)</span>
-                </div>
-                <div className="bounding-box box-2">
-                  <span className="box-label">MONITOR: WEBUI CORE</span>
-                </div>
-                <div className="bounding-box box-3">
-                  <span className="box-label">KEYBOARD: INPUT SIGNAL</span>
-                </div>
-                <div className="vision-diagnostics">
-                  <span>FPS: 30</span>
-                  <span>RESOLUTION: 1280x720</span>
-                  <span>FOCUS: COGNITIVE OVERLAY</span>
-                </div>
-              </div>
-            )}
+      <div className="talk-dock">
+        {(cameraOn || capturedFrame) && (
+          <div className="talk-camera">
+            {cameraOn ? <video ref={videoRef} autoPlay playsInline muted /> : <img src={capturedFrame} alt="Captured frame" />}
             <canvas ref={canvasRef} hidden />
-          </div>
-
-          <hr className="cockpit-divider" />
-
-          {/* Memory Galaxy Constellation */}
-          <div className="galaxy-header">
-            <h2>Memory Galaxy</h2>
-            <span className="galaxy-clusters">3 CLUSTERS</span>
-          </div>
-
-          <div className="galaxy-container">
-            <svg className="galaxy-svg" viewBox="0 0 360 250">
-              {/* Connecting strand links */}
-              <line x1="180" y1="125" x2="80" y2="55" className="galaxy-strand" />
-              <line x1="180" y1="125" x2="190" y2="40" className="galaxy-strand" />
-              <line x1="180" y1="125" x2="280" y2="70" className="galaxy-strand" />
-              <line x1="180" y1="125" x2="90" y2="140" className="galaxy-strand" />
-              <line x1="180" y1="125" x2="220" y2="150" className="galaxy-strand" />
-              <line x1="180" y1="125" x2="300" y2="120" className="galaxy-strand" />
-              <line x1="180" y1="125" x2="130" y2="220" className="galaxy-strand" />
-              <line x1="180" y1="125" x2="250" y2="210" className="galaxy-strand" />
-
-              {/* Core Star */}
-              <circle cx="180" cy="125" r="10" className="galaxy-core-star" />
-
-              {/* Node Stars */}
-              {galaxyNodes.map((node) => (
-                <g key={node.id} 
-                   onClick={() => setSelectedGalaxyNode(node)}
-                   onMouseEnter={() => setSelectedGalaxyNode(node)}
-                   className="galaxy-node-group">
-                  <circle cx={node.x} cy={node.y} r="6" 
-                          className={`galaxy-star star-${node.cluster.toLowerCase()} ${selectedGalaxyNode?.id === node.id ? 'pulsing-star' : ''}`} />
-                  <text x={node.x} y={node.y - 10} className="galaxy-node-label" textAnchor="middle">{node.name}</text>
-                </g>
-              ))}
-            </svg>
-
-            {/* Selected Node Details HUD */}
-            <div className="galaxy-hud">
-              {selectedGalaxyNode ? (
-                <div className="hud-content">
-                  <span className="hud-cluster">CLUSTER: {selectedGalaxyNode.cluster.toUpperCase()}</span>
-                  <h3>{selectedGalaxyNode.name.toUpperCase()}</h3>
-                  <p>{selectedGalaxyNode.desc}</p>
-                </div>
-              ) : (
-                <div className="hud-placeholder">Hover/Click a memory star cluster coordinate...</div>
-              )}
+            <div className="talk-camera-actions">
+              {cameraOn && <button type="button" onClick={captureFrame}>Snap</button>}
+              {capturedFrame && <button type="button" onClick={() => setCapturedFrame('')}>Discard</button>}
+              {cameraOn && <button type="button" onClick={stopCamera}>Close camera</button>}
             </div>
           </div>
+        )}
 
+        <div className="talk-quick">
+          {QUICK.map((q) => <button type="button" key={q} disabled={busy} onClick={() => sendLive(q)}>{q}</button>)}
         </div>
 
-      </div>
-
-      {/* BOTTOM SECTION: Voice Cognition Engine */}
-      <div className="panel voice-engine-panel">
-        <div className="panel-title">
-          <h2>Voice Cognition Engine</h2>
-          <span className="wake-word">WAKE WORD: "HEY ATULYA"</span>
+        <div className="talk-controls">
+          <button type="button" className={`talk-mic ${status}${listening ? ' on' : ''}`} onClick={toggleVoice}
+            aria-label={listening ? 'Stop listening' : 'Talk to Atulya'}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11z" /></svg>
+          </button>
+          <div className="talk-status">{STATUS_TEXT[status] || status}</div>
         </div>
-        <div className="voice-engine-grid">
-          <div className="voice-meta">
-            <div className="meta-box">
-              <small>SPEAKER IDENTITY</small>
-              <strong>{listening ? 'LISTENING...' : busy ? 'ATULYA' : 'ATUL (USER)'}</strong>
-            </div>
-            <div className="meta-box">
-              <small>INTENT</small>
-              <strong>{intentDetected || 'STANDBY'}</strong>
-            </div>
-            <div className="meta-box">
-              <small>ROUTE</small>
-              <strong>{routePath || '--'}</strong>
-            </div>
-          </div>
-          <div className="voice-visualizer-container">
-            <div className={`spectrum-wave ${status}`}>
-              <span className="spectrum-bar sb-1" />
-              <span className="spectrum-bar sb-2" />
-              <span className="spectrum-bar sb-3" />
-              <span className="spectrum-bar sb-4" />
-              <span className="spectrum-bar sb-5" />
-              <span className="spectrum-bar sb-6" />
-              <span className="spectrum-bar sb-7" />
-              <span className="spectrum-bar sb-8" />
-              <span className="spectrum-bar sb-9" />
-              <span className="spectrum-bar sb-10" />
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Hidden Chat Stream Component for reference */}
-      <div className="messages" style={{ display: 'none' }}>
-        {messages.slice(-8).map((msg, idx) => <div className={`message ${msg.role}`} key={msg.id || idx}>{msg.text}</div>)}
+        <form className="talk-input" onSubmit={(event) => { event.preventDefault(); sendLive(); }}>
+          <button type="button" className="icon" title={cameraOn ? 'Close camera' : 'Show Atulya something'}
+            onClick={cameraOn ? stopCamera : startCamera}>
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M9 3 7.2 5H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.2L15 3H9zm3 5a5 5 0 1 1 0 10 5 5 0 0 1 0-10zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg>
+          </button>
+          <input value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Message Atulya…" disabled={busy} />
+          <button type="submit" className="primary" disabled={busy || !prompt.trim()}>Send</button>
+          <button type="button" className="icon" title="Voice settings" onClick={() => setShowVoiceSettings((v) => !v)}>⚙</button>
+        </form>
+
+        {showVoiceSettings && (
+          <div className="talk-settings">
+            <label>Voice
+              <select value={selectedVoice} onChange={(e) => setSelectedVoice(e.target.value)}>
+                {voiceList.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+            </label>
+            <label>Listening
+              <select value={sttEngine} onChange={(e) => setSttEngine(e.target.value)}>
+                <option value="local">On this PC (private)</option>
+                <option value="browser">Browser (cloud)</option>
+              </select>
+            </label>
+            <label>Brain
+              <select value={provider} onChange={(e) => setProvider(e.target.value)}>
+                {providerOptions.map((item) => <option key={item.id} value={item.id} disabled={!item.available}>{item.name}</option>)}
+              </select>
+            </label>
+            <label className="check"><input type="checkbox" checked={autoSpeak} onChange={(e) => setAutoSpeak(e.target.checked)} /> Speak replies</label>
+            <label className="check"><input type="checkbox" checked={continuous} onChange={(e) => setContinuous(e.target.checked)} /> Hands-free (“Hey Atulya”)</label>
+            <button type="button" onClick={() => { api.delete('/api/chat/history').catch(() => {}); setMessages([]); }}>Clear conversation</button>
+          </div>
+        )}
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -1952,9 +1332,32 @@ function Login({ onLogin }) {
   );
 }
 
+const NAV = [
+  { label: 'Assistant', items: [
+    { id: 'live', label: 'Talk', icon: '◉' },
+    { id: 'chat', label: 'Chat', icon: '✎' },
+  ] },
+  { label: 'Knowledge', items: [
+    { id: 'galaxy', label: 'Knowledge map', icon: '✦' },
+    { id: 'about', label: 'About you', icon: '☺' },
+  ] },
+  { label: 'Home', admin: true, items: [
+    { id: 'routines', label: 'Routines', icon: '↻' },
+    { id: 'senses', label: 'Senses', icon: '◎' },
+  ] },
+  { label: 'System', admin: true, items: [
+    { id: 'reflexes', label: 'Brain & reflexes', icon: '⚡' },
+    { id: 'dashboard', label: 'Dashboard', icon: '▦' },
+    { id: 'model', label: 'Model', icon: '⬡' },
+    { id: 'training', label: 'Training', icon: '⚙' },
+    { id: 'users', label: 'Users', icon: '👥' },
+  ] },
+];
+const FULL_BLEED = new Set(['live', 'galaxy']);
+
 function App() {
   const [tab, setTab] = useState('live');
-  const [adminOpen, setAdminOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [bootstrap, setBootstrap] = useState(null);
   const [error, setError] = useState('');
   const [authenticated, setAuthenticated] = useState(Boolean(getToken()));
@@ -2049,7 +1452,7 @@ function App() {
         switch (event.key) {
           case '1': event.preventDefault(); setTab('live'); break;
           case '2': event.preventDefault(); setTab('chat'); break;
-          case '3': event.preventDefault(); setTab('spirit'); break;
+          case '3': event.preventDefault(); setTab('galaxy'); break;
         }
       }
       if (event.key === '?' && !event.ctrlKey && !event.metaKey) {
@@ -2063,11 +1466,6 @@ function App() {
   const content = useMemo(() => {
     if (tab === 'live') return <LiveMode bootstrap={bootstrap} toast={toast} />;
     if (tab === 'chat') return <Chat bootstrap={bootstrap} toast={toast} />;
-    if (tab === 'spirit') return (
-      <Suspense fallback={<div className="lazy-loading">Loading Spirit UI…</div>}>
-        <HolographicSpirit />
-      </Suspense>
-    );
     if (tab === 'about') return (
       <Suspense fallback={<div className="lazy-loading">Loading…</div>}>
         <AboutYou toast={toast} />
@@ -2109,7 +1507,7 @@ function App() {
     } finally {
       clearToken();
       setAuthenticated(false);
-      setAdminOpen(false);
+      setMenuOpen(false);
       setTab('live');
     }
   }
@@ -2119,46 +1517,36 @@ function App() {
   }
 
   return (
-    <main className={(tab === 'live' || tab === 'spirit') ? 'immersive-layout' : ''}>
-      <aside className={adminOpen ? 'admin-drawer open' : 'admin-drawer'}>
-        <button className="drawer-close-btn" onClick={() => setAdminOpen(false)}>×</button>
-        <h1>Atulya Tantra</h1>
-        
-        {/* User profile info */}
-        <div className="user-profile-hud">
-          <small>OPERATOR</small>
-          <strong>{currentUser?.display_name || currentUser?.username}</strong>
-          <span className="badge small">{currentUser?.role?.toUpperCase()}</span>
+    <main className={`shell${menuOpen ? ' menu-open' : ''}`}>
+      <header className="mobile-bar">
+        <button type="button" className="icon" aria-label="Menu" onClick={() => setMenuOpen((o) => !o)}>☰</button>
+        <strong>{NAV.flatMap((g) => g.items).find((i) => i.id === tab)?.label || 'Atulya'}</strong>
+      </header>
+      <nav className="sidebar" aria-label="Main">
+        <div className="brand"><span className="brand-mark" />Atulya</div>
+        {NAV.filter((g) => !g.admin || isAdmin).map((group) => (
+          <div className="nav-group" key={group.label}>
+            <div className="nav-label">{group.label}</div>
+            {group.items.map((item) => (
+              <button type="button" key={item.id} className={tab === item.id ? 'active' : ''}
+                onClick={() => { setTab(item.id); setMenuOpen(false); }}>
+                <span className="nav-icon" aria-hidden="true">{item.icon}</span>{item.label}
+              </button>
+            ))}
+          </div>
+        ))}
+        <div className="sidebar-foot">
+          <div className="who">
+            <strong>{currentUser?.display_name || currentUser?.username}</strong>
+            <small>{currentUser?.role}</small>
+          </div>
+          <button type="button" className="icon" title="Theme" onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}>{theme === 'dark' ? '☀' : '☾'}</button>
+          <button type="button" className="icon" title="Sign out" onClick={handleLogout}>⏻</button>
         </div>
+      </nav>
+      {menuOpen && <div className="scrim" onClick={() => setMenuOpen(false)} />}
 
-        <button className="theme-toggle" onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}>
-          {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
-        </button>
-
-        <button className={tab === 'live' ? 'active' : ''} onClick={() => { setTab('live'); setAdminOpen(false); }}>Live Mode</button>
-        <button className={tab === 'chat' ? 'active' : ''} onClick={() => { setTab('chat'); setAdminOpen(false); }}>Chat</button>
-        <button className={tab === 'spirit' ? 'active' : ''} onClick={() => { setTab('spirit'); setAdminOpen(false); }}>⬡ Spirit UI</button>
-        <button className={tab === 'about' ? 'active' : ''} onClick={() => { setTab('about'); setAdminOpen(false); }}>About you</button>
-        <button className={tab === 'galaxy' ? 'active' : ''} onClick={() => { setTab('galaxy'); setAdminOpen(false); }}>✦ Knowledge galaxy</button>
-        
-        {isAdmin && (
-          <>
-            <div className="drawer-section-label">DEVELOPER STRANDS</div>
-            <button className={tab === 'training' ? 'active' : ''} onClick={() => { setTab('training'); setAdminOpen(false); }}>Training</button>
-            <button className={tab === 'model' ? 'active' : ''} onClick={() => { setTab('model'); setAdminOpen(false); }}>Model Inspector</button>
-            <button className={tab === 'dashboard' ? 'active' : ''} onClick={() => { setTab('dashboard'); setAdminOpen(false); }}>Dashboard</button>
-            <button className={tab === 'users' ? 'active' : ''} onClick={() => { setTab('users'); setAdminOpen(false); }}>Manage Users</button>
-            <div className="drawer-section-label">JARVIS</div>
-            <button className={tab === 'routines' ? 'active' : ''} onClick={() => { setTab('routines'); setAdminOpen(false); }}>Routines</button>
-            <button className={tab === 'senses' ? 'active' : ''} onClick={() => { setTab('senses'); setAdminOpen(false); }}>Senses</button>
-            <button className={tab === 'reflexes' ? 'active' : ''} onClick={() => { setTab('reflexes'); setAdminOpen(false); }}>Reflexes &amp; Brain</button>
-          </>
-        )}
-        
-        <button className="logout" onClick={handleLogout}>Logout</button>
-      </aside>
-      
-      <section className="content" style={(tab === 'live' || tab === 'spirit' || tab === 'galaxy') ? { padding: 0, overflow: 'hidden' } : {}}>
+      <section className={`content${FULL_BLEED.has(tab) ? ' full' : ''}`}>
         {error && <div className="alert">{error}</div>}
         {healthWarnings.filter(w => w.severity !== 'low').map((w, i) => (
           <div key={i} className="alert" style={{borderColor: w.severity === 'high' ? 'var(--bad)' : 'var(--warn)'}}>
@@ -2168,28 +1556,14 @@ function App() {
         {content}
       </section>
 
-      {/* Floating Gear Settings Toggle - Only show if admin */}
-      {isAdmin && (
-        <button className="gear-trigger" title="Developer Controls" onClick={() => setAdminOpen(!adminOpen)}>
-          ⚙️
-        </button>
-      )}
-
-      {/* For normal users, show a simple sidebar trigger if not in immersive mode or even in immersive mode to access chat/logout */}
-      {!isAdmin && (
-        <button className="gear-trigger" title="Navigation Menu" onClick={() => setAdminOpen(!adminOpen)}>
-          ☰
-        </button>
-      )}
-
       {showShortcuts && (
         <div className="modal-backdrop" onClick={() => setShowShortcuts(false)}>
           <div className="modal-card" onClick={e => e.stopPropagation()}>
             <h2>Keyboard Shortcuts</h2>
             <div className="table">
-              <div className="row"><span>Ctrl+1</span><span>Live Mode</span></div>
+              <div className="row"><span>Ctrl+1</span><span>Talk</span></div>
               <div className="row"><span>Ctrl+2</span><span>Chat</span></div>
-              <div className="row"><span>Ctrl+3</span><span>Spirit UI</span></div>
+              <div className="row"><span>Ctrl+3</span><span>Knowledge</span></div>
               <div className="row"><span>?</span><span>Toggle this menu</span></div>
             </div>
             <button onClick={() => setShowShortcuts(false)}>Close</button>
@@ -2209,4 +1583,23 @@ function App() {
   );
 }
 
-createRoot(document.getElementById('root')).render(<App />);
+// Never a blank page: if something fails to load (server stopped, or an old
+// cached page asking for files a rebuild replaced), say so and offer a reload.
+class Recover extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  render() {
+    if (!this.state.error) return this.props.children;
+    const stale = /dynamically imported module|Loading chunk|Failed to fetch/i.test(String(this.state.error?.message));
+    return (
+      <div className="recover">
+        <h2>{stale ? 'Atulya was updated or restarted' : 'Something went wrong'}</h2>
+        <p>{stale ? 'This page is out of date or the server is not reachable. Make sure Atulya is running (start.bat), then reload.'
+          : String(this.state.error?.message || this.state.error)}</p>
+        <button type="button" className="primary" onClick={() => window.location.reload()}>Reload</button>
+      </div>
+    );
+  }
+}
+
+createRoot(document.getElementById('root')).render(<Recover><App /></Recover>);
