@@ -89,7 +89,6 @@ async def test_rate_limiter_exceeded():
     client_ip = "192.168.1.1"
     now = __import__("time").time()
     _RATE_STORE[client_ip] = [now - 1 for _ in range(_RATE_LIMIT_MAX)]
-    from unittest.mock import AsyncMock
     request = Mock()
     request.client.host = client_ip
     resp = await _rate_limiter(request, AsyncMock())

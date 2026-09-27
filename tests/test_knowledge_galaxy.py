@@ -21,7 +21,7 @@ def test_every_constellation_hangs_off_the_user_or_atulya():
     g = _galaxy()
     ids = {n["id"] for n in g["nodes"]}
     assert {"you", "atulya", "fact:f1", "habit:0", "trust:home_control:off", "skill:web_search"} <= ids
-    assert all(l["source"] in ids and l["target"] in ids for l in g["links"])
+    assert all(link["source"] in ids and link["target"] in ids for link in g["links"])
     assert {c["id"] for c in g["clusters"]} >= {"you", "about", "habit", "trust", "topic", "skill"}
 
 
