@@ -161,8 +161,19 @@ async def api_voice_chat(
             history.append({"role": role, "content": content})
         history = history[-10:]
 
+        # A camera frame or screenshot rides along: read it first, then let
+        # the brain answer with what was seen.
+        brain_prompt = prompt
+        if body.get("image"):
+            from atulya.eyes import as_context, look
+
+            try:
+                seen = await look(str(body["image"]), prompt)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
+            brain_prompt = as_context(seen) + prompt
         response = await get_kernel().handle(
-            prompt,
+            brain_prompt,
             user=user,
             history=history,
             provider=str(body.get("provider") or body.get("model_id") or ""),
@@ -171,6 +182,8 @@ async def api_voice_chat(
         response_text, provider_name = response.text, response.provider
         needs_approval, pending_tool = response.needs_approval, response.pending_tool
         trace = getattr(response, "trace", [])
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.error(f"Intelligence router failure: {exc}")
         from atulya.persona import get_atulya_fallback_response
