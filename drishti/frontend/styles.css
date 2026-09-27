@@ -3511,3 +3511,28 @@ button.small {
 @media (max-width: 520px) {
   .inline-form { flex-direction: column; }
 }
+
+/* ── Knowledge galaxy ─────────────────────────────────────────────── */
+.galaxy { display: flex; flex-direction: column; height: 100%; min-height: 0; background: #05070f; }
+.galaxy-bar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 12px 16px;
+  border-bottom: 1px solid var(--glass-border); background: var(--glass-strong); }
+.galaxy-bar h2 { margin: 0; font-size: 1rem; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.galaxy-search { flex: 0 1 220px; background: var(--inset-strong); border: 1px solid var(--line); color: var(--text);
+  border-radius: 999px; padding: 6px 14px; }
+.galaxy-legend { display: flex; flex-wrap: wrap; gap: 6px; }
+.galaxy-legend button { display: inline-flex; align-items: center; gap: 6px; background: transparent; color: var(--text);
+  border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; font-size: .8rem; cursor: pointer; }
+.galaxy-legend button.off { opacity: .35; }
+.galaxy-legend small { color: var(--muted); }
+.galaxy-legend .dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 6px currentColor; }
+.galaxy-canvas { position: relative; flex: 1; min-height: 360px; overflow: hidden; }
+.galaxy-canvas canvas { display: block; cursor: grab; }
+.galaxy-tip { position: absolute; max-width: 300px; pointer-events: none; background: var(--glass-strong);
+  border: 1px solid var(--glass-border-strong); border-radius: 12px; padding: 12px 14px; color: var(--text);
+  box-shadow: 0 8px 30px rgba(0,0,0,.5); backdrop-filter: blur(8px); font-size: .85rem; }
+.galaxy-tip-kind { font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; }
+.galaxy-tip-title { font-weight: 600; font-size: 1rem; margin: 2px 0 6px; }
+.galaxy-tip p { margin: 0 0 8px; color: var(--muted); white-space: pre-wrap; }
+.galaxy-tip-meta { display: flex; justify-content: space-between; gap: 12px; font-size: .78rem; color: var(--muted); }
+.galaxy-tip-meta b { color: var(--text); font-weight: 500; }
+.galaxy-hint { position: absolute; left: 16px; bottom: 12px; font-size: .75rem; color: var(--muted); pointer-events: none; }

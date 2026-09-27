@@ -13,6 +13,7 @@ const HolographicSpirit = lazy(() =>
 const Reflexes = lazy(() => import('./src/pages/Reflexes.jsx').then((m) => ({ default: m.Reflexes })));
 const Routines = lazy(() => import('./src/pages/Routines.jsx').then((m) => ({ default: m.Routines })));
 const AboutYou = lazy(() => import('./src/pages/AboutYou.jsx').then((m) => ({ default: m.AboutYou })));
+const Galaxy = lazy(() => import('./src/pages/Galaxy.jsx').then((m) => ({ default: m.Galaxy })));
 const Senses = lazy(() => import('./src/pages/Senses.jsx').then((m) => ({ default: m.Senses })));
 
 function Metric({ label, value }) {
@@ -506,7 +507,7 @@ function LiveMode({ bootstrap, toast }) {
   const [selectedVoice, setSelectedVoice] = useState('en_male');
   const [continuous, setContinuous] = useState(false);
   // Voice/conversation options
-  const [sttEngine, setSttEngine] = useState('browser'); // 'browser' (cloud, hands-free) | 'local' (Whisper, private, push-to-talk)
+  const [sttEngine, setSttEngine] = useState('local'); // 'local' (Whisper on your PC, stops when you stop talking) | 'browser' (cloud)
   const [autoSpeak, setAutoSpeak] = useState(true);       // speak replies aloud
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
 
@@ -790,6 +791,7 @@ function LiveMode({ bootstrap, toast }) {
   }
 
   function startListening() {
+    if (sttEngine === 'local') { startListeningLocal(); return; } // every auto-restart honours the chosen engine
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       toast('error', 'Speech recognition is not available in this browser.');
@@ -889,6 +891,7 @@ function LiveMode({ bootstrap, toast }) {
           if (!text) {
             setStatus('ready');
             addEvent('No speech detected', 'ready');
+            if (continuous) setTimeout(() => startListeningLocal(), 500);
             return;
           }
           setPrompt(text);
@@ -896,6 +899,7 @@ function LiveMode({ bootstrap, toast }) {
           if (continuous && !awaitingConfirmRef.current && !WAKE_PHRASES.some((phrase) => lower.includes(phrase))) {
             setStatus('ready');
             addEvent('Wake word not detected. Standing by…', 'ready');
+            if (continuous) setTimeout(() => startListeningLocal(), 500);
             return;
           }
           sendLive(stripWakePhrase(text));
@@ -908,10 +912,35 @@ function LiveMode({ bootstrap, toast }) {
       };
       mediaRecorderRef.current = recorder;
       recorder.start();
+      // End of speech: stop by itself after ~1.2s of quiet once the user has
+      // spoken, so talking is one tap — no second tap needed.
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 1024;
+        audioCtx.createMediaStreamSource(stream).connect(analyser);
+        const buf = new Uint8Array(analyser.fftSize);
+        const started = Date.now();
+        let heard = false; let quietSince = 0;
+        const tick = setInterval(() => {
+          if (recorder.state === 'inactive') { clearInterval(tick); audioCtx.close(); return; }
+          analyser.getByteTimeDomainData(buf);
+          let sum = 0;
+          for (let i = 0; i < buf.length; i += 1) { const v = (buf[i] - 128) / 128; sum += v * v; }
+          const loud = Math.sqrt(sum / buf.length) > 0.03;
+          const now = Date.now();
+          if (loud) { heard = true; quietSince = 0; } else if (!quietSince) quietSince = now;
+          const silentFor = quietSince ? now - quietSince : 0;
+          if ((heard && silentFor > 1200) || (!heard && now - started > 8000) || now - started > 30000) {
+            clearInterval(tick); audioCtx.close();
+            if (recorder.state !== 'inactive') recorder.stop();
+          }
+        }, 100);
+      } catch (e) { /* no Web Audio: fall back to tap-to-stop */ }
       setListening(true);
       setStatus('listening');
       setActiveAgent('ECHO');
-      addEvent('Recording (local Whisper). Tap mic again to transcribe.', 'listening');
+      addEvent('Listening… just talk, I’ll stop when you do.', 'listening');
       addMindStep('Local Vocal Capture', 'Recording audio for private on-device transcription.', 'listening');
     } catch (err) {
       toast('error', 'Microphone access denied');
@@ -1294,8 +1323,8 @@ function LiveMode({ bootstrap, toast }) {
               <label>
                 Listening
                 <select value={sttEngine} onChange={(e) => setSttEngine(e.target.value)}>
-                  <option value="browser">Browser (hands-free, cloud)</option>
-                  <option value="local">Local Whisper (private, push-to-talk)</option>
+                  <option value="local">On this PC (private, Whisper)</option>
+                  <option value="browser">Browser (cloud)</option>
                 </select>
               </label>
               <label><input type="checkbox" checked={autoSpeak} onChange={(e) => setAutoSpeak(e.target.checked)} /> Speak replies aloud</label>
@@ -2044,6 +2073,11 @@ function App() {
         <AboutYou toast={toast} />
       </Suspense>
     );
+    if (tab === 'galaxy') return (
+      <Suspense fallback={<div className="lazy-loading">Mapping the stars…</div>}>
+        <Galaxy />
+      </Suspense>
+    );
     if (!isAdmin) return <LiveMode bootstrap={bootstrap} toast={toast} />; // Fallback for normal users
     
     // Admin-only views
@@ -2105,6 +2139,7 @@ function App() {
         <button className={tab === 'chat' ? 'active' : ''} onClick={() => { setTab('chat'); setAdminOpen(false); }}>Chat</button>
         <button className={tab === 'spirit' ? 'active' : ''} onClick={() => { setTab('spirit'); setAdminOpen(false); }}>⬡ Spirit UI</button>
         <button className={tab === 'about' ? 'active' : ''} onClick={() => { setTab('about'); setAdminOpen(false); }}>About you</button>
+        <button className={tab === 'galaxy' ? 'active' : ''} onClick={() => { setTab('galaxy'); setAdminOpen(false); }}>✦ Knowledge galaxy</button>
         
         {isAdmin && (
           <>
@@ -2123,7 +2158,7 @@ function App() {
         <button className="logout" onClick={handleLogout}>Logout</button>
       </aside>
       
-      <section className="content" style={(tab === 'live' || tab === 'spirit') ? { padding: 0, overflow: 'hidden' } : {}}>
+      <section className="content" style={(tab === 'live' || tab === 'spirit' || tab === 'galaxy') ? { padding: 0, overflow: 'hidden' } : {}}>
         {error && <div className="alert">{error}</div>}
         {healthWarnings.filter(w => w.severity !== 'low').map((w, i) => (
           <div key={i} className="alert" style={{borderColor: w.severity === 'high' ? 'var(--bad)' : 'var(--warn)'}}>
