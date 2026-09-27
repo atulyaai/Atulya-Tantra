@@ -275,8 +275,10 @@ class TestCli:
         path = cli.save_config({"url": "http://saved:8000", "token": "abc", "wake": "jarvis"})
         args = cli.build_parser().parse_args(["--device", "den"])
         opts = cli.resolve(args, cli.load_config())
+        import os
         assert (opts["url"], opts["token"], opts["device"], opts["wake"]) == ("http://env:8000", "abc", "den", "jarvis")
-        assert oct(path.stat().st_mode & 0o777) == "0o600"
+        if os.name == "posix":
+            assert oct(path.stat().st_mode & 0o777) == "0o600"
 
     def test_refuses_to_start_without_sign_in(self, tmp_path, monkeypatch, capsys):
         from atulya.ambient import cli
