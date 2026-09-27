@@ -19,7 +19,6 @@ from atulya.agent.tools import (
     configure_email,
     analyze_image,
 )
-from atulya.agent.agent_loop import _parse_response
 from atulya.agent.core import AgentCore
 
 
@@ -122,42 +121,6 @@ class TestVisionTools:
         assert "not loaded" in result.lower() or "download" in result.lower()
 
 
-class TestAgentLoop:
-    def test_parse_response_plain_string(self):
-        text, calls = _parse_response("Hello world")
-        assert text == "Hello world"
-        assert calls is None
-
-    def test_parse_response_tuple(self):
-        text, calls = _parse_response(("Hello", "test_provider"))
-        assert text == "Hello"
-        assert calls is None
-
-    def test_parse_response_openai_format(self):
-        resp = {"choices": [{"message": {"content": "Hello"}}]}
-        text, calls = _parse_response(resp)
-        assert text == "Hello"
-        assert calls is None
-
-    def test_parse_response_with_tool_call(self):
-        resp = {
-            "choices": [
-                {
-                    "message": {
-                        "content": None,
-                        "tool_calls": [
-                            {"function": {"name": "get_system_status", "arguments": "{}"}}
-                        ],
-                    }
-                }
-            ]
-        }
-        text, calls = _parse_response(resp)
-        assert text is None
-        assert calls is not None
-        assert calls[0]["name"] == "get_system_status"
-
-
 @pytest.mark.asyncio
 class TestAgentCore:
     async def test_list_tools(self):
@@ -166,6 +129,15 @@ class TestAgentCore:
         assert isinstance(tools, list)
         assert len(tools) >= 8
         assert "set_reminder" in [t["name"] for t in tools]
+
+    async def test_process_goes_through_the_kernel(self):
+        class Router:
+            async def chat(self, prompt, system_prompt="", *a, **k):
+                return ("kernel reply", "stub")
+        from atulya.llm import AtulyaLLM
+        llm = AtulyaLLM(use_memory=False)
+        llm.router = Router()
+        assert await AgentCore(llm_provider=llm).process("tell me a joke") == "kernel reply"
 
     async def test_process_without_llm(self):
         a = AgentCore()

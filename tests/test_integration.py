@@ -34,40 +34,6 @@ def mock_llm():
 
 
 @pytest.mark.asyncio
-async def test_agent_loop_react_executes_tool(mock_llm):
-    from atulya.agent.agent_loop import agent_loop
-    with patch("atulya.agent.agent_loop.execute_tool", new=AsyncMock(return_value="4")):
-        result = await agent_loop("what is 2+2?", llm=mock_llm)
-    assert result is not None
-    assert isinstance(result, str)
-
-
-@pytest.mark.asyncio
-async def test_agent_loop_stream(mock_llm):
-    mock_llm._responses = iter([json.dumps({"content": "streaming response"})])
-    from atulya.agent.agent_loop import agent_loop
-    result = await agent_loop("hello", llm=mock_llm)
-    assert result is not None
-
-
-@pytest.mark.asyncio
-async def test_agent_loop_without_tools(mock_llm):
-    mock_llm._responses = iter([json.dumps({"content": "Hello world!"})])
-    from atulya.agent.agent_loop import agent_loop
-    result = await agent_loop("say hello", llm=mock_llm)
-    assert isinstance(result, str)
-    assert len(result) > 0
-
-
-@pytest.mark.asyncio
-async def test_agent_loop_error_handling(mock_llm):
-    from atulya.agent.agent_loop import agent_loop
-    with patch("atulya.agent.agent_loop.execute_tool", side_effect=ValueError("test error")):
-        result = await agent_loop("error test", llm=mock_llm)
-    assert result is not None
-
-
-@pytest.mark.asyncio
 async def test_dashboard_health_endpoint():
     from fastapi.testclient import TestClient
     from drishti.dashboard.state import ADMIN_TOKEN
@@ -143,53 +109,6 @@ async def test_dashboard_telemetry_endpoint():
     assert "system" in data
     assert "events" in data
     assert "providers" in data
-
-
-@pytest.mark.asyncio
-async def test_agent_loop_with_custom_prompt(mock_llm):
-    from atulya.agent.agent_loop import agent_loop
-    mock_llm._responses = iter([json.dumps({"content": "custom response"})])
-    result = await agent_loop("test", llm=mock_llm, system_prompt="You are a test bot.")
-    assert "custom" in result.lower() or result is not None
-
-
-@pytest.mark.asyncio
-async def test_agent_loop_concurrent(mock_llm):
-    import asyncio
-    from atulya.agent.agent_loop import agent_loop
-    with patch("atulya.agent.agent_loop.execute_tool", new=AsyncMock(return_value="ok")):
-        tasks = [agent_loop(f"task {i}", llm=mock_llm) for i in range(5)]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-    assert all(isinstance(r, str) for r in results)
-
-
-@pytest.mark.asyncio
-async def test_agent_loop_empty_input(mock_llm):
-    from atulya.agent.agent_loop import agent_loop, _default_system_prompt
-    from atulya.agent.tools import get_tool_schemas
-    mock_llm._responses = iter([json.dumps({"content": "empty"})])
-    result = await agent_loop("", llm=mock_llm)
-    assert result is not None
-
-
-@pytest.mark.asyncio
-async def test_agent_loop_very_long_input(mock_llm):
-    from atulya.agent.agent_loop import agent_loop
-    mock_llm._responses = iter([json.dumps({"content": "long"})])
-    result = await agent_loop("x" * 10000, llm=mock_llm)
-    assert result is not None
-
-
-@pytest.mark.asyncio
-async def test_agent_loop_no_tools_configured():
-    class NoToolProvider:
-        async def chat(self, prompt, system_prompt=None, tools=None):
-            return {"content": "hello"}
-        def is_available(self): return True
-        def name(self): return "no_tool"
-    from atulya.agent.agent_loop import agent_loop
-    result = await agent_loop("hello", llm=NoToolProvider())
-    assert result is not None
 
 
 @pytest.mark.asyncio
