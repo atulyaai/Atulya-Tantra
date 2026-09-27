@@ -32,22 +32,6 @@ def mock_provider():
 
 
 @pytest.mark.asyncio
-async def test_agent_loop_latency(mock_provider):
-    from atulya.agent.agent_loop import AgentLoop
-
-    loop = AgentLoop(llm_provider=mock_provider, max_steps=3)
-    n = 10
-    times = []
-    for _ in range(n):
-        t0 = time.perf_counter()
-        await loop.run("hello", tool_choice="none")
-        times.append(time.perf_counter() - t0)
-    avg = sum(times) / n
-    print(f"\n  AgentLoop avg latency (n={n}): {avg*1000:.1f}ms")
-    assert avg < 5.0, f"Avg latency {avg*1000:.1f}ms exceeds 5s threshold"
-
-
-@pytest.mark.asyncio
 async def test_tool_execution_latency():
     from atulya.agent.tools import calculate
 

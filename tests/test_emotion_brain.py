@@ -144,3 +144,12 @@ async def test_brain_no_escalation_when_confident():
     thought = await brain.think("q", min_confidence=0.5, escalate_to="groq")
     assert thought.escalated is False
     assert isinstance(thought, Thought)
+
+
+def test_local_model_skips_hidden_thinking_unless_asked(monkeypatch):
+    from atulya.local_provider import _with_think_switch
+
+    monkeypatch.delenv("ATULYA_LOCAL_THINK", raising=False)
+    assert _with_think_switch("hi").endswith("/no_think")
+    monkeypatch.setenv("ATULYA_LOCAL_THINK", "1")
+    assert _with_think_switch("hi") == "hi"

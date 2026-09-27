@@ -1,11 +1,11 @@
-"""Atulya Agent Core — thin wrapper around the generic agent loop + tool registry."""
+"""Atulya Agent Core — tool registry + event wiring. Thinking goes through the
+one cognitive kernel (atulya.cognition), so there is a single brain loop."""
 from __future__ import annotations
 
 import logging
 from typing import Any, Callable
 
 from .tools import TOOL_REGISTRY, get_tool_schemas, register_reminder_callback
-from .agent_loop import agent_loop
 
 logger = logging.getLogger(__name__)
 
@@ -46,15 +46,17 @@ class AgentCore:
         self,
         user_input: str,
         conversation_history: list[dict[str, str]] | None = None,
+        user: Any = None,
     ) -> str:
-        """Run the agent loop on user input."""
+        """Answer through the cognitive kernel (safety gates, approvals, tools)."""
         if not self._llm:
             return "Atulya Agent is not connected to an LLM provider."
-        return await agent_loop(
-            user_input=user_input,
-            llm=self._llm,
-            conversation_history=conversation_history,
+        from atulya.cognition import get_kernel
+
+        response = await get_kernel(self._llm).handle(
+            user_input, user=user, history=conversation_history, source="api",
         )
+        return response.text
 
     def list_tools(self) -> list[dict]:
         """Return tool metadata (name + description)."""

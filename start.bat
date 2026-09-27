@@ -41,16 +41,30 @@ if errorlevel 1 (
         echo   WARNING: Some Python packages may have failed to install.
     )
 )
+python -c "import faster_whisper" >nul 2>&1
+if errorlevel 1 (
+    echo   Installing local voice - speech-to-text runs on this PC...
+    pip install -q -e ".[voice]"
+)
 
-echo   [3/4] Checking frontend build...
-if not exist "drishti\dist\index.html" (
-    echo   Building frontend - first-time or after changes...
+echo   [3/4] Building the web app...
+rem Always rebuild (about a second) so the UI never lags behind the source.
+where node >nul 2>&1
+if errorlevel 1 (
+    if exist "drishti\dist\index.html" (
+        echo   Node.js not found - using the existing build, which may be out of date.
+    ) else (
+        echo   WARNING: Node.js not found. Install Node.js 18+ from https://nodejs.org
+    )
+    goto :start_backend
+)
+pushd drishti
+if not exist "node_modules" call npm install --silent
+call npm run build --silent
+popd
+if not exist "drishti\dist\index.html" echo   WARNING: Frontend build failed. Backend-only mode.
 
-    where node >nul 2>&1
-    if errorlevel 1 (
-        echo   WARNING: Node.js not found. Frontend will not be available.
-        echo   Install Node.js 18+ from https://nodejs.org and re-run.
-        goto :start_backend
+:start_backend
     )
 
     if not exist "drishti\node_modules" (

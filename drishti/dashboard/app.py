@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from drishti.dashboard.helpers import _checkpoint_index, _load_cached_model
-from drishti.dashboard.routes import agent, auth, automation, chat, cortex, create, devices, google, model, notifications, openai, profile, routines, senses, system, train, triggers, upload, voice, ws
+from drishti.dashboard.routes import agent, auth, automation, chat, cortex, create, devices, google, knowledge, model, notifications, openai, profile, routines, senses, system, train, triggers, upload, voice, ws
 from drishti.dashboard.automation_runner import AutomationRunner
 from yantra.mcp.external_client import MCPClientManager
 
@@ -52,6 +52,13 @@ def _warm_latest_model() -> None:
             _load_cached_model(path)
     except Exception as exc:
         logger.warning("Dashboard model warmup skipped: %s", exc)
+
+
+async def _warm_llm(llm) -> None:
+    try:
+        await llm.warm_up()
+    except Exception as exc:
+        logger.warning("LLM warmup skipped: %s", exc)
 
 
 @asynccontextmanager
@@ -98,6 +105,7 @@ async def lifespan(app: FastAPI):
     await app.state.senses.start()
 
     threading.Thread(target=_warm_latest_model, daemon=True).start()
+    app.state.llm_warm_task = asyncio.create_task(_warm_llm(app.state.llm))
     try:
         yield
     finally:
@@ -165,7 +173,7 @@ app.add_middleware(
 )
 app.middleware("http")(_rate_limiter)
 
-for module in (auth, system, model, train, chat, cortex, automation, openai, voice, upload, devices, ws, notifications, agent, create, triggers, routines, profile, senses, google):
+for module in (auth, system, model, train, chat, cortex, automation, openai, voice, upload, devices, ws, notifications, agent, create, triggers, routines, profile, senses, google, knowledge):
     app.include_router(module.router)
 
 

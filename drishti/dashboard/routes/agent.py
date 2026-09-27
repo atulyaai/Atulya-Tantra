@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
+
+from drishti.dashboard.helpers import _require_auth
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -23,30 +25,30 @@ def _get_agent():
 
 
 @router.get("/api/agent/status")
-async def agent_status():
+async def agent_status(user: dict = Depends(_require_auth)):
     a = _get_agent()
     return {"tools": a.list_tools(), "status": "ready"}
 
 
 @router.post("/api/agent/process")
-async def agent_process(request: Request):
+async def agent_process(request: Request, user: dict = Depends(_require_auth)):
     body = await request.json()
     user_input = body.get("input", "")
     history = body.get("history")
     if not user_input:
         return {"status": "error", "message": "No input"}
     a = _get_agent()
-    reply = await a.process(user_input, history)
+    reply = await a.process(user_input, history, user=user)
     return {"status": "success", "reply": reply}
 
 
 @router.get("/api/agent/tools")
-async def agent_tools():
+async def agent_tools(user: dict = Depends(_require_auth)):
     a = _get_agent()
     return {"tools": a.list_tools()}
 
 
 @router.get("/api/agent/schemas")
-async def agent_schemas():
+async def agent_schemas(user: dict = Depends(_require_auth)):
     a = _get_agent()
     return {"schemas": a.get_tool_schemas()}
