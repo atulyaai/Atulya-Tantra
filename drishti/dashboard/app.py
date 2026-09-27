@@ -54,6 +54,13 @@ def _warm_latest_model() -> None:
         logger.warning("Dashboard model warmup skipped: %s", exc)
 
 
+async def _warm_llm(llm) -> None:
+    try:
+        await llm.warm_up()
+    except Exception as exc:
+        logger.warning("LLM warmup skipped: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from atulya.llm import get_default_llm
@@ -98,6 +105,7 @@ async def lifespan(app: FastAPI):
     await app.state.senses.start()
 
     threading.Thread(target=_warm_latest_model, daemon=True).start()
+    app.state.llm_warm_task = asyncio.create_task(_warm_llm(app.state.llm))
     try:
         yield
     finally:

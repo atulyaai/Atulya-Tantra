@@ -9,7 +9,9 @@ Switching models: drop any GGUF into ``runtime/models`` and point
 """
 from __future__ import annotations
 
+import asyncio
 import json
+import threading
 import logging
 import os
 import re
@@ -146,6 +148,17 @@ def _ensure_model() -> Path | None:
     return existing
 
 
+
+def _with_think_switch(prompt: str) -> str:
+    """Turn off Qwen3's hidden reasoning unless ATULYA_LOCAL_THINK=1.
+
+    Qwen3 otherwise writes ~500 <think> tokens before every reply (~20s on CPU)
+    that are stripped anyway; "/no_think" brings a reply down to ~1s.
+    """
+    if os.environ.get("ATULYA_LOCAL_THINK", "").lower() in {"1", "true", "yes"}:
+        return prompt
+    return f"{prompt} /no_think"
+
 class LocalGGUFProvider:
     """Provider that loads a tiny GGUF model directly via llama-cpp-python.
 
@@ -156,6 +169,7 @@ class LocalGGUFProvider:
     def __init__(self, model_path: str | Path | None = None):
         self._model_path = Path(model_path) if model_path else _ensure_model()
         self._llm = None
+        self._lock = threading.Lock()  # llama.cpp contexts are not thread-safe
 
     def name(self) -> str:
         custom = os.environ.get("ATULYA_LOCAL_MODEL_NAME", "").strip()
@@ -191,6 +205,10 @@ class LocalGGUFProvider:
             verbose=False,
         )
 
+    def _complete(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        with self._lock:
+            return self._llm.create_chat_completion(**kwargs)
+
     async def chat(
         self,
         prompt: str,
@@ -203,7 +221,7 @@ class LocalGGUFProvider:
             messages = []
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})
-            messages.append({"role": "user", "content": prompt})
+            messages.append({"role": "user", "content": _with_think_switch(prompt)})
 
             kwargs: dict[str, Any] = {
                 "messages": messages,
@@ -217,7 +235,7 @@ class LocalGGUFProvider:
                 # Keep responses short when tool calling so the model doesn't ramble
                 kwargs["max_tokens"] = int(os.environ.get("ATULYA_LOCAL_TOOL_MAX_TOKENS", "256"))
 
-            response = self._llm.create_chat_completion(**kwargs)
+            response = await asyncio.to_thread(self._complete, kwargs)
             message = response["choices"][0]["message"]
             content = (message.get("content") or "").strip()
             if not content and message.get("tool_calls"):
@@ -250,7 +268,7 @@ class LocalGGUFProvider:
             messages = []
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})
-            messages.append({"role": "user", "content": prompt})
+            messages.append({"role": "user", "content": _with_think_switch(prompt)})
             kwargs: dict[str, Any] = {
                 "messages": messages,
                 "max_tokens": int(os.environ.get("ATULYA_LOCAL_MAX_TOKENS", "512")),
@@ -293,7 +311,26 @@ class LocalGGUFProvider:
                 if buffer and not in_think:
                     yield buffer
 
-            for piece in _gen():
+            # Generate on a worker thread so the event loop (the web server,
+            # voice socket) stays responsive while tokens are produced.
+            loop = asyncio.get_running_loop()
+            queue: asyncio.Queue = asyncio.Queue()
+            done = object()
+
+            def _pump():
+                try:
+                    with self._lock:
+                        for piece in _gen():
+                            loop.call_soon_threadsafe(queue.put_nowait, piece)
+                except Exception as exc:  # surfaced to the async side below
+                    loop.call_soon_threadsafe(queue.put_nowait, exc)
+                finally:
+                    loop.call_soon_threadsafe(queue.put_nowait, done)
+
+            threading.Thread(target=_pump, daemon=True).start()
+            while (piece := await queue.get()) is not done:
+                if isinstance(piece, Exception):
+                    raise piece
                 yield piece
         except Exception as exc:
             logger.warning("LocalGGUFProvider chat_stream failed: %s", exc)

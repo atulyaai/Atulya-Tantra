@@ -12,10 +12,10 @@ from yantra.events import EventBus
 
 class RecordingRouter:
     def __init__(self):
-        self.system_prompts: list[str] = []
+        self.prompts: list[str] = []
 
     async def chat(self, prompt, system_prompt="", *args, **kwargs):
-        self.system_prompts.append(system_prompt)
+        self.prompts.append(prompt)
         return ("[brain reply]", "stub")
 
 
@@ -87,7 +87,8 @@ class TestFacts:
         kernel = make_kernel(tmp_path)
         say(kernel, "call me Atul")
         say(kernel, "tell me a joke")
-        assert "your name is Atul" in kernel.llm.router.system_prompts[-1]
+        # per-turn context rides with the user message; the system prompt stays cacheable
+        assert "your name is Atul" in kernel.llm.router.prompts[-1]
 
     def test_fact_inside_a_request_is_learned_quietly(self, tmp_path):
         kernel = make_kernel(tmp_path)

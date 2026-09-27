@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from datetime import datetime
 import re
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -166,7 +167,7 @@ class AtulyaLLM:
         context: str = "",
     ) -> LLMResponse:
         system_prompt = self._build_system_prompt(history or [], user_prompt=prompt, context=context)
-        working_prompt = self._compose_prompt(prompt, history or [])
+        working_prompt = self._turn_notes(prompt, context) + self._compose_prompt(prompt, history or [])
         steps: list[dict[str, Any]] = []
         requested_provider = provider
 
@@ -285,7 +286,7 @@ class AtulyaLLM:
         # each provider's chat_stream (llama-cpp token generator) is used directly.
         if not tools_enabled and not approved_tool_call:
             system_prompt = self._build_system_prompt(history or [], user_prompt=prompt, context=context)
-            working_prompt = self._compose_prompt(prompt, history or [])
+            working_prompt = self._turn_notes(prompt, context) + self._compose_prompt(prompt, history or [])
             parts: list[str] = []
             async for piece, provider_name in self.router.stream(
                 working_prompt,
@@ -334,12 +335,9 @@ class AtulyaLLM:
         prompt = self.persona.get_system_prompt()
         tools = self.tools.list_tools()
         tool_lines = [f"- {item['name']}: {item['description']}" for item in tools]
+        # Kept byte-identical across turns so llama.cpp can reuse its KV cache;
+        # anything that changes per turn goes in _turn_notes instead.
         human_block = f"\n\n{_HUMAN_STYLE}"
-        emotional = self._human_context(user_prompt) if user_prompt else ""
-        if emotional:
-            human_block += f"\n{emotional}\n"
-        if context:  # what Atulya has learned about this user
-            human_block += f"\n{context}\n"
         return (
             f"{prompt}"
             f"{human_block}\n\n"
@@ -350,9 +348,24 @@ class AtulyaLLM:
             '{"tool":"web_search","arguments":{"query":"..."}} and no markdown around it.\n'
             '- For parallel safe tools, emit {"tools":[{"tool":"...","arguments":{}}, ...]}.\n'
             "- Do not call exec unless the user explicitly asks and execution is enabled.\n\n"
-            "Available tools:\n" + "\n".join(tool_lines[:30]) + "\n\n"
-            f"Recent turns available: {len(history)}"
+            "Available tools:\n" + "\n".join(tool_lines[:30])
         )
+
+    async def warm_up(self) -> None:
+        """Prefill the stable system prompt once so the first real reply is
+        fast (the local model otherwise spends ~30s reading it on turn one)."""
+        await self.router.chat("hi", self._build_system_prompt([]), tools=self._build_tool_schemas())
+
+    def _turn_notes(self, user_prompt: str = "", context: str = "") -> str:
+        """Per-turn facts (clock, mood, what we know of the user), sent with
+        the user message so the cached system prompt stays valid."""
+        notes = [f"Current local date and time: {datetime.now().strftime('%A %d %B %Y, %I:%M %p')}"]
+        emotional = self._human_context(user_prompt) if user_prompt else ""
+        if emotional:
+            notes.append(emotional)
+        if context:  # what Atulya has learned about this user
+            notes.append(context)
+        return "[Notes for this turn]\n" + "\n".join(notes) + "\n\n"
 
     def _build_tool_schemas(self) -> list[dict[str, Any]]:
         """Build OpenAI-style function schemas for the model's native tool loop.
