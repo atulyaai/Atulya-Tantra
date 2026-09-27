@@ -707,7 +707,7 @@ function LiveMode({ bootstrap, toast }) {
         } catch (err) {
           setStatus('ready');
           setActiveAgent('NONE');
-          toast('error', err.message || 'Local transcription failed');
+          toast('error', /Failed to fetch|NetworkError/i.test(err.message || '') ? 'Can’t reach the Atulya server — is it running?' : (err.message || 'Could not understand the audio'));
           addEvent('Local STT failed: ' + (err.message || 'error'), 'error');
         }
       };
@@ -911,7 +911,7 @@ function LiveMode({ bootstrap, toast }) {
         setActiveAgent('NONE');
         addEvent('Request failed', 'error');
         addMindStep('Error', err.message, 'error');
-        setMessages((prev) => prev.map((msg) => msg.id === id ? { ...msg, text: `Command Failure: ${err.message}` } : msg));
+        setMessages((prev) => prev.map((msg) => msg.id === id ? { ...msg, text: /Failed to fetch|NetworkError|Load failed/i.test(err.message) ? 'I can’t reach the Atulya server right now. Is it running (start.bat)?' : `Sorry, that failed: ${err.message}` } : msg));
 
         if (continuous) {
           setTimeout(() => startListening(), 2000);
@@ -1583,4 +1583,23 @@ function App() {
   );
 }
 
-createRoot(document.getElementById('root')).render(<App />);
+// Never a blank page: if something fails to load (server stopped, or an old
+// cached page asking for files a rebuild replaced), say so and offer a reload.
+class Recover extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  render() {
+    if (!this.state.error) return this.props.children;
+    const stale = /dynamically imported module|Loading chunk|Failed to fetch/i.test(String(this.state.error?.message));
+    return (
+      <div className="recover">
+        <h2>{stale ? 'Atulya was updated or restarted' : 'Something went wrong'}</h2>
+        <p>{stale ? 'This page is out of date or the server is not reachable. Make sure Atulya is running (start.bat), then reload.'
+          : String(this.state.error?.message || this.state.error)}</p>
+        <button type="button" className="primary" onClick={() => window.location.reload()}>Reload</button>
+      </div>
+    );
+  }
+}
+
+createRoot(document.getElementById('root')).render(<Recover><App /></Recover>);

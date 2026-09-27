@@ -3609,3 +3609,7 @@ main.shell .content.full { padding: 0; overflow: hidden; display: flex; flex-dir
   border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-size: 13px; }
 .talk-settings label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); }
 .talk-settings label.check { flex-direction: row; align-items: center; gap: 8px; color: var(--text); }
+
+.recover { max-width: 460px; margin: 18vh auto 0; padding: 24px; text-align: center; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 14px; }
+.recover p { color: var(--muted); line-height: 1.5; }
