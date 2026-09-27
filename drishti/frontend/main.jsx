@@ -807,7 +807,7 @@ function LiveMode({ bootstrap, toast }) {
     const text = (voiceText || prompt).trim();
     if (!text || busy) return;
     const id = Date.now();
-    const cameraNote = capturedFrame ? '\n\nCamera frame is captured in the Live Mode panel. Use vision when vision processing is active.' : '';
+    const image = capturedFrame; // sent for real: read on the server (OCR / vision)
     const answeringConfirmation = awaitingConfirmRef.current;
     setAwaitingConfirm(false);
 
