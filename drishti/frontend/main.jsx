@@ -1160,6 +1160,21 @@ function App() {
     }
   }, [authenticated]);
 
+  // On the computer Atulya runs on there is no login screen. Other devices still sign in.
+  useEffect(() => {
+    if (authenticated) return;
+    try { if (sessionStorage.getItem('atulya-signed-out')) return; } catch {}
+    fetch('/api/auth/local')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data?.token) return;
+        setToken(data.token);
+        if (data.user) setUser(data.user);
+        setAuthenticated(true);
+      })
+      .catch(() => {});
+  }, [authenticated]);
+
   useEffect(() => {
     api.get('/api/health')
       .then(res => { if (res.warnings) setHealthWarnings(res.warnings); })
@@ -1230,6 +1245,7 @@ function App() {
       await api.post('/api/auth/logout').catch(() => {});
     } finally {
       clearToken();
+      try { sessionStorage.setItem('atulya-signed-out', '1'); } catch {}
       setAuthenticated(false);
       setMenuOpen(false);
       setTab('orb');
@@ -1237,7 +1253,7 @@ function App() {
   }
 
   if (!authenticated) {
-    return <Login onLogin={() => { setAuthenticated(true); load().catch((err) => setError(err.message)); }} />;
+    return <Login onLogin={() => { try { sessionStorage.removeItem('atulya-signed-out'); } catch {} setAuthenticated(true); load().catch((err) => setError(err.message)); }} />;
   }
 
   const toastStack = (

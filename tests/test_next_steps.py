@@ -183,3 +183,33 @@ def test_microphone_holds_back_speech_without_wake_word():
     gate = WakeGate(model=Never())
     assert Microphone(gate=gate).gate is gate
     assert not gate.recent()
+
+
+# ── speech language, local sign-in ───────────────────────────────────────
+
+def test_pick_language_never_returns_arabic():
+    from types import SimpleNamespace
+
+    from yantra.capabilities.voice_pipeline import pick_language
+
+    noisy = SimpleNamespace(language="ar", all_language_probs=[("ar", 0.5), ("hi", 0.3), ("en", 0.1)])
+    assert pick_language(noisy) == "hi"
+    assert pick_language(SimpleNamespace(language="en", all_language_probs=[])) == "en"
+    assert pick_language(SimpleNamespace(language="ar", all_language_probs=None)) in ("en", "hi")
+
+
+def _client(host="127.0.0.1", headers=None):
+    from fastapi.testclient import TestClient
+
+    from drishti.dashboard.app import app
+
+    return TestClient(app, client=(host, 5000), headers=headers or {})
+
+
+def test_local_signin_only_from_this_computer(monkeypatch):
+    monkeypatch.delenv("ATULYA_REQUIRE_LOGIN", raising=False)
+    assert _client().get("/api/auth/local").json()["token"]
+    assert _client(host="192.168.1.20").get("/api/auth/local").status_code == 403
+    assert _client(headers={"X-Forwarded-For": "8.8.8.8"}).get("/api/auth/local").status_code == 403
+    monkeypatch.setenv("ATULYA_REQUIRE_LOGIN", "on")
+    assert _client().get("/api/auth/local").status_code == 403
