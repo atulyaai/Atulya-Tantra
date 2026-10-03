@@ -22,8 +22,11 @@ def _require_bearer(authorization: str | None) -> None:
     if token == helpers.ADMIN_TOKEN:
         return
     from drishti.dashboard import users
-    if not users.get_session(token):
+    session = users.get_session(token)
+    if not session:
         raise HTTPException(status_code=401, detail="Unauthorized")
+    if session.get("role") != "admin":  # which models are configured is admin business
+        raise HTTPException(status_code=403, detail="Admin access required")
 
 
 @router.get("/v1/models")

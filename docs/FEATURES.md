@@ -6,7 +6,7 @@ Status is from the code and unit tests. Anything marked "untested live" has not 
 
 | Area | Feature | Where |
 |---|---|---|
-| Face | Hologram head (lip sync, blink, breathing), orb home screen, Talk and Chat pages, knowledge map | `drishti/frontend/` |
+| Face | One animated screen: hologram head (lip sync, blink, breathing), caption card, suggestion chips. Chat history, About you, Routines, Senses, Reflexes and Users open as pop-ups, by voice or the menu | `drishti/frontend/` |
 | Voice in | Always-on listener, wake words in English and Hindi, "stop" interrupts speech, optional wake-word model | `atulya/ambient/` |
 | Voice out | Edge neural voices (online), system voice (offline), Piper (offline, optional) | `atulya/ambient/audio.py`, `yantra/capabilities/voice_pipeline.py` |
 | Brain | Local Qwen3 0.6B / 1.7B / 4B, `ATULYA_BRAIN=auto`, cloud failover (Groq, OpenRouter, Gemini, OpenAI) | `atulya/cognition/brain.py`, `atulya/intelligence.py` |

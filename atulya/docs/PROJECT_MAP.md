@@ -27,7 +27,7 @@ in `atulya/core/`; the Gmail OAuth refresh-token helper is
 
 Drishti-owned files live under `drishti/`.
 
-- `drishti/frontend/src/`: editable React source and browser API client.
+- `drishti/frontend/src/`: editable React source: the orb screen (`pages/Orb.jsx`), the hologram (`pages/Hologram.js`), pop-up pages and `Panel.jsx` (the pop-up shell).
 - `drishti/dist/`: generated frontend/package artifacts (built, gitignored).
 - `drishti/dashboard/`: FastAPI dashboard app, helpers, state, chat history, and API routes.
 - `drishti/app.py`: dashboard launcher for `python -m drishti.app`.

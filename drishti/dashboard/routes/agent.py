@@ -5,7 +5,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from drishti.dashboard.helpers import _require_auth
+from drishti.dashboard.helpers import _require_auth, _require_admin
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -25,7 +25,7 @@ def _get_agent():
 
 
 @router.get("/api/agent/status")
-async def agent_status(user: dict = Depends(_require_auth)):
+async def agent_status(user: dict = Depends(_require_admin)):
     a = _get_agent()
     return {"tools": a.list_tools(), "status": "ready"}
 
@@ -43,12 +43,12 @@ async def agent_process(request: Request, user: dict = Depends(_require_auth)):
 
 
 @router.get("/api/agent/tools")
-async def agent_tools(user: dict = Depends(_require_auth)):
+async def agent_tools(user: dict = Depends(_require_admin)):
     a = _get_agent()
     return {"tools": a.list_tools()}
 
 
 @router.get("/api/agent/schemas")
-async def agent_schemas(user: dict = Depends(_require_auth)):
+async def agent_schemas(user: dict = Depends(_require_admin)):
     a = _get_agent()
     return {"schemas": a.get_tool_schemas()}

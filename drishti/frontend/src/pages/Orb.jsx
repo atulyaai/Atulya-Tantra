@@ -15,6 +15,8 @@ const SETTINGS_KEY = 'atulya-orb-settings-v2';
 
 const spoken = (t) => String(t || '').replace(/[\p{Extended_Pictographic}\uFE0E\uFE0F\u200D\u20E3]/gu, '').replace(/\s{2,}/g, ' ').trim();
 
+const SUGGESTIONS = ['What can you do?', 'Give me my morning briefing', 'Play some music', 'Show my routines'];
+
 function loadSettings() {
   // No wake word needed: Atulya answers whatever you say. Chrome/Edge listen fastest; others use this PC.
   const fast = typeof window !== 'undefined' && Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
@@ -42,7 +44,7 @@ const COLORS = {
   error: [255, 110, 110],
 };
 
-export function Orb({ onMenu, toast }) {
+export function Orb({ onMenu, toast, onCommand }) {
   const [settings, setSettings] = useState(loadSettings);
   const [state, setState] = useState('idle'); // idle | listening | thinking | speaking | error
   const [started, setStarted] = useState(false);
@@ -344,6 +346,8 @@ export function Orb({ onMenu, toast }) {
   // ── One turn: send what was said, speak the answer ──────────────────────
   async function ask(text) {
     if (!text || busyRef.current) return;
+    const local = onCommand?.(text); // "show users", "close" … handled on screen, not by the brain
+    if (local) { setHeard(text); setSaid(local); setHint(''); await speak(local); return; }
     busyRef.current = true;
     setHeard(text);
     setSaid('');
@@ -545,9 +549,16 @@ export function Orb({ onMenu, toast }) {
 
       <div className="orb-captions">
         <div className="orb-status">{STATUS[state]}</div>
-        {heard && <div className="orb-heard">{heard}</div>}
+        {heard && <div className="orb-heard">“{heard}”</div>}
         {said && <div className="orb-said">{said}</div>}
         {hint && <div className="orb-hint">{hint}</div>}
+        {!said && !heard && state !== 'thinking' && (
+          <div className="orb-chips">
+            {SUGGESTIONS.map((text) => (
+              <button type="button" key={text} onClick={() => ask(text)}>{text}</button>
+            ))}
+          </div>
+        )}
       </div>
 
       <form className="orb-type" onSubmit={(e) => { e.preventDefault(); const t = typed.trim(); setTyped(''); if (t) ask(t); }}>

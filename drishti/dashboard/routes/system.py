@@ -85,7 +85,7 @@ def api_system(_admin: str | None = Header(default=None, alias="X-Atulya-Token")
 
 @router.get("/api/telemetry")
 def api_telemetry(token: str | None = Header(default=None, alias="X-Atulya-Token")):
-    _require_auth(token)
+    _require_admin(token)
     system = _system_payload()
     providers = _provider_registry()
     return {
@@ -102,8 +102,8 @@ def api_telemetry(token: str | None = Header(default=None, alias="X-Atulya-Token
 
 @router.get("/api/brain")
 def api_brain(token: str | None = Header(default=None, alias="X-Atulya-Token")):
-    """Active brain tier (ATULYA_BRAIN), its local model, and the available tiers."""
-    _require_auth(token)
+    """Active brain tier (ATULYA_BRAIN), its local model, and the available tiers (admin only)."""
+    _require_admin(token)
     from atulya.cognition.brain import describe
 
     return describe()
@@ -120,7 +120,7 @@ def api_audit(limit: int = 50, token: str | None = Header(default=None, alias="X
 
 @router.get("/api/health")
 def api_health(token: str | None = Header(default=None, alias="X-Atulya-Token")):
-    _require_auth(token)
+    _require_admin(token)
     warnings = []
 
     # Check disk space
@@ -147,7 +147,8 @@ def api_health(token: str | None = Header(default=None, alias="X-Atulya-Token"))
 @router.get("/api/dashboard/bootstrap")
 def api_dashboard_bootstrap(token: str | None = Header(default=None, alias="X-Atulya-Token")):
     user = _require_auth(token)
-    payload = {"user": user, "providers": _provider_registry()}
-    if user.get("role") == "admin":
+    payload = {"user": user, "providers": []}
+    if user.get("role") == "admin":  # which models and keys are set up is admin business
+        payload["providers"] = _provider_registry()
         payload["system"] = _system_payload()
     return payload

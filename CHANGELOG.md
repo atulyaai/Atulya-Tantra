@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Admin-only details: brain/model info, health, telemetry, agent tools, devices, model list and model names in replies are hidden from normal users (403 on the server).
+- One-screen UI: the orb is the whole app; pages became pop-ups (Esc closes), opened by voice ("show users") or the menu. Caption card, suggestion chips, volume up to 300%.
 - `docs/FEATURES.md`: what Atulya has and what is missing.
 - Hindi/Hinglish wake words and voice barge-in ("stop", "ruko", "चुप").
 - Tools: `play_music`, `media_control`, price tracking (`track_*`), `morning_briefing`, and opt-in PC control (`pc_*`).
@@ -21,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Daily spoken briefing (`ATULYA_BRIEFING_AT`), Piper offline voice, optional wake-word model gate; voice commands for music, media keys and the briefing.
 
 ### Removed
+- The sidebar and Talk page, plus about 2,900 lines of CSS for them (stylesheet 3,702 -> 756 lines).
 - Deep clean: unused imports (lint now enforces it), unused `SandboxManager`/`PromptInjectionGuard`/`EncryptionManager`/`SecurityManager`, the leftover NP-DNA cortex health check, empty old package folders; SECURITY_MODEL.md rewritten to match today.
 - More dead code: `workflow_engine`, `yantra/capabilities/sandbox` (duplicate of core/security), `core/task_classifier`, `config/agent_config.json` and their tests.
 - Unused modules: `yantra` harness/dispatch/orchestrator/agents/kgraph/plugins/selfimprovement/selfrepair/assistant/notify, `atulya.brain`, `atulya.soul`, `atulya.tokenjuice`, and their tests.

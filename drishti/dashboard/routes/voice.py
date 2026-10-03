@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 
 from atulya.config import get_config
 from drishti.dashboard import chat_history
-from drishti.dashboard.helpers import _require_auth
+from drishti.dashboard.helpers import _require_auth, redact_for
 from yantra.capabilities.voice_pipeline import VoicePipeline
 
 logger = logging.getLogger(__name__)
@@ -209,14 +209,14 @@ async def api_voice_chat(
     }
     if body.get("tts") is False:  # the device speaks with its own voice
         chat_history.append_exchange(user, prompt, response_text, provider=provider_name, surface=surface)
-        return reply
+        return redact_for(user, reply)
 
     # 3. Synthesize generated text into premium audio
     try:
         tts_result = await voice_pipeline.tts.synthesize(
             text=response_text, voice=voice_for_reply(response_text, voice), save=True)
         chat_history.append_exchange(user, prompt, response_text, provider=provider_name, surface=surface)
-        return {
+        return redact_for(user, {
             "prompt": prompt,
             "response_text": response_text,
             "audio_base64": tts_result.audio_base64,
@@ -226,11 +226,11 @@ async def api_voice_chat(
             "needs_approval": needs_approval,
             "pending_tool": pending_tool,
             "trace": trace,
-        }
+        })
     except Exception as e:
         logger.error(f"Voice chat TTS synthesis failed: {e}")
         chat_history.append_exchange(user, prompt, response_text, provider=provider_name, surface=surface)
-        return {
+        return redact_for(user, {
             "prompt": prompt,
             "response_text": response_text,
             "provider_name": provider_name,
@@ -238,5 +238,5 @@ async def api_voice_chat(
             "pending_tool": pending_tool,
             "trace": trace,
             "error": f"Audio synthesis failed: {e}"
-        }
+        })
 

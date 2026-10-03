@@ -9,7 +9,7 @@ import pytest
 class TestDevices:
     @pytest.fixture
     def mock_auth(self):
-        with patch("drishti.dashboard.routes.devices._require_auth") as m:
+        with patch("drishti.dashboard.routes.devices._require_admin") as m:
             m.return_value = {"username": "testuser"}
             yield m
 

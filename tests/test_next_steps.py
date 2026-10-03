@@ -369,3 +369,53 @@ def test_safety_classifier_labels_are_not_answers():
     assert _looks_like_safety_label("Category: violence")
     assert not _looks_like_safety_label("I can help you with reminders and music.")
     assert not _looks_like_safety_label("")
+
+
+# ── admin-only details ───────────────────────────────────────────────────
+
+@pytest.fixture
+def two_users(tmp_path, monkeypatch):
+    import drishti.dashboard.users as users_mod
+    from drishti.dashboard import helpers
+
+    monkeypatch.setattr(users_mod, "USERS_FILE", tmp_path / "users.json")
+    monkeypatch.setattr(users_mod, "SESSIONS_FILE", tmp_path / "sessions.json")
+    users_mod._sessions.clear()
+    monkeypatch.setattr(helpers, "ADMIN_TOKEN", "admin-test-token")
+    users_mod.create_user("sam", "pw", role="user", display_name="Sam")
+    return {"user": users_mod.create_session("sam"), "admin": "admin-test-token"}
+
+
+ADMIN_ONLY = ["/api/brain", "/api/health", "/api/telemetry", "/api/system", "/api/audit", "/api/agent/tools",
+              "/api/agent/status", "/api/devices", "/api/users", "/api/routines", "/api/senses", "/api/triggers"]
+
+
+@pytest.mark.parametrize("path", ADMIN_ONLY)
+def test_normal_users_cannot_read_admin_pages(two_users, path):
+    client = _client()
+    assert client.get(path, headers={"X-Atulya-Token": two_users["user"]}).status_code == 403
+    assert client.get(path, headers={"X-Atulya-Token": two_users["admin"]}).status_code != 403
+
+
+def test_bootstrap_hides_models_from_normal_users(two_users):
+    client = _client()
+    normal = client.get("/api/dashboard/bootstrap", headers={"X-Atulya-Token": two_users["user"]}).json()
+    assert normal["providers"] == [] and "system" not in normal
+    admin = client.get("/api/dashboard/bootstrap", headers={"X-Atulya-Token": two_users["admin"]}).json()
+    assert admin["providers"] and "system" in admin
+
+
+def test_chat_replies_hide_model_details_from_normal_users():
+    from drishti.dashboard.helpers import redact_for
+
+    reply = {"response": "Hi", "provider": "Claude (haiku)", "model_id": "x", "steps": [{"tool": "t"}],
+             "trace": [{"stage": "think"}], "needs_approval": False}
+    seen = redact_for({"role": "user"}, dict(reply))
+    assert seen["response"] == "Hi" and seen["provider"] == "Atulya" and seen["steps"] == [] and seen["trace"] == []
+    assert redact_for({"role": "admin"}, dict(reply)) == reply
+
+
+def test_models_list_is_admin_only(two_users):
+    client = _client()
+    assert client.get("/v1/models", headers={"Authorization": f"Bearer {two_users['user']}"}).status_code == 403
+    assert client.get("/v1/models", headers={"Authorization": f"Bearer {two_users['admin']}"}).status_code == 200

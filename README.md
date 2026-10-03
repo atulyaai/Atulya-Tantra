@@ -2,6 +2,13 @@
 
 Atulya Tantra is a local-first personal AI assistant: a talking hologram UI (Drishti), an always-listening voice mode with English and Hindi wake words, a local brain with cloud failover, long-term memory, and tools that act for you — music, reminders, email, calendar, price tracking, a morning briefing, smart-home control, and (opt-in) control of your PC.
 
+<p align="center">
+  <img src="atulya/docs/images/orb-home.png" alt="Atulya: one animated screen" width="420">
+  <img src="atulya/docs/images/orb-popup.jpg" alt="A pop-up opens over the orb" width="420">
+</p>
+
+**One screen.** Atulya is a single animated hologram you talk to. There are no pages: ask for something ("show users", "open my routines", "chat history") or tap the menu, and a pop-up slides in over the orb. Esc or a tap outside closes it. Replies appear in a caption card under the head, and suggestion chips help you get started.
+
 ![Atulya Tantra architecture](atulya/docs/images/architecture.svg)
 
 Custom model work lives in a separate model repository. This repo calls external and local models through the provider router; it does no model training.
