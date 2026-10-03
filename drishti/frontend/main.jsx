@@ -1,6 +1,6 @@
 import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { api, clearToken, getToken, setToken, getUser, setUser } from './api.js';
+import { api, boostAudio, clearToken, getToken, setToken, getUser, setUser } from './api.js';
 import { UserManagement } from './src/pages/UserManagement.jsx';
 import { Orb } from './src/pages/Orb.jsx';
 import './styles.css';
@@ -310,6 +310,7 @@ function LiveMode({ bootstrap, toast }) {
           addEvent('Streaming response through audio pipeline...', 'speaking');
           const audio = new Audio("data:audio/mp3;base64," + res.audio_base64);
           audioRef.current = audio;
+          boostAudio(audio);
           audio.onplay = () => {
             setStatus('speaking');
             setActiveAgent('ECHO');
@@ -652,6 +653,7 @@ function LiveMode({ bootstrap, toast }) {
             if (res.audio_base64) {
               const audio = new Audio("data:audio/mp3;base64," + res.audio_base64);
               audioRef.current = audio;
+              boostAudio(audio);
               setStatus('speaking');
               setActiveAgent('ECHO');
               audio.onplay = () => {

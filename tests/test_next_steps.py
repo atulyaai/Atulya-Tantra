@@ -347,3 +347,25 @@ def test_emoji_are_never_spoken():
     assert strip_emoji("Plain text, 100% fine.") == "Plain text, 100% fine."
     assert "\U0001F60A" not in speakable("Great job \U0001F60A")
     assert TextToSpeech.strip_ssml("<break time='1s'/>Hi \U0001F600") == "... Hi"
+
+
+# ── abilities answer and moderation-label guard ──────────────────────────
+
+@pytest.mark.parametrize("text", ["what can you do", "what all you can do", "what are your abilities", "help"])
+def test_what_can_you_do_is_answered_by_a_tool_not_a_model(text):
+    routed = route_intent(text)
+    assert routed is not None and routed.tool == "what_can_you_do"
+    from atulya.agent import tools
+
+    answer = run(tools.execute_tool("what_can_you_do"))
+    assert "reminders" in answer and "music" in answer
+
+
+def test_safety_classifier_labels_are_not_answers():
+    from atulya.intelligence import _looks_like_safety_label
+
+    assert _looks_like_safety_label("Harassment")
+    assert _looks_like_safety_label("safe")
+    assert _looks_like_safety_label("Category: violence")
+    assert not _looks_like_safety_label("I can help you with reminders and music.")
+    assert not _looks_like_safety_label("")

@@ -198,6 +198,14 @@ class GeminiProvider(IntelligenceProvider):
             raise e
 
 
+def _looks_like_safety_label(text: str) -> bool:
+    """Content-safety models reply with labels like "harassment" or "safe/unsafe", not answers."""
+    words = re.sub(r"[^a-z ]", " ", (text or "").lower()).split()
+    labels = {"safe", "unsafe", "harassment", "safety", "violence", "hate", "sexual", "self", "harm", "illegal",
+              "category", "violation", "content", "policy", "none"}
+    return 0 < len(words) <= 6 and all(w in labels for w in words)
+
+
 class OpenRouterProvider(IntelligenceProvider):
     """OpenRouter: one key, many models. Tries a list of free models until one answers.
 
@@ -209,7 +217,6 @@ class OpenRouterProvider(IntelligenceProvider):
     URL = "https://openrouter.ai/api/v1/chat/completions"
     DEFAULT_MODELS = (
         "qwen/qwen3.8-27b:free",
-        "openrouter/free",
         "google/gemma-4-31b-it:free",
         "nvidia/nemotron-3-super-120b-a12b:free",
     )
@@ -240,6 +247,8 @@ class OpenRouterProvider(IntelligenceProvider):
         with urllib.request.urlopen(req, timeout=30.0) as response:
             body = json.loads(response.read().decode("utf-8"))
         text = (body["choices"][0]["message"].get("content") or "").strip()
+        if _looks_like_safety_label(text):
+            return ""  # a moderation model answered instead of a chat model: treat as no answer
         # Some reasoning models wrap their thinking in <think>…</think>.
         return re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
 

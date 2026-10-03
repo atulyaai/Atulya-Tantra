@@ -242,6 +242,9 @@ def _media_intent(t: str) -> RoutedIntent | None:
     t = re.sub(r"^(?:(?:hey |ok |okay )?atulya[, ]*)?(?:(?:can|could|would) you |please )?", "", t).strip()
     if re.fullmatch(r"(?:good morning|morning briefing|brief me|(?:give me |what(?:'s| is) )?(?:my |the )?(?:morning )?(?:briefing|brief|day))", t):
         return RoutedIntent("morning_briefing", {})
+    if re.fullmatch(r"(?:what (?:all )?(?:can|do) you (?:do|help (?:me )?with)(?: for me)?|what (?:are|is) your (?:abilities|capabilities|features|skills)|"
+                    r"(?:tell me )?what (?:all )?you can do|help|what can i ask you|aap kya kar sakte ho|तुम क्या कर सकते हो|आप क्या कर सकते हैं)", t):
+        return RoutedIntent("what_can_you_do", {})
     for pattern, action in _MEDIA_KEYS:
         if re.fullmatch(pattern + r"(?: please)?", t):
             return RoutedIntent("media_control", {"action": action})

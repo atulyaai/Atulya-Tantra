@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { api } from '../../api.js';
+import { api, boostAudio, getBoost, setBoost } from '../../api.js';
 
 // The home screen: one glowing orb you talk to, Jarvis style. It wakes on
 // "Hey Atulya" (or "Hi / Hello / Listen Atulya", or just "Atulya"), ripples to
@@ -51,6 +51,7 @@ export function Orb({ onMenu, toast }) {
   const [hint, setHint] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [typed, setTyped] = useState('');
+  const [boost, setBoostState] = useState(getBoost());
 
   const canvasRef = useRef(null);
   const holoBoxRef = useRef(null);
@@ -315,15 +316,7 @@ export function Orb({ onMenu, toast }) {
       if (audioBase64) {
         const audio = new Audio(`data:audio/mp3;base64,${audioBase64}`);
         audioRef.current = audio;
-        try {
-          const ctx = audioCtx();
-          const source = ctx.createMediaElementSource(audio);
-          const analyser = ctx.createAnalyser();
-          analyser.fftSize = 256;
-          source.connect(analyser);
-          analyser.connect(ctx.destination);
-          analyserRef.current = analyser;
-        } catch { analyserRef.current = null; }
+        analyserRef.current = boostAudio(audio, audioCtx());
         audio.onended = done;
         audio.onerror = done;
         audio.play().catch(() => speakInBrowser(text).then(done));
@@ -573,6 +566,14 @@ export function Orb({ onMenu, toast }) {
             <select value={settings.engine} onChange={(e) => setSettings((s) => ({ ...s, engine: e.target.value }))}>
               <option value="local">On this PC (private, English + Hindi)</option>
               <option value="browser">Browser (faster, Chrome/Edge)</option>
+            </select>
+          </label>
+          <label>Volume
+            <select value={String(boost)} onChange={(e) => { const v = parseFloat(e.target.value); setBoost(v); setBoostState(v); }}>
+              <option value="1">100% (normal)</option>
+              <option value="2">200%</option>
+              <option value="2.5">250%</option>
+              <option value="3">300% (loudest)</option>
             </select>
           </label>
           <label className="check">
