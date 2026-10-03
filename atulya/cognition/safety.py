@@ -110,6 +110,8 @@ def describe_action(tool: str, arguments: dict[str, Any] | None = None) -> str:
         return "forget everything I've learned about you"
     if tool in ("get_weather", "get_forecast"):
         return f"check the weather in {args.get('location', 'your city')}"
+    if tool == "open_website":
+        return f"open {args.get('site', 'a website')}"
     if tool in _CHECKS:
         return _CHECKS[tool]
     return f"run {tool}"

@@ -408,18 +408,27 @@ class GroqProvider(IntelligenceProvider):
             raise e
 
 
+NO_BRAIN_MESSAGE = (
+    "My brain isn't loaded yet, so I can only do simple commands like the time or reminders. "
+    "Run start.bat again to install the local model, then ask me again."
+)
+
+
 class OpenCodeProvider(IntelligenceProvider):
-    """OpenCode Zen Provider for lightweight local system fallbacks."""
-    
+    """Last link in the chain: says plainly that no brain is loaded.
+
+    It used to answer with canned persona lines ("At your service, sir…") that
+    looked like real replies, which hid that nothing was actually thinking.
+    """
+
     def name(self) -> str:
-        return "OpenCode Zen"
-        
+        return "No brain loaded"
+
     def is_available(self) -> bool:
         return True
-        
+
     async def chat(self, prompt: str, system_prompt: str = "") -> str:
-        from atulya.persona import get_atulya_fallback_response
-        return get_atulya_fallback_response(prompt, "en_male")
+        return NO_BRAIN_MESSAGE
 
 
 class LocalGGUFProvider(IntelligenceProvider):
@@ -525,11 +534,8 @@ class ProviderRouter(IntelligenceProvider):
                 
         # All providers failed, return a diagnostic error response
         errors_summary = ", ".join(attempted)
-        return (
-            f"Caution, sir. All neural intelligence channels are offline or unconfigured. "
-            f"Attempted: {errors_summary}. Please verify your local Ollama connection or API keys.",
-            "Diagnostics Fallback"
-        )
+        logger.warning("No brain answered. Attempted: %s", errors_summary)
+        return NO_BRAIN_MESSAGE, "Diagnostics Fallback"
 
     async def stream(
         self,
@@ -564,4 +570,4 @@ class ProviderRouter(IntelligenceProvider):
             except Exception as exc:
                 logger.warning(f"Provider {provider.name()} stream failed: {exc}. Attempting next fallback.")
 
-        yield "Caution, sir. All neural intelligence channels are offline or unconfigured.", "Diagnostics Fallback"
+        yield NO_BRAIN_MESSAGE, "Diagnostics Fallback"

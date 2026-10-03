@@ -3613,3 +3613,67 @@ main.shell .content.full { padding: 0; overflow: hidden; display: flex; flex-dir
 .recover { max-width: 460px; margin: 18vh auto 0; padding: 24px; text-align: center; background: var(--panel);
   border: 1px solid var(--line); border-radius: 14px; }
 .recover p { color: var(--muted); line-height: 1.5; }
+
+/* ── Orb home screen (Jarvis style) ─────────────────────────────────────── */
+.orb-screen {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 44%, #0b1a2e 0%, #050a14 55%, #02040a 100%);
+  color: #d8f4ff;
+  font-family: inherit;
+}
+.orb-canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: pointer; }
+.orb-top {
+  position: absolute; top: 0; left: 0; right: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px;
+  pointer-events: none;
+}
+.orb-top > * { pointer-events: auto; }
+.orb-name { letter-spacing: 0.5em; font-size: 13px; font-weight: 600; color: rgba(160, 225, 255, 0.7); padding-left: 0.5em; }
+.orb-icon {
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid rgba(120, 220, 255, 0.25);
+  background: rgba(10, 30, 50, 0.5);
+  color: #a8e6ff; font-size: 18px; line-height: 1; padding: 0;
+}
+.orb-icon:hover { background: rgba(30, 70, 100, 0.6); }
+.orb-captions {
+  position: absolute; left: 16px; right: 16px;
+  top: calc(44% + min(29vw, 29vh) + 8px); /* just under the orb's outer ring */
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  text-align: center; pointer-events: none;
+}
+.orb-status { font-size: 12px; letter-spacing: 0.25em; text-transform: uppercase; color: rgba(140, 220, 255, 0.75); }
+.orb-heard { max-width: 640px; font-size: 15px; color: rgba(200, 235, 255, 0.6); }
+.orb-said { max-width: 680px; font-size: 20px; line-height: 1.4; color: #eafaff; text-shadow: 0 0 18px rgba(80, 200, 255, 0.35); }
+.orb-hint { font-size: 13px; color: rgba(255, 210, 150, 0.85); }
+.orb-type {
+  position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%);
+  width: min(520px, calc(100% - 32px));
+}
+.orb-type input {
+  width: 100%; box-sizing: border-box;
+  background: rgba(8, 24, 40, 0.6); color: #e6f8ff;
+  border: 1px solid rgba(120, 220, 255, 0.2); border-radius: 999px;
+  padding: 12px 18px; font-size: 15px;
+}
+.orb-type input::placeholder { color: rgba(160, 210, 235, 0.45); }
+.orb-settings {
+  position: absolute; top: 64px; right: 16px;
+  width: min(320px, calc(100% - 32px));
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 16px; border-radius: 14px;
+  background: rgba(6, 18, 32, 0.92); border: 1px solid rgba(120, 220, 255, 0.2);
+  backdrop-filter: blur(8px);
+}
+.orb-settings label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #a8dcf5; }
+.orb-settings label.check { flex-direction: row; align-items: center; gap: 8px; }
+.orb-settings select, .orb-settings button {
+  background: rgba(15, 40, 60, 0.8); color: #e6f8ff;
+  border: 1px solid rgba(120, 220, 255, 0.25); border-radius: 8px; padding: 8px;
+}
+@media (max-width: 600px) {
+  .orb-said { font-size: 17px; }
+}

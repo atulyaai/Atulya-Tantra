@@ -2,6 +2,7 @@ import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'rea
 import { createRoot } from 'react-dom/client';
 import { api, clearToken, getToken, setToken, getUser, setUser } from './api.js';
 import { UserManagement } from './src/pages/UserManagement.jsx';
+import { Orb } from './src/pages/Orb.jsx';
 import './styles.css';
 
 // Lazy-load the heavy Spirit view so it is fetched only when opened, keeping
@@ -1334,6 +1335,7 @@ function Login({ onLogin }) {
 
 const NAV = [
   { label: 'Assistant', items: [
+    { id: 'orb', label: 'Atulya', icon: '●' },
     { id: 'live', label: 'Talk', icon: '◉' },
     { id: 'chat', label: 'Chat', icon: '✎' },
   ] },
@@ -1356,7 +1358,7 @@ const NAV = [
 const FULL_BLEED = new Set(['live', 'galaxy']);
 
 function App() {
-  const [tab, setTab] = useState('live');
+  const [tab, setTab] = useState('orb');
   const [menuOpen, setMenuOpen] = useState(false);
   const [bootstrap, setBootstrap] = useState(null);
   const [error, setError] = useState('');
@@ -1450,6 +1452,7 @@ function App() {
     function handleKeyDown(event) {
       if (event.ctrlKey || event.metaKey) {
         switch (event.key) {
+          case '0': event.preventDefault(); setTab('orb'); break;
           case '1': event.preventDefault(); setTab('live'); break;
           case '2': event.preventDefault(); setTab('chat'); break;
           case '3': event.preventDefault(); setTab('galaxy'); break;
@@ -1508,12 +1511,33 @@ function App() {
       clearToken();
       setAuthenticated(false);
       setMenuOpen(false);
-      setTab('live');
+      setTab('orb');
     }
   }
 
   if (!authenticated) {
     return <Login onLogin={() => { setAuthenticated(true); load().catch((err) => setError(err.message)); }} />;
+  }
+
+  const toastStack = (
+    <div className="toasts" role="status" aria-live="polite">
+      {toasts.map((item) => (
+        <div className={`toast ${item.type}`} key={item.id}>
+          {item.title && <strong className="toast-title">{item.title}</strong>}
+          {item.message}
+        </div>
+      ))}
+    </div>
+  );
+
+  // The orb is the whole screen; the menu button opens the rest of the app.
+  if (tab === 'orb') {
+    return (
+      <>
+        <Orb toast={toast} onMenu={() => { setTab('live'); setMenuOpen(true); }} />
+        {toastStack}
+      </>
+    );
   }
 
   return (
@@ -1561,6 +1585,7 @@ function App() {
           <div className="modal-card" onClick={e => e.stopPropagation()}>
             <h2>Keyboard Shortcuts</h2>
             <div className="table">
+              <div className="row"><span>Ctrl+0</span><span>Atulya (orb)</span></div>
               <div className="row"><span>Ctrl+1</span><span>Talk</span></div>
               <div className="row"><span>Ctrl+2</span><span>Chat</span></div>
               <div className="row"><span>Ctrl+3</span><span>Knowledge</span></div>
@@ -1571,14 +1596,7 @@ function App() {
         </div>
       )}
 
-      <div className="toasts" role="status" aria-live="polite">
-        {toasts.map((item) => (
-          <div className={`toast ${item.type}`} key={item.id}>
-            {item.title && <strong className="toast-title">{item.title}</strong>}
-            {item.message}
-          </div>
-        ))}
-      </div>
+      {toastStack}
     </main>
   );
 }
