@@ -54,38 +54,6 @@
 
 ---
 
-## 🌌 Visual Showcase & Capabilities
-
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <h4 align="center">🎭 Drishti Hologram Avatar & Live Voice</h4>
-      <img src="https://raw.githubusercontent.com/atulyaai/Atulya-Tantra/main/atulya/docs/images/drishti_ui.jpg" alt="Drishti Hologram UI" width="100%"/>
-      <p align="center"><em>Talking 3D hologram avatar, biometric monitoring & real-time Hindi/English voice recognition</em></p>
-    </td>
-    <td width="50%" valign="top">
-      <h4 align="center">🌲 Long-Term Neural Memory Tree</h4>
-      <img src="https://raw.githubusercontent.com/atulyaai/Atulya-Tantra/main/atulya/docs/images/memory_tree.jpg" alt="Neural Memory Tree" width="100%"/>
-      <p align="center"><em>Branching synaptic episodic recall, user preference vectors & semantic reflection graph</em></p>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <h4 align="center">🛠️ Yantra Autonomous Action Engine</h4>
-      <img src="https://raw.githubusercontent.com/atulyaai/Atulya-Tantra/main/atulya/docs/images/yantra_engine.jpg" alt="Yantra Action Engine" width="100%"/>
-      <p align="center"><em>PC desktop automation, browser scraping workflows, IoT smart home hub & media player</em></p>
-    </td>
-    <td width="50%" valign="top">
-      <h4 align="center">⚡ End-to-End System Architecture</h4>
-      <img src="https://raw.githubusercontent.com/atulyaai/Atulya-Tantra/main/atulya/docs/images/architecture.svg" alt="System Architecture" width="100%"/>
-      <p align="center"><em>Ambient wake word listener, router fallback chain & provider orchestration</em></p>
-    </td>
-  </tr>
-</table>
-
----
-
-
 ## What This Is
 
 | Area | Folder | Purpose |
