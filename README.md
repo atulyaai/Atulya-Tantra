@@ -1,34 +1,56 @@
+<!-- Hero Banner -->
 <div align="center">
   <img src="atulya/docs/images/banner.jpg" alt="Atulya Tantra - JARVIS-Class Personal AI" width="100%"/>
 </div>
 
 <div align="center">
-
-# ⚡ ATULYA TANTRA
-### *Local-First, JARVIS-Class Personal AI Assistant*
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB.svg?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![Local First](https://img.shields.io/badge/Privacy-100%25_Local_First-emerald.svg?style=for-the-badge)](https://github.com/atulyaai/Atulya-Tantra)
-[![Voice Mode](https://img.shields.io/badge/Voice-Hindi_%7C_English-cyan.svg?style=for-the-badge)](https://github.com/atulyaai/Atulya-Tantra)
-[![Platform](https://img.shields.io/badge/Platform-Windows_%7C_Linux_%7C_macOS-darkviolet.svg?style=for-the-badge)](https://github.com/atulyaai/Atulya-Tantra)
-
-<p align="center">
-  <b>Holographic Avatar UI (Drishti) • Ambient Voice Mode (English & Hindi) • Neural Memory Tree • Autonomous Device & Tool Automation</b>
-</p>
-
+  <h1>
+    <img src="https://readme-typing-svg.herokuapp.com?font=Cinzel&weight=700&size=40&duration=4000&pause=1000&color=4DFBFF&center=true&vCenter=true&width=700&height=75&lines=ATULYA+TANTRA;JARVIS-CLASS+PERSONAL+AI;VOICE+%2B+MEMORY+%2B+TOOLS;अतुल्य+तन्त्र" alt="Atulya Tantra — JARVIS-Class Personal AI" />
+  </h1>
 </div>
 
----
+<p align="center">
+  <em><strong>अतुल्य</strong> (Atulya) — Peerless, without equal &nbsp;·&nbsp; <strong>तन्त्र</strong> (Tantra) — System, mechanism, loom of actions</em><br/>
+  <strong>A local-first, always-listening personal AI: talking 3D hologram avatar, ambient Hindi/English voice mode, neural memory tree, and autonomous computer action.</strong>
+</p>
 
-**Atulya Tantra** is a local-first personal AI assistant: a talking hologram UI (Drishti), an always-listening voice mode with English and Hindi wake words, a local brain with cloud failover, long-term memory, and tools that act for you — music, reminders, email, calendar, price tracking, a morning briefing, smart-home control, and (opt-in) control of your PC.
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-0d1117?style=for-the-badge&logoColor=4DFBFF&labelColor=0d1117&color=4DFBFF" alt="License"/></a>
+  <a href="https://python.org"><img src="https://img.shields.io/badge/Python-3.11+-0d1117?style=for-the-badge&logo=python&logoColor=4DFBFF&labelColor=0d1117&color=4DFBFF" alt="Python"/></a>
+  <a href="#"><img src="https://img.shields.io/badge/Privacy-100%25_Local_First-0d1117?style=for-the-badge&logoColor=10b981&labelColor=0d1117&color=10b981" alt="Local First"/></a>
+  <a href="#"><img src="https://img.shields.io/badge/Voice-Hindi_%7C_English-0d1117?style=for-the-badge&logoColor=4DFBFF&labelColor=0d1117&color=4DFBFF" alt="Voice"/></a>
+  <a href="#"><img src="https://img.shields.io/badge/Platform-Windows_%7C_Linux_%7C_macOS-0d1117?style=for-the-badge&logoColor=a855f7&labelColor=0d1117&color=a855f7" alt="Platform"/></a>
+  <img src="https://img.shields.io/badge/Made_in-India_🇮🇳-0d1117?style=for-the-badge&logoColor=FF9933&labelColor=0d1117&color=FF9933" alt="Made in India"/>
+</p>
+
+```
+ ┌─────────────────────────────────────────────────────────────────────────────┐
+ │                             ATULYA TANTRA PIPELINE                          │
+ ├─────────────────────────────────────────────────────────────────────────────┤
+ │   🎙️ Ambient Audio (Mic) ──► Wake Word Detect ("Hey Atulya" / "सुनो अतुल्य")│
+ │                                      │                                      │
+ │                                      ▼                                      │
+ │   🧠 Cognition Router     ──► Local GGUF / Tantra-LLM / Cloud Fallback      │
+ │                                      │                                      │
+ │            ┌─────────────────────────┴─────────────────────────┐            │
+ │            ▼                                                   ▼            │
+ │   🌲 Neural Memory Tree                               🛠️ Yantra Action Engine│
+ │   (Vector recall · Reflection)                        (Browser, Media, PC)  │
+ │            │                                                   │            │
+ │            └─────────────────────────┬─────────────────────────┘            │
+ │                                      ▼                                      │
+ │   🎭 Drishti Hologram Engine ──► Lip-sync · Expressive Eyes · Audio Out     │
+ └─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
 
 <div align="center">
   <img src="atulya/docs/images/architecture.svg" alt="Atulya Tantra architecture" width="85%"/>
 </div>
 
 > [!NOTE]
-> Custom model work lives in [Tantra-LLM](https://github.com/atulyaai/Tantra-LLM). This repo calls external and local models through the provider router; it does no model training.
+> Custom language model training lives in [Tantra-LLM](https://github.com/atulyaai/Tantra-LLM). This repository provides the assistant runtime, Drishti hologram frontend, long-term memory, and Yantra automation engine.
 
 ## What This Is
 
