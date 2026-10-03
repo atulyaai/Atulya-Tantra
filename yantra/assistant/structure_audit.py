@@ -22,7 +22,6 @@ ALLOWED_ROOT_DIRS = {
     "install",
     "outputs",
     "runtime",
-    "tantra",
     "tests",
     "yantra",
     "tmp",
@@ -58,8 +57,7 @@ ALLOWED_ROOT_FILES = {
 }
 
 EXPECTED_PACKAGE_DIRS = {
-    "atulya": {"agent", "ambient", "cognition", "docs", "memory", "observability", "tokenjuice"},
-    "tantra": {"config", "core", "npdna", "outputs", "scripts", "training"},
+    "atulya": {"agent", "ambient", "cognition", "core", "docs", "memory", "observability", "tokenjuice"},
     "yantra": {
         "assistant",
         "capabilities",
@@ -109,7 +107,7 @@ class RepoStructureAuditor:
             if child.is_dir():
                 if name in ALLOWED_ROOT_DIRS:
                     root_dirs.append(name)
-                    if name not in {"atulya", "tantra", "yantra", "drishti"}:
+                    if name not in {"atulya", "yantra", "drishti"}:
                         support_dirs.append(name)
                 elif name in GENERATED_ROOT_DIRS or name.endswith(".egg-info"):
                     issues.append(StructureIssue(

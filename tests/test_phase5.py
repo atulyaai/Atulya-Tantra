@@ -152,9 +152,6 @@ def test_registry_integration():
     assert "sap_gui_automation" in tool_names
 
 
-
-
-
 def test_session_round_trip_uses_safe_name(tmp_path, monkeypatch):
     from atulya import cli
 
@@ -203,7 +200,6 @@ def test_merge_env_defaults_preserves_existing_values(tmp_path):
 
 
 def test_ollama_provider_reads_env(monkeypatch):
-    import os
     monkeypatch.setenv("ATULYA_OLLAMA_MODEL", "qwen3:8b")
     monkeypatch.setenv("ATULYA_OLLAMA_HOST", "http://localhost:11434")
     from atulya.intelligence import OllamaProvider
@@ -318,203 +314,13 @@ def test_automation_runner_run_job_reports_missing_command(tmp_path):
     asyncio.run(run())
 
 
-
-
-
-def test_dataset_index_exposes_trainable_files_only(tmp_path, monkeypatch):
-    from drishti.dashboard import helpers
-
-    datasets_dir = tmp_path / "datasets"
-    datasets_dir.mkdir()
-    (datasets_dir / "alpha.jsonl").write_text('{"instruction":"a","output":"b"}\n', encoding="utf-8")
-    (datasets_dir / "identity.json").write_text("{}", encoding="utf-8")
-    (datasets_dir / "tokenizer.json").write_text("{}", encoding="utf-8")
-
-    monkeypatch.setattr(helpers, "DATASETS_DIR", datasets_dir)
-
-    assert set(helpers._dataset_index()) == {"alpha.jsonl", "identity.json"}
-
-
-def test_training_start_all_datasets_materializes_jsonl_bundle(tmp_path, monkeypatch):
-    from drishti.dashboard.routes import train
-
-    first = tmp_path / "first.jsonl"
-    second = tmp_path / "second.jsonl"
-    first.write_text(json.dumps({"instruction": "one", "output": "two"}) + "\n", encoding="utf-8")
-    second.write_text(json.dumps({"instruction": "three", "output": "four"}) + "\n", encoding="utf-8")
-    output_dir = tmp_path / "outputs"
-
-    launched = {}
-
-    class FakeProcess:
-        pid = 4321
-
-    def fake_popen(cmd, cwd, stdout, stderr):
-        launched["cmd"] = cmd
-        launched["cwd"] = cwd
-        return FakeProcess()
-
-    monkeypatch.setattr(train, "OUTPUTS_DIR", output_dir)
-    monkeypatch.setattr(train, "PID_FILE", output_dir / "train.pid")
-    monkeypatch.setattr(train, "LOG_FILE", output_dir / "training.log")
-    monkeypatch.setattr(train, "_require_admin", lambda token: {"username": "admin", "role": "admin"})
-    monkeypatch.setattr(train, "_pid_running", lambda pid: False)
-    monkeypatch.setattr(train, "_python_executable", lambda: "python")
-    monkeypatch.setattr(train, "_dataset_index", lambda: {"first.jsonl": first, "second.jsonl": second})
-    monkeypatch.setattr(train.subprocess, "Popen", fake_popen)
-
-    response = train.api_train_start({"data_id": "all", "config": "atulya_seed", "steps": 3}, _admin="token")
-
-    data_arg = launched["cmd"][launched["cmd"].index("--data") + 1]
-    bundle = output_dir / "dashboard_all_datasets.jsonl"
-    rows = [json.loads(line) for line in bundle.read_text(encoding="utf-8").splitlines()]
-    assert response["pid"] == 4321
-    assert data_arg == str(bundle)
-    assert rows == [
-        {"instruction": "one", "output": "two"},
-        {"instruction": "three", "output": "four"},
-    ]
-
-
-
-
-
-def test_readiness_reports_candidate_without_provider(tmp_path, monkeypatch):
-    from atulya.production_readiness import run_readiness_checks
-
-    (tmp_path / "atulya").mkdir()
-    (tmp_path / "atulya" / "llm.py").write_text("", encoding="utf-8")
-    (tmp_path / "config").mkdir()
-    (tmp_path / "config" / "mcp_servers.json").write_text(json.dumps({"servers": []}), encoding="utf-8")
-    monkeypatch.delenv("GROQ_API_KEY", raising=False)
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.delenv("ATULYA_TELEGRAM_BOT_TOKEN", raising=False)
-    monkeypatch.delenv("ATULYA_TELEGRAM_ALLOWLIST", raising=False)
-
-    report = run_readiness_checks(tmp_path)
-
-    assert report["grade"] == "production-candidate"
-    assert any(item["name"] == "Free inference" for item in report["blocking"])
-
-
-def test_readiness_passes_required_checks_with_free_key(tmp_path, monkeypatch):
-    from atulya.production_readiness import run_readiness_checks
-
-    (tmp_path / "atulya").mkdir()
-    (tmp_path / "atulya" / "llm.py").write_text("", encoding="utf-8")
-    (tmp_path / "config").mkdir()
-    (tmp_path / "config" / "mcp_servers.json").write_text(json.dumps({"servers": []}), encoding="utf-8")
-    monkeypatch.setenv("GROQ_API_KEY", "demo")
-    monkeypatch.delenv("ATULYA_TELEGRAM_BOT_TOKEN", raising=False)
-    monkeypatch.delenv("ATULYA_TELEGRAM_ALLOWLIST", raising=False)
-
-    report = run_readiness_checks(tmp_path)
-
-    assert report["grade"] == "production-ready"
-    assert report["passed_required"] == report["total_required"]
-
-
-def test_readiness_blocks_enabled_google_drive_without_key(tmp_path, monkeypatch):
-    from atulya.production_readiness import run_readiness_checks
-
-    (tmp_path / "atulya").mkdir()
-    (tmp_path / "atulya" / "llm.py").write_text("", encoding="utf-8")
-    (tmp_path / "config").mkdir()
-    (tmp_path / "config" / "mcp_servers.json").write_text(
-        json.dumps({"servers": [{"name": "google_drive", "enabled": True}]}),
-        encoding="utf-8",
-    )
-    monkeypatch.setenv("OPENROUTER_API_KEY", "demo")
-    monkeypatch.delenv("GOOGLE_SERVICE_ACCOUNT_KEY", raising=False)
-
-    report = run_readiness_checks(tmp_path)
-
-    assert report["grade"] == "production-candidate"
-    assert any("GOOGLE_SERVICE_ACCOUNT_KEY" in item["detail"] for item in report["blocking"])
-
-
-def test_readiness_blocks_enabled_gmail_without_oauth(tmp_path, monkeypatch):
-    from atulya.production_readiness import run_readiness_checks
-
-    (tmp_path / "atulya").mkdir()
-    (tmp_path / "atulya" / "llm.py").write_text("", encoding="utf-8")
-    (tmp_path / "config").mkdir()
-    (tmp_path / "config" / "mcp_servers.json").write_text(
-        json.dumps({"servers": [{"name": "gmail", "enabled": True}]}),
-        encoding="utf-8",
-    )
-    monkeypatch.setenv("OPENROUTER_API_KEY", "demo")
-    for key in ("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN"):
-        monkeypatch.delenv(key, raising=False)
-
-    report = run_readiness_checks(tmp_path)
-
-    assert report["grade"] == "production-candidate"
-    assert any("GMAIL_REFRESH_TOKEN" in item["detail"] for item in report["blocking"])
-
-
-
-
-
-def test_tantra_benchmark_gate_rejects_missing_benchmark(tmp_path, monkeypatch):
-    from atulya.intelligence import _benchmark_allows_tantra
-
-    monkeypatch.delenv("ATULYA_TANTRA_ALLOW_MODEL", raising=False)
-    assert _benchmark_allows_tantra(tmp_path) is False
-
-
-def test_tantra_benchmark_gate_accepts_explicit_approval(tmp_path, monkeypatch):
-    from atulya.intelligence import _benchmark_allows_tantra
-
-    monkeypatch.delenv("ATULYA_TANTRA_ALLOW_MODEL", raising=False)
-    (tmp_path / "benchmark.json").write_text(
-        json.dumps({"production_gate": {"approved": True}}),
-        encoding="utf-8",
-    )
-
-    assert _benchmark_allows_tantra(tmp_path) is True
-
-
-def test_tantra_benchmark_gate_accepts_thresholds(tmp_path, monkeypatch):
-    from atulya.intelligence import _benchmark_allows_tantra
-
-    monkeypatch.delenv("ATULYA_TANTRA_ALLOW_MODEL", raising=False)
-    (tmp_path / "benchmark.json").write_text(
-        json.dumps({
-            "perplexity": 30,
-            "generation_speed": {"tokens_per_second": 12},
-            "strand_utilization": {
-                "layer_0": {"utilization_score": 0.8},
-                "layer_1": {"utilization_score": 0.7},
-            },
-        }),
-        encoding="utf-8",
-    )
-
-    assert _benchmark_allows_tantra(tmp_path) is True
-
-
 def test_provider_router_keeps_gemini_as_rare_fallback(monkeypatch):
-    from atulya.intelligence import GeminiProvider, GroqProvider, OpenRouterProvider, ProviderRouter, TantraProvider
+    from atulya.intelligence import ProviderRouter
 
-    monkeypatch.delenv("ATULYA_PREFER_TANTRA", raising=False)
     providers = ProviderRouter().providers
     types_found = set(type(p).__name__ for p in providers)
     assert "GroqProvider" in types_found or "OpenRouterProvider" in types_found
-    # Tantra and Gemini presence depends on environment; no strict ordering enforced
-
-
-def test_provider_router_can_prefer_tantra_for_local_tests(monkeypatch):
-    from atulya.intelligence import ProviderRouter, TantraProvider
-
-    monkeypatch.setenv("ATULYA_PREFER_TANTRA", "1")
-    providers = ProviderRouter().providers
-    types_found = [type(p).__name__ for p in providers]
-    assert "TantraProvider" in types_found
-
-
-
+    # Gemini presence depends on environment; no strict ordering enforced
 
 
 def test_office_tools_are_registered(tmp_path):

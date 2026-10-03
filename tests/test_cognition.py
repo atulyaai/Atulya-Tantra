@@ -608,3 +608,21 @@ class TestRoutes:
         data = client.get("/api/brain", headers={"X-Atulya-Token": "test_token"}).json()
         assert data["tier"] == "balanced" and data["local_model"]["label"] == "Qwen3-1.7B"
         assert set(data["tiers"]) == {"tiny", "balanced", "power", "cloud"}
+
+
+class TestNoBrain:
+    async def test_last_fallback_says_no_brain_instead_of_canned_reply(self):
+        from atulya.intelligence import NO_BRAIN_MESSAGE, OpenCodeProvider
+
+        reply = await OpenCodeProvider().chat("what is the capital of france")
+        assert reply == NO_BRAIN_MESSAGE
+        assert "At your service" not in reply
+
+
+def test_voice_for_reply_keeps_gender_and_follows_language():
+    from drishti.dashboard.routes.voice import voice_for_reply
+
+    assert voice_for_reply("Hello there.", "en_female") == "en_female"
+    assert voice_for_reply("नमस्ते, मैं अतुल्य हूँ।", "en_female") == "hi_female"
+    assert voice_for_reply("Good evening.", "hi_male") == "en_male"
+    assert voice_for_reply("नमस्ते", "sa_male") == "sa_male"

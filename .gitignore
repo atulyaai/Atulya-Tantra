@@ -66,3 +66,4 @@ assets/state/
 
 # Runtime scratch / generated reports
 tmp/
+!drishti/public/hologram-head.bin

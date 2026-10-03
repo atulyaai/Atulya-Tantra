@@ -6,7 +6,7 @@ color 0A
 echo.
 echo   +------------------------------------------+
 echo   ^|         ATULYA - DIGITAL ORGANISM OS     ^|
-echo   ^|   Tantra . Yantra . Drishti              ^|
+echo   ^|   Atulya . Yantra . Drishti             ^|
 echo   +------------------------------------------+
 echo.
 
@@ -33,19 +33,25 @@ if errorlevel 1 (
 )
 
 echo   [2/4] Checking Python dependencies...
-python -c "import fastapi; import uvicorn" >nul 2>&1
+python -c "import fastapi; import uvicorn; import faster_whisper; import edge_tts" >nul 2>&1
 if errorlevel 1 (
-    echo   Installing Python dependencies...
-    pip install fastapi uvicorn python-multipart -q
-    if errorlevel 1 (
-        echo   WARNING: Some Python packages may have failed to install.
-    )
-)
-python -c "import faster_whisper" >nul 2>&1
-if errorlevel 1 (
-    echo   Installing local voice - speech-to-text runs on this PC...
+    echo   Installing Atulya and local voice - first run only...
     pip install -q -e ".[voice]"
+    if errorlevel 1 echo   WARNING: Some Python packages may have failed to install.
 )
+
+rem Local brain: llama.cpp runs the small Qwen model on this PC, no internet needed
+rem after the first download. The extra index has ready-made Windows builds, so
+rem no C++ compiler is required.
+python -c "import llama_cpp" >nul 2>&1
+if errorlevel 1 (
+    echo   Installing the local brain - first run only...
+    pip install -q --prefer-binary "llama-cpp-python>=0.2.90" --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+    if errorlevel 1 echo   WARNING: Local brain failed to install. Atulya will say so when you talk to it.
+)
+if not defined ATULYA_AUTO_DOWNLOAD_MODEL set "ATULYA_AUTO_DOWNLOAD_MODEL=true"
+echo   Checking the brain model - the first run downloads about 400 MB...
+python -c "from atulya.local_provider import _ensure_model; p = _ensure_model(); print('   Brain model: ' + (p.name if p else 'not downloaded'))"
 
 echo   [3/4] Building the web app...
 rem Always rebuild (about a second) so the UI never lags behind the source.
@@ -63,30 +69,6 @@ if not exist "node_modules" call npm install --silent
 call npm run build --silent
 popd
 if not exist "drishti\dist\index.html" echo   WARNING: Frontend build failed. Backend-only mode.
-
-:start_backend
-    )
-
-    if not exist "drishti\node_modules" (
-        echo   Installing npm dependencies...
-        pushd drishti
-        call npm install --silent
-        popd
-    )
-
-    pushd drishti
-    call npm run build
-    popd
-
-    if not exist "drishti\dist\index.html" (
-        echo   WARNING: Frontend build failed. Backend-only mode.
-    ) else (
-        echo   Frontend built successfully.
-    )
-) else (
-    echo   Frontend build found. Skipping rebuild.
-    echo   Run "cd drishti && npm run build" manually to rebuild after changes.
-)
 
 :start_backend
 echo   [4/4] Starting Atulya backend...

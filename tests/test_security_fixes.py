@@ -27,7 +27,7 @@ def fake_dns(table):
 class TestSSRF:
     @pytest.fixture
     def guard(self):
-        from tantra.core.security import SSRFProtection
+        from atulya.core.security import SSRFProtection
 
         return SSRFProtection(resolver=fake_dns({
             "example.com": [PUBLIC], "localtest.me": ["127.0.0.1", "::1"], "mixed.test": [PUBLIC, "10.0.0.5"],

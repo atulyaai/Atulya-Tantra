@@ -104,6 +104,11 @@ def route_intent(text: str) -> RoutedIntent | None:
             confidence=0.85,
         )
 
+    # --- Websites: "open youtube", "play lofi on youtube", "google cricket score"
+    web = _website_intent(t)
+    if web is not None:
+        return web
+
     # --- Weather / forecast ------------------------------------------------
     if "forecast" in t:
         loc = _extract_location(t)
@@ -188,6 +193,33 @@ def _schedule_intent(original: str, t: str) -> RoutedIntent | None:
     if duration != 60:
         args["duration_minutes"] = duration
     return RoutedIntent("calendar_add", args, confidence=0.85)
+
+
+_POLITE = r"(?:(?:hey |ok |okay )?atulya[, ]*)?(?:(?:can|could|would) you |please )?"
+
+
+def _website_intent(t: str) -> RoutedIntent | None:
+    from .tools import WEBSITES  # lazy: tools.py is heavier than this module
+
+    t = t.strip(" .!?")
+    sites = "|".join(re.escape(name) for name in sorted(WEBSITES, key=len, reverse=True))
+    # "play X on youtube" / "search X on google" / "search for X on youtube"
+    m = re.fullmatch(_POLITE + rf"(?:play|search(?: for)?|find|look up)\s+(.+?)\s+(?:on|in)\s+({sites})", t)
+    if m:
+        return RoutedIntent("open_website", {"site": m.group(2), "query": m.group(1)})
+    # "search youtube for X"
+    m = re.fullmatch(_POLITE + rf"search\s+({sites})\s+for\s+(.+)", t)
+    if m:
+        return RoutedIntent("open_website", {"site": m.group(1), "query": m.group(2)})
+    # "google X"
+    m = re.fullmatch(_POLITE + r"google\s+(.+)", t)
+    if m and m.group(1) not in WEBSITES:
+        return RoutedIntent("open_website", {"site": "google", "query": m.group(1)})
+    # "open youtube" / "launch gmail" / "go to wikipedia"
+    m = re.fullmatch(_POLITE + rf"(?:open|launch|start|go to|show me)\s+(?:the\s+)?({sites})(?:\s+(?:website|site|app))?(?:\s+please)?", t)
+    if m:
+        return RoutedIntent("open_website", {"site": m.group(1)})
+    return None
 
 
 def _extract_location(t: str) -> str | None:

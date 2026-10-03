@@ -92,3 +92,39 @@ class TestIntentRouting:
             routed = route_intent(msg)
             assert routed is not None, msg
             assert routed.tool in registry, f"{routed.tool} not registered"
+
+
+class TestWebsites:
+    @pytest.mark.parametrize("text,args", [
+        ("open youtube", {"site": "youtube"}),
+        ("Open YouTube.", {"site": "youtube"}),
+        ("hey atulya open gmail please", {"site": "gmail"}),
+        ("play lofi music on youtube", {"site": "youtube", "query": "lofi music"}),
+        ("search youtube for iron man trailer", {"site": "youtube", "query": "iron man trailer"}),
+        ("search for cricket score on google", {"site": "google", "query": "cricket score"}),
+        ("google weather in delhi", {"site": "google", "query": "weather in delhi"}),
+    ])
+    def test_routes_to_open_website(self, text, args):
+        r = route_intent(text)
+        assert r is not None and r.tool == "open_website"
+        assert r.arguments == args
+        assert r.tool in agent_tools.TOOL_REGISTRY
+
+    @pytest.mark.parametrize("text", ["open the door", "open notepad", "tell me about youtube"])
+    def test_leaves_other_sentences_alone(self, text):
+        r = route_intent(text)
+        assert r is None or r.tool != "open_website"
+
+    async def test_opens_only_known_sites(self, monkeypatch):
+        import webbrowser
+
+        opened = []
+        monkeypatch.setattr(webbrowser, "open", lambda url: opened.append(url) or True)
+        assert await agent_tools.open_website("youtube", "lofi beats") == "Searching YouTube for lofi beats."
+        assert opened == ["https://www.youtube.com/results?search_query=lofi+beats"]
+        assert "don't know" in await agent_tools.open_website("evil.example")
+        assert len(opened) == 1
+
+    async def test_spoken_time(self):
+        out = await agent_tools.current_time()
+        assert out.startswith("It's ") and ("AM" in out or "PM" in out)

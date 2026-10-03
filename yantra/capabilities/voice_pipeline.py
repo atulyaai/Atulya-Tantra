@@ -66,12 +66,22 @@ class STTResult:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
+_WHISPER_MODELS: dict[str, Any] = {}
+
+
+def _whisper_model(factory: Any, name: str) -> Any:
+    """Load a Whisper model once; loading it for every utterance cost ~1-2 s."""
+    if name not in _WHISPER_MODELS:
+        _WHISPER_MODELS[name] = factory(name, device="cpu", compute_type="int8")
+    return _WHISPER_MODELS[name]
+
+
 class TextToSpeech:
     """TTS with edge-tts plus an optional offline Piper fallback."""
 
     VOICES = {
-        "en_male": {"voice": "en-US-GuyNeural", "language": "en"},
-        "en_female": {"voice": "en-US-JennyNeural", "language": "en"},
+        "en_male": {"voice": "en-GB-RyanNeural", "language": "en"},
+        "en_female": {"voice": "en-GB-SoniaNeural", "language": "en"},
         "hi_male": {"voice": "hi-IN-MadhurNeural", "language": "hi"},
         "hi_female": {"voice": "hi-IN-SwaraNeural", "language": "hi"},
         "sa_male": {"voice": "sa-IN-Neural", "language": "sa"},
@@ -217,8 +227,10 @@ class SpeechToText:
         try:
             from faster_whisper import WhisperModel
 
-            whisper_model = WhisperModel(model, device="cpu", compute_type="int8")
-            segments, info = whisper_model.transcribe(audio_path, language=language, word_timestamps=True)
+            whisper_model = _whisper_model(WhisperModel, model)
+            # "auto" lets Whisper detect the language (English, Hindi, Hinglish…).
+            lang = None if language in ("", "auto") else language
+            segments, info = whisper_model.transcribe(audio_path, language=lang, word_timestamps=True)
             segments = list(segments)
             text = " ".join(segment.text.strip() for segment in segments).strip()
             words = [

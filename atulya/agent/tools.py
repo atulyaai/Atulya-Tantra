@@ -699,7 +699,7 @@ async def camera_status() -> str:
 })
 async def calculate(expression: str) -> str:
     try:
-        from tantra.npdna.safe_eval import safe_math_eval
+        from atulya.core.safe_eval import safe_math_eval
         result = safe_math_eval(expression)
         return f"{expression} = {result}"
     except Exception as e:
@@ -717,9 +717,55 @@ async def current_time(timezone: str = "") -> str:
             now = time.localtime(time.time() + tz.utcoffset(None).total_seconds() if hasattr(tz, 'utcoffset') else 0)
         else:
             now = time.localtime()
-        return time.strftime("%Y-%m-%d %H:%M:%S %A", now) + (f" ({timezone})" if timezone else "")
+        # Said aloud, so phrase it the way a person would.
+        clock = time.strftime("%I:%M %p", now).lstrip("0")
+        day = time.strftime("%A, %d %B", now).replace(" 0", " ")
+        return f"It's {clock} on {day}" + (f" ({timezone})." if timezone else ".")
     except Exception:
         return f"Current time: {time.ctime()}"
+
+
+# ── Tool: Open a website ───────────────────────────────────────────────────
+
+# Spoken name -> (display name, home page, search URL or None).
+WEBSITES: dict[str, tuple[str, str, str | None]] = {
+    "youtube": ("YouTube", "https://www.youtube.com", "https://www.youtube.com/results?search_query={q}"),
+    "google": ("Google", "https://www.google.com", "https://www.google.com/search?q={q}"),
+    "gmail": ("Gmail", "https://mail.google.com", None),
+    "maps": ("Google Maps", "https://maps.google.com", "https://www.google.com/maps/search/{q}"),
+    "google maps": ("Google Maps", "https://maps.google.com", "https://www.google.com/maps/search/{q}"),
+    "wikipedia": ("Wikipedia", "https://www.wikipedia.org", "https://en.wikipedia.org/w/index.php?search={q}"),
+    "github": ("GitHub", "https://github.com", "https://github.com/search?q={q}"),
+    "spotify": ("Spotify", "https://open.spotify.com", "https://open.spotify.com/search/{q}"),
+    "whatsapp": ("WhatsApp", "https://web.whatsapp.com", None),
+    "linkedin": ("LinkedIn", "https://www.linkedin.com", None),
+    "twitter": ("X", "https://x.com", None),
+    "instagram": ("Instagram", "https://www.instagram.com", None),
+    "netflix": ("Netflix", "https://www.netflix.com", None),
+    "amazon": ("Amazon", "https://www.amazon.in", "https://www.amazon.in/s?k={q}"),
+    "chatgpt": ("ChatGPT", "https://chatgpt.com", None),
+}
+
+
+@tool("open_website", "Open a well-known website on this computer, optionally searching it", {
+    "site": {"type": "string", "description": "Site name, e.g. 'youtube', 'google', 'gmail'"},
+    "query": {"type": "string", "description": "Optional search text, e.g. 'lofi music'", "default": ""},
+})
+async def open_website(site: str, query: str = "") -> str:
+    import urllib.parse
+    import webbrowser
+
+    entry = WEBSITES.get(site.strip().lower())
+    if entry is None:
+        return f"I don't know a website called {site}."
+    label, home, search = entry
+    query = query.strip()
+    url = search.format(q=urllib.parse.quote_plus(query)) if query and search else home
+    # Only URLs built from the fixed list above are ever opened.
+    opened = await asyncio.to_thread(webbrowser.open, url)
+    if not opened:
+        return f"I couldn't open a browser on this computer. Here's the link: {url}"
+    return f"Searching {label} for {query}." if query and search else f"Opening {label}."
 
 
 # ── Load persisted state on import ─────────────────────────────────────────

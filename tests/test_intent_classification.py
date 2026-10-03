@@ -13,7 +13,7 @@ class TestBackendTaskClassifier:
         from pathlib import Path
         spec = importlib.util.spec_from_file_location(
             "task_classifier",
-            str(Path(__file__).resolve().parents[1] / "tantra" / "core" / "task_classifier.py"),
+            str(Path(__file__).resolve().parents[1] / "atulya" / "core" / "task_classifier.py"),
         )
         mod = importlib.util.module_from_spec(spec)
         sys.modules["task_classifier"] = mod
@@ -85,7 +85,7 @@ class TestTFIDFSimilarity:
         from pathlib import Path
         spec = importlib.util.spec_from_file_location(
             "task_classifier",
-            str(Path(__file__).resolve().parents[1] / "tantra" / "core" / "task_classifier.py"),
+            str(Path(__file__).resolve().parents[1] / "atulya" / "core" / "task_classifier.py"),
         )
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
@@ -119,7 +119,7 @@ class TestTokenize:
         from pathlib import Path
         spec = importlib.util.spec_from_file_location(
             "task_classifier",
-            str(Path(__file__).resolve().parents[1] / "tantra" / "core" / "task_classifier.py"),
+            str(Path(__file__).resolve().parents[1] / "atulya" / "core" / "task_classifier.py"),
         )
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
@@ -149,7 +149,7 @@ class TestTokenize:
 
 class TestTaskClassifierBackend:
     def test_import(self):
-        from tantra.core.task_classifier import TaskClassifier, TaskCategory, TaskClassification
+        from atulya.core.task_classifier import TaskClassifier, TaskCategory, TaskClassification
         c = TaskClassifier()
         r = c.classify("write a python function")
         assert r.category == TaskCategory.CODING
@@ -157,26 +157,26 @@ class TestTaskClassifierBackend:
         assert r.recommended_model in ["fast_model", "reasoning_model", "vision_model", "coding_model"]
 
     def test_reasoning(self):
-        from tantra.core.task_classifier import TaskClassifier, TaskCategory
+        from atulya.core.task_classifier import TaskClassifier, TaskCategory
         r = TaskClassifier().classify("explain how quantum physics works")
         assert r.category == TaskCategory.REASONING
 
     def test_vision(self):
-        from tantra.core.task_classifier import TaskClassifier, TaskCategory
+        from atulya.core.task_classifier import TaskClassifier, TaskCategory
         r = TaskClassifier().classify("look at this image and describe it")
         assert r.category == TaskCategory.VISION
 
     def test_creative(self):
-        from tantra.core.task_classifier import TaskClassifier, TaskCategory
+        from atulya.core.task_classifier import TaskClassifier, TaskCategory
         r = TaskClassifier().classify("write a story about a brave knight")
         assert r.category == TaskCategory.CREATIVE
 
     def test_fast(self):
-        from tantra.core.task_classifier import TaskClassifier, TaskCategory
+        from atulya.core.task_classifier import TaskClassifier, TaskCategory
         r = TaskClassifier().classify("what is the capital of France")
         assert r.category == TaskCategory.FAST
 
     def test_analysis(self):
-        from tantra.core.task_classifier import TaskClassifier, TaskCategory
+        from atulya.core.task_classifier import TaskClassifier, TaskCategory
         r = TaskClassifier().classify("compare these options and summarize differences")
         assert r.category == TaskCategory.ANALYSIS

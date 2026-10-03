@@ -2,10 +2,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Header, HTTPException
 
-from drishti.dashboard.helpers import _model_registry
 from drishti.dashboard import helpers
 
 router = APIRouter()
+
+
+def _model_registry() -> list[dict]:
+    """The assistant is exposed as a single model; the brain routes behind it."""
+    return [{"id": "atulya", "label": "Atulya", "owned_by": "atulya"}]
 
 
 def _require_bearer(authorization: str | None) -> None:

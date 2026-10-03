@@ -1,7 +1,7 @@
 """Atulya Intelligence Provider System.
 
 Decouples the operating system from any single LLM brain.
-Enables pluggable brains (Gemini, Claude, OpenAI, OpenRouter, NVIDIA NIM, Ollama, local Tantra)
+Enables pluggable brains (Gemini, Claude, OpenAI, OpenRouter, NVIDIA NIM, Ollama)
 with automatic failover fallbacks.
 """
 from __future__ import annotations
@@ -12,7 +12,6 @@ import os
 import inspect
 import urllib.request
 import urllib.error
-from pathlib import Path
 from typing import Any, AsyncIterator
 
 logger = logging.getLogger(__name__)
@@ -27,13 +26,6 @@ def _supports_tools(provider: Any) -> bool:
         return "tools" in inspect.signature(chat).parameters
     except (TypeError, ValueError):
         return False
-
-
-def _env_float(name: str, default: float) -> float:
-    try:
-        return float(os.environ.get(name, str(default)))
-    except (TypeError, ValueError):
-        return default
 
 
 def _chunk_stream_text(text: str, size: int = 28) -> list[str]:
@@ -54,35 +46,6 @@ def _chunk_stream_text(text: str, size: int = 28) -> list[str]:
     return chunks
 
 
-def _benchmark_allows_tantra(model_path: str | Path) -> bool:
-    if os.environ.get("ATULYA_TANTRA_ALLOW_MODEL", "").lower() in {"1", "true", "yes"}:
-        return True
-    benchmark_path = Path(model_path) / "benchmark.json"
-    if not benchmark_path.exists():
-        return False
-    try:
-        data = json.loads(benchmark_path.read_text(encoding="utf-8"))
-    except Exception:
-        return False
-    gate = data.get("production_gate")
-    if isinstance(gate, dict) and gate.get("approved") is True:
-        return True
-
-    max_perplexity = _env_float("ATULYA_TANTRA_MAX_PERPLEXITY", 80.0)
-    min_tok_sec = _env_float("ATULYA_TANTRA_MIN_TOK_PER_SEC", 5.0)
-    min_utilization = _env_float("ATULYA_TANTRA_MIN_STRAND_UTILIZATION", 0.5)
-
-    perplexity = float(data.get("perplexity") or 999999)
-    speed = float((data.get("generation_speed") or {}).get("tokens_per_second") or 0)
-    strand_scores = [
-        float(item.get("utilization_score") or 0)
-        for item in (data.get("strand_utilization") or {}).values()
-        if isinstance(item, dict)
-    ]
-    utilization = min(strand_scores) if strand_scores else 0
-    return perplexity <= max_perplexity and speed >= min_tok_sec and utilization >= min_utilization
-
-
 class IntelligenceProvider:
     """Base interface for pluggable intelligence providers."""
     
@@ -94,40 +57,6 @@ class IntelligenceProvider:
         
     async def chat(self, prompt: str, system_prompt: str = "") -> str:
         raise NotImplementedError
-
-
-class TantraProvider(IntelligenceProvider):
-    """Native Tantra NP-DNA provider, gated by benchmark readiness."""
-    
-    def name(self) -> str:
-        return "Tantra (Local NP-DNA)"
-        
-    def is_available(self) -> bool:
-        try:
-            from drishti.dashboard.helpers import _checkpoint_index
-            allowed = _checkpoint_index()
-            model_path = allowed.get("latest")
-            return bool(model_path and _benchmark_allows_tantra(model_path))
-        except Exception:
-            return False
-            
-    async def chat(self, prompt: str, system_prompt: str = "") -> str:
-        try:
-            from drishti.dashboard.helpers import _checkpoint_index, _load_cached_model
-            import torch
-            allowed = _checkpoint_index()
-            model_path = allowed.get("latest")
-            if not model_path or not model_path.exists():
-                raise FileNotFoundError("Tantra model not found")
-                
-            core = _load_cached_model(model_path)
-            with torch.inference_mode():
-                full_prompt = f"{system_prompt}\n\nUser: {prompt}\nAssistant:" if system_prompt else prompt
-                response = core.generate(full_prompt, max_tokens=150, temperature=0.7)
-                return response
-        except Exception as e:
-            logger.warning(f"TantraProvider chat failed: {e}")
-            raise e
 
 
 class OllamaProvider(IntelligenceProvider):
@@ -408,18 +337,27 @@ class GroqProvider(IntelligenceProvider):
             raise e
 
 
+NO_BRAIN_MESSAGE = (
+    "My brain isn't loaded yet, so I can only do simple commands like the time or reminders. "
+    "Run start.bat again to install the local model, then ask me again."
+)
+
+
 class OpenCodeProvider(IntelligenceProvider):
-    """OpenCode Zen Provider for lightweight local system fallbacks."""
-    
+    """Last link in the chain: says plainly that no brain is loaded.
+
+    It used to answer with canned persona lines ("At your service, sir…") that
+    looked like real replies, which hid that nothing was actually thinking.
+    """
+
     def name(self) -> str:
-        return "OpenCode Zen"
-        
+        return "No brain loaded"
+
     def is_available(self) -> bool:
         return True
-        
+
     async def chat(self, prompt: str, system_prompt: str = "") -> str:
-        from atulya.persona import get_atulya_fallback_response
-        return get_atulya_fallback_response(prompt, "en_male")
+        return NO_BRAIN_MESSAGE
 
 
 class LocalGGUFProvider(IntelligenceProvider):
@@ -478,7 +416,6 @@ class ProviderRouter(IntelligenceProvider):
             GroqProvider(),        # Fast free developer-tier API (3rd choice)
             OpenRouterProvider(),  # Free model aggregator when configured (3rd choice)
             GeminiProvider(),      # Google free-tier key when configured (4th choice)
-            TantraProvider(),      # Research model only after benchmark gate passes
             OpenAIProvider(),      # Paid/optional fallback only (6th choice)
             NvidiaNimProvider(),   # Optional provider fallback (7th choice)
             OpenCodeProvider()     # Bulletproof fallback (8th choice)
@@ -487,7 +424,7 @@ class ProviderRouter(IntelligenceProvider):
         # Ollama become the offline fallback (still ahead of the persona reply).
         from atulya.cognition.brain import cloud_first
         if cloud_first():
-            local = (LocalGGUFProvider, OllamaProvider, TantraProvider)
+            local = (LocalGGUFProvider, OllamaProvider)
             last = [p for p in self.providers if isinstance(p, OpenCodeProvider)]
             locals_ = [p for p in self.providers if isinstance(p, local)]
             clouds = [p for p in self.providers if p not in locals_ and p not in last]
@@ -525,11 +462,8 @@ class ProviderRouter(IntelligenceProvider):
                 
         # All providers failed, return a diagnostic error response
         errors_summary = ", ".join(attempted)
-        return (
-            f"Caution, sir. All neural intelligence channels are offline or unconfigured. "
-            f"Attempted: {errors_summary}. Please verify your local Ollama connection or API keys.",
-            "Diagnostics Fallback"
-        )
+        logger.warning("No brain answered. Attempted: %s", errors_summary)
+        return NO_BRAIN_MESSAGE, "Diagnostics Fallback"
 
     async def stream(
         self,
@@ -564,4 +498,4 @@ class ProviderRouter(IntelligenceProvider):
             except Exception as exc:
                 logger.warning(f"Provider {provider.name()} stream failed: {exc}. Attempting next fallback.")
 
-        yield "Caution, sir. All neural intelligence channels are offline or unconfigured.", "Diagnostics Fallback"
+        yield NO_BRAIN_MESSAGE, "Diagnostics Fallback"

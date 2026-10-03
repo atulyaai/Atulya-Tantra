@@ -29,7 +29,7 @@ def _default_config() -> dict[str, Any]:
         "personality": {"tone": "warm and helpful"},
         "self_knowledge": {
             "what_i_am": "An AI assistant.",
-            "how_i_work": "NP-DNA sparse neural mesh",
+            "how_i_work": "A local or cloud language model with persistent memory and tools",
             "what_i_can_do": ["help with questions", "write code"],
             "what_i_cannot_do": ["browse web", "remember forever"],
             "languages": ["English", "Hindi", "Sanskrit"],
@@ -56,21 +56,20 @@ def _find_persona_config() -> Path:
     candidates = [
         Path(os.environ["ATULYA_IDENTITY_PATH"]) if os.environ.get("ATULYA_IDENTITY_PATH") else None,
         Path(os.environ["ATULYA_PERSONA_PATH"]) if os.environ.get("ATULYA_PERSONA_PATH") else None,
-        Path.cwd() / "tantra" / "training" / "datasets" / "identity.json",
         Path.cwd() / "data" / "identity.json",
         Path.cwd() / "data" / "persona.json",
     ]
     for candidate in candidates:
         if candidate and candidate.exists():
             return candidate
-    return Path.cwd() / "tantra" / "training" / "datasets" / "identity.json"
+    return Path.cwd() / "data" / "identity.json"
 
 
 class Persona:
     """Single source for Atulya identity, system prompts, and privacy rules."""
 
     def __init__(self, config_path: str | Path | None = None, data_dir: str | Path | None = None):
-        self.data_dir = Path(data_dir) if data_dir else Path.cwd() / "tantra" / "training" / "datasets"
+        self.data_dir = Path(data_dir) if data_dir else Path.cwd() / "data"
         self._config_path = Path(config_path) if config_path else _find_persona_config()
         self._config = self._load_config()
 
@@ -173,7 +172,7 @@ class Persona:
                 lines.extend(["", "You can:", *[f"- {item}" for item in abilities]])
 
         if "everything" in visible:
-            lines.extend(["", f"Architecture: {sk.get('how_i_work', 'NP-DNA')}"])
+            lines.extend(["", f"Architecture: {sk.get('how_i_work', 'language model with memory and tools')}"])
             limitations = sk.get("what_i_cannot_do", [])
             if limitations:
                 lines.extend(["Limitations:", *[f"- {item}" for item in limitations]])
@@ -194,7 +193,7 @@ class Persona:
         abilities = ", ".join(sk.get("what_i_can_do", ["help with questions"]))
         limitations = ", ".join(sk.get("what_i_cannot_do", ["I do not know everything"]))
         languages = ", ".join(sk.get("languages", ["English"]))
-        architecture = sk.get("how_i_work", "NP-DNA sparse neural mesh")
+        architecture = sk.get("how_i_work", "a language model with memory and tools")
         return [
             {"instruction": "Who are you?", "output": f"I'm {self.name}. {sk.get('what_i_am', '')}"},
             {"instruction": "What's your name?", "output": f"{self.name}. Nice to meet you!"},

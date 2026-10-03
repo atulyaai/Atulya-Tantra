@@ -156,7 +156,7 @@ class TestIdentity:
             prompt = ident.get_system_prompt(role="superuser")
             assert isinstance(prompt, str)
             # Superuser sees everything
-            assert "NP-DNA" in prompt or "Architecture" in prompt
+            assert "Architecture" in prompt
 
     def test_privacy_rules_property(self):
         from atulya.persona import Persona

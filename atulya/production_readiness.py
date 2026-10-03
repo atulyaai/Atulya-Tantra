@@ -32,7 +32,6 @@ def run_readiness_checks(root: str | Path = ".") -> dict[str, Any]:
         _check_free_provider(),
         _check_telegram(),
         _check_mcp_config(root_path),
-        _check_tantra_gate(root_path),
         _check_secret_hygiene(root_path),
         _check_key_rotation_ack(),
     ]
@@ -123,13 +122,6 @@ def _google_mcp_env_ready() -> bool:
     drive_ready = bool(os.environ.get("GOOGLE_SERVICE_ACCOUNT_KEY"))
     gmail_ready = all(os.environ.get(key) for key in ("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN"))
     return drive_ready and gmail_ready
-
-
-def _check_tantra_gate(root: Path) -> ReadinessCheck:
-    benchmark = root / "outputs" / "npdna" / "benchmark.json"
-    if benchmark.exists():
-        return ReadinessCheck("Tantra gate", "pass", "Benchmark file exists; Tantra remains gated by readiness policy")
-    return ReadinessCheck("Tantra gate", "warn", "No Tantra benchmark file found; production will use external/free providers", required=False)
 
 
 def _check_secret_hygiene(root: Path) -> ReadinessCheck:

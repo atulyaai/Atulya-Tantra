@@ -37,7 +37,6 @@ class TestRepoStructureAuditor:
         report = RepoStructureAuditor(".").run()
 
         assert "atulya" in report["root_dirs"]
-        assert "tantra" in report["root_dirs"]
         assert "yantra" in report["root_dirs"]
         assert "drishti" in report["root_dirs"]
         assert report["status"] in {"clean", "needs_fix"}

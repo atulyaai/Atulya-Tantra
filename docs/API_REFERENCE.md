@@ -126,10 +126,7 @@ back with `needs_approval: true` and a `pending_tool`; confirm by replying "yes"
 | GET | `/api/telemetry` | System + providers + events |
 | GET | `/api/health` | Health check with warnings |
 | GET | `/api/brain` | Active brain tier (`ATULYA_BRAIN`), its local model, available tiers |
-| GET | `/api/configs` | Available training configs |
-| GET | `/api/run-history` | Past training runs |
-| GET | `/api/datasets` | Registered datasets |
-| GET | `/api/dashboard/bootstrap` | Full bootstrap payload |
+| GET | `/api/dashboard/bootstrap` | Current user, providers, system stats (admin) |
 
 ### GET /api/health
 
@@ -137,16 +134,7 @@ back with `needs_approval: true` and a `pending_tool`; confirm by replying "yes"
 → {"ok": true, "warnings": [...], "healthy": true}
 ```
 
-Checks: disk space (<5GB = high, <20GB = medium), RAM (>90% = high, >80% = medium), checkpoint corruption, empty datasets.
-
-## Cortex (Model Management)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/cortex/status` | Cortex system status |
-| POST | `/api/cortex/train` | Start training |
-| GET | `/api/cortex/checkpoints` | List checkpoints |
-| GET | `/api/cortex/logs` | Training logs |
+Checks: disk space (<5GB = high, <20GB = medium), RAM (>90% = high, >80% = medium).
 
 ## Voice
 
@@ -204,12 +192,3 @@ Checks: disk space (<5GB = high, <20GB = medium), RAM (>90% = high, >80% = mediu
 | DELETE | `/api/cron/jobs/{id}` | Delete job |
 | PATCH | `/api/cron/jobs/{id}` | Update job |
 | POST | `/api/cron/jobs/{id}/run` | Run job immediately |
-
-## Training
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/train/start` | Start training run |
-| GET | `/api/train/status` | Training status |
-| GET | `/api/train/datasets` | List datasets |
-| GET | `/api/train/metrics` | Training metrics |

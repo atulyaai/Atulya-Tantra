@@ -5,17 +5,10 @@ from fastapi import APIRouter, Header, Request
 from fastapi.responses import StreamingResponse
 
 from drishti.dashboard import chat_history
-from drishti.dashboard.helpers import _checkpoint_index, _require_auth
+from drishti.dashboard.helpers import _require_auth
 from drishti.dashboard.state import MAX_CHAT_TOKENS, MAX_PROMPT_CHARS
 
 router = APIRouter()
-
-
-def _resolve_model_id(model_id: str):
-    allowed = _checkpoint_index()
-    if model_id not in allowed:
-        return None, {"error": "Model path not allowed"}
-    return allowed[model_id], None
 
 
 def _merge_history(frontend_history: list[dict], server_history: list[dict], limit: int = 10) -> list[dict]:
@@ -40,8 +33,7 @@ async def api_chat(request: Request, body: dict, token: str | None = Header(defa
     user = _require_auth(token)
     model_id = str(body.get("model_id") or "latest")
     if "\\" in model_id or "/" in model_id:
-        _, error = _resolve_model_id(model_id)
-        return error
+        return {"error": "Model path not allowed"}
     prompt = str(body.get("prompt") or "")[:MAX_PROMPT_CHARS]
     from atulya.cognition import get_kernel
     from atulya.llm import get_default_llm
@@ -80,7 +72,7 @@ async def api_chat_stream(request: Request, body: dict, token: str | None = Head
     model_id = str(body.get("model_id") or "latest")
     prompt = str(body.get("prompt") or "")[:MAX_PROMPT_CHARS]
     if "\\" in model_id or "/" in model_id:
-        _, error = _resolve_model_id(model_id)
+        error = {"error": "Model path not allowed"}
         async def error_events():
             yield f"data: {json.dumps(error)}\n\n"
             yield f"data: {json.dumps({'done': True})}\n\n"

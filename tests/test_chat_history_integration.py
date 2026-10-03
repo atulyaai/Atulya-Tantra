@@ -178,40 +178,6 @@ class TestChatHistoryPersistence:
         assert len(messages) == 4
 
 
-class TestChatHistoryAPI:
-    def _get_chat_module(self):
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "chat",
-            str(Path(__file__).resolve().parents[1] / "drishti" / "dashboard" / "routes" / "chat.py"),
-        )
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        return mod
-
-    def test_resolve_model_id_valid(self):
-        mod = self._get_chat_module()
-        original = mod._checkpoint_index
-        mod._checkpoint_index = lambda: {"latest": {"path": "/model"}}
-        try:
-            path, error = mod._resolve_model_id("latest")
-            assert path == {"path": "/model"}
-            assert error is None
-        finally:
-            mod._checkpoint_index = original
-
-    def test_resolve_model_id_invalid(self):
-        mod = self._get_chat_module()
-        original = mod._checkpoint_index
-        mod._checkpoint_index = lambda: {"latest": {"path": "/model"}}
-        try:
-            path, error = mod._resolve_model_id("nonexistent")
-            assert path is None
-            assert "error" in error
-        finally:
-            mod._checkpoint_index = original
-
-
 class TestChatAPIMerge:
     def test_merge_function_exists(self):
         from drishti.dashboard.routes.chat import _merge_history

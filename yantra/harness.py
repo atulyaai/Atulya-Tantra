@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from tantra.core.security import PromptInjectionGuard, RiskLevel
+from atulya.core.security import PromptInjectionGuard, RiskLevel
 from yantra.capabilities import ToolRegistry, create_default_registry
 from yantra.dispatch import DispatchResult, Dispatcher
 from yantra.events import EventBus, default_bus

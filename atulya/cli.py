@@ -24,7 +24,6 @@ FREE_DEFAULTS = {
     "ATULYA_OLLAMA_MODEL": "llama3",
     "ATULYA_GROQ_MODEL": "llama-3.3-70b-versatile",
     "ATULYA_OPENROUTER_MODEL": "openrouter/free",
-    "ATULYA_PREFER_TANTRA": "0",
     "ATULYA_GEMINI_MODEL": "gemini-1.5-flash",
     "ATULYA_TELEGRAM_ALLOWLIST": "",
     "ATULYA_AUTO_DOWNLOAD_MODEL": "1",
@@ -49,49 +48,9 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(
         prog="atulya",
-        description="Atulya Tantra - free-first Atulya Agent/NP-DNA assistant",
+        description="Atulya Tantra - free-first Atulya assistant",
     )
     sub = parser.add_subparsers(dest="command")
-
-    sub.add_parser("info", help="Show model info for a config")
-
-    train_p = sub.add_parser("train", help="Train an NP-DNA model")
-    train_p.add_argument(
-        "--config",
-        default="atulya_seed",
-        help="Config name: atulya_seed/atulya_small/atulya_medium/atulya_large",
-    )
-    train_p.add_argument("--steps", type=int, default=50, help="Training steps")
-    train_p.add_argument("--lr", type=float, default=2e-3, help="Learning rate")
-    train_p.add_argument("--output", default="outputs/npdna", help="Output directory")
-    train_p.add_argument("--data", default="data/seed_dataset.jsonl", help="JSONL dataset path")
-    train_p.add_argument("--log-every", type=int, default=10, help="Log interval")
-    train_p.add_argument("--checkpoint-every", type=int, default=0, help="Checkpoint interval")
-    train_p.add_argument("--resume", default=None, help="Resume from a checkpoint/model directory")
-    train_p.add_argument("--limit", type=int, default=None, help="Limit training samples")
-    train_p.add_argument("--seq-limit", type=int, default=256, help="Maximum sequence length")
-    train_p.add_argument("--bpe-merges", type=int, default=0, help="Train tokenizer BPE merges first")
-    train_p.add_argument("--pack", action="store_true", help="Pack short samples into longer sequences")
-    train_p.add_argument("--device", default="auto", help="Training device: auto/cpu/cuda")
-    train_p.add_argument(
-        "--min-free-ram-gb",
-        type=float,
-        default=1.5,
-        help="Stop and save before CPU free RAM drops below this many GB",
-    )
-    train_p.add_argument("--bpe-max-words", type=int, default=0, help="Maximum unique words used for BPE pair counting; 0 means all")
-    train_p.add_argument("--bf16", action="store_true", help="Use bfloat16 autocast")
-    train_p.add_argument("--lr-schedule", choices=["none", "cosine"], default="cosine", help="Learning rate schedule")
-    train_p.add_argument("--balance-weight", type=float, default=0.05, help="Router load-balance loss weight")
-    train_p.add_argument("--plasticity-interval", type=int, default=0, help="Plasticity check interval; 0 auto-scales")
-    train_p.add_argument("--plasticity-overload-threshold", type=float, default=0.14, help="Strand overload threshold")
-    train_p.add_argument("--plasticity-dead-threshold", type=float, default=0.01, help="Strand dead threshold")
-    train_p.add_argument("--plasticity-grow-cooldown", type=int, default=1, help="Plasticity grow cooldown checks")
-
-    gen_p = sub.add_parser("generate", help="Generate text from a saved model")
-    gen_p.add_argument("--model", required=True, help="Path to saved model")
-    gen_p.add_argument("--prompt", default="Hello", help="Prompt text")
-    gen_p.add_argument("--tokens", type=int, default=50, help="Max tokens")
 
     chat_p = sub.add_parser("chat", help="Start the free-first Atulya chat REPL")
     chat_p.add_argument("--no-tools", action="store_true", help="Disable tool calls")
@@ -114,7 +73,7 @@ def main() -> None:
     sub.add_parser("tools", help="List installed Yantra tools")
     sub.add_parser("listen", help="Always-listening Atulya with a wake word (see: atulya listen --help)")
 
-    model_p = sub.add_parser("model", help="Manage local Tantra placeholder model (0.5B GGUF)")
+    model_p = sub.add_parser("model", help="Manage the local placeholder model (0.5B GGUF)")
     model_sub = model_p.add_subparsers(dest="model_command")
     model_sub.add_parser("download", help="Download the 0.5B model (~350 MB)")
     model_sub.add_parser("status", help="Show model download status and path")
@@ -128,14 +87,7 @@ def main() -> None:
 
     if args.command:
         _banner()
-
-    if args.command == "info":
-        _cmd_info()
-    elif args.command == "train":
-        _cmd_train(args)
-    elif args.command == "generate":
-        _cmd_generate(args)
-    elif args.command == "chat":
+    if args.command == "chat":
         asyncio.run(_cmd_chat(args))
     elif args.command == "run":
         asyncio.run(_cmd_run(args))
@@ -275,59 +227,6 @@ def _merge_env_defaults(path: Path, defaults: dict[str, str]) -> dict[str, str]:
     return changed
 
 
-def _cmd_info() -> None:
-    from tantra.npdna import CONFIGS, NpDnaModel
-    from tantra.npdna.config import PREFERRED_CONFIG_NAMES
-
-    rows = []
-    for name in PREFERRED_CONFIG_NAMES:
-        cfg = CONFIGS[name]
-        model = NpDnaModel(cfg)
-        total = model.parameter_count()
-        active = model.active_parameter_count()
-        top_k = max((spec.top_k for spec in cfg.mesh_specs), default=cfg.mesh.top_k)
-        rows.append([name, f"{total:,}", f"{active:,}", cfg.num_layers, cfg.total_strands, top_k, cfg.initial_vocab])
-    _print_table(["Name", "Total", "Active", "Layers", "Strands", "Top-k", "Vocab"], rows)
-
-
-def _cmd_train(args: argparse.Namespace) -> None:
-    from tantra.training.npdna_train import train_npdna
-
-    train_npdna(
-        config_name=args.config,
-        max_steps=args.steps,
-        lr=args.lr,
-        output_dir=args.output,
-        data_path=args.data,
-        log_every=args.log_every,
-        checkpoint_every=args.checkpoint_every,
-        resume_from=args.resume,
-        pack_sequences=args.pack,
-        limit_samples=args.limit,
-        device=args.device,
-        bpe_merges=args.bpe_merges,
-        seq_limit=args.seq_limit,
-        min_free_ram_gb=args.min_free_ram_gb,
-        bpe_max_words=args.bpe_max_words,
-        bf16=args.bf16,
-        lr_schedule=args.lr_schedule,
-        balance_weight=args.balance_weight,
-        plasticity_interval=args.plasticity_interval or None,
-        plasticity_overload_threshold=args.plasticity_overload_threshold,
-        plasticity_dead_threshold=args.plasticity_dead_threshold,
-        plasticity_grow_cooldown=args.plasticity_grow_cooldown,
-    )
-
-
-def _cmd_generate(args: argparse.Namespace) -> None:
-    from tantra.npdna import NpDnaCore
-
-    core = NpDnaCore.load(args.model)
-    print(f"\nPrompt: {args.prompt}")
-    result = core.generate(args.prompt, max_tokens=args.tokens)
-    print(f"Output: {result}\n")
-
-
 async def _cmd_run(args: argparse.Namespace) -> None:
     from atulya.llm import AtulyaLLM
 
@@ -436,8 +335,7 @@ def _cmd_readiness() -> None:
 
 def _cmd_model(args: argparse.Namespace) -> None:
     from atulya.cognition.brain import local_model_spec
-    from atulya.local_provider import _ensure_model, _resolve_model_path, _DEFAULT_MODEL_DIR
-    import shutil
+    from atulya.local_provider import _resolve_model_path, _DEFAULT_MODEL_DIR
 
     subcmd = getattr(args, "model_command", None)
 

@@ -1,8 +1,6 @@
 # Atulya Cognitive Architecture
 
-How the assistant thinks, decides and acts. The NP-DNA model internals are in
-[ARCHITECTURE.md](ARCHITECTURE.md); this document covers the layer above it:
-the loop that turns a sentence, a voice command or an event into a safe action.
+How the assistant thinks, decides and acts: the loop that turns a sentence, a voice command or an event into a safe action.
 
 ## Design principle: one nervous system
 

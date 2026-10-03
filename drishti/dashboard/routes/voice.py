@@ -1,18 +1,17 @@
 """Voice API Routes for High-Quality Neural TTS and STT."""
 from __future__ import annotations
 
-import base64
 import logging
 import os
-from typing import Any
+import re
 
 from fastapi import APIRouter, Header, HTTPException, UploadFile, File, Form
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import JSONResponse
 
 from atulya.config import get_config
 from drishti.dashboard import chat_history
-from drishti.dashboard.helpers import _checkpoint_index, _load_cached_model, _require_auth
-from yantra.capabilities.voice_pipeline import VoicePipeline, TextToSpeech, SpeechToText
+from drishti.dashboard.helpers import _require_auth
+from yantra.capabilities.voice_pipeline import VoicePipeline
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +26,24 @@ stt_dir = assets_dir / "audio" / "stt"
 voice_pipeline = VoicePipeline(tts_dir=str(tts_dir), stt_dir=str(stt_dir))
 
 
+_DEVANAGARI = re.compile(r"[\u0900-\u097F]")
+
+
+def voice_for_reply(text: str, voice: str) -> str:
+    """Keep the chosen gender but speak Hindi replies with a Hindi voice (and back)."""
+    lang, _, gender = voice.partition("_")
+    if gender not in ("male", "female") or lang not in ("en", "hi"):
+        return voice
+    return f"{'hi' if _DEVANAGARI.search(text or '') else 'en'}_{gender}"
+
+
 @router.get("/api/voice/voices")
 def get_voices():
     """Get the available voice profiles for high-quality edge-tts."""
     return {
         "voices": [
-            {"id": "en_male", "name": "Atulya Neural (Male)", "lang": "en", "voice_id": "en-US-GuyNeural"},
-            {"id": "en_female", "name": "Atulya Neural (Female)", "lang": "en", "voice_id": "en-US-JennyNeural"},
+            {"id": "en_male", "name": "Atulya Neural (Male)", "lang": "en", "voice_id": "en-GB-RyanNeural"},
+            {"id": "en_female", "name": "Atulya Neural (Female)", "lang": "en", "voice_id": "en-GB-SoniaNeural"},
             {"id": "hi_male", "name": "Madhur Neural (Hindi Male)", "lang": "hi", "voice_id": "hi-IN-MadhurNeural"},
             {"id": "hi_female", "name": "Swara Neural (Hindi Female)", "lang": "hi", "voice_id": "hi-IN-SwaraNeural"},
             {"id": "sa_male", "name": "Sanskrit Neural (Male)", "lang": "sa", "voice_id": "sa-IN-Neural"},
@@ -185,9 +195,8 @@ async def api_voice_chat(
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error(f"Intelligence router failure: {exc}")
-        from atulya.persona import get_atulya_fallback_response
-        response_text = get_atulya_fallback_response(prompt, voice)
+        logger.exception(f"Intelligence router failure: {exc}")
+        response_text = "Sorry, something went wrong while I was thinking. The details are in the server window."
         provider_name = "Diagnostics Fallback"
 
     reply = {
@@ -204,7 +213,8 @@ async def api_voice_chat(
 
     # 3. Synthesize generated text into premium audio
     try:
-        tts_result = await voice_pipeline.tts.synthesize(text=response_text, voice=voice, save=True)
+        tts_result = await voice_pipeline.tts.synthesize(
+            text=response_text, voice=voice_for_reply(response_text, voice), save=True)
         chat_history.append_exchange(user, prompt, response_text, provider=provider_name, surface=surface)
         return {
             "prompt": prompt,

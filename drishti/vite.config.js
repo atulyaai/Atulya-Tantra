@@ -6,6 +6,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 600, // the hologram (three.js) is one lazy-loaded chunk
   },
   server: {
     proxy: {
