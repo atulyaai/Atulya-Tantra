@@ -1,46 +1,29 @@
 # Security Model
 
-This document describes the security controls that are enforced in the current
-project state and the deeper operational hardening backlog.
+What is enforced today, and what is not.
 
 ## Enforced Today
 
-- Dashboard admin routes require the configured Atulya token.
-- Admin token comparison uses constant-time comparison.
-- Chat and model routes reject raw filesystem model paths and use checkpoint
-  IDs from the local registry.
-- Request payloads and query parameters are bounded in dashboard routes.
-- The autonomy layer evaluates only restricted arithmetic expressions through
-  an AST allowlist. It does not call Python `eval`, `exec`, or a shell.
-- Training stop signals, optimizer recovery, and model management paths have
-  regression tests.
-- Memory write-back and cortex operations are covered by unit tests.
+- **Login:** API routes need a session token or the admin token (`X-Atulya-Token`), compared in constant time. On the computer Atulya runs on, `/api/auth/local` signs you in without a password; it refuses proxied and remote requests, and `ATULYA_REQUIRE_LOGIN=on` turns it off.
+- **Risky actions ask first:** sending email, deleting events or reminders, unlocking doors, running code, and all PC control need your confirmation (`atulya/cognition/safety.py`). `ATULYA_AUTO_APPROVE` can pre-approve specific ones.
+- **PC control is off by default:** `ATULYA_PC_CONTROL=on` enables it; it only opens apps from a fixed list and blocks dangerous shortcuts.
+- **Audit log:** every tool call is appended to `assets/agent/audit.jsonl` with passwords and tokens masked; admins can read it at `GET /api/audit`.
+- **Triggers cannot be hijacked:** event data never becomes a command, and risky trigger commands are refused unless the rule allows them.
+- **Network guard:** the price tracker and web fetch tools only reach public addresses (`SSRFProtection`).
+- **No `eval`:** math goes through an AST allowlist (`atulya/core/safe_eval.py`).
+- **Bounded inputs:** request payloads and query parameters are size-limited; chat rejects model paths and empty prompts.
+- **Lockdown profile:** `ATULYA_LOCKDOWN=on` listens on localhost only and allows no cross-site callers.
 
-## Hardening Backlog
+## Not Done Yet
 
-- Sandboxing is limited to restricted in-process controls and route-level
-  validation. There is no repository-wide OS sandbox wrapper yet.
-- Auditability exists through logs and tests, but not as a tamper-evident,
-  append-only audit ledger.
-- Dataset and skill hygiene is handled by code review and tests. A dedicated
-  static scanner is not yet wired into CI on `main`.
-- Encryption at rest is not enforced uniformly for all local artifacts.
+- No OS-level sandbox for tools; protection is the confirmation prompt and allowlists.
+- The audit log is a plain file, not tamper-evident.
+- Memory, chat history and credentials are stored unencrypted (`yantra/capabilities/encrypted_storage.py` exists but is not wired in).
+- By default the server listens on all interfaces with open CORS so the phone app can connect. Use lockdown, or set `ATULYA_HOST` and `ATULYA_CORS_ORIGINS`, to tighten this.
+- No rate limiting.
 
-## Long-Term Controls
+## Guidance
 
-- Signed first-party tool manifests with verification before loading.
-- Strong process or container sandboxing for tool execution.
-- Uniform encrypted storage for sensitive memory and credentials.
-- Tamper-evident audit logs with hash chaining.
-- A first-party skill scanner that blocks dangerous patterns before execution.
-- CI gates for dependency review, static analysis, route fuzzing, and security
-  regression tests.
-
-## Operational Guidance
-
-- Treat local checkpoints, logs, memory stores, and datasets as sensitive.
-- Do not expose the dashboard on an untrusted network without a reverse proxy,
-  TLS, authentication, and rate limiting.
-- Keep generated training data and harvested data reviewable.
-- Prefer first-party modules for tool execution, compression, and memory
-  handling so security policy can be enforced consistently.
+- Treat `assets/` (memory, audit log, tokens), `.env` and `config/chat_history.json` as sensitive; they are git-ignored.
+- Do not expose the dashboard to an untrusted network without TLS, a reverse proxy and login.
+- See `docs/DEPLOYMENT.md` for the hardening checklist.

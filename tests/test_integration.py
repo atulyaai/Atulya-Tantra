@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -113,7 +113,6 @@ async def test_dashboard_telemetry_endpoint():
 @pytest.mark.asyncio
 async def test_jwt_auth_header_accepted():
     from drishti.dashboard.helpers import _jwt_encode, _require_auth
-    from fastapi import Header
     token = _jwt_encode({"sub": "jwtuser", "role": "user", "name": "JWT"})
     result = _require_auth(token=token)
     assert result["username"] == "jwtuser"

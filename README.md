@@ -147,7 +147,6 @@ When you submit a request, the `ProviderRouter` scans the list of configured key
 7. **NVIDIA NIM**: Pluggable microservice containers.
 8. **OpenCode Zen**: Offline rule-based persona fallback if all endpoints are offline or keys are missing.
 
-Local custom models should be integrated through a provider endpoint or adapter. Keep their training and checkpoint lifecycle in the separate model repo.
 
 ---
 

@@ -364,7 +364,6 @@ class TestMCPServer:
 
 """Tests for SelfRepairSystem and CodeEvolver â€” automatic error recovery and evolution."""
 
-import traceback
 
 
 

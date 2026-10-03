@@ -187,7 +187,7 @@ class LocalGGUFProvider:
         if not self._model_path or not self._model_path.exists():
             return False
         try:
-            import llama_cpp
+            import llama_cpp  # noqa: F401 - availability probe
             return True
         except ImportError:
             return False

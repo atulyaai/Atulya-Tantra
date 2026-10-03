@@ -6,7 +6,6 @@ import argparse
 import asyncio
 import json
 import sys
-import time
 from pathlib import Path
 
 from .tools import TOOL_REGISTRY, execute_tool, get_tool_schemas, download_vision_model

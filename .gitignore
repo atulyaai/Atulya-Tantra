@@ -72,3 +72,6 @@ tmp/
 assets/agent/*.jsonl
 assets/_old_backup_*/
 .claude/
+
+# Generated reports and runtime job state
+outputs/

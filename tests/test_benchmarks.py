@@ -1,9 +1,8 @@
 """Performance benchmarks for agent loop latency."""
 from __future__ import annotations
 
-import json
 import time
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -86,7 +85,7 @@ async def test_jwt_encode_decode_latency():
 
 @pytest.mark.asyncio
 async def test_rate_limiter_overhead():
-    from drishti.dashboard.app import _RATE_LIMIT_MAX, _RATE_STORE, _rate_limiter
+    from drishti.dashboard.app import _RATE_STORE, _rate_limiter
     from unittest.mock import Mock
 
     _RATE_STORE.clear()

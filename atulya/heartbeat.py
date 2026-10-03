@@ -48,7 +48,6 @@ class HeartbeatSystem:
             await self._task_check(),
             await self._maintenance_check(),
             await self._provider_check(),
-            await self._cortex_check(),
         ]
         self._save_status()
         await self._publish_changes()
@@ -108,16 +107,6 @@ class HeartbeatSystem:
         except Exception as e:
             return HealthCheck("provider", "warning", str(e))
 
-
-    async def _cortex_check(self) -> HealthCheck:
-        try:
-            cortex_dir = self.data_dir / "cortex"
-            if not cortex_dir.exists():
-                return HealthCheck("cortex", "info", "No cortex data directory yet")
-            last_write = max((p.stat().st_mtime for p in cortex_dir.rglob("*") if p.is_file()), default=0)
-            return HealthCheck("cortex", "ok", f"Last cortex write: {last_write:.0f}")
-        except Exception as e:
-            return HealthCheck("cortex", "warning", str(e))
 
     async def _task_check(self) -> HealthCheck:
         """Check for pending tasks from Kanban system."""
