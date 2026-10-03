@@ -1222,7 +1222,7 @@ function App() {
         <Senses toast={toast} />
       </Suspense>
     );
-    return <Dashboard bootstrap={bootstrap} load={load} />;
+    return <LiveMode bootstrap={bootstrap} toast={toast} />;
   }, [tab, bootstrap, isAdmin]);
 
   async function handleLogout() {
