@@ -467,6 +467,25 @@ export function Orb({ onMenu, toast }) {
     return () => window.removeEventListener('atulya:notification', onNotification);
   }, [started]);
 
+  // Browsers only open the microphone after a click the first time. Once it has been
+  // allowed for this page, start listening by itself on every later visit.
+  useEffect(() => {
+    let cancelled = false;
+    const resume = () => { audioCtxRef.current?.resume?.().catch(() => {}); };
+    window.addEventListener('pointerdown', resume, { once: true });
+    window.addEventListener('keydown', resume, { once: true });
+    (async () => {
+      try {
+        const perm = await navigator.permissions.query({ name: 'microphone' });
+        if (cancelled) return;
+        if (perm.state === 'granted') start();
+        else if (perm.state === 'denied') setHint('The microphone is blocked in this window. Open http://localhost:8501 in Chrome or Edge and allow the mic, or type below.');
+        else setHint('Tap once to allow the microphone — browsers require a click the first time.');
+      } catch { /* no Permissions API: wait for a tap */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   // Switching the listening engine restarts the loop with the new one.
   useEffect(() => {
     if (!started) return;
