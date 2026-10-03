@@ -76,6 +76,22 @@ _TOOL_PRIORITY = {
 }
 
 
+def _words(text: str) -> str:
+    return " ".join(re.sub(r"[^\w\s]", " ", (text or "").lower()).split())
+
+
+def is_echo(prompt: str, reply: str) -> bool:
+    """True when a reply just repeats the question back ("who are you" -> "Who are you?")."""
+    q, a = _words(prompt), _words(reply)
+    return bool(a) and (a == q or (len(a.split()) <= 8 and a in q) or (len(q.split()) <= 8 and q in a and len(a) <= len(q) + 4))
+
+
+def _echoed_memory(entry: str) -> bool:
+    """A remembered 'Q: …\nA: …' pair whose answer only repeats its question."""
+    m = re.match(r"Q:\s*(.*?)\s*\nA:\s*(.*)\Z", entry or "", re.S)
+    return bool(m) and (not _words(m.group(1)) or is_echo(m.group(1), m.group(2)))
+
+
 class AtulyaLLM:
     """Free-first chat orchestrator with a small ReAct-style tool loop."""
 
@@ -143,14 +159,15 @@ class AtulyaLLM:
             return []
         try:
             entries = await mgr.semantic_search(prompt, limit)
-            return [entry.content for entry in entries if getattr(entry, "content", None)]
+            return [entry.content for entry in entries
+                    if getattr(entry, "content", None) and not _echoed_memory(entry.content)]
         except Exception:
             return []
 
     async def _store_exchange(self, prompt: str, response_text: str) -> None:
         mgr = await self._ensure_memory_initialized()
-        if not mgr or not response_text:
-            return
+        if not mgr or not response_text or is_echo(prompt, response_text):
+            return  # never remember an answer that only parrots the question: a small model copies it back
         try:
             combined = f"Q: {prompt}\nA: {response_text}"
             await mgr.store_session(combined)
@@ -199,6 +216,10 @@ class AtulyaLLM:
                 preferred_provider=requested_provider,
                 tools=self._build_tool_schemas() if tools_enabled else None,
             )
+            if is_echo(prompt, text):
+                # The model parroted the question (often copying a bad recalled answer): ask it plainly once.
+                text, provider_name = await self.router.chat(
+                    prompt, system_prompt, preferred_provider=requested_provider, tools=None)
             tool_call = self._extract_tool_call(text)
             if not tool_call or not tools_enabled:
                 final = LLMResponse(text=self._strip_tool_blocks(text).strip(), provider=provider_name, tool_steps=steps)

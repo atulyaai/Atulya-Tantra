@@ -67,3 +67,8 @@ assets/state/
 # Runtime scratch / generated reports
 tmp/
 !drishti/public/hologram-head.bin
+
+# Audit log, memory backups and local tool config
+assets/agent/*.jsonl
+assets/_old_backup_*/
+.claude/

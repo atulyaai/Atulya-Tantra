@@ -213,3 +213,32 @@ def test_local_signin_only_from_this_computer(monkeypatch):
     assert _client(headers={"X-Forwarded-For": "8.8.8.8"}).get("/api/auth/local").status_code == 403
     monkeypatch.setenv("ATULYA_REQUIRE_LOGIN", "on")
     assert _client().get("/api/auth/local").status_code == 403
+
+
+# ── echo guard ───────────────────────────────────────────────────────────
+
+def test_is_echo_detects_parroting():
+    from atulya.llm import _echoed_memory, is_echo
+
+    assert is_echo("who are you", "Who are you?")
+    assert is_echo("who are you", "who are you")
+    assert not is_echo("who are you", "I am Atulya, your assistant.")
+    assert not is_echo("what time is it", "It's 10:20 PM.")
+    assert _echoed_memory("Q: who are you\nA: Who are you?")
+    assert _echoed_memory("Q: \nA: Who are you?")
+    assert not _echoed_memory("Q: who are you\nA: I'm Atulya.")
+
+
+def test_ask_retries_plainly_when_the_model_parrots(monkeypatch):
+    from atulya.llm import AtulyaLLM
+
+    llm = AtulyaLLM(use_memory=False)
+    calls = []
+
+    async def fake_chat(prompt, system_prompt="", preferred_provider="", tools=None):
+        calls.append(tools)
+        return ("Who are you?" if len(calls) == 1 else "I am Atulya."), "fake"
+
+    monkeypatch.setattr(llm.router, "chat", fake_chat)
+    reply = asyncio.run(llm.ask("who are you"))
+    assert reply.text == "I am Atulya." and len(calls) == 2 and calls[1] is None

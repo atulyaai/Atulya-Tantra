@@ -35,6 +35,8 @@ async def api_chat(request: Request, body: dict, token: str | None = Header(defa
     if "\\" in model_id or "/" in model_id:
         return {"error": "Model path not allowed"}
     prompt = str(body.get("prompt") or "")[:MAX_PROMPT_CHARS]
+    if not prompt.strip() and not body.get("approved_tool"):
+        return {"error": "Say or type something first."}
     from atulya.cognition import get_kernel
     from atulya.llm import get_default_llm
 
