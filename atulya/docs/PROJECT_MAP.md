@@ -42,13 +42,7 @@ Automation-owned files live under `yantra/`.
 - `yantra/capabilities/`: tool registry, workflow engine, browser automation, voice pipeline, and web search.
 - `yantra/mcp/`: MCP server, client, transport, signed manifests, dashboard bridge, and agent runner.
 - `yantra/mcp/external_client.py`: external MCP server connection manager.
-- `yantra/assistant/`: assistant channels, task brain, cron scheduler, and source ingestion.
 - `yantra/channels.py`: unified 14-channel system (Discord, Telegram, Slack, Email, Webhook, WhatsApp, Signal, Matrix, Teams, IRC, WebChat, Console, Log, Twitter).
-- `yantra/plugins/`: plugin lifecycle and safety checks.
-- `yantra/dispatch.py`: classifier-aware capability dispatch.
-- `yantra/kgraph/`: knowledge-graph store and queries.
-- `yantra/orchestrator/`: agent orchestration and workflow scheduling.
-- `yantra/selfimprovement/`: unified self-improvement tracker (bridge.py merged into unified.py).
 
 ## Atulya: Application AI Layer
 
@@ -57,7 +51,6 @@ Application-owned AI files live under `atulya/`.
 - `memory/`: memory orchestrator, session search, prompt cache, subconscious log, reflection, memory tree, and Obsidian export.
 - `agent/`: proactive assistant agent loop, tools, intent router, and scheduled jobs.
 - `cognition/`: the single pipeline every request goes through — `kernel` (perceive → understand → decide → act → remember → react), `safety` (action confirmation policy), `toolbelt` (one tool surface), `triggers` (event-driven proactivity), `brain` (`ATULYA_BRAIN` tiers). See [COGNITIVE_ARCHITECTURE.md](COGNITIVE_ARCHITECTURE.md).
-- `tokenjuice/`: token accounting and usage helpers.
 - `docs/`: architecture, contribution, security, project map, and product direction notes.
 - `tests/`: Atulya and integration tests.
 - `atulya/identity.py`: identity and role-aware prompt helpers.

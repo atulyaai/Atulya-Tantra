@@ -10,7 +10,6 @@ from atulya.emotion import (
     detect_emotion,
     emotion_to_tts,
 )
-from atulya.brain import Brain, Thought, estimate_confidence
 
 
 # --- emotion detection ---------------------------------------------------
@@ -95,55 +94,6 @@ def test_emotion_to_tts_bounds():
     hints = emotion_to_tts(MoodState(valence=1.0, energy=1.0))
     assert 0.75 <= hints["rate"] <= 1.25
     assert isinstance(hints["style"], str)
-
-
-# --- brain confidence ----------------------------------------------------
-
-def test_confidence_zero_on_fallback():
-    assert estimate_confidence("anything", "Diagnostics Fallback") == 0.0
-    assert estimate_confidence("All neural intelligence channels are offline", "X") <= 0.1
-
-
-def test_confidence_penalises_uncertainty():
-    sure = estimate_confidence("The capital of France is Paris.", "Local")
-    unsure = estimate_confidence("I'm not sure, I don't know really.", "Local")
-    assert sure > unsure
-
-
-class _FakeRouter:
-    """Stand-in router: first provider weak, escalation provider strong."""
-
-    def __init__(self):
-        self.calls = []
-
-    async def chat(self, prompt, system_prompt="", preferred_provider="", tools=None):
-        self.calls.append(preferred_provider)
-        if preferred_provider == "groq":
-            return "Here is a clear, confident and complete answer to your question.", "Groq"
-        return "I'm not sure.", "Local"
-
-
-@pytest.mark.asyncio
-async def test_brain_escalates_when_low_confidence():
-    brain = Brain(router=_FakeRouter())
-    thought = await brain.think(
-        "hard question", min_confidence=0.5, escalate_to="groq"
-    )
-    assert thought.escalated is True
-    assert thought.provider == "Groq"
-    assert thought.metadata["first_provider"] == "Local"
-
-
-@pytest.mark.asyncio
-async def test_brain_no_escalation_when_confident():
-    class _Good:
-        async def chat(self, prompt, system_prompt="", preferred_provider="", tools=None):
-            return "A clear and confident answer.", "Local"
-
-    brain = Brain(router=_Good())
-    thought = await brain.think("q", min_confidence=0.5, escalate_to="groq")
-    assert thought.escalated is False
-    assert isinstance(thought, Thought)
 
 
 def test_local_model_skips_hidden_thinking_unless_asked(monkeypatch):
