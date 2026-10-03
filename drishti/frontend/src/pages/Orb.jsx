@@ -480,9 +480,11 @@ export function Orb({ onMenu, toast }) {
     let cancelled = false;
     const timer = setTimeout(() => setOpening(false), 5200);
     import('./Hologram.js')
-      .then(({ createHologram }) => {
+      .then(async ({ createHologram }) => {
         if (cancelled) return;
-        holoRef.current = createHologram(holoBoxRef.current, () => ({ level: levelRef.current, state: stateRef.current }));
+        const h = await createHologram(holoBoxRef.current, () => ({ level: levelRef.current, state: stateRef.current }));
+        if (cancelled) { h.dispose(); return; }
+        holoRef.current = h;
         setHolo('ready');
       })
       .catch((err) => {

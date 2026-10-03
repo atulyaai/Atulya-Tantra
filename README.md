@@ -133,7 +133,8 @@ ATULYA_PORT=8501
 # Free-first brain provider chain
 ATULYA_OLLAMA_HOST=http://localhost:11434
 ATULYA_OLLAMA_MODEL=llama3
-GROQ_API_KEY=sk-groq-...
+GROQ_API_KEY=gsk_...      # free key from https://console.groq.com/keys
+ATULYA_BRAIN=cloud        # Groq leads; local 0.6B model is the offline backup
 ATULYA_GROQ_MODEL=llama-3.3-70b-versatile
 OPENROUTER_API_KEY=sk-or-v1-...
 GEMINI_API_KEY=AIzaSy...

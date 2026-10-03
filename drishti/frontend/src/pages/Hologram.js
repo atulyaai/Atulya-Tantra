@@ -44,13 +44,28 @@ function cometStart(s) {
   ];
 }
 
-function buildParticles() {
+const SKIN = [0.12, 0.3, 0.6];
+const HEAD_FILE_SCALE = 8000; // see drishti/tools/bake_hologram_head.py
+const MESH_SCALE = 3.2;
+const MESH_Y = 0.5; // eye level in the scene
+
+async function loadHead() {
+  const res = await fetch('/hologram-head.bin');
+  if (!res.ok) throw new Error(`head model missing (${res.status})`);
+  const buf = await res.arrayBuffer();
+  const n = new DataView(buf).getUint32(0, true);
+  return { n, data: new Int16Array(buf, 4, n * 13) };
+}
+
+function buildParticles(head) {
+  const deform = []; // per particle: jaw xyz, "aa" xyz, blink xyz (zero for non-face particles)
   const target = [];
   const start = [];
   const color = [];
   const size = [];
   const kind = [];
   const phase = [];
+  let fromMesh = false;
   function add(p, c, sz, k, s = Math.random()) {
     target.push(p[0], p[1], p[2]);
     start.push(...cometStart(s));
@@ -58,40 +73,61 @@ function buildParticles() {
     size.push(sz);
     kind.push(k);
     phase.push(Math.random());
+    if (!fromMesh) deform.push(0, 0, 0, 0, 0, 0, 0, 0, 0);
   }
 
-  // Head: horizontal contour lines.
-  for (let y = HEAD.y - HEAD.ry; y <= HEAD.y + HEAD.ry; y += 0.018) {
-    const w = halfWidth(y);
-    const n = Math.floor(w * 120);
+  if (head) {
+    // A real human head and shoulders, baked from a CC0 3D scan, as contour lines.
+    const { n, data } = head;
     for (let i = 0; i < n; i += 1) {
-      const x = rand(-w, w);
-      const z = Math.sqrt(Math.max(0, 1 - (x / (w + 1e-6)) ** 2)) * 0.18;
-      add([x, y + gauss() * 0.002, z], DIM, rand(0.01, 0.017), KIND.body);
+      const o = i * 13;
+      const v = (k) => data[o + k] / HEAD_FILE_SCALE * MESH_SCALE;
+      const region = data[o + 12];
+      const fx = Math.abs(data[o] / HEAD_FILE_SCALE);
+      const fy = data[o + 1] / HEAD_FILE_SCALE;
+      // Head, neck and shoulders only: drop the arms, thin the skin so the face isn't washed out.
+      if (fx > 0.24 || (fx > 0.17 && fy < -0.4)) continue;
+      if (Math.random() < (region === 1 ? 0.85 : region === 2 ? 0.5 : 0.55)) continue;
+      const c = region === 1 ? ICE : region === 2 ? BLUE : SKIN;
+      fromMesh = true;
+      add([v(0), v(1) + MESH_Y, v(2)], c, region === 1 ? rand(0.008, 0.012) : rand(0.007, 0.011), KIND.body);
+      fromMesh = false;
+      deform.push(v(3), v(4), v(5), v(6), v(7), v(8), v(9), v(10), v(11));
     }
-  }
-  // Body: U-shaped contours around the bright point on the chest.
-  for (let r = 0.06; r < 1.25; r += 0.035) {
-    const n = Math.floor(r * 420);
-    for (let i = 0; i < n; i += 1) {
-      const a = rand(0, Math.PI);
-      const x = CHEST_POINT.x + Math.cos(a) * r * 1.05;
-      const y = CHEST_POINT.y + Math.sin(a) * r * 0.85;
-      if (y > -0.14 || Math.abs(x) > halfWidth(y)) continue;
-      add([x + gauss() * 0.003, y, 0.05], DIM, rand(0.01, 0.016), KIND.body);
+  } else {
+    // Head: horizontal contour lines.
+    for (let y = HEAD.y - HEAD.ry; y <= HEAD.y + HEAD.ry; y += 0.018) {
+      const w = halfWidth(y);
+      const n = Math.floor(w * 120);
+      for (let i = 0; i < n; i += 1) {
+        const x = rand(-w, w);
+        const z = Math.sqrt(Math.max(0, 1 - (x / (w + 1e-6)) ** 2)) * 0.18;
+        add([x, y + gauss() * 0.002, z], DIM, rand(0.01, 0.017), KIND.body);
+      }
     }
-  }
-  // Bright outline of the whole silhouette.
-  for (let i = 0; i < 3000; i += 1) {
-    const y = rand(-1.15, HEAD.y + HEAD.ry);
-    const w = halfWidth(y);
-    const side = Math.random() < 0.5 ? -1 : 1;
-    add([side * w + gauss() * 0.006, y, 0.12], BLUE, rand(0.012, 0.022), KIND.body);
-  }
-  // Top of the head outline.
-  for (let i = 0; i < 350; i += 1) {
-    const a = rand(0.15, Math.PI - 0.15);
-    add([HEAD.x + Math.cos(a) * HEAD.rx, HEAD.y + Math.sin(a) * HEAD.ry, 0.12], BLUE, rand(0.012, 0.022), KIND.body);
+    // Body: U-shaped contours around the bright point on the chest.
+    for (let r = 0.06; r < 1.25; r += 0.035) {
+      const n = Math.floor(r * 420);
+      for (let i = 0; i < n; i += 1) {
+        const a = rand(0, Math.PI);
+        const x = CHEST_POINT.x + Math.cos(a) * r * 1.05;
+        const y = CHEST_POINT.y + Math.sin(a) * r * 0.85;
+        if (y > -0.14 || Math.abs(x) > halfWidth(y)) continue;
+        add([x + gauss() * 0.003, y, 0.05], DIM, rand(0.01, 0.016), KIND.body);
+      }
+    }
+    // Bright outline of the whole silhouette.
+    for (let i = 0; i < 3000; i += 1) {
+      const y = rand(-1.15, HEAD.y + HEAD.ry);
+      const w = halfWidth(y);
+      const side = Math.random() < 0.5 ? -1 : 1;
+      add([side * w + gauss() * 0.006, y, 0.12], BLUE, rand(0.012, 0.022), KIND.body);
+    }
+    // Top of the head outline.
+    for (let i = 0; i < 350; i += 1) {
+      const a = rand(0.15, Math.PI - 0.15);
+      add([HEAD.x + Math.cos(a) * HEAD.rx, HEAD.y + Math.sin(a) * HEAD.ry, 0.12], BLUE, rand(0.012, 0.022), KIND.body);
+    }
   }
   // Gold strands down the neck and chest.
   for (let strand = 0; strand < 7; strand += 1) {
@@ -142,6 +178,11 @@ function buildParticles() {
   g.setAttribute('aSize', new THREE.Float32BufferAttribute(size, 1));
   g.setAttribute('aKind', new THREE.Float32BufferAttribute(kind, 1));
   g.setAttribute('aPhase', new THREE.Float32BufferAttribute(phase, 1));
+  const d = new Float32Array(deform);
+  const view = (offset) => new THREE.InterleavedBufferAttribute(new THREE.InterleavedBuffer(d, 9), 3, offset);
+  g.setAttribute('aJaw', view(0));
+  g.setAttribute('aAa', view(3));
+  g.setAttribute('aBlink', view(6));
   return g;
 }
 
@@ -151,7 +192,14 @@ const vertexShader = /* glsl */`
   uniform float uLevel;
   uniform float uScale;
   uniform float uSpin;
+  uniform float uJaw;
+  uniform float uBlink;
+  uniform float uScatter;
+  uniform float uBreath;
   attribute vec3 aStart;
+  attribute vec3 aJaw;
+  attribute vec3 aAa;
+  attribute vec3 aBlink;
   attribute vec3 aColor;
   attribute float aSize;
   attribute float aKind;
@@ -165,9 +213,14 @@ const vertexShader = /* glsl */`
     vec3 p = position;
     float alpha = 1.0;
 
-    if (aKind < 0.5) {            // body: shimmer, more when there is sound; fades out at the bottom
+    if (aKind < 0.5) {            // body: talks, blinks, breathes, shimmers; fades out at the bottom
+      p += aJaw * uJaw * 0.7 + aAa * uJaw + aBlink * uBlink;
+      p.y += uBreath * (p.y + 1.2) * 0.012;
+      // Thinking: the face dissolves into a drifting cloud, then pulls back together.
+      vec3 dir = normalize(vec3(sin(aPhase * 91.0), cos(aPhase * 57.0), sin(aPhase * 23.0)) + 0.001);
+      p += dir * uScatter * (0.35 + aPhase * 0.6) + dir * uScatter * 0.08 * sin(uTime * 1.5 + aPhase * 30.0);
       p.xy += 0.004 * vec2(sin(uTime * 2.1 + aPhase * 60.0), cos(uTime * 1.7 + aPhase * 40.0)) * (1.0 + uLevel * 5.0);
-      alpha = smoothstep(-1.2, -0.85, position.y);
+      alpha = smoothstep(-1.2, -0.85, position.y) * smoothstep(1.55, 1.2, abs(position.x));
     } else if (aKind < 1.5) {     // rings: ripple outward, faster with sound
       vec2 d = p.xy - HEAD;
       float r = length(d);
@@ -246,7 +299,8 @@ const TINTS = {
 };
 
 // getSignal() -> { level: 0..1, state: 'idle' | 'listening' | 'thinking' | 'speaking' | 'error' }
-export function createHologram(container, getSignal) {
+export async function createHologram(container, getSignal) {
+  const head = await loadHead().catch((err) => { console.warn('Hologram head:', err); return null; });
   const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setClearColor(0x000000, 1);
@@ -265,16 +319,20 @@ export function createHologram(container, getSignal) {
       uLevel: { value: 0 },
       uScale: { value: 400 },
       uSpin: { value: 0 },
+      uJaw: { value: 0 },
+      uBlink: { value: 0 },
+      uScatter: { value: 0 },
+      uBreath: { value: 0 },
       uTint: { value: new THREE.Color(1, 1, 1) },
     },
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
   });
-  const points = new THREE.Points(buildParticles(), material);
+  const points = new THREE.Points(buildParticles(head), material);
   scene.add(points);
 
-  const coreGlow = glowSprite('255,120,30', 0.9, HEAD.x, HEAD.y - 0.03, 0.25);
+  const coreGlow = glowSprite('255,120,30', 0.3, HEAD.x, HEAD.y - 0.03, -0.1);
   const bodyGlow = glowSprite('60,150,255', 2.4, 0, 0.2, -0.4);
   const point = glowSprite('200,235,255', 0.35, CHEST_POINT.x, CHEST_POINT.y, 0.3);
   scene.add(bodyGlow, coreGlow, point);
@@ -303,6 +361,8 @@ export function createHologram(container, getSignal) {
   const opened = performance.now();
   let level = 0;
   let spin = 0;
+  let scatter = 0;
+  let nextBlink = 2;
   let raf = 0;
   function frame() {
     raf = requestAnimationFrame(frame);
@@ -317,6 +377,13 @@ export function createHologram(container, getSignal) {
     u.uMorph.value = morph;
     u.uLevel.value = level;
     u.uSpin.value = spin;
+    // Mouth follows the voice; a quick blink every few seconds; slow breathing.
+    u.uJaw.value = sig.state === 'speaking' ? Math.min(1, level * 1.6) : 0;
+    if (t > nextBlink) nextBlink = t + 2.5 + Math.random() * 3.5;
+    u.uBlink.value = Math.max(0, 1 - Math.abs(nextBlink - t - 0.08) / 0.08);
+    u.uBreath.value = Math.sin(t * 1.25);
+    scatter += ((sig.state === 'thinking' ? 1 : 0) - scatter) * (sig.state === 'thinking' ? 0.03 : 0.08);
+    u.uScatter.value = scatter * morph;
     u.uTint.value.lerp(TINTS[sig.state] || TINTS.idle, 0.08);
     const breathe = 0.5 + 0.5 * Math.sin(t * 1.3);
     coreGlow.material.opacity = morph * (0.38 + 0.12 * breathe + level * 0.5);
