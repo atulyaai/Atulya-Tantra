@@ -57,7 +57,7 @@ More ownership detail lives in [atulya/docs/PROJECT_MAP.md](atulya/docs/PROJECT_
 | Track prices and things, morning briefing | Working |
 | See: camera motion/person detection, read text in images | Working (no scene description yet) |
 | Smart home (Home Assistant, MQTT) | Needs your hardware to verify |
-| Control the PC (open apps, type, shortcuts) | Opt-in: `ATULYA_PC_CONTROL=on`, asks every time, audited |
+| Control the PC (open apps, type, shortcuts) | Opt-in: `ATULYA_PC_CONTROL=on`; asks before each action by default (unless you pre-approve it with `ATULYA_AUTO_APPROVE`); audited |
 | Phone app and remote access | PWA + Tailscale; no cross-device sync yet |
 
 ## Quick Start
@@ -65,7 +65,7 @@ More ownership detail lives in [atulya/docs/PROJECT_MAP.md](atulya/docs/PROJECT_
 Use Python 3.10+.
 
 ```powershell
-python -m pip install -e ".[dev,serve]"
+python -m pip install -e ".[dev,serve,brain]"
 ```
 
 Build the dashboard frontend:
@@ -234,7 +234,7 @@ Important Yantra locations:
 - `yantra/mcp/`: MCP server, transport, manifest signing, external client, dashboard bridge
 - `yantra/senses/`: camera and home sensors
 
-Assistant tools the brain can call live in `atulya/agent/` and register themselves with `@tool`. Risky ones (sending email, deleting events, PC control) always ask first — see `atulya/cognition/safety.py` — and every call is appended to `assets/agent/audit.jsonl`.
+Assistant tools the brain can call live in `atulya/agent/` and register themselves with `@tool`. Risky ones (sending email, deleting events, PC control) ask first by default (`ATULYA_AUTO_APPROVE` can pre-approve specific ones) — see `atulya/cognition/safety.py` — and every call is appended to `assets/agent/audit.jsonl`.
 
 ## Memory And Identity
 
