@@ -3,13 +3,13 @@
 Atulya Tantra is a local-first personal AI assistant: a talking hologram UI (Drishti), an always-listening voice mode with English and Hindi wake words, a local brain with cloud failover, long-term memory, and tools that act for you — music, reminders, email, calendar, price tracking, a morning briefing, smart-home control, and (opt-in) control of your PC.
 
 <p align="center">
-  <img src="atulya/docs/images/orb-home.png" alt="Atulya: one animated screen" width="420">
-  <img src="atulya/docs/images/orb-popup.jpg" alt="A pop-up opens over the orb" width="420">
+  <img src="docs/images/orb-home.png" alt="Atulya: one animated screen" width="420">
+  <img src="docs/images/orb-popup.jpg" alt="A pop-up opens over the orb" width="420">
 </p>
 
 **One screen.** Atulya is a single animated hologram you talk to. There are no pages: ask for something ("show users", "open my routines", "chat history") or tap the menu, and a pop-up slides in over the orb. Esc or a tap outside closes it. Replies appear in a caption card under the head, and suggestion chips help you get started.
 
-![Atulya Tantra architecture](atulya/docs/images/architecture.svg)
+![Atulya Tantra architecture](docs/images/architecture.svg)
 
 Custom model work lives in a separate model repository. This repo calls external and local models through the provider router; it does no model training.
 
@@ -17,7 +17,7 @@ Custom model work lives in a separate model repository. This repo calls external
 
 | Area | Folder | Purpose |
 |---|---|---|
-| Atulya | `atulya/` | Personality, memory, identity, assistant brain, provider routing, local model glue, security/classification core (`atulya/core/`), docs |
+| Atulya | `atulya/` | Personality, memory, identity, assistant brain, provider routing, local model glue, security core (`atulya/core/`) |
 | Yantra | `yantra/` | Actions, tools, automation, browser/device/camera/voice systems, action tests |
 | Drishti | `drishti/` | Mobile/desktop experience: Live Mode, chat, dashboard, backend APIs, frontend build |
 
@@ -35,21 +35,21 @@ Atulya-Tantra/
 |   |-- memory/                 # providers, tree, reflection, vectors, Obsidian export
 |   |-- core/                   # security, task classification, safe expression eval
 |   |-- observability/          # usage, metrics, tracing, error tracking
-|   |-- docs/                   # architecture, security, contributing, project map, images
 |   |-- llm.py, intelligence.py # AtulyaLLM and the provider failover router
 |   |-- local_provider.py       # local GGUF chat / streaming / tool calls
 |   |-- eyes.py, emotion.py     # seeing images, mood detection
 |   `-- persona.py, heartbeat.py, cli.py
 |-- yantra/                     # hands: capabilities, channels, MCP, senses, device control
 |-- drishti/                    # face: React/Vite frontend + FastAPI dashboard and routes
-|-- config/  docs/  install/    # static config, deployment and API docs, install helpers
+|-- config/  install/          # static config, install helpers
+|-- docs/                       # guides, architecture, security, features, images
 |-- assets/  outputs/  runtime/ # local state, generated files, downloaded models (git-ignored)
 |-- tests/                      # test suite (run by CI on Linux and Windows)
 |-- pyproject.toml
 `-- start.bat
 ```
 
-More ownership detail lives in [atulya/docs/PROJECT_MAP.md](atulya/docs/PROJECT_MAP.md).
+More ownership detail lives in [docs/PROJECT_MAP.md](docs/PROJECT_MAP.md).
 
 ## What Atulya Can Do
 

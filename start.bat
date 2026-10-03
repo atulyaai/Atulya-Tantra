@@ -54,7 +54,7 @@ echo   Checking the brain model - the first run downloads about 400 MB...
 python -c "from atulya.local_provider import _ensure_model; p = _ensure_model(); print('   Brain model: ' + (p.name if p else 'not downloaded'))"
 
 echo   [3/4] Building the web app...
-rem Always rebuild (about a second) so the UI never lags behind the source.
+rem Builds only when the source changed; installs the web tools only when missing (so node_modules can be deleted).
 where node >nul 2>&1
 if errorlevel 1 (
     if exist "drishti\dist\index.html" (
@@ -63,6 +63,13 @@ if errorlevel 1 (
         echo   WARNING: Node.js not found. Install Node.js 18+ from https://nodejs.org
     )
     goto :start_backend
+)
+python drishti\tools\ensure_build.py
+if not exist "drishti\dist\index.html" (
+    echo   WARNING: The web app failed to build, so there is no web UI.
+)
+
+:start_backend
 )
 pushd drishti
 rem Always sync packages (instant when nothing changed) so new dependencies like three.js are installed.

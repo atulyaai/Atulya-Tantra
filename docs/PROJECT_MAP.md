@@ -9,6 +9,7 @@ that owns them.
 Allowed root support directories:
 
 - `assets/`: runtime-local app state such as generated voice audio, temp uploads, and scheduler state.
+- `docs/`: guides, architecture, security, features and images (the one place for documentation).
 - `config/`: cross-package static configuration that is not owned by one runtime package.
 - `outputs/`: generated reports, invoices, benchmarks, and other local run artifacts.
 
@@ -52,7 +53,6 @@ Application-owned AI files live under `atulya/`.
 - `agent/`: assistant tools (reminders, email, calendar, weather, media, tracking, briefing, PC control), intent router, audit log.
 - `ambient/`: always-on listener — microphone, wake word (English/Hindi), barge-in, tray icon, autostart.
 - `cognition/`: the single pipeline every request goes through — `kernel` (perceive → understand → decide → act → remember → react), `safety` (action confirmation policy), `toolbelt` (one tool surface), `triggers` (event-driven proactivity), `brain` (`ATULYA_BRAIN` tiers). See [COGNITIVE_ARCHITECTURE.md](COGNITIVE_ARCHITECTURE.md).
-- `docs/`: architecture, contribution, security, project map, and product direction notes.
 - `atulya/persona.py`: identity, personality and prompt rules.
 - `atulya/cli.py`: command-line entry point.
 

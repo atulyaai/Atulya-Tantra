@@ -419,3 +419,29 @@ def test_models_list_is_admin_only(two_users):
     client = _client()
     assert client.get("/v1/models", headers={"Authorization": f"Bearer {two_users['user']}"}).status_code == 403
     assert client.get("/v1/models", headers={"Authorization": f"Bearer {two_users['admin']}"}).status_code == 200
+
+
+# ── build helper ─────────────────────────────────────────────────────────
+
+def test_ensure_build_only_builds_when_source_is_newer(tmp_path, monkeypatch):
+    import os
+    import time
+
+    from drishti.tools import ensure_build as eb
+
+    (tmp_path / "frontend").mkdir()
+    src = tmp_path / "frontend" / "main.jsx"
+    src.write_text("x")
+    dist = tmp_path / "dist" / "index.html"
+    dist.parent.mkdir()
+    dist.write_text("built")
+    monkeypatch.setattr(eb, "DIST", dist)
+    monkeypatch.setattr(eb, "SOURCES", [tmp_path / "frontend"])
+    old = time.time() - 100
+    os.utime(src, (old, old))
+    assert not eb.needs_build()          # dist is newer than the source
+    os.utime(src, None)
+    os.utime(dist, (old, old))
+    assert eb.needs_build()              # source changed after the build
+    dist.unlink()
+    assert eb.needs_build()              # no build yet

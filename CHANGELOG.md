@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `start.bat` builds the web app only when its source changed and installs the web tools only when missing, so `drishti/node_modules` can be deleted (project: 260 files in 59 folders).
+- All documentation now lives in `docs/` (was split with `atulya/docs/`).
 - Admin-only details: brain/model info, health, telemetry, agent tools, devices, model list and model names in replies are hidden from normal users (403 on the server).
 - One-screen UI: the orb is the whole app; pages became pop-ups (Esc closes), opened by voice ("show users") or the menu. Caption card, suggestion chips, volume up to 300%.
 - `docs/FEATURES.md`: what Atulya has and what is missing.
