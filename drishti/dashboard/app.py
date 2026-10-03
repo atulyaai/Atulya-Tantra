@@ -177,12 +177,6 @@ for module in (auth, system, model, train, chat, cortex, automation, openai, voi
     app.include_router(module.router)
 
 
-# The 3D people Atulya shows (downloaded on first run; see drishti/avatars.py).
-from drishti.avatars import AVATAR_DIR  # noqa: E402
-
-AVATAR_DIR.mkdir(parents=True, exist_ok=True)
-app.mount("/avatars", StaticFiles(directory=str(AVATAR_DIR)), name="avatars")
-
 dist = Path(__file__).resolve().parents[1] / "dist"
 if dist.exists():
     app.mount("/", StaticFiles(directory=str(dist), html=True), name="drishti")

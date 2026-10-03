@@ -53,8 +53,6 @@ if not defined ATULYA_AUTO_DOWNLOAD_MODEL set "ATULYA_AUTO_DOWNLOAD_MODEL=true"
 echo   Checking the brain model - the first run downloads about 400 MB...
 python -c "from atulya.local_provider import _ensure_model; p = _ensure_model(); print('   Brain model: ' + (p.name if p else 'not downloaded'))"
 
-python -m drishti.avatars
-
 echo   [3/4] Building the web app...
 rem Always rebuild (about a second) so the UI never lags behind the source.
 where node >nul 2>&1

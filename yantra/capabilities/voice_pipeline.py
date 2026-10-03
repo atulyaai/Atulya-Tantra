@@ -115,26 +115,18 @@ class TextToSpeech:
             tts_voice = voice_config["voice"]
             rate = self._edge_rate(speed)
 
-            try:  # word timings let the 3D avatar move its lips with the words
-                communicate = edge_tts.Communicate(text, tts_voice, rate=rate, boundary="WordBoundary")
-            except TypeError:  # edge-tts < 7 always sends word boundaries
-                communicate = edge_tts.Communicate(text, tts_voice, rate=rate)
+            communicate = edge_tts.Communicate(text, tts_voice, rate=rate)
             audio_bytes = b""
-            words = []
             async for chunk in communicate.stream():
                 if chunk["type"] == "audio":
                     audio_bytes += chunk["data"]
-                elif chunk["type"] == "WordBoundary":
-                    # offsets and durations are in 100-nanosecond ticks
-                    words.append({"text": chunk["text"], "start_ms": chunk["offset"] / 10_000,
-                                  "duration_ms": chunk["duration"] / 10_000})
 
             audio_b64 = base64.b64encode(audio_bytes).decode()
             result_id = hashlib.sha256(text.encode()).hexdigest()[:16]
             result = TTSResult(
                 id=result_id, audio_base64=audio_b64, format=format,
                 cost=0.0, provider="edge-tts",
-                metadata={"voice": voice, "language": voice_config["language"], "words": words},
+                metadata={"voice": voice, "language": voice_config["language"]},
             )
             if save:
                 result.local_path = self._save_audio(result)

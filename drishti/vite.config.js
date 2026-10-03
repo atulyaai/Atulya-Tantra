@@ -6,7 +6,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    chunkSizeWarningLimit: 1000, // the 3D person (three.js) is one lazy-loaded chunk
+    chunkSizeWarningLimit: 600, // the hologram (three.js) is one lazy-loaded chunk
   },
   server: {
     proxy: {
