@@ -43,7 +43,9 @@ with open(r'{cert_file}', 'wb') as f: f.write(cert.public_bytes(serialization.En
 def main():
     import uvicorn
 
-    host = os.environ.get("ATULYA_HOST", "0.0.0.0")
+    from atulya.lockdown import bind_host
+
+    host = bind_host("0.0.0.0")
     port = int(os.environ.get("ATULYA_HTTPS_PORT", "4433"))
 
     try:

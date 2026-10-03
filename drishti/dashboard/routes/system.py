@@ -109,6 +109,15 @@ def api_brain(token: str | None = Header(default=None, alias="X-Atulya-Token")):
     return describe()
 
 
+@router.get("/api/audit")
+def api_audit(limit: int = 50, token: str | None = Header(default=None, alias="X-Atulya-Token")):
+    """The most recent things Atulya did on your behalf (admin only)."""
+    _require_admin(token)
+    from atulya.agent.audit import recent
+
+    return {"events": recent(max(1, min(limit, 500)))}
+
+
 @router.get("/api/health")
 def api_health(token: str | None = Header(default=None, alias="X-Atulya-Token")):
     _require_auth(token)

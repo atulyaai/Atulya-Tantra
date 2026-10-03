@@ -6,6 +6,7 @@ quality:
   tiny      Qwen3-0.6B  (~0.4 GB)  runs on anything — the default
   balanced  Qwen3-1.7B  (~1.1 GB)  clearly better reasoning and tool use
   power     Qwen3-4B    (~2.5 GB)  best local quality; wants ~6 GB free RAM
+  auto      picks tiny / balanced / power from this machine's free RAM
   cloud     configured cloud providers first (Groq, OpenRouter, Gemini, …),
             with the tiny local model as the offline fallback
 
@@ -46,6 +47,8 @@ _FALLBACK_ORDER = ["tiny", "balanced", "power"]
 def active_brain() -> str:
     """The configured tier (unknown values fall back to the default)."""
     tier = os.environ.get("ATULYA_BRAIN", DEFAULT_TIER).strip().lower()
+    if tier == "auto":  # the biggest local brain that fits this machine's free RAM
+        return recommend_tier()
     return tier if tier in BRAIN_TIERS or tier == CLOUD_TIER else DEFAULT_TIER
 
 

@@ -1,8 +1,9 @@
 """Eyes: what Atulya sees in a camera frame or screenshot.
 
 Local and free first: RapidOCR reads any text in the picture (labels, screens,
-documents). Describing a scene needs a vision model, so that escalates to
-Gemini's free tier only when GEMINI_API_KEY is set — no local vision model.
+documents). Describing a scene uses a local Ollama vision model (default
+``moondream``, ``ATULYA_OLLAMA_VISION_MODEL``) and only escalates to Gemini's
+free tier when that gives nothing and GEMINI_API_KEY is set.
 """
 from __future__ import annotations
 
@@ -53,6 +54,28 @@ def read_text(image: bytes) -> str:
     return "\n".join(item[1] for item in (result or []) if float(item[2]) >= 0.5)
 
 
+def local_describe(image: bytes, question: str) -> str:
+    """Scene description through a local Ollama vision model (moondream, llava…). Empty if unavailable."""
+    host = os.environ.get("ATULYA_OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+    model = os.environ.get("ATULYA_OLLAMA_VISION_MODEL", "moondream")
+    body = {"model": model, "stream": False,
+            "prompt": question or "Describe what you see in one or two sentences.",
+            "images": [base64.b64encode(image).decode()]}
+    req = urllib.request.Request(f"{host}/api/generate", data=json.dumps(body).encode(),
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            return str(json.loads(resp.read()).get("response", "")).strip()
+    except Exception as exc:  # noqa: BLE001 - not installed / not running is normal
+        logger.debug("Local vision unavailable: %s", exc)
+        return ""
+
+
+def describe_scene(image: bytes, question: str) -> str:
+    """Local vision model first (private, free); Gemini only if configured and local gave nothing."""
+    return local_describe(image, question) or cloud_describe(image, question)
+
+
 def cloud_describe(image: bytes, question: str) -> str:
     """Scene description via Gemini (free tier). Empty string when not configured."""
     key = os.environ.get("GEMINI_API_KEY", "").strip()
@@ -82,9 +105,9 @@ async def look(image_data: str, question: str = "") -> dict[str, Any]:
     image = decode_image(image_data)
     text, description = await asyncio.gather(
         asyncio.to_thread(read_text, image),
-        asyncio.to_thread(cloud_describe, image, question),
+        asyncio.to_thread(describe_scene, image, question),
     )
-    return {"text": text, "description": description, "can_describe": bool(os.environ.get("GEMINI_API_KEY"))}
+    return {"text": text, "description": description, "can_describe": bool(description or os.environ.get("GEMINI_API_KEY"))}
 
 
 def as_context(seen: dict[str, Any]) -> str:
@@ -96,6 +119,6 @@ def as_context(seen: dict[str, Any]) -> str:
         parts.append(f"Text visible in the picture:\n{seen['text']}")
     if not parts:
         parts.append("The user shared a picture, but no text was readable in it"
-                     + ("" if seen.get("can_describe") else " and scene description is not set up (needs GEMINI_API_KEY)")
+                     + ("" if seen.get("can_describe") else " and scene description is not set up (run `ollama pull moondream` or set GEMINI_API_KEY)")
                      + ". Say so honestly rather than guessing what it shows.")
     return "[What I see]\n" + "\n".join(parts) + "\n\n"

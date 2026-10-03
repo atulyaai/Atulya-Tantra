@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions CI (ruff + pytest on Ubuntu and Windows).
 - New architecture diagram (`atulya/docs/images/architecture.svg`).
 
+- `ATULYA_BRAIN=auto`, local scene description through Ollama (`moondream`), `ATULYA_LOCKDOWN`, `/api/audit`.
+- Daily spoken briefing (`ATULYA_BRIEFING_AT`), Piper offline voice, optional wake-word model gate; voice commands for music, media keys and the briefing.
+
 ### Removed
 - Unused modules: `yantra` harness/dispatch/orchestrator/agents/kgraph/plugins/selfimprovement/selfrepair/assistant/notify, `atulya.brain`, `atulya.soul`, `atulya.tokenjuice`, and their tests.
 - NP-DNA research model, its pages, and its diagrams (they described a model that no longer lives here).

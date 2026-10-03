@@ -77,6 +77,12 @@ voice = [
 control = [
     "pyautogui>=0.9",
 ]
+# A trained wake-word model (ATULYA_WAKE_MODEL) and the natural offline voice (ATULYA_PIPER_MODEL, needs the
+# `piper` program on PATH).
+wake = [
+    "openwakeword>=0.6",
+    "piper-tts>=1.2",
+]
 dev = [
     "numpy>=1.24",
     "pytest>=7.0",

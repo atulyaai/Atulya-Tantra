@@ -109,6 +109,11 @@ def route_intent(text: str) -> RoutedIntent | None:
     if web is not None:
         return web
 
+    # --- Briefing, music and media keys ------------------------------------
+    media = _media_intent(t)
+    if media is not None:
+        return media
+
     # --- Weather / forecast ------------------------------------------------
     if "forecast" in t:
         loc = _extract_location(t)
@@ -219,6 +224,32 @@ def _website_intent(t: str) -> RoutedIntent | None:
     m = re.fullmatch(_POLITE + rf"(?:open|launch|start|go to|show me)\s+(?:the\s+)?({sites})(?:\s+(?:website|site|app))?(?:\s+please)?", t)
     if m:
         return RoutedIntent("open_website", {"site": m.group(1)})
+    return None
+
+
+_MEDIA_KEYS = (
+    (r"(?:pause|resume|play|stop)(?: the)?(?: music| song| track| video)?", "play_pause"),
+    (r"(?:next|skip)(?: the)?(?: song| track)?", "next"),
+    (r"(?:previous|last|go back)(?: song| track)?", "previous"),
+    (r"(?:turn )?(?:volume up|louder|turn it up|raise the volume)", "volume_up"),
+    (r"(?:turn )?(?:volume down|quieter|softer|turn it down|lower the volume)", "volume_down"),
+    (r"mute|unmute", "mute"),
+)
+
+
+def _media_intent(t: str) -> RoutedIntent | None:
+    t = t.strip(" .!?")
+    t = re.sub(r"^(?:(?:hey |ok |okay )?atulya[, ]*)?(?:(?:can|could|would) you |please )?", "", t).strip()
+    if re.fullmatch(r"(?:good morning|morning briefing|brief me|(?:give me |what(?:'s| is) )?(?:my |the )?(?:morning )?(?:briefing|brief|day))", t):
+        return RoutedIntent("morning_briefing", {})
+    for pattern, action in _MEDIA_KEYS:
+        if re.fullmatch(pattern + r"(?: please)?", t):
+            return RoutedIntent("media_control", {"action": action})
+    m = re.fullmatch(r"(?:play|put on)\s+(.+?)(?: please)?", t)
+    if m and m.group(1) not in ("it", "that", "music", "something"):
+        return RoutedIntent("play_music", {"query": m.group(1)})
+    if t in ("play music", "play something"):
+        return RoutedIntent("media_control", {"action": "play_pause"})
     return None
 
 
