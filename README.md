@@ -1,17 +1,34 @@
-# Atulya Tantra
+<div align="center">
+  <img src="atulya/docs/images/banner.jpg" alt="Atulya Tantra - JARVIS-Class Personal AI" width="100%"/>
+</div>
 
-Atulya Tantra is a local-first personal AI assistant: a talking hologram UI (Drishti), an always-listening voice mode with English and Hindi wake words, a local brain with cloud failover, long-term memory, and tools that act for you — music, reminders, email, calendar, price tracking, a morning briefing, smart-home control, and (opt-in) control of your PC.
+<div align="center">
+
+# ⚡ ATULYA TANTRA
+### *Local-First, JARVIS-Class Personal AI Assistant*
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB.svg?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![Local First](https://img.shields.io/badge/Privacy-100%25_Local_First-emerald.svg?style=for-the-badge)](https://github.com/atulyaai/Atulya-Tantra)
+[![Voice Mode](https://img.shields.io/badge/Voice-Hindi_%7C_English-cyan.svg?style=for-the-badge)](https://github.com/atulyaai/Atulya-Tantra)
+[![Platform](https://img.shields.io/badge/Platform-Windows_%7C_Linux_%7C_macOS-darkviolet.svg?style=for-the-badge)](https://github.com/atulyaai/Atulya-Tantra)
 
 <p align="center">
-  <img src="docs/images/orb-home.png" alt="Atulya: one animated screen" width="420">
-  <img src="docs/images/orb-popup.jpg" alt="A pop-up opens over the orb" width="420">
+  <b>Holographic Avatar UI (Drishti) • Ambient Voice Mode (English & Hindi) • Neural Memory Tree • Autonomous Device & Tool Automation</b>
 </p>
 
-**One screen.** Atulya is a single animated hologram you talk to. There are no pages: ask for something ("show users", "open my routines", "chat history") or tap the menu, and a pop-up slides in over the orb. Esc or a tap outside closes it. Replies appear in a caption card under the head, and suggestion chips help you get started.
+</div>
 
-![Atulya Tantra architecture](docs/images/architecture.svg)
+---
 
-Custom model work lives in a separate model repository. This repo calls external and local models through the provider router; it does no model training.
+**Atulya Tantra** is a local-first personal AI assistant: a talking hologram UI (Drishti), an always-listening voice mode with English and Hindi wake words, a local brain with cloud failover, long-term memory, and tools that act for you — music, reminders, email, calendar, price tracking, a morning briefing, smart-home control, and (opt-in) control of your PC.
+
+<div align="center">
+  <img src="atulya/docs/images/architecture.svg" alt="Atulya Tantra architecture" width="85%"/>
+</div>
+
+> [!NOTE]
+> Custom model work lives in [Tantra-LLM](https://github.com/atulyaai/Tantra-LLM). This repo calls external and local models through the provider router; it does no model training.
 
 ## What This Is
 
