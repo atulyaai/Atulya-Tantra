@@ -8,7 +8,7 @@
 ## Hard Rules (NON-NEGOTIABLE)
 
 ### DO
-- Run `python -m pytest -q` before every commit
+- ✅ Run `python -m pytest -q` and `ruff check .` before every commit
 - ✅ Keep all code CPU-first — GPU is optional, never required
 - ✅ Use type hints on every function signature
 - ✅ Add docstrings to every public class and function
@@ -23,8 +23,6 @@
 - ❌ Never commit model weights to git (use GitHub Releases or HF Hub)
 - Never commit `__pycache__/`, `.egg-info/`, or generated `outputs/` artifacts
 - ❌ Never break the flat `atulya/` package layout — no `src/` directory
-- ❌ Never add `data/seed_dataset.jsonl` to git — it's auto-generated
-- ❌ Never import from `_archive/` — those are dead legacy repos
 
 ---
 
@@ -32,40 +30,15 @@
 
 ```
 Atulya-Tantra/
-+-- assets/                        # runtime-local app state (audio, temp files, scheduler state)
-+-- atulya/                        # Application AI: persona, memory, routing, local model glue
-�   +-- memory/                    # memory providers, tree, reflection, Obsidian export, vector store
-�   +-- agent/                     # proactive assistant agent loop and scheduled jobs
-�   +-- observability/             # usage, metrics, traces, errors
-�   +-- docs/                      # architecture, contribution, security, project map
-�   +-- persona.py                 # unified identity + personality
-�   +-- llm.py                     # AtulyaLLM, memory-enabled default, tool-call pass-through, streaming
-�   +-- local_provider.py          # local GGUF chat/stream/tool-call normalization
-�   +-- tantra_local.py            # persona wrapper around the local GGUF model
-�   +-- intelligence.py            # ProviderRouter and provider wrappers
-�   +-- heartbeat.py               # model/provider/Cortex/disk/memory health checks
-�   +-- production_readiness.py    # readiness checks
-�   +-- cli.py                     # CLI entry point
-+-- config/                        # cross-package static configuration
-+-- docs/                          # deployment, API reference
-+-- drishti/                       # React dashboard + FastAPI backend
-�   +-- frontend/src/              # editable React source
-�   +-- dashboard/                 # FastAPI app, helpers, state, routes
-�   +-- nginx/                     # reverse-proxy config for docker deployment
-�   +-- dist/                      # built frontend assets (gitignored)
-�   +-- app.py                     # backend entrypoint
-�   +-- package.json
-�   +-- vite.config.js
-+-- tests/                         # root test suite
-+-- yantra/                        # Automation and tools
-�   +-- capabilities/              # canonical tools: exec, workflow, browser, voice, web search
-�   +-- channels.py                # unified 14-channel communication system
-�   +-- mcp/                       # MCP server, client, transport, manifests
-�   +-- events.py                  # async event bus
-�   +-- device_controller.py       # CPU-first device management
-+-- pyproject.toml                 # package metadata, extras, tool config
-+-- start.bat                      # Windows launcher
++-- atulya/            # the brain: cognition, agent tools, ambient listener, memory, LLM routing
++-- yantra/            # hands: capabilities, channels, MCP, senses, device control
++-- drishti/           # face: React frontend + FastAPI dashboard
++-- config/ docs/ install/
++-- tests/             # run by CI on Linux and Windows
++-- pyproject.toml     # package metadata, extras, tool config
++-- start.bat          # Windows launcher
 ```
+(See PROJECT_MAP.md for the full ownership map.)
 
 ---
 
@@ -83,7 +56,8 @@ Atulya-Tantra/
 
 ### 1. New Tool or Capability
 ```
-1. Add it under yantra/capabilities/ and register it with the harness
+1. Assistant tool: add a function with `@tool(...)` under `atulya/agent/` and import its module at the bottom of `agent/tools.py`; if it acts on the outside world, add it to `_CONFIRM_TOOLS` in `cognition/safety.py`.
+   Heavier capability: add it under `yantra/capabilities/`.
 2. Add tests under tests/
 3. Run: python -m pytest -q
 ```
