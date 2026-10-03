@@ -370,3 +370,9 @@ python -m atulya.cli doctor
 - `assets/` holds runtime-local app state; runtime artifacts such as scheduler state, memory databases, and email config are gitignored.
 - Active LLM training data, checkpoints, and tokenizer artifacts belong in the separate model repo.
 - Before exposing Atulya beyond this machine, read the hardening checklist in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
+---
+
+## 📜 License
+
+MIT License. Copyright (c) 2026 Atulya AI (atulyaai). See [LICENSE](LICENSE).
