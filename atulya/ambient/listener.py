@@ -292,7 +292,9 @@ class AtulyaClient:
 
 def speakable(text: str) -> str:
     """Turn a chat-formatted reply into something pleasant to hear."""
-    text = re.sub(r"[*_`#>]+", "", text or "")
+    from atulya.textutil import strip_emoji
+
+    text = strip_emoji(re.sub(r"[*_`#>]+", "", text or ""))
     text = re.sub(r"^\s*(?:[-•]|\d+[.)])\s*", "", text, flags=re.MULTILINE)
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     return " ".join(line if line[-1] in ".?!" else line + "." for line in lines)

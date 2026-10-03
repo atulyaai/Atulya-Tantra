@@ -187,7 +187,7 @@ class LocalGGUFProvider:
         if not self._model_path or not self._model_path.exists():
             return False
         try:
-            import llama_cpp
+            import llama_cpp  # noqa: F401 - availability probe
             return True
         except ImportError:
             return False
@@ -335,3 +335,54 @@ class LocalGGUFProvider:
         except Exception as exc:
             logger.warning("LocalGGUFProvider chat_stream failed: %s", exc)
             yield str(exc)
+
+
+# ── the Atulya persona on top of the local model ──────────────────────────
+# Kept short on purpose: a ~0.5B model follows a few plain rules far better
+# than a long brief, and replies are usually spoken aloud.
+PERSONA_SYSTEM = """You are Atulya, a personal AI assistant in the style of Jarvis from Iron Man.
+You run locally on the user's own computer.
+
+How you speak:
+- Calm, warm and confident, with a light dry wit.
+- Answer in one or two short sentences unless the user asks for more.
+- Reply in the language the user spoke: English, Hindi (in Devanagari) or Hinglish. No emojis.
+- If you don't know something, say so briefly. Never make up facts or tool results."""
+
+
+def _tool_to_schema(tool: dict[str, str]) -> dict[str, Any]:
+    """Convert a simple tool entry to an OpenAI-style function schema."""
+    return {
+        "type": "function",
+        "function": {
+            "name": tool["name"],
+            "description": tool.get("description", ""),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    }
+
+
+class PersonaLocalProvider(LocalGGUFProvider):
+    """The local model wearing the Atulya persona (system prompt + native tool calling)."""
+
+    def name(self) -> str:
+        from atulya.cognition.brain import local_model_spec
+
+        return f"Atulya Local ({local_model_spec()['label']})"
+
+    @staticmethod
+    def _system_prompt(extra: str = "") -> str:
+        return PERSONA_SYSTEM + (f"\n\n--- Context ---\n{extra}" if extra else "")
+
+    async def chat(
+        self,
+        prompt: str,
+        system_prompt: str = "",
+        tools: list[dict[str, Any]] | None = None,
+    ) -> str:
+        return await super().chat(prompt, self._system_prompt(system_prompt), tools)
+
+
+def create_local_provider(model_path: str | os.PathLike | None = None) -> PersonaLocalProvider:
+    """Factory for the persona-wrapped local provider."""
+    return PersonaLocalProvider(model_path)

@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `start.bat` builds the web app only when its source changed and installs the web tools only when missing, so `drishti/node_modules` can be deleted (project: 260 files in 59 folders).
+- All documentation now lives in `docs/` (was split with `atulya/docs/`).
+- Admin-only details: brain/model info, health, telemetry, agent tools, devices, model list and model names in replies are hidden from normal users (403 on the server).
+- One-screen UI: the orb is the whole app; pages became pop-ups (Esc closes), opened by voice ("show users") or the menu. Caption card, suggestion chips, volume up to 300%.
+- `docs/FEATURES.md`: what Atulya has and what is missing.
 - Hindi/Hinglish wake words and voice barge-in ("stop", "ruko", "चुप").
 - Tools: `play_music`, `media_control`, price tracking (`track_*`), `morning_briefing`, and opt-in PC control (`pc_*`).
 - Audit log of every tool call; `recommend_tier()` for picking a brain size by free RAM.
@@ -20,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Daily spoken briefing (`ATULYA_BRIEFING_AT`), Piper offline voice, optional wake-word model gate; voice commands for music, media keys and the briefing.
 
 ### Removed
+- Overlap: unused `atulya/observability/`, `tantra_local.py` (folded into `local_provider.py`; the provider is now named "Atulya Local"), a duplicate favicon, and four docs folded into others (PROJECT_MAP into CONTRIBUTING, WEBUI_RECOMMENDATIONS into FEATURES, google_mcp_oauth into DEPLOYMENT).
+- The sidebar and Talk page, plus about 2,900 lines of CSS for them (stylesheet 3,702 -> 756 lines).
+- Deep clean: unused imports (lint now enforces it), unused `SandboxManager`/`PromptInjectionGuard`/`EncryptionManager`/`SecurityManager`, the leftover NP-DNA cortex health check, empty old package folders; SECURITY_MODEL.md rewritten to match today.
+- More dead code: `workflow_engine`, `yantra/capabilities/sandbox` (duplicate of core/security), `core/task_classifier`, `config/agent_config.json` and their tests.
 - Unused modules: `yantra` harness/dispatch/orchestrator/agents/kgraph/plugins/selfimprovement/selfrepair/assistant/notify, `atulya.brain`, `atulya.soul`, `atulya.tokenjuice`, and their tests.
 - NP-DNA research model, its pages, and its diagrams (they described a model that no longer lives here).
 

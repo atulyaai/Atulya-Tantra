@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -16,7 +15,7 @@ class TestAutomationRoutes:
             yield m
 
     def test_list_jobs_empty(self, tmp_path, mock_admin):
-        from drishti.dashboard.routes.automation import JOBS_FILE, api_cron_jobs
+        from drishti.dashboard.routes.automation import api_cron_jobs
         import drishti.dashboard.routes.automation as auto_mod
         auto_mod.JOBS_FILE = tmp_path / "jobs.json"
 
@@ -34,7 +33,7 @@ class TestAutomationRoutes:
         assert len(result["jobs"]) == 1
 
     def test_add_job(self, tmp_path, mock_admin):
-        from drishti.dashboard.routes.automation import JOBS_FILE, api_cron_add_job
+        from drishti.dashboard.routes.automation import api_cron_add_job
         import drishti.dashboard.routes.automation as auto_mod
         auto_mod.JOBS_FILE = tmp_path / "jobs.json"
 

@@ -1,12 +1,8 @@
 """Tests for Spirit UI chat panel and wake word functionality."""
 from __future__ import annotations
 
-import json
-import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
 
-import pytest
 
 
 class TestSpiritChatPanel:

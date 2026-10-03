@@ -1,8 +1,6 @@
 """Tests for VectorMemoryProvider - hash-based embedding semantic search."""
 from __future__ import annotations
 
-import asyncio
-import json
 import math
 import tempfile
 from pathlib import Path

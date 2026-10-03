@@ -111,8 +111,10 @@ class TextToSpeech:
 
     @staticmethod
     def strip_ssml(text: str) -> str:
+        from atulya.textutil import strip_emoji
+
         text = re.sub(r"<break[^>]*/>", " ... ", text)
-        return re.sub(r"<[^>]+>", "", text).strip()
+        return strip_emoji(re.sub(r"<[^>]+>", "", text))
 
     async def synthesize(
         self, text: str, voice: str = "en_male", speed: float = 1.0,

@@ -1,16 +1,14 @@
-"""Security - approval system, sandbox, SSRF protection, injection guard, encryption."""
+"""Security - approval system and SSRF protection."""
 from __future__ import annotations
 
 import hashlib
 import hmac
 import ipaddress
 import os
-import re
 import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
 from typing import Any
 
 
@@ -133,21 +131,6 @@ class ApprovalSystem:
         self._sudo_mode = False
 
 
-class SandboxManager:
-    def __init__(self):
-        self._sandboxes: dict[str, dict[str, Any]] = {}
-
-    def create_sandbox(self, name: str, sandbox_type: str = "local") -> dict[str, Any]:
-        sandbox = {"name": name, "type": sandbox_type, "created": time.time(), "active": True}
-        self._sandboxes[name] = sandbox
-        return sandbox
-
-    def destroy_sandbox(self, name: str):
-        if name in self._sandboxes:
-            self._sandboxes[name]["active"] = False
-
-    def status(self) -> dict[str, Any]:
-        return self._sandboxes
 
 
 _EXTRA_BLOCKED = [ipaddress.ip_network("100.64.0.0/10"), ipaddress.ip_network("0.0.0.0/8")]
@@ -202,93 +185,3 @@ class SSRFProtection:
             return bool(addresses) and all(is_public_ip(a) for a in addresses)
         except Exception:
             return False
-
-
-class PromptInjectionGuard:
-    def __init__(self):
-        self._injection_patterns = [
-            r"ignore previous instructions",
-            r"system prompt",
-            r"you are now",
-            r"disregard",
-            r"override",
-            r"new instructions",
-        ]
-
-    def detect(self, content: str) -> bool:
-        for pattern in self._injection_patterns:
-            if re.search(pattern, content, re.IGNORECASE):
-                return True
-        return False
-
-    def sanitize(self, content: str) -> str:
-        for pattern in self._injection_patterns:
-            content = re.sub(pattern, "[REDACTED]", content, flags=re.IGNORECASE)
-        return content
-
-
-class EncryptionManager:
-    def __init__(self, key: str | None = None):
-        resolved = key or os.environ.get("ATULYA_ENCRYPTION_KEY")
-        if not resolved:
-            raise ValueError(
-                "EncryptionManager requires a key via constructor argument or "
-                "ATULYA_ENCRYPTION_KEY environment variable"
-            )
-        self._key = resolved
-
-    def hash_password(self, password: str) -> str:
-        salt = os.urandom(16)
-        hash_val = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 600_000).hex()
-        return f"{salt.hex()}:{hash_val}"
-
-    def verify_password(self, password: str, stored: str) -> bool:
-        salt_hex, hash_val = stored.split(":")
-        salt = bytes.fromhex(salt_hex)
-        return hmac.compare_digest(
-            hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 600_000).hex(),
-            hash_val,
-        )
-
-    def redact_secrets(self, text: str) -> str:
-        patterns = [
-            (r'["\']?api[_-]?key["\']?\s*[:=]\s*["\']([A-Za-z0-9_\-]{16,})["\']', "[REDACTED_API_KEY]"),
-            (r'["\']?password["\']?\s*[:=]\s*["\']([^"\']{4,})["\']', "[REDACTED_PASSWORD]"),
-            (r'["\']?token["\']?\s*[:=]\s*["\']([A-Za-z0-9_\-]{16,})["\']', "[REDACTED_TOKEN]"),
-        ]
-        for pattern, replacement in patterns:
-            text = re.sub(pattern, replacement, text)
-        return text
-
-
-class SecurityManager:
-    def __init__(self, data_dir: str | Path = "."):
-        self.data_dir = Path(data_dir)
-        self.approval = ApprovalSystem()
-        self.sandbox = SandboxManager()
-        self.ssrf = SSRFProtection()
-        self.injection = PromptInjectionGuard()
-        self.encryption = (
-            EncryptionManager()
-            if os.environ.get("ATULYA_ENCRYPTION_KEY")
-            else None
-        )
-        self._audit_log: list[dict[str, Any]] = []
-
-    def check_url(self, url: str) -> bool:
-        return self.ssrf.check_url(url)
-
-    def sanitize_input(self, content: str) -> str:
-        if self.injection.detect(content):
-            return self.injection.sanitize(content)
-        return content
-
-    def log_action(self, action: str, details: dict[str, Any]):
-        self._audit_log.append({"action": action, "details": details, "timestamp": time.time()})
-
-    def status(self) -> dict[str, Any]:
-        return {
-            "approval_requests": len(self.approval._requests),
-            "active_sandboxes": sum(1 for s in self.sandbox._sandboxes.values() if s.get("active")),
-            "audit_entries": len(self._audit_log),
-        }

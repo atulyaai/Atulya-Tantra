@@ -197,3 +197,48 @@ export const api = {
     }
   },
 };
+
+// ── Voice volume ──────────────────────────────────────────────────────────
+// Browsers cap an <audio> element at 100%. Routing it through a gain node lets
+// Atulya be louder (up to 300%); a compressor keeps loud peaks from crackling.
+const BOOST_KEY = 'atulya-volume-boost';
+let boostCtx = null;
+
+export function getBoost() {
+  try {
+    const value = parseFloat(localStorage.getItem(BOOST_KEY) || '');
+    return value >= 1 && value <= 3 ? value : 2.5;
+  } catch {
+    return 2.5;
+  }
+}
+
+export function setBoost(value) {
+  try { localStorage.setItem(BOOST_KEY, String(value)); } catch {}
+}
+
+// Plays `audio` louder. Returns an AnalyserNode (unboosted level) or null if Web Audio is unavailable.
+export function boostAudio(audio, ctx) {
+  try {
+    boostCtx = ctx || boostCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (boostCtx.state === 'suspended') boostCtx.resume().catch(() => {});
+    const source = boostCtx.createMediaElementSource(audio);
+    const analyser = boostCtx.createAnalyser();
+    analyser.fftSize = 256;
+    const gain = boostCtx.createGain();
+    gain.gain.value = getBoost();
+    const limiter = boostCtx.createDynamicsCompressor();
+    limiter.threshold.value = -14;
+    limiter.knee.value = 12;
+    limiter.ratio.value = 12;
+    limiter.attack.value = 0.003;
+    limiter.release.value = 0.15;
+    source.connect(analyser);
+    source.connect(gain);
+    gain.connect(limiter);
+    limiter.connect(boostCtx.destination);
+    return analyser;
+  } catch {
+    return null;
+  }
+}

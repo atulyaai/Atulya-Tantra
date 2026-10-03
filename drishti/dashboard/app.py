@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import asyncio
 import json
-import os
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path

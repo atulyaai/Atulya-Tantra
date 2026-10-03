@@ -213,3 +213,247 @@ def test_local_signin_only_from_this_computer(monkeypatch):
     assert _client(headers={"X-Forwarded-For": "8.8.8.8"}).get("/api/auth/local").status_code == 403
     monkeypatch.setenv("ATULYA_REQUIRE_LOGIN", "on")
     assert _client().get("/api/auth/local").status_code == 403
+
+
+# ── echo guard ───────────────────────────────────────────────────────────
+
+def test_is_echo_detects_parroting():
+    from atulya.llm import _echoed_memory, is_echo
+
+    assert is_echo("who are you", "Who are you?")
+    assert is_echo("who are you", "who are you")
+    assert not is_echo("who are you", "I am Atulya, your assistant.")
+    assert not is_echo("what time is it", "It's 10:20 PM.")
+    assert _echoed_memory("Q: who are you\nA: Who are you?")
+    assert _echoed_memory("Q: \nA: Who are you?")
+    assert not _echoed_memory("Q: who are you\nA: I'm Atulya.")
+
+
+def test_ask_retries_plainly_when_the_model_parrots(monkeypatch):
+    from atulya.llm import AtulyaLLM
+
+    llm = AtulyaLLM(use_memory=False)
+    calls = []
+
+    async def fake_chat(prompt, system_prompt="", preferred_provider="", tools=None):
+        calls.append(tools)
+        return ("Who are you?" if len(calls) == 1 else "I am Atulya."), "fake"
+
+    monkeypatch.setattr(llm.router, "chat", fake_chat)
+    reply = asyncio.run(llm.ask("who are you"))
+    assert reply.text == "I am Atulya." and len(calls) == 2 and calls[1] is None
+
+
+def test_copied_memory_answer_is_detected():
+    from atulya.llm import copies_memory
+
+    mem = ["Q: who are you\nA: I'm Atulya, an assistant."]
+    assert copies_memory("tell me a joke", "I'm Atulya, an assistant.", mem)
+    assert not copies_memory("who are you", "I'm Atulya, an assistant.", mem)
+    assert not copies_memory("tell me a joke", "Why did the cat sit on the laptop?", mem)
+
+
+def test_tiny_brain_recalls_only_when_asked_about_the_past(monkeypatch):
+    from atulya.llm import wants_memory
+
+    monkeypatch.setenv("ATULYA_BRAIN", "tiny")
+    assert not wants_memory("tell me a joke")
+    assert wants_memory("do you remember what I told you yesterday")
+    assert wants_memory("मुझे याद है")
+    monkeypatch.setenv("ATULYA_BRAIN", "balanced")
+    assert wants_memory("tell me a joke")
+
+
+def test_clean_history_drops_parroted_and_repeated_replies():
+    from atulya.llm import AtulyaLLM, clean_history
+
+    history = [
+        {"role": "user", "content": "who are you"},
+        {"role": "assistant", "content": "Who are you?"},                 # echo: dropped with its question
+        {"role": "user", "content": "tell me a joke"},
+        {"role": "assistant", "content": "I am Atulya, an assistant."},
+        {"role": "user", "content": "what time is it"},
+        {"role": "assistant", "content": "I am Atulya, an assistant."},   # repeat of an earlier reply: dropped
+        {"role": "user", "content": "capital of France"},
+    ]
+    cleaned = clean_history(history)
+    assert [m["content"] for m in cleaned] == [
+        "tell me a joke", "I am Atulya, an assistant.", "capital of France"]
+    assert "Who are you?" not in AtulyaLLM._compose_prompt("hi", history)
+
+
+# ── Claude brain ─────────────────────────────────────────────────────────
+
+def test_claude_leads_the_chain_only_with_a_key(monkeypatch):
+    from atulya.intelligence import AnthropicProvider, ProviderRouter
+
+    router = ProviderRouter()
+    assert isinstance(router.providers[0], AnthropicProvider)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    assert not router.providers[0].is_available()
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    assert router.providers[0].is_available()
+
+
+def test_claude_provider_calls_messages_api(monkeypatch):
+    import urllib.request
+
+    from atulya.intelligence import AnthropicProvider
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    seen = {}
+
+    def fake_urlopen(req, timeout=0):
+        seen["url"], seen["headers"], seen["body"] = req.full_url, dict(req.header_items()), json.loads(req.data)
+        return _Resp({"content": [{"type": "text", "text": " Hello there. "}]})
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    reply = run(AnthropicProvider().chat("hi", "be brief"))
+    assert reply == "Hello there."
+    assert seen["url"].endswith("/v1/messages")
+    assert seen["headers"]["X-api-key"] == "sk-ant-test"
+    assert seen["body"]["system"] == "be brief" and seen["body"]["messages"][0]["content"] == "hi"
+
+
+def test_openrouter_skips_busy_and_empty_free_models(monkeypatch):
+    from atulya.intelligence import OpenRouterProvider
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+    monkeypatch.setenv("ATULYA_OPENROUTER_MODEL", "a:free,b:free,c:free")
+    tried = []
+
+    def fake_ask(self, model, messages):
+        tried.append(model)
+        if model == "a:free":
+            raise RuntimeError("HTTP Error 429")
+        if model == "b:free":
+            return ""  # a reasoning model that ran out of tokens thinking
+        return "Hello."
+
+    monkeypatch.setattr(OpenRouterProvider, "_ask", fake_ask)
+    assert run(OpenRouterProvider().chat("hi")) == "Hello."
+    assert tried == ["a:free", "b:free", "c:free"]
+
+
+# ── no emoji in speech ───────────────────────────────────────────────────
+
+def test_emoji_are_never_spoken():
+    from atulya.ambient.listener import speakable
+    from atulya.textutil import strip_emoji
+    from yantra.capabilities.voice_pipeline import TextToSpeech
+
+    assert strip_emoji("Hello! \U0001F60A How are you? \u2764\ufe0f") == "Hello! How are you?"
+    assert strip_emoji("नमस्ते \U0001F44B") == "नमस्ते"
+    assert strip_emoji("Plain text, 100% fine.") == "Plain text, 100% fine."
+    assert "\U0001F60A" not in speakable("Great job \U0001F60A")
+    assert TextToSpeech.strip_ssml("<break time='1s'/>Hi \U0001F600") == "... Hi"
+
+
+# ── abilities answer and moderation-label guard ──────────────────────────
+
+@pytest.mark.parametrize("text", ["what can you do", "what all you can do", "what are your abilities", "help"])
+def test_what_can_you_do_is_answered_by_a_tool_not_a_model(text):
+    routed = route_intent(text)
+    assert routed is not None and routed.tool == "what_can_you_do"
+    from atulya.agent import tools
+
+    answer = run(tools.execute_tool("what_can_you_do"))
+    assert "reminders" in answer and "music" in answer
+
+
+def test_safety_classifier_labels_are_not_answers():
+    from atulya.intelligence import _looks_like_safety_label
+
+    assert _looks_like_safety_label("Harassment")
+    assert _looks_like_safety_label("safe")
+    assert _looks_like_safety_label("Category: violence")
+    assert not _looks_like_safety_label("I can help you with reminders and music.")
+    assert not _looks_like_safety_label("")
+
+
+# ── admin-only details ───────────────────────────────────────────────────
+
+@pytest.fixture
+def two_users(tmp_path, monkeypatch):
+    import drishti.dashboard.users as users_mod
+    from drishti.dashboard import helpers
+
+    monkeypatch.setattr(users_mod, "USERS_FILE", tmp_path / "users.json")
+    monkeypatch.setattr(users_mod, "SESSIONS_FILE", tmp_path / "sessions.json")
+    users_mod._sessions.clear()
+    monkeypatch.setattr(helpers, "ADMIN_TOKEN", "admin-test-token")
+    users_mod.create_user("sam", "pw", role="user", display_name="Sam")
+    return {"user": users_mod.create_session("sam"), "admin": "admin-test-token"}
+
+
+ADMIN_ONLY = ["/api/brain", "/api/health", "/api/telemetry", "/api/system", "/api/audit", "/api/agent/tools",
+              "/api/agent/status", "/api/devices", "/api/users", "/api/routines", "/api/senses", "/api/triggers"]
+
+
+@pytest.mark.parametrize("path", ADMIN_ONLY)
+def test_normal_users_cannot_read_admin_pages(two_users, path):
+    client = _client()
+    assert client.get(path, headers={"X-Atulya-Token": two_users["user"]}).status_code == 403
+    assert client.get(path, headers={"X-Atulya-Token": two_users["admin"]}).status_code != 403
+
+
+def test_bootstrap_hides_models_from_normal_users(two_users):
+    client = _client()
+    normal = client.get("/api/dashboard/bootstrap", headers={"X-Atulya-Token": two_users["user"]}).json()
+    assert normal["providers"] == [] and "system" not in normal
+    admin = client.get("/api/dashboard/bootstrap", headers={"X-Atulya-Token": two_users["admin"]}).json()
+    assert admin["providers"] and "system" in admin
+
+
+def test_chat_replies_hide_model_details_from_normal_users():
+    from drishti.dashboard.helpers import redact_for
+
+    reply = {"response": "Hi", "provider": "Claude (haiku)", "model_id": "x", "steps": [{"tool": "t"}],
+             "trace": [{"stage": "think"}], "needs_approval": False}
+    seen = redact_for({"role": "user"}, dict(reply))
+    assert seen["response"] == "Hi" and seen["provider"] == "Atulya" and seen["steps"] == [] and seen["trace"] == []
+    assert redact_for({"role": "admin"}, dict(reply)) == reply
+
+
+def test_models_list_is_admin_only(two_users):
+    client = _client()
+    assert client.get("/v1/models", headers={"Authorization": f"Bearer {two_users['user']}"}).status_code == 403
+    assert client.get("/v1/models", headers={"Authorization": f"Bearer {two_users['admin']}"}).status_code == 200
+
+
+# ── build helper ─────────────────────────────────────────────────────────
+
+def test_ensure_build_only_builds_when_source_is_newer(tmp_path, monkeypatch):
+    import os
+    import time
+
+    from drishti.tools import ensure_build as eb
+
+    (tmp_path / "frontend").mkdir()
+    src = tmp_path / "frontend" / "main.jsx"
+    src.write_text("x")
+    dist = tmp_path / "dist" / "index.html"
+    dist.parent.mkdir()
+    dist.write_text("built")
+    monkeypatch.setattr(eb, "DIST", dist)
+    monkeypatch.setattr(eb, "SOURCES", [tmp_path / "frontend"])
+    old = time.time() - 100
+    os.utime(src, (old, old))
+    assert not eb.needs_build()          # dist is newer than the source
+    os.utime(src, None)
+    os.utime(dist, (old, old))
+    assert eb.needs_build()              # source changed after the build
+    dist.unlink()
+    assert eb.needs_build()              # no build yet
+
+
+def test_busy_cloud_message_when_no_brain_answers(monkeypatch):
+    from atulya.intelligence import CLOUD_BUSY_MESSAGE, NO_BRAIN_MESSAGE, ProviderRouter
+
+    router = ProviderRouter()
+    router.providers = []  # nothing answers
+    for key in ("ANTHROPIC_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY", "NVIDIA_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
+    assert run(router.chat("hi"))[0] == NO_BRAIN_MESSAGE
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+    assert run(router.chat("hi"))[0] == CLOUD_BUSY_MESSAGE

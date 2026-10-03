@@ -51,7 +51,7 @@ def test_llm_bridge_executes_tool_loop():
 
 def test_llm_bridge_requires_approval_for_risky_tool():
     from atulya.llm import AtulyaLLM
-    from yantra.capabilities import Tool, ToolRegistry, ToolResult
+    from yantra.capabilities import Tool, ToolRegistry
 
     class FileWriteTool(Tool):
         name = "file_write"

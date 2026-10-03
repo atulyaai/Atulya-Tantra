@@ -20,3 +20,17 @@ async def morning_briefing(location: str = "") -> str:
     if tracked:
         parts.append("Tracking:\n" + tracked)
     return "\n".join(p for p in parts if p)
+
+
+@tool("what_can_you_do", "Tell the user, briefly, what Atulya can do", {})
+async def what_can_you_do() -> str:
+    from atulya.agent.pc_control import enabled as pc_enabled
+
+    pc = "I can open apps and type for you when PC control is switched on." if pc_enabled() else \
+        "PC control is off, but you can switch it on."
+    return (
+        "I can tell you the time and weather, set reminders, and manage your calendar and email. "
+        "I can play music, pause, skip and change the volume, and track prices for you. "
+        "Ask for your morning briefing any time. I can control smart home devices, see through a camera, "
+        "and remember what you tell me. " + pc + " I always ask before doing anything risky."
+    )

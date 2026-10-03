@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 
 from atulya.memory.manager import MemoryManager
-from atulya.memory.orchestrator import MemoryEntry
 
 
 class TestMemoryManagerIntegration:

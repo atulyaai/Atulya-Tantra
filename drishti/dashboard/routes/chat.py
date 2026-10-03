@@ -5,7 +5,7 @@ from fastapi import APIRouter, Header, Request
 from fastapi.responses import StreamingResponse
 
 from drishti.dashboard import chat_history
-from drishti.dashboard.helpers import _require_auth
+from drishti.dashboard.helpers import _require_auth, redact_for
 from drishti.dashboard.state import MAX_CHAT_TOKENS, MAX_PROMPT_CHARS
 
 router = APIRouter()
@@ -35,6 +35,8 @@ async def api_chat(request: Request, body: dict, token: str | None = Header(defa
     if "\\" in model_id or "/" in model_id:
         return {"error": "Model path not allowed"}
     prompt = str(body.get("prompt") or "")[:MAX_PROMPT_CHARS]
+    if not prompt.strip() and not body.get("approved_tool"):
+        return {"error": "Say or type something first."}
     from atulya.cognition import get_kernel
     from atulya.llm import get_default_llm
 
@@ -55,7 +57,7 @@ async def api_chat(request: Request, body: dict, token: str | None = Header(defa
         source="chat",
     )
     chat_history.append_exchange(user, prompt, response.text, provider=response.provider)
-    return {
+    return redact_for(user, {
         "response": response.text[:MAX_CHAT_TOKENS * 8],
         "model_id": model_id,
         "provider": response.provider,
@@ -63,7 +65,7 @@ async def api_chat(request: Request, body: dict, token: str | None = Header(defa
         "needs_approval": response.needs_approval,
         "pending_tool": response.pending_tool,
         "trace": getattr(response, "trace", []),
-    }
+    })
 
 
 @router.post("/api/chat/stream")

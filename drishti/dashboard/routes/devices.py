@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Header, HTTPException
 
-from drishti.dashboard.helpers import _require_auth
+from drishti.dashboard.helpers import _require_admin
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -17,13 +17,13 @@ _controller = DeviceController(data_dir=Path(__file__).resolve().parents[3] / "c
 
 @router.get("/api/devices")
 def list_devices(token: str | None = Header(default=None, alias="X-Atulya-Token")):
-    _require_auth(token)
+    _require_admin(token)
     return {"devices": [vars(d) for d in _controller._devices.values()]}
 
 
 @router.post("/api/devices")
 def add_device(body: dict, token: str | None = Header(default=None, alias="X-Atulya-Token")):
-    _require_auth(token)
+    _require_admin(token)
     name = body.get("name", "").strip()
     device_type = body.get("device_type", "unknown")
     protocol = body.get("protocol", "wifi")
@@ -37,7 +37,7 @@ def add_device(body: dict, token: str | None = Header(default=None, alias="X-Atu
 
 @router.post("/api/devices/{device_id}/command")
 async def send_command(device_id: str, body: dict, token: str | None = Header(default=None, alias="X-Atulya-Token")):
-    _require_auth(token)
+    _require_admin(token)
     command = body.get("command", "").strip()
     params = body.get("params")
     if not command:
@@ -48,13 +48,13 @@ async def send_command(device_id: str, body: dict, token: str | None = Header(de
 
 @router.get("/api/devices/stats")
 def device_stats(token: str | None = Header(default=None, alias="X-Atulya-Token")):
-    _require_auth(token)
+    _require_admin(token)
     return _controller.get_stats()
 
 
 @router.delete("/api/devices/{device_id}")
 def delete_device(device_id: str, token: str | None = Header(default=None, alias="X-Atulya-Token")):
-    _require_auth(token)
+    _require_admin(token)
     if device_id not in _controller._devices:
         raise HTTPException(404, "Device not found")
     del _controller._devices[device_id]

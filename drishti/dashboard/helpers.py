@@ -66,3 +66,14 @@ def _require_admin(token: str | None = Header(default=None, alias="X-Atulya-Toke
     return user
 
 
+
+
+# Details only the admin should see: which model answered, tool traces, provider names.
+_ADMIN_ONLY_KEYS = {"provider": "Atulya", "provider_name": "Atulya", "model_id": "latest", "steps": [], "trace": []}
+
+
+def redact_for(user: dict | None, payload: dict) -> dict:
+    """Hide model, provider and tool-trace details from normal users."""
+    if (user or {}).get("role") == "admin":
+        return payload
+    return {key: _ADMIN_ONLY_KEYS.get(key, value) if key in _ADMIN_ONLY_KEYS else value for key, value in payload.items()}

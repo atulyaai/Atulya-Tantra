@@ -6,7 +6,9 @@ with automatic failover fallbacks.
 """
 from __future__ import annotations
 
+import asyncio
 import json
+import re
 import logging
 import os
 import inspect
@@ -196,52 +198,77 @@ class GeminiProvider(IntelligenceProvider):
             raise e
 
 
+def _looks_like_safety_label(text: str) -> bool:
+    """Content-safety models reply with labels like "harassment" or "safe/unsafe", not answers."""
+    words = re.sub(r"[^a-z ]", " ", (text or "").lower()).split()
+    labels = {"safe", "unsafe", "harassment", "safety", "violence", "hate", "sexual", "self", "harm", "illegal",
+              "category", "violation", "content", "policy", "none"}
+    return 0 < len(words) <= 6 and all(w in labels for w in words)
+
+
 class OpenRouterProvider(IntelligenceProvider):
-    """OpenRouter Cloud Model Aggregator Provider."""
-    
+    """OpenRouter: one key, many models. Tries a list of free models until one answers.
+
+    Free models are often rate-limited (429) or "think" so long they return no
+    text, so each is tried in turn. Set ``ATULYA_OPENROUTER_MODEL`` to one model
+    or a comma-separated list.
+    """
+
+    URL = "https://openrouter.ai/api/v1/chat/completions"
+    DEFAULT_MODELS = (
+        "qwen/qwen3.8-27b:free",
+        "google/gemma-4-31b-it:free",
+        "nvidia/nemotron-3-super-120b-a12b:free",
+    )
+
     def name(self) -> str:
         return "OpenRouter"
-        
+
     def is_available(self) -> bool:
         return bool(os.environ.get("OPENROUTER_API_KEY"))
-        
+
+    @classmethod
+    def models(cls) -> list[str]:
+        raw = os.environ.get("ATULYA_OPENROUTER_MODEL", "")
+        listed = [m.strip() for m in raw.split(",") if m.strip()]
+        return listed or list(cls.DEFAULT_MODELS)
+
+    def _ask(self, model: str, messages: list[dict[str, str]]) -> str:
+        payload = {"model": model, "messages": messages, "max_tokens": 1024}
+        req = urllib.request.Request(
+            self.URL, data=json.dumps(payload).encode("utf-8"), method="POST",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {os.environ.get('OPENROUTER_API_KEY', '')}",
+                "HTTP-Referer": "https://github.com/atulyaai/Atulya-Tantra",
+                "X-Title": "Atulya OS",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=30.0) as response:
+            body = json.loads(response.read().decode("utf-8"))
+        text = (body["choices"][0]["message"].get("content") or "").strip()
+        if _looks_like_safety_label(text):
+            return ""  # a moderation model answered instead of a chat model: treat as no answer
+        # Some reasoning models wrap their thinking in <think>…</think>.
+        return re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
+
     async def chat(self, prompt: str, system_prompt: str = "") -> str:
-        api_key = os.environ.get("OPENROUTER_API_KEY")
-        if not api_key:
+        if not os.environ.get("OPENROUTER_API_KEY"):
             raise ValueError("OPENROUTER_API_KEY is not configured")
-        try:
-            url = "https://openrouter.ai/api/v1/chat/completions"
-            messages = []
-            if system_prompt:
-                messages.append({"role": "system", "content": system_prompt})
-            messages.append({"role": "user", "content": prompt})
-            
-            model = os.environ.get("ATULYA_OPENROUTER_MODEL", "google/gemini-2.5-flash")
-            payload = {
-                "model": model,
-                "messages": messages,
-                "max_tokens": 150
-            }
-            data = json.dumps(payload).encode("utf-8")
-            req = urllib.request.Request(
-                url,
-                data=data,
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {api_key}",
-                    "HTTP-Referer": "https://github.com/atulyaai/Atulya-Tantra",
-                    "X-Title": "Atulya OS"
-                },
-                method="POST"
-            )
-            with urllib.request.urlopen(req, timeout=10.0) as response:
-                if response.status == 200:
-                    res_body = json.loads(response.read().decode("utf-8"))
-                    return res_body["choices"][0]["message"]["content"].strip()
-                raise RuntimeError(f"OpenRouter returned status {response.status}")
-        except Exception as e:
-            logger.warning(f"OpenRouterProvider chat failed: {e}")
-            raise e
+        messages = ([{"role": "system", "content": system_prompt}] if system_prompt else []) + [
+            {"role": "user", "content": prompt}]
+        failures: list[str] = []
+        for model in self.models():
+            try:
+                text = await asyncio.to_thread(self._ask, model, messages)
+            except Exception as exc:  # noqa: BLE001 - 429, timeouts, 5xx: try the next model
+                failures.append(f"{model}: {exc}")
+                continue
+            if text:
+                return text
+            failures.append(f"{model}: empty reply")
+        logger.warning("OpenRouter: no free model answered (%s)", "; ".join(failures))
+        raise RuntimeError("No OpenRouter model answered: " + "; ".join(failures))
 
 
 class NvidiaNimProvider(IntelligenceProvider):
@@ -291,6 +318,46 @@ class NvidiaNimProvider(IntelligenceProvider):
             raise e
 
 
+class AnthropicProvider(IntelligenceProvider):
+    """Claude through the Anthropic Messages API: fast and smart. Leads the chain when a key is set."""
+
+    URL = "https://api.anthropic.com/v1/messages"
+
+    def name(self) -> str:
+        return f"Claude ({self._model()})"
+
+    @staticmethod
+    def _model() -> str:
+        return os.environ.get("ATULYA_CLAUDE_MODEL", "claude-haiku-4-5-20251001")
+
+    def is_available(self) -> bool:
+        return bool(os.environ.get("ANTHROPIC_API_KEY"))
+
+    def _request(self, prompt: str, system_prompt: str) -> str:
+        payload: dict[str, Any] = {
+            "model": self._model(),
+            "max_tokens": int(os.environ.get("ATULYA_CLAUDE_MAX_TOKENS", "700")),
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if system_prompt:
+            payload["system"] = system_prompt
+        req = urllib.request.Request(
+            self.URL, data=json.dumps(payload).encode("utf-8"), method="POST",
+            headers={"Content-Type": "application/json", "anthropic-version": "2023-06-01",
+                     "x-api-key": os.environ.get("ANTHROPIC_API_KEY", "")},
+        )
+        with urllib.request.urlopen(req, timeout=40.0) as response:
+            body = json.loads(response.read().decode("utf-8"))
+        return "".join(block.get("text", "") for block in body.get("content", []) if block.get("type") == "text").strip()
+
+    async def chat(self, prompt: str, system_prompt: str = "") -> str:
+        try:
+            return await asyncio.to_thread(self._request, prompt, system_prompt)
+        except Exception as exc:
+            logger.warning("Claude request failed: %s", exc)
+            raise
+
+
 class GroqProvider(IntelligenceProvider):
     """Groq OpenAI-compatible provider."""
 
@@ -337,6 +404,11 @@ class GroqProvider(IntelligenceProvider):
             raise e
 
 
+CLOUD_BUSY_MESSAGE = (
+    "My cloud brain didn't answer just now - free models are sometimes busy. "
+    "Try again in a moment, or add another free key such as Groq."
+)
+
 NO_BRAIN_MESSAGE = (
     "My brain isn't loaded yet, so I can only do simple commands like the time or reminders. "
     "Run start.bat again to install the local model, then ask me again."
@@ -363,7 +435,7 @@ class OpenCodeProvider(IntelligenceProvider):
 class LocalGGUFProvider(IntelligenceProvider):
     """Provider that loads a tiny GGUF model directly via llama-cpp-python.
     
-    Uses TantraLocalProvider wrapper for Atulya persona and Tantra-placeholder behavior.
+    Uses PersonaLocalProvider (the Atulya persona on the local model).
     """
 
     def __init__(self):
@@ -371,32 +443,32 @@ class LocalGGUFProvider(IntelligenceProvider):
 
     def name(self) -> str:
         try:
-            from atulya.tantra_local import create_tantra_local_provider
+            from atulya.local_provider import create_local_provider
             if self._impl is None:
-                self._impl = create_tantra_local_provider()
+                self._impl = create_local_provider()
             return self._impl.name()
         except Exception:
             return "Tantra Local (Placeholder)"
 
     def is_available(self) -> bool:
         try:
-            from atulya.tantra_local import create_tantra_local_provider
+            from atulya.local_provider import create_local_provider
             if self._impl is None:
-                self._impl = create_tantra_local_provider()
+                self._impl = create_local_provider()
             return self._impl.is_available()
         except Exception:
             return False
 
     async def chat(self, prompt: str, system_prompt: str = "", tools: list[dict[str, Any]] | None = None) -> str:
-        from atulya.tantra_local import create_tantra_local_provider
+        from atulya.local_provider import create_local_provider
         if self._impl is None:
-            self._impl = create_tantra_local_provider()
+            self._impl = create_local_provider()
         return await self._impl.chat(prompt, system_prompt, tools)
 
     async def chat_stream(self, prompt: str, system_prompt: str = "") -> AsyncIterator[str]:
-        from atulya.tantra_local import create_tantra_local_provider
+        from atulya.local_provider import create_local_provider
         if self._impl is None:
-            self._impl = create_tantra_local_provider()
+            self._impl = create_local_provider()
         stream = getattr(self._impl, "chat_stream", None)
         if stream is None:
             yield await self._impl.chat(prompt, system_prompt)
@@ -411,6 +483,7 @@ class ProviderRouter(IntelligenceProvider):
     def __init__(self):
         # Fallback priority chain order - local Qwen3-0.6B GGUF first, cloud APIs after.
         self.providers: list[IntelligenceProvider] = [
+            AnthropicProvider(),   # Claude, only when ANTHROPIC_API_KEY is set (fastest, smartest)
             LocalGGUFProvider(),   # Qwen3-0.6B GGUF (~380 MB), auto-downloads, no Ollama needed (1st choice)
             OllamaProvider(),      # Free local model via Ollama (2nd choice)
             GroqProvider(),        # Fast free developer-tier API (3rd choice)
@@ -463,6 +536,9 @@ class ProviderRouter(IntelligenceProvider):
         # All providers failed, return a diagnostic error response
         errors_summary = ", ".join(attempted)
         logger.warning("No brain answered. Attempted: %s", errors_summary)
+        cloud_keys = ("ANTHROPIC_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY", "NVIDIA_API_KEY")
+        if any(os.environ.get(k) for k in cloud_keys):
+            return CLOUD_BUSY_MESSAGE, "Diagnostics Fallback"
         return NO_BRAIN_MESSAGE, "Diagnostics Fallback"
 
     async def stream(

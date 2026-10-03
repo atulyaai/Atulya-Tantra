@@ -59,7 +59,7 @@ All endpoints (except `/api/auth/login`) require the `X-Atulya-Token` header.
 | GET | `/api/chat/history` | Get chat history |
 
 Chat, streaming chat and `/api/voice/chat` all go through the cognitive kernel
-([COGNITIVE_ARCHITECTURE.md](../atulya/docs/COGNITIVE_ARCHITECTURE.md)). Clear
+([COGNITIVE_ARCHITECTURE.md](COGNITIVE_ARCHITECTURE.md)). Clear
 commands run tools directly (`provider: "Atulya Kernel"`). Risky actions come
 back with `needs_approval: true` and a `pending_tool`; confirm by replying "yes"
 (or "no"), or by resending with `approved_tool` set to that `pending_tool`.

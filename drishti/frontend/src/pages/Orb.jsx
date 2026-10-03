@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { api } from '../../api.js';
+import { api, boostAudio, getBoost, setBoost } from '../../api.js';
 
 // The home screen: one glowing orb you talk to, Jarvis style. It wakes on
 // "Hey Atulya" (or "Hi / Hello / Listen Atulya", or just "Atulya"), ripples to
@@ -11,10 +11,16 @@ const NAME = 'a\\s?th?(?:u|oo)l+(?:i|y|iy|ee)?a';
 const WAKE_RE = new RegExp(`(?:^|[^a-z])${NAME}(?:[^a-z]|$)|अतुल्य`, 'i');
 const WAKE_LEAD_RE = new RegExp(`^[\\s,.!?-]*(?:(?:hey|hi|hello|ok|okay|listen|suno)[\\s,.!?-]*)?(?:${NAME}|अतुल्या?)[\\s,.!?-]*(?:(?:listen|suno)[\\s,.!?-]*)?`, 'i');
 const FOLLOW_UP_MS = 8000; // after Atulya speaks, answer without the wake word
-const SETTINGS_KEY = 'atulya-orb-settings';
+const SETTINGS_KEY = 'atulya-orb-settings-v2';
+
+const spoken = (t) => String(t || '').replace(/[\p{Extended_Pictographic}\uFE0E\uFE0F\u200D\u20E3]/gu, '').replace(/\s{2,}/g, ' ').trim();
+
+const SUGGESTIONS = ['What can you do?', 'Give me my morning briefing', 'Play some music', 'Show my routines'];
 
 function loadSettings() {
-  const defaults = { userGender: 'male', handsFree: true, engine: 'local' };
+  // No wake word needed: Atulya answers whatever you say. Chrome/Edge listen fastest; others use this PC.
+  const fast = typeof window !== 'undefined' && Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+  const defaults = { userGender: 'male', handsFree: false, engine: fast ? 'browser' : 'local' };
   try {
     return { ...defaults, ...(JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')) };
   } catch {
@@ -38,7 +44,7 @@ const COLORS = {
   error: [255, 110, 110],
 };
 
-export function Orb({ onMenu, toast }) {
+export function Orb({ onMenu, toast, onCommand }) {
   const [settings, setSettings] = useState(loadSettings);
   const [state, setState] = useState('idle'); // idle | listening | thinking | speaking | error
   const [started, setStarted] = useState(false);
@@ -47,6 +53,7 @@ export function Orb({ onMenu, toast }) {
   const [hint, setHint] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [typed, setTyped] = useState('');
+  const [boost, setBoostState] = useState(getBoost());
 
   const canvasRef = useRef(null);
   const holoBoxRef = useRef(null);
@@ -311,15 +318,7 @@ export function Orb({ onMenu, toast }) {
       if (audioBase64) {
         const audio = new Audio(`data:audio/mp3;base64,${audioBase64}`);
         audioRef.current = audio;
-        try {
-          const ctx = audioCtx();
-          const source = ctx.createMediaElementSource(audio);
-          const analyser = ctx.createAnalyser();
-          analyser.fftSize = 256;
-          source.connect(analyser);
-          analyser.connect(ctx.destination);
-          analyserRef.current = analyser;
-        } catch { analyserRef.current = null; }
+        analyserRef.current = boostAudio(audio, audioCtx());
         audio.onended = done;
         audio.onerror = done;
         audio.play().catch(() => speakInBrowser(text).then(done));
@@ -333,7 +332,7 @@ export function Orb({ onMenu, toast }) {
   function speakInBrowser(text) {
     return new Promise((resolve) => {
       if (!('speechSynthesis' in window) || !text) { resolve(); return; }
-      const u = new SpeechSynthesisUtterance(text);
+      const u = new SpeechSynthesisUtterance(spoken(text));
       const hindi = /[ऀ-ॿ]/.test(text);
       u.lang = hindi ? 'hi-IN' : 'en-GB';
       // Some browsers never fire onend (no voices installed): don't hang on it.
@@ -347,6 +346,8 @@ export function Orb({ onMenu, toast }) {
   // ── One turn: send what was said, speak the answer ──────────────────────
   async function ask(text) {
     if (!text || busyRef.current) return;
+    const local = onCommand?.(text); // "show users", "close" … handled on screen, not by the brain
+    if (local) { setHeard(text); setSaid(local); setHint(''); await speak(local); return; }
     busyRef.current = true;
     setHeard(text);
     setSaid('');
@@ -548,9 +549,16 @@ export function Orb({ onMenu, toast }) {
 
       <div className="orb-captions">
         <div className="orb-status">{STATUS[state]}</div>
-        {heard && <div className="orb-heard">{heard}</div>}
+        {heard && <div className="orb-heard">“{heard}”</div>}
         {said && <div className="orb-said">{said}</div>}
         {hint && <div className="orb-hint">{hint}</div>}
+        {!said && !heard && state !== 'thinking' && (
+          <div className="orb-chips">
+            {SUGGESTIONS.map((text) => (
+              <button type="button" key={text} onClick={() => ask(text)}>{text}</button>
+            ))}
+          </div>
+        )}
       </div>
 
       <form className="orb-type" onSubmit={(e) => { e.preventDefault(); const t = typed.trim(); setTyped(''); if (t) ask(t); }}>
@@ -569,6 +577,14 @@ export function Orb({ onMenu, toast }) {
             <select value={settings.engine} onChange={(e) => setSettings((s) => ({ ...s, engine: e.target.value }))}>
               <option value="local">On this PC (private, English + Hindi)</option>
               <option value="browser">Browser (faster, Chrome/Edge)</option>
+            </select>
+          </label>
+          <label>Volume
+            <select value={String(boost)} onChange={(e) => { const v = parseFloat(e.target.value); setBoost(v); setBoostState(v); }}>
+              <option value="1">100% (normal)</option>
+              <option value="2">200%</option>
+              <option value="2.5">250%</option>
+              <option value="3">300% (loudest)</option>
             </select>
           </label>
           <label className="check">

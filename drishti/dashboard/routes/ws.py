@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import time
@@ -8,7 +7,6 @@ from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from drishti.dashboard import users
 from drishti.dashboard.helpers import _require_auth
 
 logger = logging.getLogger(__name__)
