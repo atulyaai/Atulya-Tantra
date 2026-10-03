@@ -124,6 +124,7 @@ ATULYA_PORT=8501
 # Free-first brain provider chain
 ATULYA_OLLAMA_HOST=http://localhost:11434
 ATULYA_OLLAMA_MODEL=llama3
+ANTHROPIC_API_KEY=sk-ant-...   # Claude: fast and smart, answers first when set
 GROQ_API_KEY=gsk_...      # free key from https://console.groq.com/keys
 ATULYA_BRAIN=cloud        # Groq leads; local 0.6B model is the offline backup
 ATULYA_GROQ_MODEL=llama-3.3-70b-versatile
@@ -138,14 +139,15 @@ ATULYA_DASHBOARD_TOKEN=my_secure_session_token
 
 ### Fallback Failover Order
 When you submit a request, the `ProviderRouter` scans the list of configured keys and automatically failovers in this order:
-1. **Local GGUF**: Built-in Qwen3-0.6B model, no key required.
-2. **Ollama**: Local LLMs (free/offline).
-3. **Groq**: Free developer tier.
-4. **OpenRouter**: Cloud-based aggregator free models.
-5. **Gemini**: Free tier, rare fallback when configured.
-6. **OpenAI**: Optional paid fallback.
-7. **NVIDIA NIM**: Pluggable microservice containers.
-8. **OpenCode Zen**: Offline rule-based persona fallback if all endpoints are offline or keys are missing.
+1. **Claude**: only when `ANTHROPIC_API_KEY` is set (fastest and smartest).
+2. **Local GGUF**: Built-in Qwen3-0.6B model, no key required.
+3. **Ollama**: Local LLMs (free/offline).
+4. **Groq**: Free developer tier.
+5. **OpenRouter**: Cloud-based aggregator free models.
+6. **Gemini**: Free tier, rare fallback when configured.
+7. **OpenAI**: Optional paid fallback.
+8. **NVIDIA NIM**: Pluggable microservice containers.
+9. **OpenCode Zen**: Offline rule-based persona fallback if all endpoints are offline or keys are missing.
 
 
 ---

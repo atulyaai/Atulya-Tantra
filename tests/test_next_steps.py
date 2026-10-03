@@ -280,3 +280,36 @@ def test_clean_history_drops_parroted_and_repeated_replies():
     assert [m["content"] for m in cleaned] == [
         "tell me a joke", "I am Atulya, an assistant.", "capital of France"]
     assert "Who are you?" not in AtulyaLLM._compose_prompt("hi", history)
+
+
+# ── Claude brain ─────────────────────────────────────────────────────────
+
+def test_claude_leads_the_chain_only_with_a_key(monkeypatch):
+    from atulya.intelligence import AnthropicProvider, ProviderRouter
+
+    router = ProviderRouter()
+    assert isinstance(router.providers[0], AnthropicProvider)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    assert not router.providers[0].is_available()
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    assert router.providers[0].is_available()
+
+
+def test_claude_provider_calls_messages_api(monkeypatch):
+    import urllib.request
+
+    from atulya.intelligence import AnthropicProvider
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    seen = {}
+
+    def fake_urlopen(req, timeout=0):
+        seen["url"], seen["headers"], seen["body"] = req.full_url, dict(req.header_items()), json.loads(req.data)
+        return _Resp({"content": [{"type": "text", "text": " Hello there. "}]})
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    reply = run(AnthropicProvider().chat("hi", "be brief"))
+    assert reply == "Hello there."
+    assert seen["url"].endswith("/v1/messages")
+    assert seen["headers"]["X-api-key"] == "sk-ant-test"
+    assert seen["body"]["system"] == "be brief" and seen["body"]["messages"][0]["content"] == "hi"

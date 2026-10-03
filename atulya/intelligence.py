@@ -6,6 +6,7 @@ with automatic failover fallbacks.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -291,6 +292,46 @@ class NvidiaNimProvider(IntelligenceProvider):
             raise e
 
 
+class AnthropicProvider(IntelligenceProvider):
+    """Claude through the Anthropic Messages API: fast and smart. Leads the chain when a key is set."""
+
+    URL = "https://api.anthropic.com/v1/messages"
+
+    def name(self) -> str:
+        return f"Claude ({self._model()})"
+
+    @staticmethod
+    def _model() -> str:
+        return os.environ.get("ATULYA_CLAUDE_MODEL", "claude-haiku-4-5-20251001")
+
+    def is_available(self) -> bool:
+        return bool(os.environ.get("ANTHROPIC_API_KEY"))
+
+    def _request(self, prompt: str, system_prompt: str) -> str:
+        payload: dict[str, Any] = {
+            "model": self._model(),
+            "max_tokens": int(os.environ.get("ATULYA_CLAUDE_MAX_TOKENS", "700")),
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if system_prompt:
+            payload["system"] = system_prompt
+        req = urllib.request.Request(
+            self.URL, data=json.dumps(payload).encode("utf-8"), method="POST",
+            headers={"Content-Type": "application/json", "anthropic-version": "2023-06-01",
+                     "x-api-key": os.environ.get("ANTHROPIC_API_KEY", "")},
+        )
+        with urllib.request.urlopen(req, timeout=40.0) as response:
+            body = json.loads(response.read().decode("utf-8"))
+        return "".join(block.get("text", "") for block in body.get("content", []) if block.get("type") == "text").strip()
+
+    async def chat(self, prompt: str, system_prompt: str = "") -> str:
+        try:
+            return await asyncio.to_thread(self._request, prompt, system_prompt)
+        except Exception as exc:
+            logger.warning("Claude request failed: %s", exc)
+            raise
+
+
 class GroqProvider(IntelligenceProvider):
     """Groq OpenAI-compatible provider."""
 
@@ -411,6 +452,7 @@ class ProviderRouter(IntelligenceProvider):
     def __init__(self):
         # Fallback priority chain order - local Qwen3-0.6B GGUF first, cloud APIs after.
         self.providers: list[IntelligenceProvider] = [
+            AnthropicProvider(),   # Claude, only when ANTHROPIC_API_KEY is set (fastest, smartest)
             LocalGGUFProvider(),   # Qwen3-0.6B GGUF (~380 MB), auto-downloads, no Ollama needed (1st choice)
             OllamaProvider(),      # Free local model via Ollama (2nd choice)
             GroqProvider(),        # Fast free developer-tier API (3rd choice)

@@ -11,10 +11,12 @@ const NAME = 'a\\s?th?(?:u|oo)l+(?:i|y|iy|ee)?a';
 const WAKE_RE = new RegExp(`(?:^|[^a-z])${NAME}(?:[^a-z]|$)|अतुल्य`, 'i');
 const WAKE_LEAD_RE = new RegExp(`^[\\s,.!?-]*(?:(?:hey|hi|hello|ok|okay|listen|suno)[\\s,.!?-]*)?(?:${NAME}|अतुल्या?)[\\s,.!?-]*(?:(?:listen|suno)[\\s,.!?-]*)?`, 'i');
 const FOLLOW_UP_MS = 8000; // after Atulya speaks, answer without the wake word
-const SETTINGS_KEY = 'atulya-orb-settings';
+const SETTINGS_KEY = 'atulya-orb-settings-v2';
 
 function loadSettings() {
-  const defaults = { userGender: 'male', handsFree: true, engine: 'local' };
+  // No wake word needed: Atulya answers whatever you say. Chrome/Edge listen fastest; others use this PC.
+  const fast = typeof window !== 'undefined' && Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+  const defaults = { userGender: 'male', handsFree: false, engine: fast ? 'browser' : 'local' };
   try {
     return { ...defaults, ...(JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')) };
   } catch {
