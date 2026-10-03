@@ -43,9 +43,13 @@ if errorlevel 1 (
     if errorlevel 1 echo   WARNING: Some Python packages may have failed to install.
 )
 
-rem Local brain: llama.cpp runs the small Qwen model on this PC, no internet needed
-rem after the first download. The extra index has ready-made Windows builds, so
-rem no C++ compiler is required.
+rem Local brain: llama.cpp runs a small Qwen model on this PC (works offline). Skipped when
+rem ATULYA_AUTO_DOWNLOAD_MODEL=false in .env, e.g. if you only use a cloud brain.
+if /i "%ATULYA_AUTO_DOWNLOAD_MODEL%"=="false" (
+    echo   Local brain skipped - using the cloud brain from .env.
+    goto :after_local_brain
+)
+rem The extra index has ready-made Windows builds, so no C++ compiler is required.
 python -c "import llama_cpp" >nul 2>&1
 if errorlevel 1 (
     echo   Installing the local brain - first run only...
@@ -55,6 +59,8 @@ if errorlevel 1 (
 if not defined ATULYA_AUTO_DOWNLOAD_MODEL set "ATULYA_AUTO_DOWNLOAD_MODEL=true"
 echo   Checking the brain model - the first run downloads about 400 MB...
 python -c "from atulya.local_provider import _ensure_model; p = _ensure_model(); print('   Brain model: ' + (p.name if p else 'not downloaded'))"
+
+:after_local_brain
 
 echo   [3/4] Building the web app...
 rem Builds only when the source changed; installs the web tools only when missing (so node_modules can be deleted).

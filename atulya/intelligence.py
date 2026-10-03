@@ -404,6 +404,11 @@ class GroqProvider(IntelligenceProvider):
             raise e
 
 
+CLOUD_BUSY_MESSAGE = (
+    "My cloud brain didn't answer just now - free models are sometimes busy. "
+    "Try again in a moment, or add another free key such as Groq."
+)
+
 NO_BRAIN_MESSAGE = (
     "My brain isn't loaded yet, so I can only do simple commands like the time or reminders. "
     "Run start.bat again to install the local model, then ask me again."
@@ -531,6 +536,9 @@ class ProviderRouter(IntelligenceProvider):
         # All providers failed, return a diagnostic error response
         errors_summary = ", ".join(attempted)
         logger.warning("No brain answered. Attempted: %s", errors_summary)
+        cloud_keys = ("ANTHROPIC_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY", "NVIDIA_API_KEY")
+        if any(os.environ.get(k) for k in cloud_keys):
+            return CLOUD_BUSY_MESSAGE, "Diagnostics Fallback"
         return NO_BRAIN_MESSAGE, "Diagnostics Fallback"
 
     async def stream(

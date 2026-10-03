@@ -445,3 +445,15 @@ def test_ensure_build_only_builds_when_source_is_newer(tmp_path, monkeypatch):
     assert eb.needs_build()              # source changed after the build
     dist.unlink()
     assert eb.needs_build()              # no build yet
+
+
+def test_busy_cloud_message_when_no_brain_answers(monkeypatch):
+    from atulya.intelligence import CLOUD_BUSY_MESSAGE, NO_BRAIN_MESSAGE, ProviderRouter
+
+    router = ProviderRouter()
+    router.providers = []  # nothing answers
+    for key in ("ANTHROPIC_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY", "NVIDIA_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
+    assert run(router.chat("hi"))[0] == NO_BRAIN_MESSAGE
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+    assert run(router.chat("hi"))[0] == CLOUD_BUSY_MESSAGE
