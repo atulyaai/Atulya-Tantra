@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import logging
 import os
 import inspect
@@ -198,51 +199,67 @@ class GeminiProvider(IntelligenceProvider):
 
 
 class OpenRouterProvider(IntelligenceProvider):
-    """OpenRouter Cloud Model Aggregator Provider."""
-    
+    """OpenRouter: one key, many models. Tries a list of free models until one answers.
+
+    Free models are often rate-limited (429) or "think" so long they return no
+    text, so each is tried in turn. Set ``ATULYA_OPENROUTER_MODEL`` to one model
+    or a comma-separated list.
+    """
+
+    URL = "https://openrouter.ai/api/v1/chat/completions"
+    DEFAULT_MODELS = (
+        "qwen/qwen3.8-27b:free",
+        "openrouter/free",
+        "google/gemma-4-31b-it:free",
+        "nvidia/nemotron-3-super-120b-a12b:free",
+    )
+
     def name(self) -> str:
         return "OpenRouter"
-        
+
     def is_available(self) -> bool:
         return bool(os.environ.get("OPENROUTER_API_KEY"))
-        
+
+    @classmethod
+    def models(cls) -> list[str]:
+        raw = os.environ.get("ATULYA_OPENROUTER_MODEL", "")
+        listed = [m.strip() for m in raw.split(",") if m.strip()]
+        return listed or list(cls.DEFAULT_MODELS)
+
+    def _ask(self, model: str, messages: list[dict[str, str]]) -> str:
+        payload = {"model": model, "messages": messages, "max_tokens": 1024}
+        req = urllib.request.Request(
+            self.URL, data=json.dumps(payload).encode("utf-8"), method="POST",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {os.environ.get('OPENROUTER_API_KEY', '')}",
+                "HTTP-Referer": "https://github.com/atulyaai/Atulya-Tantra",
+                "X-Title": "Atulya OS",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=30.0) as response:
+            body = json.loads(response.read().decode("utf-8"))
+        text = (body["choices"][0]["message"].get("content") or "").strip()
+        # Some reasoning models wrap their thinking in <think>…</think>.
+        return re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
+
     async def chat(self, prompt: str, system_prompt: str = "") -> str:
-        api_key = os.environ.get("OPENROUTER_API_KEY")
-        if not api_key:
+        if not os.environ.get("OPENROUTER_API_KEY"):
             raise ValueError("OPENROUTER_API_KEY is not configured")
-        try:
-            url = "https://openrouter.ai/api/v1/chat/completions"
-            messages = []
-            if system_prompt:
-                messages.append({"role": "system", "content": system_prompt})
-            messages.append({"role": "user", "content": prompt})
-            
-            model = os.environ.get("ATULYA_OPENROUTER_MODEL", "google/gemini-2.5-flash")
-            payload = {
-                "model": model,
-                "messages": messages,
-                "max_tokens": 150
-            }
-            data = json.dumps(payload).encode("utf-8")
-            req = urllib.request.Request(
-                url,
-                data=data,
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {api_key}",
-                    "HTTP-Referer": "https://github.com/atulyaai/Atulya-Tantra",
-                    "X-Title": "Atulya OS"
-                },
-                method="POST"
-            )
-            with urllib.request.urlopen(req, timeout=10.0) as response:
-                if response.status == 200:
-                    res_body = json.loads(response.read().decode("utf-8"))
-                    return res_body["choices"][0]["message"]["content"].strip()
-                raise RuntimeError(f"OpenRouter returned status {response.status}")
-        except Exception as e:
-            logger.warning(f"OpenRouterProvider chat failed: {e}")
-            raise e
+        messages = ([{"role": "system", "content": system_prompt}] if system_prompt else []) + [
+            {"role": "user", "content": prompt}]
+        failures: list[str] = []
+        for model in self.models():
+            try:
+                text = await asyncio.to_thread(self._ask, model, messages)
+            except Exception as exc:  # noqa: BLE001 - 429, timeouts, 5xx: try the next model
+                failures.append(f"{model}: {exc}")
+                continue
+            if text:
+                return text
+            failures.append(f"{model}: empty reply")
+        logger.warning("OpenRouter: no free model answered (%s)", "; ".join(failures))
+        raise RuntimeError("No OpenRouter model answered: " + "; ".join(failures))
 
 
 class NvidiaNimProvider(IntelligenceProvider):

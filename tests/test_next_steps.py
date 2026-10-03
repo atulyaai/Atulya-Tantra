@@ -313,3 +313,23 @@ def test_claude_provider_calls_messages_api(monkeypatch):
     assert seen["url"].endswith("/v1/messages")
     assert seen["headers"]["X-api-key"] == "sk-ant-test"
     assert seen["body"]["system"] == "be brief" and seen["body"]["messages"][0]["content"] == "hi"
+
+
+def test_openrouter_skips_busy_and_empty_free_models(monkeypatch):
+    from atulya.intelligence import OpenRouterProvider
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+    monkeypatch.setenv("ATULYA_OPENROUTER_MODEL", "a:free,b:free,c:free")
+    tried = []
+
+    def fake_ask(self, model, messages):
+        tried.append(model)
+        if model == "a:free":
+            raise RuntimeError("HTTP Error 429")
+        if model == "b:free":
+            return ""  # a reasoning model that ran out of tokens thinking
+        return "Hello."
+
+    monkeypatch.setattr(OpenRouterProvider, "_ask", fake_ask)
+    assert run(OpenRouterProvider().chat("hi")) == "Hello."
+    assert tried == ["a:free", "b:free", "c:free"]
