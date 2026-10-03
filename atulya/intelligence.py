@@ -430,7 +430,7 @@ class OpenCodeProvider(IntelligenceProvider):
 class LocalGGUFProvider(IntelligenceProvider):
     """Provider that loads a tiny GGUF model directly via llama-cpp-python.
     
-    Uses TantraLocalProvider wrapper for Atulya persona and Tantra-placeholder behavior.
+    Uses PersonaLocalProvider (the Atulya persona on the local model).
     """
 
     def __init__(self):
@@ -438,32 +438,32 @@ class LocalGGUFProvider(IntelligenceProvider):
 
     def name(self) -> str:
         try:
-            from atulya.tantra_local import create_tantra_local_provider
+            from atulya.local_provider import create_local_provider
             if self._impl is None:
-                self._impl = create_tantra_local_provider()
+                self._impl = create_local_provider()
             return self._impl.name()
         except Exception:
             return "Tantra Local (Placeholder)"
 
     def is_available(self) -> bool:
         try:
-            from atulya.tantra_local import create_tantra_local_provider
+            from atulya.local_provider import create_local_provider
             if self._impl is None:
-                self._impl = create_tantra_local_provider()
+                self._impl = create_local_provider()
             return self._impl.is_available()
         except Exception:
             return False
 
     async def chat(self, prompt: str, system_prompt: str = "", tools: list[dict[str, Any]] | None = None) -> str:
-        from atulya.tantra_local import create_tantra_local_provider
+        from atulya.local_provider import create_local_provider
         if self._impl is None:
-            self._impl = create_tantra_local_provider()
+            self._impl = create_local_provider()
         return await self._impl.chat(prompt, system_prompt, tools)
 
     async def chat_stream(self, prompt: str, system_prompt: str = "") -> AsyncIterator[str]:
-        from atulya.tantra_local import create_tantra_local_provider
+        from atulya.local_provider import create_local_provider
         if self._impl is None:
-            self._impl = create_tantra_local_provider()
+            self._impl = create_local_provider()
         stream = getattr(self._impl, "chat_stream", None)
         if stream is None:
             yield await self._impl.chat(prompt, system_prompt)

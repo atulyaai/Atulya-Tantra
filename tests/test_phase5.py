@@ -224,7 +224,7 @@ def test_ollama_provider_in_failover_chain():
     router = ProviderRouter()
     names = [p.name() for p in router.providers]
     assert any("Ollama" in n for n in names)
-    assert any("Tantra Local" in n for n in names)
+    assert any("Atulya Local" in n for n in names)
 
 
 import asyncio

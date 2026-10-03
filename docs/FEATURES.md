@@ -38,3 +38,11 @@ Status is from the code and unit tests. Anything marked "untested live" has not 
 | A smarter brain | The 0.6B model is weak at jokes and reasoning; use `balanced`, `power` or `cloud` |
 | Real music playback control | Opens a search in the browser; no player integration beyond media keys |
 | Docker | The Dockerfile was fixed but has not been built |
+
+## Next for the interface
+
+- Keep route handlers thin: put logic in `atulya/` (cognition kernel and agent tools), not in `drishti/dashboard/routes/`.
+- Stream event-bus updates from `yantra.events` to the frontend over WebSocket.
+- Add a compact system-health strip backed by heartbeat model, provider (circuit-breaker-aware), disk, and memory checks (provider check is done, need disk/memory in Drishti).
+- Show the audit log (`assets/agent/audit.jsonl`) and PC-control status in the UI.
+- Offer a one-click "lockdown" profile (localhost only, no wildcard CORS).

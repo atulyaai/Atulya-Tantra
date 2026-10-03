@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Daily spoken briefing (`ATULYA_BRIEFING_AT`), Piper offline voice, optional wake-word model gate; voice commands for music, media keys and the briefing.
 
 ### Removed
+- Overlap: unused `atulya/observability/`, `tantra_local.py` (folded into `local_provider.py`; the provider is now named "Atulya Local"), a duplicate favicon, and four docs folded into others (PROJECT_MAP into CONTRIBUTING, WEBUI_RECOMMENDATIONS into FEATURES, google_mcp_oauth into DEPLOYMENT).
 - The sidebar and Talk page, plus about 2,900 lines of CSS for them (stylesheet 3,702 -> 756 lines).
 - Deep clean: unused imports (lint now enforces it), unused `SandboxManager`/`PromptInjectionGuard`/`EncryptionManager`/`SecurityManager`, the leftover NP-DNA cortex health check, empty old package folders; SECURITY_MODEL.md rewritten to match today.
 - More dead code: `workflow_engine`, `yantra/capabilities/sandbox` (duplicate of core/security), `core/task_classifier`, `config/agent_config.json` and their tests.

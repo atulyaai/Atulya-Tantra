@@ -34,7 +34,6 @@ Atulya-Tantra/
 |   |-- ambient/                # always-on listener: mic, wake word (EN/HI), barge-in, tray
 |   |-- memory/                 # providers, tree, reflection, vectors, Obsidian export
 |   |-- core/                   # security, task classification, safe expression eval
-|   |-- observability/          # usage, metrics, tracing, error tracking
 |   |-- llm.py, intelligence.py # AtulyaLLM and the provider failover router
 |   |-- local_provider.py       # local GGUF chat / streaming / tool calls
 |   |-- eyes.py, emotion.py     # seeing images, mood detection
@@ -49,7 +48,7 @@ Atulya-Tantra/
 `-- start.bat
 ```
 
-More ownership detail lives in [docs/PROJECT_MAP.md](docs/PROJECT_MAP.md).
+More ownership detail lives in [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md).
 
 ## What Atulya Can Do
 
