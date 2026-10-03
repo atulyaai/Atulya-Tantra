@@ -10,11 +10,8 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends libsndfile1 ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml README.md ./
-COPY src/ ./src/
-RUN pip install -e ".[serve]"
-
 COPY . .
+RUN pip install -e ".[serve,brain]"
 
 EXPOSE 8000
 CMD ["uvicorn", "drishti.dashboard.app:app", "--host", "0.0.0.0", "--port", "8000"]

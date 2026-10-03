@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `docs/FEATURES.md`: what Atulya has and what is missing.
 - Hindi/Hinglish wake words and voice barge-in ("stop", "ruko", "चुप").
 - Tools: `play_music`, `media_control`, price tracking (`track_*`), `morning_briefing`, and opt-in PC control (`pc_*`).
 - Audit log of every tool call; `recommend_tier()` for picking a brain size by free RAM.
@@ -20,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Daily spoken briefing (`ATULYA_BRIEFING_AT`), Piper offline voice, optional wake-word model gate; voice commands for music, media keys and the briefing.
 
 ### Removed
+- More dead code: `workflow_engine`, `yantra/capabilities/sandbox` (duplicate of core/security), `core/task_classifier`, `config/agent_config.json` and their tests.
 - Unused modules: `yantra` harness/dispatch/orchestrator/agents/kgraph/plugins/selfimprovement/selfrepair/assistant/notify, `atulya.brain`, `atulya.soul`, `atulya.tokenjuice`, and their tests.
 - NP-DNA research model, its pages, and its diagrams (they described a model that no longer lives here).
 

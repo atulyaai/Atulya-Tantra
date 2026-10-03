@@ -46,6 +46,8 @@ More ownership detail lives in [atulya/docs/PROJECT_MAP.md](atulya/docs/PROJECT_
 
 ## What Atulya Can Do
 
+Full list, with what is missing: [docs/FEATURES.md](docs/FEATURES.md).
+
 | Ability | Status |
 |---|---|
 | Talk back with a hologram head (lip sync, blink, breathing) | Working |
