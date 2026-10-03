@@ -69,6 +69,17 @@ class STTResult:
 _WHISPER_MODELS: dict[str, Any] = {}
 
 
+SUPPORTED_SPEECH = ("en", "hi")
+
+
+def pick_language(info: Any, allowed: tuple[str, ...] = SUPPORTED_SPEECH) -> str:
+    """The most likely of ``allowed`` from Whisper's detection, so noise is never "Arabic"."""
+    if getattr(info, "language", "") in allowed:
+        return info.language
+    probs = dict(getattr(info, "all_language_probs", None) or [])
+    return max(allowed, key=lambda code: probs.get(code, 0.0))
+
+
 def _whisper_model(factory: Any, name: str) -> Any:
     """Load a Whisper model once; loading it for every utterance cost ~1-2 s."""
     if name not in _WHISPER_MODELS:
@@ -231,6 +242,10 @@ class SpeechToText:
             # "auto" lets Whisper detect the language (English, Hindi, Hinglish…).
             lang = None if language in ("", "auto") else language
             segments, info = whisper_model.transcribe(audio_path, language=lang, word_timestamps=True)
+            if lang is None and getattr(info, "language", "") not in SUPPORTED_SPEECH:
+                # Unclear audio gets guessed as some random language: redo it as English or Hindi.
+                segments, info = whisper_model.transcribe(
+                    audio_path, language=pick_language(info), word_timestamps=True)
             segments = list(segments)
             text = " ".join(segment.text.strip() for segment in segments).strip()
             words = [

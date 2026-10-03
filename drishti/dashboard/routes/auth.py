@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Header, HTTPException, Depends
+import os
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
 from drishti.dashboard import users
 from drishti.dashboard.helpers import _require_auth, _require_admin, _jwt_encode
@@ -25,6 +27,30 @@ def api_auth_login(body: dict):
         "jwt": jwt,
         "user": user
     }
+
+
+def _is_local_request(request: Request) -> bool:
+    """True only for a direct connection from this computer (never through a proxy)."""
+    if any(h in request.headers for h in ("x-forwarded-for", "x-real-ip", "forwarded")):
+        return False
+    return (request.client.host if request.client else "") in ("127.0.0.1", "::1")
+
+
+@router.get("/api/auth/local")
+def api_auth_local(request: Request):
+    """Sign in without a password when you are on the computer Atulya runs on.
+
+    Phones and other devices on the network still need to log in. Set
+    ``ATULYA_REQUIRE_LOGIN=on`` to turn this off.
+    """
+    from drishti.dashboard.state import ADMIN_TOKEN
+
+    if os.environ.get("ATULYA_REQUIRE_LOGIN", "").strip().lower() in ("on", "1", "true", "yes"):
+        raise HTTPException(status_code=403, detail="Login required")
+    if not _is_local_request(request):
+        raise HTTPException(status_code=403, detail="Login required")
+    return {"ok": True, "token": ADMIN_TOKEN,
+            "user": {"username": "admin", "role": "admin", "display_name": "Admin"}}
 
 
 @router.post("/api/auth/verify")

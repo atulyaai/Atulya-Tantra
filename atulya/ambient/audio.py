@@ -137,10 +137,19 @@ class LocalWhisper:
         self.label = f"whisper {model} (local)"
         self._model = WhisperModel(model, device="cpu", compute_type="int8")
         self._hint = hint
+        self._english_only = model.endswith(".en")  # multilingual models also hear Hindi
 
     def _transcribe(self, audio: Any) -> str:
-        segments, _info = self._model.transcribe(audio, language="en", beam_size=1, initial_prompt=self._hint,
-                                                 condition_on_previous_text=False)
+        opts = dict(beam_size=1, initial_prompt=self._hint, condition_on_previous_text=False)
+        if self._english_only:
+            segments, _info = self._model.transcribe(audio, language="en", **opts)
+        else:
+            from yantra.capabilities.voice_pipeline import pick_language
+
+            segments, info = self._model.transcribe(audio, **opts)
+            segments = list(segments)
+            if info.language not in ("en", "hi"):  # never guess some other language from noise
+                segments, _info = self._model.transcribe(audio, language=pick_language(info), **opts)
         return " ".join(s.text.strip() for s in segments).strip()
 
     async def transcribe(self, audio: Any) -> str:
