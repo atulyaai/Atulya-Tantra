@@ -5,22 +5,22 @@
 
 <div align="center">
   <h1>
-    <img src="https://readme-typing-svg.herokuapp.com?font=Cinzel&weight=700&size=40&duration=4000&pause=1000&color=4DFBFF&center=true&vCenter=true&width=700&height=75&lines=ATULYA+TANTRA;JARVIS-CLASS+PERSONAL+AI;VOICE+%2B+MEMORY+%2B+TOOLS;अतुल्य+तन्त्र" alt="Atulya Tantra — JARVIS-Class Personal AI" />
+    <img src="https://readme-typing-svg.herokuapp.com?font=Cinzel&weight=700&size=42&duration=4000&pause=1000&color=F7931A&center=true&vCenter=true&width=700&height=80&lines=ATULYA+TANTRA;JARVIS-CLASS+PERSONAL+AI;VOICE+%2B+MEMORY+%2B+TOOLS;अतुल्य+तन्त्र" alt="Atulya Tantra — JARVIS-Class Personal AI" />
   </h1>
 </div>
 
 <p align="center">
-  <em><strong>अतुल्य</strong> (Atulya) — Peerless, without equal &nbsp;·&nbsp; <strong>तन्त्र</strong> (Tantra) — System, mechanism, loom of actions</em><br/>
+  <em><strong>अतुल्य</strong> (Atulya) — Peerless, without equal &nbsp;·&nbsp; <strong>तन्त्र</strong> (Tantra) — System, loom of intelligence</em><br/>
   <strong>A local-first, always-listening personal AI: talking 3D hologram avatar, ambient Hindi/English voice mode, neural memory tree, and autonomous computer action.</strong>
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-0d1117?style=for-the-badge&logoColor=4DFBFF&labelColor=0d1117&color=4DFBFF" alt="License"/></a>
-  <a href="https://python.org"><img src="https://img.shields.io/badge/Python-3.11+-0d1117?style=for-the-badge&logo=python&logoColor=4DFBFF&labelColor=0d1117&color=4DFBFF" alt="Python"/></a>
-  <a href="#"><img src="https://img.shields.io/badge/Privacy-100%25_Local_First-0d1117?style=for-the-badge&logoColor=10b981&labelColor=0d1117&color=10b981" alt="Local First"/></a>
-  <a href="#"><img src="https://img.shields.io/badge/Voice-Hindi_%7C_English-0d1117?style=for-the-badge&logoColor=4DFBFF&labelColor=0d1117&color=4DFBFF" alt="Voice"/></a>
-  <a href="#"><img src="https://img.shields.io/badge/Platform-Windows_%7C_Linux_%7C_macOS-0d1117?style=for-the-badge&logoColor=a855f7&labelColor=0d1117&color=a855f7" alt="Platform"/></a>
-  <img src="https://img.shields.io/badge/Made_in-India_🇮🇳-0d1117?style=for-the-badge&logoColor=FF9933&labelColor=0d1117&color=FF9933" alt="Made in India"/>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.11%2B-F7931A.svg?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-F7931A.svg?style=flat-square" alt="MIT License"/></a>
+  <a href="#"><img src="https://img.shields.io/badge/Privacy-100%25_Local_First-success.svg?style=flat-square" alt="Local First"/></a>
+  <a href="#"><img src="https://img.shields.io/badge/Voice-Hindi_%7C_English-orange.svg?style=flat-square" alt="Voice Hindi & English"/></a>
+  <a href="#"><img src="https://img.shields.io/badge/Platform-Windows_%7C_Linux_%7C_macOS-blue.svg?style=flat-square" alt="Cross Platform"/></a>
+  <a href="#"><img src="https://img.shields.io/badge/Made_in-India_🇮🇳-FF9933.svg?style=flat-square" alt="Made in India"/></a>
 </p>
 
 ```
@@ -243,6 +243,11 @@ Use this repo to connect models to the product:
 
 ## Drishti Development
 
+<div align="center">
+  <img src="atulya/docs/images/drishti_ui.jpg" alt="Drishti Hologram UI & Live Mode" width="100%"/>
+</div>
+
+
 Run the Vite dev server:
 
 ```powershell
@@ -267,6 +272,11 @@ python -u -m drishti.app
 
 ## Dashboard And Automation
 
+<div align="center">
+  <img src="atulya/docs/images/yantra_engine.jpg" alt="Yantra Action Engine Automation HUD" width="100%"/>
+</div>
+
+
 ```mermaid
 flowchart LR
     Browser["Browser / Drishti"] --> Backend["drishti.app"]
@@ -287,6 +297,11 @@ Important Yantra locations:
 Assistant tools the brain can call live in `atulya/agent/` and register themselves with `@tool`. Risky ones (sending email, deleting events, PC control) ask first by default (`ATULYA_AUTO_APPROVE` can pre-approve specific ones) — see `atulya/cognition/safety.py` — and every call is appended to `assets/agent/audit.jsonl`.
 
 ## Memory And Identity
+
+<div align="center">
+  <img src="atulya/docs/images/memory_tree.jpg" alt="Neural Memory Tree & Knowledge Graph" width="100%"/>
+</div>
+
 
 Atulya application memory lives in `atulya/memory/`. Memory is part of the assistant brain, not a fifth top-level product folder.
 
