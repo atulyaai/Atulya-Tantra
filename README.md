@@ -1,10 +1,34 @@
-# Atulya Tantra
+<div align="center">
+  <img src="atulya/docs/images/banner.jpg" alt="Atulya Tantra - JARVIS-Class Personal AI" width="100%"/>
+</div>
 
-Atulya Tantra is a local-first personal AI assistant: a talking hologram UI (Drishti), an always-listening voice mode with English and Hindi wake words, a local brain with cloud failover, long-term memory, and tools that act for you — music, reminders, email, calendar, price tracking, a morning briefing, smart-home control, and (opt-in) control of your PC.
+<div align="center">
 
-![Atulya Tantra architecture](atulya/docs/images/architecture.svg)
+# ⚡ ATULYA TANTRA
+### *Local-First, JARVIS-Class Personal AI Assistant*
 
-Custom model work lives in a separate model repository. This repo calls external and local models through the provider router; it does no model training.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB.svg?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![Local First](https://img.shields.io/badge/Privacy-100%25_Local_First-emerald.svg?style=for-the-badge)](https://github.com/atulyaai/Atulya-Tantra)
+[![Voice Mode](https://img.shields.io/badge/Voice-Hindi_%7C_English-cyan.svg?style=for-the-badge)](https://github.com/atulyaai/Atulya-Tantra)
+[![Platform](https://img.shields.io/badge/Platform-Windows_%7C_Linux_%7C_macOS-darkviolet.svg?style=for-the-badge)](https://github.com/atulyaai/Atulya-Tantra)
+
+<p align="center">
+  <b>Holographic Avatar UI (Drishti) • Ambient Voice Mode (English & Hindi) • Neural Memory Tree • Autonomous Device & Tool Automation</b>
+</p>
+
+</div>
+
+---
+
+**Atulya Tantra** is a local-first personal AI assistant: a talking hologram UI (Drishti), an always-listening voice mode with English and Hindi wake words, a local brain with cloud failover, long-term memory, and tools that act for you — music, reminders, email, calendar, price tracking, a morning briefing, smart-home control, and (opt-in) control of your PC.
+
+<div align="center">
+  <img src="atulya/docs/images/architecture.svg" alt="Atulya Tantra architecture" width="85%"/>
+</div>
+
+> [!NOTE]
+> Custom model work lives in [Tantra-LLM](https://github.com/atulyaai/Tantra-LLM). This repo calls external and local models through the provider router; it does no model training.
 
 ## What This Is
 
