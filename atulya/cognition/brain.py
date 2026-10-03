@@ -67,6 +67,22 @@ def fallback_globs(tier: str | None = None) -> list[str]:
     return [BRAIN_TIERS[t]["glob"] for t in order if _FALLBACK_ORDER.index(t) <= limit]
 
 
+def recommend_tier(free_ram_gb: float | None = None) -> str:
+    """The biggest local tier that fits comfortably in free RAM (None = detect)."""
+    if free_ram_gb is None:
+        try:
+            import psutil
+
+            free_ram_gb = psutil.virtual_memory().available / 1024**3
+        except Exception:  # noqa: BLE001
+            return DEFAULT_TIER
+    if free_ram_gb >= 8:
+        return "power"
+    if free_ram_gb >= 4:
+        return "balanced"
+    return DEFAULT_TIER
+
+
 def cloud_first(tier: str | None = None) -> bool:
     return (tier or active_brain()) == CLOUD_TIER
 

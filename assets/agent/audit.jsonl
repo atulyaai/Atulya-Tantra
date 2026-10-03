@@ -5,3 +5,17 @@
 {"t": 1791044311.5, "event": "tool", "name": "calendar_add", "args": {"title": "Call with Rahul", "date": "tomorrow at 3pm"}}
 {"t": 1791044315.0, "event": "tool", "name": "home_control", "args": {"device_id": "kitchen_light", "action": "on"}}
 {"t": 1791044322.4, "event": "tool", "name": "camera_status", "args": {}}
+{"t": 1791044345.6, "event": "tool", "name": "set_reminder", "args": {"bad_arg": 123}}
+{"t": 1791044358.5, "event": "tool", "name": "home_control", "args": {"device_id": "kitchen_light", "action": "off"}}
+{"t": 1791044360.5, "event": "tool", "name": "fetch_emails", "args": {}}
+{"t": 1791044360.5, "event": "tool", "name": "fetch_emails", "args": {}}
+{"t": 1791044360.5, "event": "tool", "name": "calendar_add", "args": {"title": "Call with Rahul", "date": "tomorrow at 3pm"}}
+{"t": 1791044364.4, "event": "tool", "name": "home_control", "args": {"device_id": "kitchen_light", "action": "on"}}
+{"t": 1791044374.4, "event": "tool", "name": "camera_status", "args": {}}
+{"t": 1791044400.3, "event": "tool", "name": "set_reminder", "args": {"bad_arg": 123}}
+{"t": 1791044417.2, "event": "tool", "name": "home_control", "args": {"device_id": "kitchen_light", "action": "off"}}
+{"t": 1791044422.1, "event": "tool", "name": "fetch_emails", "args": {}}
+{"t": 1791044422.2, "event": "tool", "name": "fetch_emails", "args": {}}
+{"t": 1791044422.2, "event": "tool", "name": "calendar_add", "args": {"title": "Call with Rahul", "date": "tomorrow at 3pm"}}
+{"t": 1791044426.9, "event": "tool", "name": "home_control", "args": {"device_id": "kitchen_light", "action": "on"}}
+{"t": 1791044440.7, "event": "tool", "name": "camera_status", "args": {}}
