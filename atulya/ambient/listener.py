@@ -22,6 +22,7 @@ import difflib
 import json
 import logging
 import re
+import unicodedata
 import time
 from collections import deque
 from typing import Any, Awaitable, Callable
@@ -31,7 +32,14 @@ logger = logging.getLogger(__name__)
 SAMPLE_RATE = 16000
 FRAME_MS = 30
 FRAME_SAMPLES = SAMPLE_RATE * FRAME_MS // 1000
-DEFAULT_WAKE_WORDS = ("hey atulya", "ok atulya", "hi atulya", "atulya")
+DEFAULT_WAKE_WORDS = (
+    "hey atulya", "ok atulya", "hi atulya", "atulya",
+    # Hindi (Devanagari) and Hinglish
+    "अतुल्य", "हे अतुल्य", "हेय अतुल्य", "सुनो अतुल्य", "अरे अतुल्य", "suno atulya", "are atulya",
+)
+# Said while Atulya is talking, these cut it off (barge-in).
+STOP_WORDS = {"stop", "quiet", "enough", "shut up", "be quiet", "cancel", "atulya stop", "stop atulya",
+              "ruko", "chup", "bas", "रुको", "चुप", "बस", "रुकिए", "बंद करो"}
 _FILLERS = {"um", "uh", "so", "and", "oh", "well", "hmm", "ah", "er"}
 
 
@@ -107,7 +115,10 @@ class Segmenter:
 
 # ── the wake word ─────────────────────────────────────────────────────────
 def _normalize(text: str) -> str:
-    return " ".join(re.sub(r"[^\w\s']", " ", (text or "").lower()).split())
+    # Keep combining marks (Devanagari vowel signs) — \w alone would split Hindi words apart.
+    kept = "".join(c if (c.isalnum() or c in "' " or unicodedata.category(c)[0] == "M") else " "
+                   for c in (text or "").lower())
+    return " ".join(kept.split())
 
 
 class WakeMatcher:
@@ -292,7 +303,19 @@ class AmbientEngine:
 
     def accepts_audio(self) -> bool:
         """Ignore the microphone while muted or while Atulya itself is talking."""
-        return not self.muted and not self.speaking and time.time() >= self._quiet_until
+        # While speaking the mic stays open only to hear "stop" (barge-in).
+        return not self.muted and (self.speaking or time.time() >= self._quiet_until)
+
+    def interrupt(self) -> bool:
+        """Cut off whatever Atulya is saying right now."""
+        stop = getattr(self.speaker, "stop", None)
+        if not self.speaking or stop is None:
+            return False
+        try:
+            stop()
+        except Exception:  # noqa: BLE001
+            return False
+        return True
 
     def set_status(self, status: str) -> None:
         self.status = status
@@ -323,6 +346,10 @@ class AmbientEngine:
             text = await self.stt.transcribe(audio)
         except Exception as exc:  # noqa: BLE001
             logger.warning("speech-to-text failed: %s", exc)
+            return ""
+        if self.speaking:  # only a stop word matters; anything else is likely our own echo
+            if _normalize(text) in STOP_WORDS:
+                self.interrupt()
             return ""
         return await self.handle_text(text)
 

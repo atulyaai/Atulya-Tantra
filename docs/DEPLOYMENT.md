@@ -54,3 +54,12 @@ The nginx reverse proxy handles:
 pip install -e ".[dev]"
 pytest -x --tb=short -q
 ```
+
+## Hardening checklist
+
+Atulya listens on all interfaces and accepts any CORS origin by default so the phone app can reach it over your LAN. To lock it to this machine:
+
+- `ATULYA_HOST=127.0.0.1` — only this computer can connect.
+- `ATULYA_CORS_ORIGINS=https://your-site` — only listed web origins may call the API.
+- `ATULYA_PC_CONTROL` stays unset unless you want Atulya to open apps and type; every such action asks first.
+- Every tool call is written to `assets/agent/audit.jsonl` (secrets masked).

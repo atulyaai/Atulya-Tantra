@@ -41,6 +41,10 @@ _CONFIRM_TOOLS = {
     "cancel_reminder": "deletes a reminder",
     "configure_email": "stores email credentials",
     "download_vision_model": "downloads a large model",
+    "pc_open_app": "opens an app on your computer",
+    "pc_type": "types on your keyboard",
+    "pc_hotkey": "presses keyboard shortcuts",
+    "pc_screenshot": "captures your screen",
 }
 
 # Specific (tool, action) pairs that need confirmation.
@@ -112,6 +116,12 @@ def describe_action(tool: str, arguments: dict[str, Any] | None = None) -> str:
         return f"check the weather in {args.get('location', 'your city')}"
     if tool == "open_website":
         return f"open {args.get('site', 'a website')}"
+    if tool == "pc_open_app":
+        return f"open {args.get('app', 'an app')}"
+    if tool == "pc_type":
+        return "type that on your keyboard"
+    if tool == "pc_hotkey":
+        return f"press {args.get('keys', 'a shortcut')}"
     if tool in _CHECKS:
         return _CHECKS[tool]
     return f"run {tool}"

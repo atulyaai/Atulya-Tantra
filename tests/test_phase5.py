@@ -346,39 +346,8 @@ def test_csv_analyze_tool(tmp_path):
     asyncio.run(run())
 
 
-def test_agents_run_with_fake_llm():
-    from atulya.llm import LLMResponse
-    from yantra.agents import ChatAgent, TaskAgent
-
-    class FakeLLM:
-        async def ask(self, prompt, history=None, tools_enabled=True):
-            return LLMResponse(text=f"ok:{prompt}", provider="fake")
-
-    async def run():
-        chat = ChatAgent(llm=FakeLLM())
-        first = await chat.run("hello")
-        second = await chat.run("again")
-        task = await TaskAgent(llm=FakeLLM()).run("task")
-        assert first.response == "ok:hello"
-        assert len(chat.history) == 4
-        assert second.provider == "fake"
-        assert task.agent == "task"
-
-    asyncio.run(run())
 
 
-def test_plugin_registry_installs_skill_metadata(tmp_path):
-    from yantra.plugins import PluginRegistry
-
-    skill_dir = tmp_path / "demo"
-    skill_dir.mkdir()
-    (skill_dir / "SKILL.md").write_text("# Demo Skill\nUse this for invoices and reports.\n", encoding="utf-8")
-
-    registry = PluginRegistry(tmp_path / "plugins")
-    info = registry.install_skill(skill_dir)
-
-    assert info.name == "Demo Skill"
-    assert registry.route_skill("please use demo skill") is not None
 
 
 def test_mcp_server_jsonrpc_tool_call(tmp_path):

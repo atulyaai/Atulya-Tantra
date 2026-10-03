@@ -626,3 +626,11 @@ def test_voice_for_reply_keeps_gender_and_follows_language():
     assert voice_for_reply("नमस्ते, मैं अतुल्य हूँ।", "en_female") == "hi_female"
     assert voice_for_reply("Good evening.", "hi_male") == "en_male"
     assert voice_for_reply("नमस्ते", "sa_male") == "sa_male"
+
+
+def test_recommend_tier_by_free_ram():
+    from atulya.cognition.brain import recommend_tier
+
+    assert recommend_tier(2) == "tiny"
+    assert recommend_tier(5) == "balanced"
+    assert recommend_tier(16) == "power"

@@ -37,10 +37,8 @@ Atulya-Tantra/
 �   +-- memory/                    # memory providers, tree, reflection, Obsidian export, vector store
 �   +-- agent/                     # proactive assistant agent loop and scheduled jobs
 �   +-- observability/             # usage, metrics, traces, errors
-�   +-- tokenjuice/                # token accounting helpers
 �   +-- docs/                      # architecture, contribution, security, project map
 �   +-- persona.py                 # unified identity + personality
-�   +-- soul.py                    # SOULSystem compatibility wrapper
 �   +-- llm.py                     # AtulyaLLM, memory-enabled default, tool-call pass-through, streaming
 �   +-- local_provider.py          # local GGUF chat/stream/tool-call normalization
 �   +-- tantra_local.py            # persona wrapper around the local GGUF model
@@ -61,19 +59,10 @@ Atulya-Tantra/
 +-- tests/                         # root test suite
 +-- yantra/                        # Automation and tools
 �   +-- capabilities/              # canonical tools: exec, workflow, browser, voice, web search
-�   +-- harness.py                 # agents, skills, slash commands, safety
 �   +-- channels.py                # unified 14-channel communication system
 �   +-- mcp/                       # MCP server, client, transport, manifests
-�   +-- assistant/                 # task brain, cron scheduler, source ingestion
-�   +-- kgraph/                    # knowledge-graph store
-�   +-- orchestrator/              # agent orchestration
-�   +-- selfimprovement/           # unified self-improvement (bridge merged)
-�   +-- selfrepair.py              # automated error recovery
-�   +-- dispatch.py                # classifier + failover + tools dispatch
 �   +-- events.py                  # async event bus
 �   +-- device_controller.py       # CPU-first device management
-�   +-- notify/                    # notification facade
-�   +-- plugins/                   # plugin SDK with trust levels
 +-- pyproject.toml                 # package metadata, extras, tool config
 +-- start.bat                      # Windows launcher
 ```

@@ -24,7 +24,6 @@ Atulya Tantra/
 |   |-- docs/                   # architecture, security, contribution guide, project map
 |   |-- memory/                 # memory providers, tree, reflection, Obsidian export
 |   |-- observability/          # usage, metrics, tracing, error tracking
-|   |-- tokenjuice/             # token accounting / usage helpers
 |   |-- cognition/              # kernel, safety, toolbelt, triggers, brain tiers (docs/COGNITIVE_ARCHITECTURE.md)
 |   |-- agent/                  # agent loop, tools, intent router, proactive jobs
 |   |-- llm.py                  # AtulyaLLM, memory-enabled default, tool-call pass-through, streaming
@@ -32,7 +31,6 @@ Atulya Tantra/
 |   |-- tantra_local.py         # persona wrapper around the local GGUF model
 |   |-- intelligence.py         # ProviderRouter and provider wrappers
 |   |-- persona.py
-|   |-- soul.py
 |   |-- heartbeat.py
 |   |-- production_readiness.py
 |   `-- cli.py
@@ -50,19 +48,10 @@ Atulya Tantra/
 |   `-- vite.config.js
 |-- yantra/
 |   |-- capabilities/           # gated tools, workflow, browser, voice, web search (canonical)
-|   |-- harness.py              # canonical agents, skills, slash commands, safety, duplicate reports
-|   |-- orchestrator/           # orchestration and dispatch glue
 |   |-- mcp/                    # MCP server/client/transport/manifest
-|   |-- assistant/              # channels, sources, cron, task brain
-|   |-- selfimprovement/        # unified self-improvement (bridge merged in)
-|   |-- selfrepair.py           # automated error repair
 |   |-- channels.py             # unified multi-channel communication (14 channels)
-|   |-- dispatch.py             # smart dispatch layer (classifier + failover + tools)
 |   |-- events.py               # event bus
 |   |-- device_controller.py    # CPU-first device management
-|   |-- notify/                 # notification system
-|   |-- plugins/                # plugin SDK with trust levels
-|   |-- kgraph/                 # knowledge graph
 |   `-- agents.py
 |-- tests/                      # root test suite
 |-- pyproject.toml
@@ -233,18 +222,12 @@ flowchart LR
 Important Yantra locations:
 
 - `yantra/capabilities/`: file read/write/edit, gated shell execution, web search/fetch, todo, memory, browser, voice, and workflow capabilities (canonical)
-- `yantra/harness.py`: ECC-inspired command surface for agents, skills, commands, safety checks, and duplicate reports. Add new Atulya Agent-style behavior here first, then route into existing capabilities instead of creating parallel folders.
-- `yantra/orchestrator/`: orchestration glue for agents and automation
 - `yantra/channels.py`: unified 14-channel system (Discord, Telegram, Slack, Email, Webhook, WhatsApp, Signal, Matrix, Teams, IRC, WebChat, Console, Log, Twitter)
 - `yantra/mcp/`: MCP server, transport, manifest signing, external client, dashboard bridge
-- `yantra/assistant/`: channels, sources, cron scheduler, task brain
-- `yantra/selfimprovement/`: unified self-improvement (bridge functionality merged into unified.py, original bridge.py deleted)
 
-Yantra harness pattern:
 
 - Agents define who should handle work: planner, coder, researcher, memory manager, safety checker, self-improvement, and automation operator.
 - Skills define reusable abilities and point to one canonical tool name.
-- Slash commands such as `/remember`, `/recall`, `/research`, `/scan-project`, `/scrub-data`, `/payroll`, `/gst`, `/invoice`, and `/sap` resolve through the harness before dispatch.
 - Duplicate cleanup is handled by canonical registration: aliases map to one command or skill, and `YantraHarness.report_duplicates()` shows duplicate tool registration attempts.
 
 ## Memory And Identity
@@ -262,7 +245,7 @@ Atulya application memory lives in `atulya/memory/`. Memory is part of the assis
 | `obsidian.py` | markdown vault export |
 | `vector_store.py` | dependency-free feature-hashed vector memory |
 
-Identity and prompt behavior are controlled by `atulya/persona.py`, `atulya/soul.py`, and the Atulya memory modules. An optional identity override can be placed at `data/identity.json` (or pointed to with `ATULYA_IDENTITY_PATH`).
+Identity and prompt behavior are controlled by `atulya/persona.py` and the Atulya memory modules. An optional identity override can be placed at `data/identity.json` (or pointed to with `ATULYA_IDENTITY_PATH`).
 
 ## API Example
 

@@ -60,7 +60,6 @@ flowchart LR
 | Senses | Cameras (motion, people) and Home Assistant sensors → events | `yantra/senses/` |
 | Ears everywhere | Always-listening app: wake word, tray icon, speaks notifications | `atulya/ambient/` |
 | Personal accounts | Google sign-in: Gmail and Calendar per user | `yantra/capabilities/google_workspace.py` |
-| Personality & mood | Persona, emotion detection, mood state | `atulya/persona.py`, `atulya/emotion.py`, `atulya/soul.py` |
 
 ## A request's life
 

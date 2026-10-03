@@ -121,7 +121,7 @@ class AutomationRunner:
             pass
 
         try:
-            from yantra.notify import NotificationSystem
+            from yantra.channels import NotificationSystem
             await NotificationSystem().send(
                 f"{name}: {'failed' if error else 'completed'}",
                 channel="console",
