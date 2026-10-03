@@ -28,7 +28,6 @@ function renderMarkdown(text) {
 }
 
 const CHAT_CACHE_KEY = 'atulya-chat-messages';
-const LIVE_CACHE_KEY = 'atulya-live-messages';
 const DEFAULT_LIVE_MESSAGES = [];
 const WAKE_PHRASES = ['hey atulya', 'atulya'];
 // Real pipeline stages (from the server's trace) -> the node the visual animates.
@@ -79,7 +78,7 @@ function LiveMode({ bootstrap, toast }) {
   const [telemetry, setTelemetry] = useState(null);
   const [provider, setProvider] = useState('auto');
   const [prompt, setPrompt] = useState('');
-  const [messages, setMessages] = useState(() => loadCachedMessages(LIVE_CACHE_KEY, DEFAULT_LIVE_MESSAGES));
+  const [messages, setMessages] = useState(DEFAULT_LIVE_MESSAGES); // fresh each visit
   const [events, setEvents] = useState([
     { id: 1, label: 'Oracle Active Core online', state: 'ready' },
     { id: 2, label: 'Nervous system strands energized', state: 'standby' },
@@ -131,7 +130,6 @@ function LiveMode({ bootstrap, toast }) {
 
 
   useEffect(() => {
-    cacheMessages(LIVE_CACHE_KEY, messages);
   }, [messages]);
 
   useEffect(() => {

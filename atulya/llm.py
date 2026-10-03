@@ -483,7 +483,10 @@ class AtulyaLLM:
 
     @staticmethod
     def _compose_prompt(prompt: str, history: list[dict[str, str]]) -> str:
-        trimmed = clean_history(history)
+        from atulya.cognition.brain import active_brain
+
+        # A tiny model copies earlier replies instead of answering, so it gets no history.
+        trimmed = [] if active_brain() == "tiny" else clean_history(history)
         if not trimmed:
             return prompt
         turns = []
