@@ -1,6 +1,8 @@
 # Atulya Tantra
 
-Atulya Tantra is a local-first AI workspace for the Atulya assistant: Drishti WebUI, provider routing, memory, actions, security/context helpers, and dashboard APIs in one repo.
+Atulya Tantra is a local-first personal AI assistant: a talking hologram UI (Drishti), an always-listening voice mode with English and Hindi wake words, a local brain with cloud failover, long-term memory, and tools that act for you — music, reminders, email, calendar, price tracking, a morning briefing, smart-home control, and (opt-in) control of your PC.
+
+![Atulya Tantra architecture](atulya/docs/images/architecture.svg)
 
 Custom model work lives in a separate model repository. This repo calls external and local models through the provider router; it does no model training.
 
@@ -17,56 +19,53 @@ The goal is a local AI system that can remember, inspect itself, route work to t
 ## Current Layout
 
 ```text
-Atulya Tantra/
-|-- assets/                     # runtime-local app state: audio, temp files, scheduler state
-|-- atulya/
+Atulya-Tantra/
+|-- atulya/                     # the brain
+|   |-- cognition/              # kernel, safety, toolbelt, triggers, brain tiers
+|   |-- agent/                  # tools: reminders, email, calendar, weather, media, tracking,
+|   |                           #   briefing, PC control, audit log; intent router
+|   |-- ambient/                # always-on listener: mic, wake word (EN/HI), barge-in, tray
+|   |-- memory/                 # providers, tree, reflection, vectors, Obsidian export
 |   |-- core/                   # security, task classification, safe expression eval
-|   |-- docs/                   # architecture, security, contribution guide, project map
-|   |-- memory/                 # memory providers, tree, reflection, Obsidian export
 |   |-- observability/          # usage, metrics, tracing, error tracking
-|   |-- cognition/              # kernel, safety, toolbelt, triggers, brain tiers (docs/COGNITIVE_ARCHITECTURE.md)
-|   |-- agent/                  # agent loop, tools, intent router, proactive jobs
-|   |-- llm.py                  # AtulyaLLM, memory-enabled default, tool-call pass-through, streaming
-|   |-- local_provider.py       # local GGUF chat/stream/tool-call normalization
-|   |-- tantra_local.py         # persona wrapper around the local GGUF model
-|   |-- intelligence.py         # ProviderRouter and provider wrappers
-|   |-- persona.py
-|   |-- heartbeat.py
-|   |-- production_readiness.py
-|   `-- cli.py
-|-- config/                     # cross-package static configuration
-|-- docs/                       # deployment, API reference
-|-- outputs/                    # generated reports, invoices, benchmark artifacts
-|-- drishti/
-|   |-- frontend/src/           # editable React frontend
-|   |-- dashboard/              # FastAPI app, helpers, state, chat history, routes
-|   |   `-- routes/             # auth, chat, users, cron, agent, files, voice, and more
-|   |-- public/                 # static assets, favicon, manifest
-|   |-- dist/                   # built frontend assets (auto-generated)
-|   |-- app.py                  # backend entrypoint
-|   |-- package.json
-|   `-- vite.config.js
-|-- yantra/
-|   |-- capabilities/           # gated tools, workflow, browser, voice, web search (canonical)
-|   |-- mcp/                    # MCP server/client/transport/manifest
-|   |-- channels.py             # unified multi-channel communication (14 channels)
-|   |-- events.py               # event bus
-|   |-- device_controller.py    # CPU-first device management
-|   `-- agents.py
-|-- tests/                      # root test suite
+|   |-- docs/                   # architecture, security, contributing, project map, images
+|   |-- llm.py, intelligence.py # AtulyaLLM and the provider failover router
+|   |-- local_provider.py       # local GGUF chat / streaming / tool calls
+|   |-- eyes.py, emotion.py     # seeing images, mood detection
+|   `-- persona.py, heartbeat.py, cli.py
+|-- yantra/                     # hands: capabilities, channels, MCP, senses, device control
+|-- drishti/                    # face: React/Vite frontend + FastAPI dashboard and routes
+|-- config/  docs/  install/    # static config, deployment and API docs, install helpers
+|-- assets/  outputs/  runtime/ # local state, generated files, downloaded models (git-ignored)
+|-- tests/                      # test suite (run by CI on Linux and Windows)
 |-- pyproject.toml
 `-- start.bat
 ```
 
 More ownership detail lives in [atulya/docs/PROJECT_MAP.md](atulya/docs/PROJECT_MAP.md).
-Root folder drift is checked by `python -m yantra.assistant.structure_audit`.
+
+## What Atulya Can Do
+
+| Ability | Status |
+|---|---|
+| Talk back with a hologram head (lip sync, blink, breathing) | Working |
+| Always-on listening, wake words in English and Hindi, "stop" to interrupt | Working (text-matched wake word) |
+| Local brain (Qwen3 0.6B / 1.7B / 4B) with Groq, OpenRouter, Gemini failover | Working |
+| Memory, reflection, knowledge galaxy map | Working |
+| Reminders, calendar, email, weather, open websites | Working |
+| Play music (YouTube/Spotify), media keys and volume (Windows) | Working |
+| Track prices and things, morning briefing | Working |
+| See: camera motion/person detection, read text in images | Working (no scene description yet) |
+| Smart home (Home Assistant, MQTT) | Needs your hardware to verify |
+| Control the PC (open apps, type, shortcuts) | Opt-in: `ATULYA_PC_CONTROL=on`; asks before each action by default (unless you pre-approve it with `ATULYA_AUTO_APPROVE`); audited |
+| Phone app and remote access | PWA + Tailscale; no cross-device sync yet |
 
 ## Quick Start
 
 Use Python 3.10+.
 
 ```powershell
-python -m pip install -e ".[dev,serve]"
+python -m pip install -e ".[dev,serve,brain]"
 ```
 
 Build the dashboard frontend:
@@ -96,7 +95,16 @@ Open:
 http://localhost:8501
 ```
 
-First startup can take 30-60 seconds because FastAPI/Pydantic and Torch-related native modules load slowly.
+First startup can take 30-60 seconds while the local model loads.
+
+### Always-listening voice mode
+
+```powershell
+python -m pip install -e ".[ambient]"
+atulya listen
+```
+
+Say "Hey Atulya" or "हे अतुल्य", then your request. Say "stop" while it is talking to interrupt. Optional extras: `.[control]` (PC control), `.[vision]` (camera and OCR), `.[brain]` (local model runtime).
 
 ## Environment & Pluggable Brains
 
@@ -221,14 +229,12 @@ flowchart LR
 
 Important Yantra locations:
 
-- `yantra/capabilities/`: file read/write/edit, gated shell execution, web search/fetch, todo, memory, browser, voice, and workflow capabilities (canonical)
-- `yantra/channels.py`: unified 14-channel system (Discord, Telegram, Slack, Email, Webhook, WhatsApp, Signal, Matrix, Teams, IRC, WebChat, Console, Log, Twitter)
+- `yantra/capabilities/`: file tools, gated shell execution, web search, browser, voice, Google Workspace, Home Assistant, documents
+- `yantra/channels.py`: unified multi-channel system (Discord, Telegram, Slack, Email, Webhook, WhatsApp, Signal, Matrix, Teams, IRC, WebChat, Console, Log, Twitter)
 - `yantra/mcp/`: MCP server, transport, manifest signing, external client, dashboard bridge
+- `yantra/senses/`: camera and home sensors
 
-
-- Agents define who should handle work: planner, coder, researcher, memory manager, safety checker, self-improvement, and automation operator.
-- Skills define reusable abilities and point to one canonical tool name.
-- Duplicate cleanup is handled by canonical registration: aliases map to one command or skill, and `YantraHarness.report_duplicates()` shows duplicate tool registration attempts.
+Assistant tools the brain can call live in `atulya/agent/` and register themselves with `@tool`. Risky ones (sending email, deleting events, PC control) ask first by default (`ATULYA_AUTO_APPROVE` can pre-approve specific ones) — see `atulya/cognition/safety.py` — and every call is appended to `assets/agent/audit.jsonl`.
 
 ## Memory And Identity
 
@@ -278,7 +284,8 @@ Routes implemented by the current backend:
 ## Verification
 
 ```powershell
-python -m pytest -q  # current suite: 623 passing tests
+python -m pytest -q
+ruff check .
 python -m atulya.cli doctor
 ```
 
@@ -290,3 +297,4 @@ python -m atulya.cli doctor
 - `drishti/dist` is built by `start.bat` or CI; do not commit generated build output.
 - `assets/` holds runtime-local app state; runtime artifacts such as scheduler state, memory databases, and email config are gitignored.
 - Active LLM training data, checkpoints, and tokenizer artifacts belong in the separate model repo.
+- Before exposing Atulya beyond this machine, read the hardening checklist in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).

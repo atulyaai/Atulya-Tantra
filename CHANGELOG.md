@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+- Hindi/Hinglish wake words and voice barge-in ("stop", "ruko", "चुप").
+- Tools: `play_music`, `media_control`, price tracking (`track_*`), `morning_briefing`, and opt-in PC control (`pc_*`).
+- Audit log of every tool call; `recommend_tier()` for picking a brain size by free RAM.
+- GitHub Actions CI (ruff + pytest on Ubuntu and Windows).
+- New architecture diagram (`atulya/docs/images/architecture.svg`).
+
+### Removed
+- Unused modules: `yantra` harness/dispatch/orchestrator/agents/kgraph/plugins/selfimprovement/selfrepair/assistant/notify, `atulya.brain`, `atulya.soul`, `atulya.tokenjuice`, and their tests.
+- NP-DNA research model, its pages, and its diagrams (they described a model that no longer lives here).
+
 ## [0.4.1] — 2026-05-25
 
 Consolidated test files from 30 to 4 (one per package), deduplicating imports and renaming overlapping integration classes with `Integration` suffix. All 413 tests pass.
