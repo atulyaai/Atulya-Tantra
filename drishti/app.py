@@ -15,7 +15,9 @@ __all__ = ["main"]
 
 
 def main() -> None:
-    host = os.environ.get("ATULYA_HOST", "127.0.0.1")
+    from atulya.lockdown import bind_host
+
+    host = bind_host("127.0.0.1")
     port = int(os.environ.get("ATULYA_PORT", 8501))
     
     print("\n  Atulya Tantra Drishti")

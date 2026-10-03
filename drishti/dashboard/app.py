@@ -151,10 +151,12 @@ async def _connect_mcp_servers(app: FastAPI) -> None:
 app = FastAPI(title="Atulya Tantra Dashboard", lifespan=lifespan)
 # The web UI is same-origin and authenticates with a header, so it needs no
 # CORS. ATULYA_CORS_ORIGINS lists other sites allowed to call the API.
-_CORS_ORIGINS = [o.strip() for o in os.environ.get("ATULYA_CORS_ORIGINS", "").split(",") if o.strip()]
+from atulya.lockdown import cors_origins as _cors_origins  # noqa: E402
+
+_CORS_ORIGINS = _cors_origins()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_CORS_ORIGINS or ["*"],
+    allow_origins=["*"] if _CORS_ORIGINS is None else _CORS_ORIGINS,
     allow_credentials=bool(_CORS_ORIGINS),  # never credentials with a wildcard
     allow_methods=["*"],
     allow_headers=["*"],

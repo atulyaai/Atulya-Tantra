@@ -147,7 +147,7 @@ def main(argv: list[str] | None = None) -> int:
         print("This device isn't signed in yet. Run: atulya listen --url <server> --login")
         return 1
 
-    from .audio import Microphone, Speaker, make_stt
+    from .audio import Microphone, Speaker, WakeGate, make_stt
 
     client = AtulyaClient(opts["url"], opts["token"], opts["device"])
     wake_words = [w.strip() for w in str(opts["wake"]).split(",") if w.strip()]
@@ -161,9 +161,14 @@ def main(argv: list[str] | None = None) -> int:
 
     stt = make_stt(opts["stt"], client, opts["model"])
     engine = AmbientEngine(client, stt=stt, speaker=speaker, session=session, wake_label=wake_words[0],
-                           stt_label=getattr(stt, "label", ""))
+                           stt_label=getattr(stt, "label", ""),
+                           briefing_at=os.environ.get("ATULYA_BRIEFING_AT", ""),
+                           briefing_location=os.environ.get("ATULYA_BRIEFING_LOCATION", ""))
     mic_device = int(opts["mic"]) if str(opts["mic"] or "").isdigit() else opts["mic"]
-    mic = Microphone(device=mic_device, enabled=engine.accepts_audio)
+    wake_model = os.environ.get("ATULYA_WAKE_MODEL", "")
+    gate = WakeGate(wake_model) if wake_model else None
+    mic = Microphone(device=mic_device, enabled=engine.accepts_audio, gate=gate,
+                     active=lambda: engine.session.state != engine.session.IDLE)
     print(f'Listening for "{wake_words[0]}" on {opts["device"]} (speech-to-text: {engine.stt_label}).')
 
     from .tray import TrayApp, tray_available

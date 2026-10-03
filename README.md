@@ -49,13 +49,15 @@ More ownership detail lives in [atulya/docs/PROJECT_MAP.md](atulya/docs/PROJECT_
 | Ability | Status |
 |---|---|
 | Talk back with a hologram head (lip sync, blink, breathing) | Working |
-| Always-on listening, wake words in English and Hindi, "stop" to interrupt | Working (text-matched wake word) |
+| Always-on listening, wake words in English and Hindi, "stop" to interrupt | Working; optional wake-word model (`ATULYA_WAKE_MODEL`) |
+| Natural offline voice | Optional: Piper (`ATULYA_PIPER_MODEL`) |
+| Daily spoken morning briefing | Set `ATULYA_BRIEFING_AT=08:00` (and `ATULYA_BRIEFING_LOCATION`) |
 | Local brain (Qwen3 0.6B / 1.7B / 4B) with Groq, OpenRouter, Gemini failover | Working |
 | Memory, reflection, knowledge galaxy map | Working |
 | Reminders, calendar, email, weather, open websites | Working |
 | Play music (YouTube/Spotify), media keys and volume (Windows) | Working |
 | Track prices and things, morning briefing | Working |
-| See: camera motion/person detection, read text in images | Working (no scene description yet) |
+| See: camera motion/person detection, read text, describe scenes | Scene description needs `ollama pull moondream` (or a Gemini key) |
 | Smart home (Home Assistant, MQTT) | Needs your hardware to verify |
 | Control the PC (open apps, type, shortcuts) | Opt-in: `ATULYA_PC_CONTROL=on`; asks before each action by default (unless you pre-approve it with `ATULYA_AUTO_APPROVE`); audited |
 | Phone app and remote access | PWA + Tailscale; no cross-device sync yet |
@@ -104,7 +106,9 @@ python -m pip install -e ".[ambient]"
 atulya listen
 ```
 
-Say "Hey Atulya" or "हे अतुल्य", then your request. Say "stop" while it is talking to interrupt. Optional extras: `.[control]` (PC control), `.[vision]` (camera and OCR), `.[brain]` (local model runtime).
+Say "Hey Atulya" or "हे अतुल्य", then your request. Say "stop" while it is talking to interrupt. Optional extras: `.[control]` (PC control), `.[vision]` (camera and OCR), `.[brain]` (local model runtime), `.[wake]` (wake-word model and Piper voice).
+
+Set `ATULYA_BRAIN=auto` to let Atulya pick the biggest local model that fits your free RAM.
 
 ## Environment & Pluggable Brains
 

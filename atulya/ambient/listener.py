@@ -21,6 +21,7 @@ import asyncio
 import difflib
 import json
 import logging
+import datetime as _dt
 import re
 import unicodedata
 import time
@@ -150,6 +151,23 @@ class WakeMatcher:
         if best is None:
             return False, ""
         return True, " ".join(words[best[2]:]).strip(" ,.")
+
+
+# ── the daily briefing ────────────────────────────────────────────────────
+class BriefingClock:
+    """True once a day, the first time the clock passes ``HH:MM``."""
+
+    def __init__(self, at: str):
+        hour, _, minute = at.partition(":")
+        self.at = _dt.time(int(hour), int(minute or 0))
+        self._last: _dt.date | None = None
+
+    def due(self, now: _dt.datetime | None = None) -> bool:
+        now = now or _dt.datetime.now()
+        if self._last == now.date() or now.time() < self.at:
+            return False
+        self._last = now.date()
+        return True
 
 
 # ── conversation state ────────────────────────────────────────────────────
@@ -285,7 +303,8 @@ class AmbientEngine:
     """Glue: utterances in, speech out; heartbeats and notifications alongside."""
 
     def __init__(self, client: AtulyaClient, stt: Any, speaker: Any, session: AmbientSession | None = None,
-                 heartbeat_interval: float = 30.0, wake_label: str = "hey atulya", stt_label: str = ""):
+                 heartbeat_interval: float = 30.0, wake_label: str = "hey atulya", stt_label: str = "",
+                 briefing_at: str = "", briefing_location: str = ""):
         self.client = client
         self.stt = stt
         self.speaker = speaker
@@ -293,6 +312,8 @@ class AmbientEngine:
         self.heartbeat_interval = heartbeat_interval
         self.wake_label = wake_label
         self.stt_label = stt_label
+        self.briefing = BriefingClock(briefing_at) if briefing_at else None
+        self.briefing_location = briefing_location
         self.muted = False
         self.speaking = False
         self.status = "listening"
@@ -401,9 +422,25 @@ class AmbientEngine:
                 logger.debug("heartbeat failed: %s", exc)
             await asyncio.sleep(self.heartbeat_interval)
 
+    async def deliver_briefing(self) -> None:
+        """Ask for the morning briefing and say it."""
+        ask = "give me my morning briefing" + (f" for {self.briefing_location}" if self.briefing_location else "")
+        try:
+            reply = await self.client.chat(ask)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("briefing failed: %s", exc)
+            return
+        await self.say(str(reply.get("response_text") or reply.get("response") or ""))
+
+    async def briefing_loop(self, poll: float = 30.0) -> None:
+        while self.briefing is not None:
+            if not self.muted and self.briefing.due():
+                await self.deliver_briefing()
+            await asyncio.sleep(poll)
+
     async def run(self, utterances: Any) -> None:
         """Listen forever: ``utterances`` is an async iterator of audio clips."""
-        tasks = [asyncio.create_task(self.heartbeat_loop()),
+        tasks = [asyncio.create_task(self.heartbeat_loop()), asyncio.create_task(self.briefing_loop()),
                  asyncio.create_task(self.client.notifications(self.on_notification))]
         try:
             async for audio in utterances:

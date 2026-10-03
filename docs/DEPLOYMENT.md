@@ -63,3 +63,6 @@ Atulya listens on all interfaces and accepts any CORS origin by default so the p
 - `ATULYA_CORS_ORIGINS=https://your-site` — only listed web origins may call the API.
 - `ATULYA_PC_CONTROL` stays unset unless you want Atulya to open apps and type; every such action asks first.
 - Every tool call is written to `assets/agent/audit.jsonl` (secrets masked).
+
+- `ATULYA_LOCKDOWN=on` — one switch for the above: listen on localhost only and allow no cross-site (CORS) callers unless `ATULYA_CORS_ORIGINS` lists them. The phone app will not reach it while this is on.
+- `GET /api/audit` (admin token) returns the latest audit-log entries.
