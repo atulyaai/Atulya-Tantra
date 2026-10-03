@@ -280,7 +280,10 @@ Use this repo to connect models to the product:
 ## Drishti Development
 
 <div align="center">
-  <img src="atulya/docs/images/drishti_ui.jpg" alt="Drishti Hologram UI & Live Mode" width="100%"/>
+  <img src="https://raw.githubusercontent.com/atulyaai/Atulya-Tantra/main/atulya/docs/images/drishti_ui.jpg" alt="Drishti Hologram UI & Live Mode" width="100%"/>
+  <br/><br/>
+  <img src="https://raw.githubusercontent.com/atulyaai/Atulya-Tantra/main/atulya/docs/images/orb_live.jpg" alt="Drishti Floating Orb Interface" width="60%"/>
+  <p><em>Live Drishti floating desktop orb and conversational HUD interface</em></p>
 </div>
 
 
