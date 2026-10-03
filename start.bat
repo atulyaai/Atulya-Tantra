@@ -6,7 +6,7 @@ color 0A
 echo.
 echo   +------------------------------------------+
 echo   ^|         ATULYA - DIGITAL ORGANISM OS     ^|
-echo   ^|   Tantra . Yantra . Drishti              ^|
+echo   ^|   Atulya . Yantra . Drishti             ^|
 echo   +------------------------------------------+
 echo.
 

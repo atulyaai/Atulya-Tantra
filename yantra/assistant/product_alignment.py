@@ -1,7 +1,7 @@
 """Product alignment audit for Atulya Tantra.
 
 The audit keeps the project honest against the current product direction:
-Atulya as personality/memory, Tantra as support and compatibility layer,
+Atulya as personality, memory and security core,
 Yantra as action layer, Drishti as the mobile/desktop live experience, and
 custom LLM/model work in a separate repository.
 """
@@ -41,12 +41,6 @@ DEFAULT_TARGETS = (
         weight=2,
     ),
     AlignmentTarget(
-        name="Tantra support and model-repo boundary",
-        required_terms=("security", "context", "compatibility", "provider", "separate model repo"),
-        files=("README.md", "tantra/README.md", "tantra/core"),
-        weight=2,
-    ),
-    AlignmentTarget(
         name="Yantra action automation",
         required_terms=("automation", "browser", "device", "voice", "dispatch"),
         files=("README.md", "yantra/capabilities", "yantra/dispatch.py", "yantra/device_controller.py"),
@@ -61,7 +55,7 @@ DEFAULT_TARGETS = (
     AlignmentTarget(
         name="Provider and agent fallback",
         required_terms=("OpenAI", "Gemini", "OpenRouter", "Ollama", "OpenCode"),
-        files=("README.md", "tantra/core/model_failover.py"),
+        files=("README.md", "atulya/intelligence.py"),
         weight=1,
     ),
 )

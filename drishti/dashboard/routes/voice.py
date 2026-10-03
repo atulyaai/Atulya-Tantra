@@ -1,19 +1,17 @@
 """Voice API Routes for High-Quality Neural TTS and STT."""
 from __future__ import annotations
 
-import base64
 import logging
 import os
 import re
-from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, UploadFile, File, Form
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import JSONResponse
 
 from atulya.config import get_config
 from drishti.dashboard import chat_history
-from drishti.dashboard.helpers import _checkpoint_index, _load_cached_model, _require_auth
-from yantra.capabilities.voice_pipeline import VoicePipeline, TextToSpeech, SpeechToText
+from drishti.dashboard.helpers import _require_auth
+from yantra.capabilities.voice_pipeline import VoicePipeline
 
 logger = logging.getLogger(__name__)
 

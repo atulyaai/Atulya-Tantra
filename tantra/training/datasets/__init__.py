@@ -1,1 +1,0 @@
-"""Canonical training dataset package."""

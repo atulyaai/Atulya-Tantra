@@ -2,7 +2,7 @@
 
 This is the current ownership map after the package cleanup.
 
-The repo root intentionally has four product directories: `atulya/`, `tantra/`,
+The repo root intentionally has three product directories: `atulya/`,
 `yantra/`, and `drishti/`. Shared support files live inside the product folder
 that owns them.
 
@@ -15,17 +15,14 @@ Allowed root support directories:
 Do not add new root directories unless they are documented here and in the
 structure audit. New implementation should go into the owning product package.
 
-## Tantra: Support And Compatibility
+## Model Work
 
-Support-layer and legacy compatibility files live under `tantra/`. Active custom LLM/model architecture, tokenizer development, training jobs, checkpoints, and model release artifacts belong in the separate model repository.
-
-- `tantra/core/`: task classification, context control, security, encryption, audit logging, and model/provider failover helpers.
-- `tantra/config/`: support-layer configuration.
-- `tantra/scripts/`: support and compatibility utilities, including the Gmail OAuth refresh-token helper (`generate_gmail_refresh_token.mjs`).
-- `tantra/npdna/`: legacy/reference NP-DNA compatibility code retained for older routes, tests, and artifacts.
-- `tantra/training/`: legacy/reference dataset and training utilities retained for compatibility.
-- `tantra/outputs/`: generated local artifacts. Do not treat this as the active model release location.
-- `tantra/README.md`: current boundary for what Tantra owns in this app repo.
+The NP-DNA research model and its training code were removed from this repo.
+Custom model architecture, tokenizer development, training jobs, checkpoints,
+and model release artifacts belong in the separate model repository. The
+security, task-classification and safe-eval helpers the assistant needs now live
+in `atulya/core/`; the Gmail OAuth refresh-token helper is
+`install/generate_gmail_refresh_token.mjs`.
 
 ## Drishti: User Interface Surface
 

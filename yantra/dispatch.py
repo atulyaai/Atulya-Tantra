@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from tantra.core.task_classifier import TaskClassification, TaskClassifier
+from atulya.core.task_classifier import TaskClassification, TaskClassifier
 from yantra.events import EventBus, default_bus
 from yantra.capabilities import ToolRegistry, ToolResult
 

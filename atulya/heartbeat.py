@@ -47,7 +47,6 @@ class HeartbeatSystem:
             await self._disk_check(),
             await self._task_check(),
             await self._maintenance_check(),
-            await self._model_check(),
             await self._provider_check(),
             await self._cortex_check(),
         ]
@@ -95,20 +94,6 @@ class HeartbeatSystem:
             return HealthCheck("disk", "ok", f"Disk usage: {usage_pct:.1f}%")
         except Exception as e:
             return HealthCheck("disk", "error", str(e))
-
-    async def _model_check(self) -> HealthCheck:
-        try:
-            from tantra.npdna import NpDnaCore
-            if NpDnaCore is None:
-                # The research model stack (torch) is optional in the app repo.
-                return HealthCheck("model", "info", "NP-DNA model stack not installed (optional)")
-            core = NpDnaCore.from_config("seed")
-            ids = core.encode("health", allow_growth=False)
-            if ids:
-                return HealthCheck("model", "ok", "NP-DNA encode check passed")
-            return HealthCheck("model", "warning", "NP-DNA returned no tokens")
-        except Exception as e:
-            return HealthCheck("model", "warning", str(e))
 
     async def _provider_check(self) -> HealthCheck:
         try:

@@ -6,7 +6,6 @@ import logging
 import asyncio
 import json
 import os
-import threading
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -16,8 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from drishti.dashboard.helpers import _checkpoint_index, _load_cached_model
-from drishti.dashboard.routes import agent, auth, automation, chat, cortex, create, devices, google, knowledge, model, notifications, openai, profile, routines, senses, system, train, triggers, upload, voice, ws
+from drishti.dashboard.routes import agent, auth, automation, chat, create, devices, google, notifications, openai, profile, routines, senses, system, triggers, upload, voice, ws
 from drishti.dashboard.automation_runner import AutomationRunner
 from yantra.mcp.external_client import MCPClientManager
 
@@ -43,15 +41,6 @@ async def _rate_limiter(request: Request, call_next):
 
 
 # ── Lifespan ──────────────────────────────────────────────────────────────
-
-
-def _warm_latest_model() -> None:
-    try:
-        path = _checkpoint_index().get("latest")
-        if path:
-            _load_cached_model(path)
-    except Exception as exc:
-        logger.warning("Dashboard model warmup skipped: %s", exc)
 
 
 async def _warm_llm(llm) -> None:
@@ -104,7 +93,6 @@ async def lifespan(app: FastAPI):
     app.state.senses = Senses(default_bus)
     await app.state.senses.start()
 
-    threading.Thread(target=_warm_latest_model, daemon=True).start()
     app.state.llm_warm_task = asyncio.create_task(_warm_llm(app.state.llm))
     try:
         yield
@@ -173,7 +161,7 @@ app.add_middleware(
 )
 app.middleware("http")(_rate_limiter)
 
-for module in (auth, system, model, train, chat, cortex, automation, openai, voice, upload, devices, ws, notifications, agent, create, triggers, routines, profile, senses, google, knowledge):
+for module in (auth, system, chat, automation, openai, voice, upload, devices, ws, notifications, agent, create, triggers, routines, profile, senses, google):
     app.include_router(module.router)
 
 

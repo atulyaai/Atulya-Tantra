@@ -218,7 +218,7 @@ def test_telegram_can_show_response_provider():
         async def ask(self, prompt, history=None):
             class Response:
                 text = f"reply:{prompt}"
-                provider = "Tantra (Local NP-DNA)"
+                provider = "Local GGUF"
             return Response()
 
     async def run():
@@ -235,6 +235,6 @@ def test_telegram_can_show_response_provider():
             ChannelMessage("1", "telegram", "123", "/ask hi", metadata={"chat_id": "1"}),
             llm=FakeLLM(),
         )
-        assert sent == ["reply:hi\n\nvia Tantra (Local NP-DNA)"]
+        assert sent == ["reply:hi\n\nvia Local GGUF"]
 
     asyncio.run(run())

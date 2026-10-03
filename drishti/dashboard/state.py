@@ -7,10 +7,8 @@ import secrets
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parents[2]
-# Local training progress must not be replaced by a bundled model sample.
-OUTPUTS_DIR = _ROOT / "tantra" / "outputs" / "npdna"
-MODEL_OUTPUT_DIRS = (OUTPUTS_DIR, _ROOT / "tantra" / "outputs" / "npdna_nano")
-DATASETS_DIR = _ROOT / "tantra" / "training" / "datasets"
+# Dashboard runtime files (automation jobs). Git-ignored.
+OUTPUTS_DIR = _ROOT / "outputs"
 MAX_PROMPT_CHARS = 20_000
 MAX_CHAT_TOKENS = 4096
 
@@ -59,10 +57,5 @@ def _load_jwt_secret() -> str:
 
 JWT_SECRET = _load_jwt_secret()
 
-
-class DashboardState:
-    MODEL_CACHE = {}
-    MODEL_CACHE_MTIME = {}
-    TRAIN_PROCESS = None
 
 

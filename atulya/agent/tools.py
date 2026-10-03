@@ -699,7 +699,7 @@ async def camera_status() -> str:
 })
 async def calculate(expression: str) -> str:
     try:
-        from tantra.npdna.safe_eval import safe_math_eval
+        from atulya.core.safe_eval import safe_math_eval
         result = safe_math_eval(expression)
         return f"{expression} = {result}"
     except Exception as e:

@@ -178,36 +178,7 @@ label.check input { width: auto; }
   margin: 12px 0 8px;
   color: var(--muted);
 }
-.log-line { color: #ece3d6; white-space: pre-wrap; line-height: 1.5; }
-.log-line.good { color: var(--good); }
-.log-line.warn { color: var(--warn); }
-.log-line.bad { color: var(--bad); }
 button.danger { background: rgba(240, 90, 68, 0.14); border-color: rgba(240, 90, 68, 0.5); color: #ffddd6; }
-
-.chart {
-  margin-top: 14px;
-  background: #0a0c1c;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px;
-}
-.chart.empty { color: var(--muted); min-height: 120px; display: grid; place-items: center; }
-.chart svg { width: 100%; height: 160px; display: block; }
-.chart path { fill: none; stroke: var(--good); stroke-width: 3; }
-.chart .best-line { stroke: rgba(255,255,255,0.25); stroke-dasharray: 5 5; }
-.chart-meta { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
-
-.strand-grid { display: grid; gap: 8px; margin-top: 16px; }
-.strand-row {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 12px;
-  align-items: center;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel-soft);
-}
 
 .login-shell {
   min-height: 100vh;
@@ -3478,7 +3449,6 @@ button.small {
 :root.light .panel-title h2 { color: var(--text); text-shadow: none; }
 :root.light button.danger { color: var(--bad); }
 :root.light .admin-drawer h1 { background: linear-gradient(135deg, #c25700 0%, #1b1f3b 100%); -webkit-background-clip: text; background-clip: text; }
-:root.light .chart { background: var(--panel-soft); }
 
 /* ── Routines, About you, Senses ─────────────────────────────────────── */
 .routine-steps { margin: 4px 0 0; padding-left: 22px; display: grid; gap: 2px; }
@@ -3511,31 +3481,6 @@ button.small {
 @media (max-width: 520px) {
   .inline-form { flex-direction: column; }
 }
-
-/* ── Knowledge galaxy ─────────────────────────────────────────────── */
-.galaxy { display: flex; flex-direction: column; height: 100%; min-height: 0; background: #05070f; }
-.galaxy-bar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; padding: 18px 20px 6px; background: #070a18; }
-.galaxy-bar p { margin: 4px 0 0; font-size: 13px; }
-.galaxy-bar h2 { margin: 0; font-size: 20px; color: var(--text); }
-.galaxy-search { flex: 0 1 220px; background: var(--inset-strong); border: 1px solid var(--line); color: var(--text);
-  border-radius: 999px; padding: 6px 14px; }
-.galaxy-legend { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 20px 10px; background: #070a18; }
-.galaxy-legend button { display: inline-flex; align-items: center; gap: 6px; background: transparent; color: var(--text);
-  border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; font-size: .8rem; cursor: pointer; }
-.galaxy-legend button.off { opacity: .35; }
-.galaxy-legend small { color: var(--muted); }
-.galaxy-legend .dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 6px currentColor; }
-.galaxy-canvas { position: relative; flex: 1; min-height: 360px; overflow: hidden; }
-.galaxy-canvas canvas { display: block; cursor: grab; }
-.galaxy-tip { position: absolute; max-width: 300px; pointer-events: none; background: var(--glass-strong);
-  border: 1px solid var(--glass-border-strong); border-radius: 12px; padding: 12px 14px; color: var(--text);
-  box-shadow: 0 8px 30px rgba(0,0,0,.5); backdrop-filter: blur(8px); font-size: .85rem; }
-.galaxy-tip-kind { font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; }
-.galaxy-tip-title { font-weight: 600; font-size: 1rem; margin: 2px 0 6px; }
-.galaxy-tip p { margin: 0 0 8px; color: var(--muted); white-space: pre-wrap; }
-.galaxy-tip-meta { display: flex; justify-content: space-between; gap: 12px; font-size: .78rem; color: var(--muted); }
-.galaxy-tip-meta b { color: var(--text); font-weight: 500; }
-.galaxy-hint { position: absolute; left: 16px; bottom: 12px; font-size: .75rem; color: var(--muted); pointer-events: none; }
 
 /* ── App shell: sidebar menu + content ────────────────────────────── */
 main.shell { display: grid; grid-template-columns: 232px minmax(0, 1fr); height: 100vh; height: 100dvh; min-height: 0; }

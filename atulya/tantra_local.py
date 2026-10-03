@@ -1,7 +1,7 @@
-"""Tantra-style local model wrapper.
+"""Local model wrapper with the Atulya persona.
 
 Wraps the LocalGGUFProvider with Atulya persona, tool awareness,
-and Tantra-placeholder behavior until the real NP-DNA model is ready.
+and placeholder behavior for the small local GGUF model.
 """
 from __future__ import annotations
 
