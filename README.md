@@ -1,6 +1,6 @@
 <!-- Hero Banner -->
 <div align="center">
-  <img src="atulya/docs/images/banner.jpg" alt="Atulya Tantra - JARVIS-Class Personal AI" width="100%"/>
+  <img src="atulya/docs/images/banner_animated.gif" alt="Atulya Tantra - JARVIS-Class Personal AI" width="100%"/>
 </div>
 
 <div align="center">
