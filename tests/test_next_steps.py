@@ -242,3 +242,41 @@ def test_ask_retries_plainly_when_the_model_parrots(monkeypatch):
     monkeypatch.setattr(llm.router, "chat", fake_chat)
     reply = asyncio.run(llm.ask("who are you"))
     assert reply.text == "I am Atulya." and len(calls) == 2 and calls[1] is None
+
+
+def test_copied_memory_answer_is_detected():
+    from atulya.llm import copies_memory
+
+    mem = ["Q: who are you\nA: I'm Atulya, an assistant."]
+    assert copies_memory("tell me a joke", "I'm Atulya, an assistant.", mem)
+    assert not copies_memory("who are you", "I'm Atulya, an assistant.", mem)
+    assert not copies_memory("tell me a joke", "Why did the cat sit on the laptop?", mem)
+
+
+def test_tiny_brain_recalls_only_when_asked_about_the_past(monkeypatch):
+    from atulya.llm import wants_memory
+
+    monkeypatch.setenv("ATULYA_BRAIN", "tiny")
+    assert not wants_memory("tell me a joke")
+    assert wants_memory("do you remember what I told you yesterday")
+    assert wants_memory("मुझे याद है")
+    monkeypatch.setenv("ATULYA_BRAIN", "balanced")
+    assert wants_memory("tell me a joke")
+
+
+def test_clean_history_drops_parroted_and_repeated_replies():
+    from atulya.llm import AtulyaLLM, clean_history
+
+    history = [
+        {"role": "user", "content": "who are you"},
+        {"role": "assistant", "content": "Who are you?"},                 # echo: dropped with its question
+        {"role": "user", "content": "tell me a joke"},
+        {"role": "assistant", "content": "I am Atulya, an assistant."},
+        {"role": "user", "content": "what time is it"},
+        {"role": "assistant", "content": "I am Atulya, an assistant."},   # repeat of an earlier reply: dropped
+        {"role": "user", "content": "capital of France"},
+    ]
+    cleaned = clean_history(history)
+    assert [m["content"] for m in cleaned] == [
+        "tell me a joke", "I am Atulya, an assistant.", "capital of France"]
+    assert "Who are you?" not in AtulyaLLM._compose_prompt("hi", history)

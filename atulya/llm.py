@@ -86,6 +86,70 @@ def is_echo(prompt: str, reply: str) -> bool:
     return bool(a) and (a == q or (len(a.split()) <= 8 and a in q) or (len(q.split()) <= 8 and q in a and len(a) <= len(q) + 4))
 
 
+def copies_memory(prompt: str, reply: str, memories: list[str]) -> bool:
+    """True when the reply is word-for-word an answer recalled for a *different* question."""
+    a = _words(reply)
+    for entry in memories:
+        m = re.match(r"Q:\s*(.*?)\s*\nA:\s*(.*)\Z", entry or "", re.S)
+        if m and _words(m.group(2)) == a and _words(m.group(1)) != _words(prompt):
+            return True
+    return False
+
+
+_PAST_CUES = re.compile(
+    r"\b(remember|recall|remind me|earlier|before|last time|previous|yesterday|you said|i said|i told|"
+    r"we talked|did i|what did|my name|my favou?rite)\b|याद|पहले|कल|बताया था",
+    re.I,
+)
+
+
+def wants_memory(prompt: str) -> bool:
+    """Should past conversations be shown to the model for this question?
+
+    The tiny local model copies a recalled answer straight back at unrelated
+    questions, so with it, memory is only brought in when you ask about the past.
+    Bigger brains (balanced / power / cloud) always get it.
+    """
+    from atulya.cognition.brain import active_brain
+
+    return active_brain() != "tiny" or bool(_PAST_CUES.search(prompt or ""))
+
+
+def clean_history(history: list[dict[str, str]], keep: int = 10) -> list[dict[str, str]]:
+    """Conversation turns safe to show a small model.
+
+    A tiny model copies whatever it sees repeated, so a reply that only echoes
+    its question, or repeats an earlier reply word for word, is dropped together
+    with the question it answered. Only the last ``keep`` turns are used.
+    """
+    cleaned: list[dict[str, str]] = []
+    seen: set[str] = set()
+    last_user = ""
+    pending_user: dict[str, str] | None = None
+    for item in history:
+        role = item.get("role", "user")
+        content = item.get("content") or item.get("text") or ""
+        if not content:
+            continue
+        if role == "user":
+            if pending_user is not None:
+                cleaned.append(pending_user)
+            pending_user, last_user = item, content
+            continue
+        key = _words(content)
+        if is_echo(last_user, content) or key in seen:
+            pending_user = None  # drop the question and its bad answer
+            continue
+        seen.add(key)
+        if pending_user is not None:
+            cleaned.append(pending_user)
+            pending_user = None
+        cleaned.append(item)
+    if pending_user is not None:
+        cleaned.append(pending_user)
+    return cleaned[-keep:]
+
+
 def _echoed_memory(entry: str) -> bool:
     """A remembered 'Q: …\nA: …' pair whose answer only repeats its question."""
     m = re.match(r"Q:\s*(.*?)\s*\nA:\s*(.*)\Z", entry or "", re.S)
@@ -187,11 +251,12 @@ class AtulyaLLM:
         working_prompt = self._turn_notes(prompt, context) + self._compose_prompt(prompt, history or [])
         steps: list[dict[str, Any]] = []
         requested_provider = provider
+        memories: list[str] = []
 
         if requested_provider.startswith("public") or requested_provider == "public":
             pass
         elif self.use_memory and (requested_provider == "" or "private" in requested_provider or "local" in requested_provider.lower() or requested_provider == "private"):
-            memories = await self._retrieve_memory_context(prompt)
+            memories = await self._retrieve_memory_context(prompt) if wants_memory(prompt) else []
             if memories:
                 working_prompt = (
                     "Relevant past interactions:\n"
@@ -216,8 +281,8 @@ class AtulyaLLM:
                 preferred_provider=requested_provider,
                 tools=self._build_tool_schemas() if tools_enabled else None,
             )
-            if is_echo(prompt, text):
-                # The model parroted the question (often copying a bad recalled answer): ask it plainly once.
+            if is_echo(prompt, text) or copies_memory(prompt, text, memories):
+                # The model parroted the question or a recalled answer: ask it plainly once, without memory.
                 text, provider_name = await self.router.chat(
                     prompt, system_prompt, preferred_provider=requested_provider, tools=None)
             tool_call = self._extract_tool_call(text)
@@ -418,7 +483,7 @@ class AtulyaLLM:
 
     @staticmethod
     def _compose_prompt(prompt: str, history: list[dict[str, str]]) -> str:
-        trimmed = history[-10:]
+        trimmed = clean_history(history)
         if not trimmed:
             return prompt
         turns = []
