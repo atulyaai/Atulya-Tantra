@@ -120,6 +120,26 @@ class Speaker:
     def __init__(self, backend: str = "auto", rate: int = 180):
         self.rate = rate
         self.backend = self._pick(backend)
+        self._proc: subprocess.Popen | None = None
+        self._engine: Any = None
+
+    def stop(self) -> None:
+        """Interrupt speech in progress (barge-in)."""
+        engine, proc = self._engine, self._proc
+        if engine is not None:
+            try:
+                engine.stop()
+            except Exception:  # noqa: BLE001
+                pass
+        if proc is not None and proc.poll() is None:
+            proc.terminate()
+
+    def _run(self, cmd: list[str], env: dict | None = None) -> None:
+        self._proc = subprocess.Popen(cmd, env=env)
+        try:
+            self._proc.wait()
+        finally:
+            self._proc = None
 
     @staticmethod
     def _pick(backend: str) -> str:
@@ -147,21 +167,21 @@ class Speaker:
         if self.backend == "pyttsx3":
             import pyttsx3
 
-            engine = pyttsx3.init()  # one engine per call: pyttsx3 isn't thread-safe
+            engine = self._engine = pyttsx3.init()  # one engine per call: pyttsx3 isn't thread-safe
             engine.setProperty("rate", self.rate)
             engine.say(text)
             engine.runAndWait()
+            self._engine = None
         elif self.backend == "say":
-            subprocess.run(["say", text], check=False)
+            self._run(["say", text])
         elif self.backend == "windows":
             # The text travels in an environment variable, never inside the script.
             script = ("Add-Type -AssemblyName System.Speech; "
                       "(New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak($env:ATULYA_SAY)")
-            subprocess.run(["powershell", "-NoProfile", "-Command", script], check=False,
-                           env={**os.environ, "ATULYA_SAY": text})
+            self._run(["powershell", "-NoProfile", "-Command", script], env={**os.environ, "ATULYA_SAY": text})
         elif self.backend in ("espeak-ng", "espeak"):
-            subprocess.run([self.backend, "-s", str(self.rate), "--", text], check=False)
+            self._run([self.backend, "-s", str(self.rate), "--", text])
         elif self.backend == "spd-say":
-            subprocess.run(["spd-say", "--wait", "--", text], check=False)
+            self._run(["spd-say", "--wait", "--", text])
         else:
             print(f"Atulya: {text}", flush=True)

@@ -194,10 +194,12 @@ class TestEngine:
         assert speaker.said == ["Reminder: call mom."]
         assert engine.status == "muted" and not engine.accepts_audio()
 
-    def test_does_not_listen_while_speaking(self):
-        engine = AmbientEngine(FakeClient(), None, FakeSpeaker())
+    def test_only_listens_for_stop_while_speaking(self):
+        engine = AmbientEngine(FakeClient(), FakeSTT(["what time is it"]), FakeSpeaker())
         engine.speaking = True
-        assert not engine.accepts_audio()
+        assert engine.accepts_audio()  # open for barge-in...
+        asyncio.run(engine.handle_utterance(b""))
+        assert engine.client.sent == []  # ...but nothing is sent while it talks
 
 
 # ── against the real server ──────────────────────────────────────────────
@@ -322,3 +324,42 @@ def test_tray_icon_colours():
 
     img = icon_image("muted", size=32)
     assert img.size == (32, 32) and img.getpixel((16, 10))[:3] == (120, 120, 130)
+
+
+class TestHindiAndBargeIn:
+    def test_hindi_wake_word_and_command(self):
+        from atulya.ambient.listener import WakeMatcher
+
+        woke, rest = WakeMatcher().match("हे अतुल्य बत्ती जलाओ")
+        assert woke and "बत्ती" in rest
+
+    def test_hinglish_wake(self):
+        from atulya.ambient.listener import WakeMatcher
+
+        assert WakeMatcher().match("suno atulya play music")[0]
+
+    def test_normalize_keeps_devanagari_marks(self):
+        from atulya.ambient.listener import _normalize
+
+        assert _normalize("अतुल्य!") == "अतुल्य"
+
+    def test_stop_word_interrupts_speech(self):
+        import asyncio
+
+        from atulya.ambient.listener import AmbientEngine
+
+        class Speaker(FakeSpeaker):
+            stopped = False
+
+            def stop(self):
+                self.stopped = True
+
+        speaker = Speaker()
+        engine = AmbientEngine(FakeClient(), FakeSTT(["stop", "tell me a story"]), speaker)
+        engine.speaking = True
+        assert engine.accepts_audio()  # mic stays open to hear "stop"
+        asyncio.run(engine.handle_utterance(b""))
+        assert speaker.stopped
+        speaker.stopped = False
+        asyncio.run(engine.handle_utterance(b""))  # not a stop word: ignored as echo
+        assert not speaker.stopped and engine.client.sent == []

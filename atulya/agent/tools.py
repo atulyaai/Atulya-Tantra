@@ -79,6 +79,9 @@ async def execute_tool(name: str, **kwargs) -> str:
     if not info:
         return f"Error: unknown tool '{name}'"
     try:
+        from atulya.agent.audit import audit
+
+        audit("tool", name=name, args=kwargs)
         result = await info["fn"](**kwargs)
         return str(result) if result is not None else ""
     except Exception as e:
@@ -780,3 +783,7 @@ def _bootstrap():
 
 
 _bootstrap()
+
+
+# Skill modules register their tools with @tool on import.
+from atulya.agent import briefing, media, pc_control, tracking  # noqa: E402,F401
