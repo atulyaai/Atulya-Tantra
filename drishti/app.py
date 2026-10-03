@@ -19,7 +19,15 @@ def main() -> None:
 
     host = bind_host("127.0.0.1")
     port = int(os.environ.get("ATULYA_PORT", 8501))
-    
+
+    import socket
+
+    with socket.socket() as probe:
+        if probe.connect_ex(("127.0.0.1", port)) == 0:
+            print(f"\n  Atulya is already running on port {port} (or another program is using it).")
+            print(f"  Open http://127.0.0.1:{port}, close the other window first, or set ATULYA_PORT in .env.\n")
+            raise SystemExit(1)
+
     print("\n  Atulya Tantra Drishti")
     print(f"  Running on: http://{host}:{port}\n")
     

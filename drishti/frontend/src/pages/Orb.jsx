@@ -13,6 +13,8 @@ const WAKE_LEAD_RE = new RegExp(`^[\\s,.!?-]*(?:(?:hey|hi|hello|ok|okay|listen|s
 const FOLLOW_UP_MS = 8000; // after Atulya speaks, answer without the wake word
 const SETTINGS_KEY = 'atulya-orb-settings-v2';
 
+const spoken = (t) => String(t || '').replace(/[\p{Extended_Pictographic}\uFE0E\uFE0F\u200D\u20E3]/gu, '').replace(/\s{2,}/g, ' ').trim();
+
 function loadSettings() {
   // No wake word needed: Atulya answers whatever you say. Chrome/Edge listen fastest; others use this PC.
   const fast = typeof window !== 'undefined' && Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
@@ -335,7 +337,7 @@ export function Orb({ onMenu, toast }) {
   function speakInBrowser(text) {
     return new Promise((resolve) => {
       if (!('speechSynthesis' in window) || !text) { resolve(); return; }
-      const u = new SpeechSynthesisUtterance(text);
+      const u = new SpeechSynthesisUtterance(spoken(text));
       const hindi = /[ऀ-ॿ]/.test(text);
       u.lang = hindi ? 'hi-IN' : 'en-GB';
       // Some browsers never fire onend (no voices installed): don't hang on it.

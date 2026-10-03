@@ -333,3 +333,17 @@ def test_openrouter_skips_busy_and_empty_free_models(monkeypatch):
     monkeypatch.setattr(OpenRouterProvider, "_ask", fake_ask)
     assert run(OpenRouterProvider().chat("hi")) == "Hello."
     assert tried == ["a:free", "b:free", "c:free"]
+
+
+# ── no emoji in speech ───────────────────────────────────────────────────
+
+def test_emoji_are_never_spoken():
+    from atulya.ambient.listener import speakable
+    from atulya.textutil import strip_emoji
+    from yantra.capabilities.voice_pipeline import TextToSpeech
+
+    assert strip_emoji("Hello! \U0001F60A How are you? \u2764\ufe0f") == "Hello! How are you?"
+    assert strip_emoji("नमस्ते \U0001F44B") == "नमस्ते"
+    assert strip_emoji("Plain text, 100% fine.") == "Plain text, 100% fine."
+    assert "\U0001F60A" not in speakable("Great job \U0001F60A")
+    assert TextToSpeech.strip_ssml("<break time='1s'/>Hi \U0001F600") == "... Hi"

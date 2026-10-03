@@ -352,7 +352,7 @@ function LiveMode({ bootstrap, toast }) {
   function speakBrowserFallback(text) {
     if (!('speechSynthesis' in window) || !text.trim()) return;
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
+    const utterance = new SpeechSynthesisUtterance(String(text || '').replace(/[\p{Extended_Pictographic}\uFE0E\uFE0F\u200D\u20E3]/gu, '').trim());
     utterance.rate = 0.96;
     utterance.pitch = 1.02;
     utterance.onstart = () => {
