@@ -49,6 +49,9 @@ export function Orb({ onMenu, toast }) {
   const [typed, setTyped] = useState('');
 
   const canvasRef = useRef(null);
+  const personBoxRef = useRef(null);
+  const personRef = useRef(null); // the 3D person, once loaded
+  const [person, setPerson] = useState('loading'); // loading | ready | none
   const audioCtxRef = useRef(null);
   const analyserRef = useRef(null); // whichever source is live: mic or voice
   const micRef = useRef(null); // { stream, source, analyser }
@@ -89,6 +92,8 @@ export function Orb({ onMenu, toast }) {
     window.addEventListener('resize', resize);
 
     function frame() {
+      raf = requestAnimationFrame(frame);
+      if (personRef.current) return; // the 3D person is showing instead
       t += 1;
       const w = canvas.clientWidth;
       const h = canvas.clientHeight;
@@ -186,7 +191,6 @@ export function Orb({ onMenu, toast }) {
       ctx.fillStyle = core;
       ctx.beginPath(); ctx.arc(cx, cy, coreR, 0, Math.PI * 2); ctx.fill();
 
-      raf = requestAnimationFrame(frame);
     }
     raf = requestAnimationFrame(frame);
     return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', resize); };
@@ -287,6 +291,7 @@ export function Orb({ onMenu, toast }) {
   }
 
   function stopVoice() {
+    personRef.current?.stop();
     try { window.speechSynthesis?.cancel(); } catch {}
     if (audioRef.current) {
       try { audioRef.current.pause(); } catch {}
@@ -294,7 +299,7 @@ export function Orb({ onMenu, toast }) {
     }
   }
 
-  function speak(text, audioBase64) {
+  function speak(text, audioBase64, words) {
     stopVoice();
     return new Promise((resolve) => {
       const done = () => {
@@ -303,6 +308,11 @@ export function Orb({ onMenu, toast }) {
         resolve();
       };
       setState('speaking');
+      if (audioBase64 && personRef.current) {
+        analyserRef.current = null;
+        personRef.current.speak(audioBase64, words, text).then(done, () => speakInBrowser(text).then(done));
+        return;
+      }
       if (audioBase64) {
         const audio = new Audio(`data:audio/mp3;base64,${audioBase64}`);
         audioRef.current = audio;
@@ -347,6 +357,7 @@ export function Orb({ onMenu, toast }) {
     setSaid('');
     setHint('');
     setState('thinking');
+    personRef.current?.thinking();
     try {
       const res = await api.post('/api/voice/chat', {
         prompt: text,
@@ -356,7 +367,7 @@ export function Orb({ onMenu, toast }) {
       const reply = String(res.response_text || res.error || '').trim();
       historyRef.current.push({ role: 'user', content: text }, { role: 'assistant', content: reply });
       setSaid(reply);
-      await speak(reply, res.audio_base64);
+      await speak(reply, res.audio_base64, res.words);
     } catch (err) {
       const offline = /Failed to fetch|NetworkError|Load failed/i.test(err.message || '');
       const msg = offline ? "I can't reach the Atulya server. Is start.bat still running?" : `Sorry, that failed: ${err.message}`;
@@ -404,9 +415,12 @@ export function Orb({ onMenu, toast }) {
         // Just the wake word: answer, then take the next sentence without it.
         setHeard(text);
         setSaid('Yes?');
-        await speak('Yes?');
+        personRef.current?.listening();
+        const yes = await api.tts('Yes?', voiceName()).catch(() => ({}));
+        await speak('Yes?', yes.audio_base64, yes.words);
         continue;
       }
+      personRef.current?.listening();
       await ask(command);
     }
     if (!loopRef.current.active) setState('idle');
@@ -420,6 +434,7 @@ export function Orb({ onMenu, toast }) {
   async function start() {
     try {
       audioCtx();
+      personRef.current?.resume();
       if (settingsRef.current.engine === 'local') await mic();
       setStarted(true);
       setHint('');
@@ -470,6 +485,31 @@ export function Orb({ onMenu, toast }) {
     return () => clearTimeout(id);
   }, [settings.engine]);
 
+  // The 3D person: a woman for a male user, a man for a female user (matching the voice).
+  const avatarGender = settings.userGender === 'female' ? 'male' : 'female';
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const found = await fetch(`/avatars/${avatarGender}.glb`, { method: 'HEAD' });
+        if (!found.ok) throw new Error('avatar not downloaded');
+        const { createPerson } = await import('./Person.js');
+        const made = await createPerson(personBoxRef.current, avatarGender);
+        if (cancelled) { made.dispose(); return; }
+        personRef.current = made;
+        setPerson('ready');
+      } catch (err) {
+        console.warn('3D person unavailable, showing the orb:', err);
+        if (!cancelled) setPerson('none');
+      }
+    })();
+    return () => { cancelled = true; personRef.current?.dispose(); personRef.current = null; };
+  }, []);
+
+  useEffect(() => {
+    personRef.current?.show(avatarGender).catch(() => {});
+  }, [avatarGender]);
+
   useEffect(() => () => {
     stopLoop();
     stopVoice();
@@ -478,7 +518,7 @@ export function Orb({ onMenu, toast }) {
   }, []);
 
   const STATUS = {
-    idle: started ? 'Paused' : 'Tap the orb to wake Atulya',
+    idle: started ? 'Paused' : `Tap ${person === 'ready' ? 'here' : 'the orb'} to wake Atulya`,
     listening: settings.handsFree && Date.now() >= followUntilRef.current ? 'Say “Hey Atulya”' : 'Listening…',
     thinking: 'Thinking…',
     speaking: 'Speaking — tap to interrupt',
@@ -486,8 +526,10 @@ export function Orb({ onMenu, toast }) {
   };
 
   return (
-    <div className={`orb-screen ${state}`}>
-      <canvas ref={canvasRef} className="orb-canvas" onClick={tapOrb} aria-label="Talk to Atulya" role="button" />
+    <div className={`orb-screen ${state}${person === 'ready' ? ' with-person' : ''}`}>
+      <canvas ref={canvasRef} className={`orb-canvas${person === 'ready' ? ' hidden' : ''}`} onClick={tapOrb}
+        aria-label="Talk to Atulya" role="button" />
+      <div ref={personBoxRef} className={`orb-person ${person}`} onClick={tapOrb} />
       <div className="orb-top">
         <button type="button" className="orb-icon" onClick={onMenu} title="Menu" aria-label="Menu">☰</button>
         <div className="orb-name">ATULYA</div>

@@ -3624,6 +3624,14 @@ main.shell .content.full { padding: 0; overflow: hidden; display: flex; flex-dir
   font-family: inherit;
 }
 .orb-canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: pointer; }
+.orb-canvas.hidden { display: none; }
+.orb-person { position: absolute; inset: 0; cursor: pointer; }
+.orb-person.none { display: none; }
+.with-person .orb-captions {
+  top: auto; bottom: 76px;
+  padding: 24px 16px 8px; margin: 0 -16px;
+  background: linear-gradient(to bottom, rgba(2, 6, 14, 0), rgba(2, 6, 14, 0.75) 40%);
+}
 .orb-top {
   position: absolute; top: 0; left: 0; right: 0;
   display: flex; align-items: center; justify-content: space-between;

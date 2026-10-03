@@ -81,6 +81,7 @@ async def api_voice_tts(
             )
         return {
             "audio_base64": result.audio_base64,
+            "words": result.metadata.get("words", []),
             "format": result.format.value,
             "duration": result.duration,
             "id": result.id,
@@ -222,6 +223,7 @@ async def api_voice_chat(
             "prompt": prompt,
             "response_text": response_text,
             "audio_base64": tts_result.audio_base64,
+            "words": tts_result.metadata.get("words", []),
             "format": tts_result.format.value,
             "provider": tts_result.provider,
             "provider_name": provider_name,
