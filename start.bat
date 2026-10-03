@@ -12,6 +12,9 @@ echo.
 
 cd /d "%~dp0"
 
+rem Keep the folder tidy: no __pycache__ folders.
+set PYTHONDONTWRITEBYTECODE=1
+
 if exist ".env" (
     for /f "usebackq tokens=1,* delims==" %%A in (".env") do (
         set "line=%%A"

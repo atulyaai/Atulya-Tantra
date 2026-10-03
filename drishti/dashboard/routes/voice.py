@@ -67,7 +67,7 @@ async def api_voice_tts(
     speed = float(body.get("speed") or 1.0)
     
     try:
-        result = await voice_pipeline.tts.synthesize(text=text, voice=voice, speed=speed, save=True)
+        result = await voice_pipeline.tts.synthesize(text=text, voice=voice, speed=speed, save=False)
         if result.provider == "fallback":
             return JSONResponse(
                 status_code=200,
@@ -214,7 +214,7 @@ async def api_voice_chat(
     # 3. Synthesize generated text into premium audio
     try:
         tts_result = await voice_pipeline.tts.synthesize(
-            text=response_text, voice=voice_for_reply(response_text, voice), save=True)
+            text=response_text, voice=voice_for_reply(response_text, voice), save=False)
         chat_history.append_exchange(user, prompt, response_text, provider=provider_name, surface=surface)
         return redact_for(user, {
             "prompt": prompt,
