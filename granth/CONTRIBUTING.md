@@ -46,17 +46,18 @@ The repo root has `atulya/` (all the Python), `drishti/` (the screen, दृष�
 
 - `kosh/`: everything Atulya stores on your machine (memory, accounts, sessions, chat history, audit log, tokens). Git-ignored. Override the agent part with `ATULYA_AGENT_DATA_DIR`.
 - `granth/` (ग्रंथ, text): guides, architecture, security, features and images (the one place for documentation).
-- `drishti/` (दृष्टि, sight): the animated screen. `src/` is the React source (`Orb.jsx` the orb, `Hologram.js` the head, `Panel.jsx` the pop-up shell), `public/` holds static files, `android/` the phone shell. `build.py` builds only when the source changed. `dist/` is generated.
+- `drishti/` (दृष्टि, sight): the animated screen, all files side by side (`Orb.jsx` the orb, `Hologram.js` the head, `Panel.jsx` the pop-up shell, `index.html`, `vite.config.js`). `build.py` builds only when the source changed. `dist/` is generated. `android_*` are Capacitor files to copy into `android/` after `npx cap add android`.
 - `atulya/`: all the Python.
 
 ### Inside `atulya/`
 
-One flat folder, one Hindi-named file per part. The full table (file, Devanagari, meaning, what it does) is in the [README](../README.md#layout). Rules of thumb:
+`atulya/` is 18 flat files, each named in Sanskrit/Hindi (Latin letters). The full table (file, Devanagari, meaning, what it holds) is in the [README](../README.md#layout). Rules of thumb:
 
-- New assistant tool: a function with `@tool(...)` in `kriya.py` (or a themed file such as `sahayak.py`, `dhan.py`) and, for a new file, import it at the bottom of `kriya.py`.
+- New assistant tool: a function with `@tool(...)` in `kriya.py`.
 - New device brand: a JSON profile in `upakaran_profiles.json` (or learn it with the brain); a new connection method goes in `upakaran.py`.
-- New API route: in the `dwar_*.py` file that matches (accounts, chat, automation, home).
-- Name a new file in Sanskrit/Hindi, written in Latin letters, and add it to the README table.
+- New API route: in `dwar.py`, next to the routes of the same kind.
+- A new brain provider: a row in the catalogue in `mastishk.py`.
+- Keep the layout flat: no sub-folders. If a file grows past a few thousand lines, split it by theme and name the new file in Sanskrit/Hindi, then add it to the README table.
 
 The NP-DNA research model was removed. Custom model work belongs in a separate repository.
 

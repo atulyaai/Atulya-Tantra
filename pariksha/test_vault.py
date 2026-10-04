@@ -71,10 +71,10 @@ def test_plain_files_are_encrypted_on_demand_and_only_private_ones(tmp_path, mon
 
 
 def test_money_and_chat_history_and_profiles_use_the_vault(tmp_path, monkeypatch):
-    from atulya import dhan as m
+    from atulya import kriya as m
     from atulya import kriya as t
-    from atulya.parichay import ProfileStore
-    from atulya import khata as chat_history
+    from atulya.buddhi import ProfileStore
+    from atulya import dwar as chat_history
 
     monkeypatch.setenv("ATULYA_VAULT_PASSPHRASE", "p")
     monkeypatch.setattr(t, "_DATA_DIR", tmp_path)
@@ -102,7 +102,7 @@ def test_money_and_chat_history_and_profiles_use_the_vault(tmp_path, monkeypatch
 
 def test_routes_report_status_and_a_locked_vault_is_423(tmp_path, monkeypatch):
     from atulya.sevak import app
-    from atulya.khata import ADMIN_TOKEN
+    from atulya.dwar import ADMIN_TOKEN
 
     c = TestClient(app)
     assert c.get("/api/vault").status_code in (401, 403)

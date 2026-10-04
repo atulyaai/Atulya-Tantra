@@ -7,7 +7,7 @@ import pytest
 import yaml
 
 from atulya.kaushal import create_default_registry
-from atulya.vyapar import HRAttendancePayrollTool, DataScrubberTool, GSTReconciliationTool, AccountingERPTool, SAPAutomationTool
+from atulya.kaushal import HRAttendancePayrollTool, DataScrubberTool, GSTReconciliationTool, AccountingERPTool, SAPAutomationTool
 
 
 @pytest.mark.anyio
@@ -196,7 +196,7 @@ def test_merge_env_defaults_preserves_existing_values(tmp_path):
 def test_ollama_provider_reads_env(monkeypatch):
     monkeypatch.setenv("ATULYA_OLLAMA_MODEL", "qwen3:8b")
     monkeypatch.setenv("ATULYA_OLLAMA_HOST", "http://localhost:11434")
-    from atulya.vahak import OllamaProvider
+    from atulya.mastishk import OllamaProvider
 
     p = OllamaProvider()
     assert p.model_name == "qwen3:8b"
@@ -207,14 +207,14 @@ def test_ollama_provider_reads_env(monkeypatch):
 def test_ollama_provider_unavailable_offline(monkeypatch):
     # Point Ollama at a port nothing listens on and confirm it reports unavailable.
     monkeypatch.setenv("ATULYA_OLLAMA_HOST", "http://127.0.0.1:1")
-    from atulya.vahak import OllamaProvider
+    from atulya.mastishk import OllamaProvider
 
     p = OllamaProvider()
     assert p.is_available() is False
 
 
 def test_ollama_provider_in_failover_chain():
-    from atulya.vahak import ProviderRouter
+    from atulya.mastishk import ProviderRouter
     router = ProviderRouter()
     names = [p.name() for p in router.providers]
     assert any("Ollama" in n for n in names)
@@ -225,7 +225,7 @@ import asyncio
 
 
 def test_automation_runner_executes_due_job(tmp_path):
-    from atulya.dwar_karya import AutomationRunner
+    from atulya.dwar import AutomationRunner
 
     class FakeLLM:
         async def ask(self, command, tools_enabled=True):
@@ -293,7 +293,7 @@ def test_mcp_http_url_is_not_double_suffixed(monkeypatch):
 
 
 def test_automation_runner_run_job_reports_missing_command(tmp_path):
-    from atulya.dwar_karya import AutomationRunner
+    from atulya.dwar import AutomationRunner
 
     class FakeLLM:
         async def ask(self, command, tools_enabled=True):
@@ -309,7 +309,7 @@ def test_automation_runner_run_job_reports_missing_command(tmp_path):
 
 
 def test_provider_router_keeps_gemini_as_rare_fallback(monkeypatch):
-    from atulya.vahak import ProviderRouter
+    from atulya.mastishk import ProviderRouter
 
     providers = ProviderRouter().providers
     types_found = set(type(p).__name__ for p in providers)

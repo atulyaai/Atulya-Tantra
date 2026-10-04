@@ -13,7 +13,8 @@ from pathlib import Path
 WEB = Path(__file__).resolve().parent
 DIST = WEB / "dist" / "index.html"
 MODULES = WEB / "node_modules"
-SOURCES = [WEB / "src", WEB / "public", WEB / "index.html", WEB / "vite.config.js", WEB / "package.json"]
+# Everything the build is made from: the flat folder's own files (not dist, node_modules or the Python tools).
+SOURCES = sorted(p for p in WEB.iterdir() if p.is_file() and p.suffix in {".jsx", ".js", ".html", ".css", ".json", ".svg", ".bin", ".webmanifest"} and p.name != "package-lock.json")
 
 
 def newest(paths: list[Path]) -> float:

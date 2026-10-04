@@ -198,9 +198,9 @@ class TestEngine:
 class TestServerRoundTrip:
     @pytest.fixture
     def app(self, monkeypatch, tmp_path):
-        from atulya import khata as helpers
+        from atulya import dwar as helpers
         from atulya.sevak import app
-        from atulya.ghatna import EventBus
+        from atulya.adhar import EventBus
         from atulya.indriya import Senses
 
         monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")

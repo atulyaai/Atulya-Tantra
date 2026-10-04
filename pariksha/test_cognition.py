@@ -8,7 +8,7 @@ import json
 import httpx
 import pytest
 
-from atulya.ghatna import EventBus
+from atulya.adhar import EventBus
 
 
 class StubRouter:
@@ -19,7 +19,7 @@ class StubRouter:
 
 
 def make_llm():
-    from atulya.bhasha import AtulyaLLM
+    from atulya.mastishk import AtulyaLLM
 
     llm = AtulyaLLM()
     llm.router = StubRouter()
@@ -39,14 +39,14 @@ def make_kernel():
 
 class TestToolbelt:
     def test_unified_registry_has_assistant_tools(self):
-        from atulya.aujar import build_unified_registry
+        from atulya.mastishk import build_unified_registry
 
         names = {t["name"] for t in build_unified_registry().list_tools()}
         assert {"home_control", "set_reminder", "get_weather", "web_search", "file_read"} <= names
         assert "download_vision_model" not in names and "configure_email" not in names
 
     def test_adapter_schema_requires_only_params_without_default(self):
-        from atulya.aujar import build_unified_registry
+        from atulya.mastishk import build_unified_registry
 
         schema = build_unified_registry().get("home_control").parameters
         assert set(schema["properties"]) == {"device_id", "action", "value"}
@@ -66,7 +66,7 @@ class TestToolbelt:
 
     def test_exec_permission_cannot_be_supplied_by_caller(self):
         """allow_exec / allow_list are server policy, not call arguments."""
-        from atulya.bhasha import AtulyaLLM
+        from atulya.mastishk import AtulyaLLM
         from atulya.kaushal import Tool, ToolRegistry, ToolResult
 
         received = {}
@@ -101,12 +101,12 @@ class TestSafety:
         ("get_weather", {}, "allow"),
     ])
     def test_policy(self, tool, args, level):
-        from atulya.maryada import assess
+        from atulya.mastishk import assess
 
         assert assess(tool, args).level == level
 
     def test_auto_approve_override(self, monkeypatch):
-        from atulya.maryada import assess
+        from atulya.mastishk import assess
 
         monkeypatch.setenv("ATULYA_AUTO_APPROVE", "home_control:unlock, send_email")
         assert assess("home_control", {"action": "unlock"}).level == "allow"
@@ -114,7 +114,7 @@ class TestSafety:
         assert assess("calendar_remove", {}).level == "confirm"
 
     def test_describe_action(self):
-        from atulya.maryada import describe_action
+        from atulya.mastishk import describe_action
 
         assert describe_action("home_control", {"device_id": "front_door", "action": "unlock"}) == "unlock the front door"
         assert describe_action("home_control", {"device_id": "kitchen_light", "action": "on"}) == "turn on the kitchen light"
@@ -255,7 +255,7 @@ class TestKernel:
 
     def test_tools_the_brain_runs_natively_are_published(self):
         from atulya.buddhi import CognitiveKernel
-        from atulya.bhasha import LLMResponse
+        from atulya.mastishk import LLMResponse
 
         class ToolUsingBrain:
             async def ask(self, prompt, **kwargs):
@@ -308,7 +308,7 @@ class TestKernel:
 
         class NarrowLLM:
             async def ask(self, prompt):
-                from atulya.bhasha import LLMResponse
+                from atulya.mastishk import LLMResponse
                 return LLMResponse(text=f"ok:{prompt}", provider="narrow")
 
         k = CognitiveKernel(llm=NarrowLLM(), events=EventBus())
@@ -321,7 +321,7 @@ class TestKernel:
 class TestTriggers:
     def make(self, tmp_path):
         from atulya.buddhi import CognitiveKernel
-        from atulya.prerak import TriggerEngine
+        from atulya.buddhi import TriggerEngine
 
         bus = EventBus()
         notes: list[str] = []
@@ -339,7 +339,7 @@ class TestTriggers:
 
     def test_new_defaults_top_up_old_rule_files_once(self, tmp_path):
         """An older rules file gets new built-ins, but a deleted built-in never returns."""
-        from atulya.prerak import TriggerEngine
+        from atulya.buddhi import TriggerEngine
 
         rules_file = tmp_path / "old.json"
         rules_file.write_text(json.dumps([{"id": "trg_reminder_alert", "event": "reminder.due", "notify": "x"}]))
@@ -387,7 +387,7 @@ class TestTriggers:
         assert _HOME_DEVICES["front_door"]["state"] == "unlocked"
 
     def test_payload_never_injected_into_commands(self, tmp_path):
-        from atulya.prerak import render
+        from atulya.buddhi import render
 
         assert render("Reminder: {message}", {"message": "hi"}) == "Reminder: hi"
         assert render("{missing}!", {}) == "!"
@@ -439,7 +439,7 @@ class TestTriggers:
 
 class TestSensors:
     def test_heartbeat_events_are_edge_triggered(self, tmp_path):
-        from atulya.dhadkan import HealthCheck, HeartbeatSystem
+        from atulya.adhar import HealthCheck, HeartbeatSystem
 
         bus = EventBus()
         seen: list[tuple[str, str]] = []
@@ -465,7 +465,7 @@ class TestSensors:
 
 class TestBrainTiers:
     def test_tier_selection_and_fallback(self, tmp_path, monkeypatch):
-        import atulya.sthaniya as lp
+        import atulya.mastishk as lp
 
         (tmp_path / "Qwen3-0.6B-Q4_K_M.gguf").write_bytes(b"x")
         monkeypatch.setenv("ATULYA_MODEL_DIR", str(tmp_path))
@@ -494,13 +494,13 @@ class TestBrainTiers:
         assert active_brain() == "tiny"
 
     def test_cloud_tier_routes_cloud_first(self, monkeypatch):
-        from atulya.vahak import LocalGGUFProvider, OpenCodeProvider, ProviderRouter
+        from atulya.mastishk import LocalBrainProvider, OpenCodeProvider, ProviderRouter
 
         monkeypatch.setenv("ATULYA_BRAIN", "cloud")
         providers = ProviderRouter().providers
-        assert not isinstance(providers[0], LocalGGUFProvider)
+        assert not isinstance(providers[0], LocalBrainProvider)
         assert isinstance(providers[-1], OpenCodeProvider)
-        local_index = next(i for i, p in enumerate(providers) if isinstance(p, LocalGGUFProvider))
+        local_index = next(i for i, p in enumerate(providers) if isinstance(p, LocalBrainProvider))
         assert local_index > 0
 
 
@@ -556,9 +556,9 @@ class TestRoutes:
     @pytest.fixture
     def client(self, tmp_path, monkeypatch):
         from fastapi.testclient import TestClient
-        from atulya import khata as helpers
+        from atulya import dwar as helpers
         from atulya.sevak import app
-        from atulya.prerak import TriggerEngine
+        from atulya.buddhi import TriggerEngine
 
         monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")
         app.state.llm = make_llm()
@@ -580,7 +580,7 @@ class TestRoutes:
         assert [s["stage"] for s in r["trace"]] == ["understand", "decide", "act"]
 
     def test_websocket_replays_history_flagged_as_replay(self, client):
-        from atulya import dwar_vartalap as ws_mod
+        from atulya import dwar as ws_mod
 
         ws_mod._broadcast_history.append({"type": "event", "data": {"title": "old"}, "timestamp": 1.0})
         try:
@@ -612,7 +612,7 @@ class TestRoutes:
 
 class TestNoBrain:
     async def test_last_fallback_says_no_brain_instead_of_canned_reply(self):
-        from atulya.vahak import NO_BRAIN_MESSAGE, OpenCodeProvider
+        from atulya.mastishk import NO_BRAIN_MESSAGE, OpenCodeProvider
 
         reply = await OpenCodeProvider().chat("what is the capital of france")
         assert reply == NO_BRAIN_MESSAGE
@@ -620,7 +620,7 @@ class TestNoBrain:
 
 
 def test_voice_for_reply_keeps_gender_and_follows_language():
-    from atulya.dwar_vartalap import voice_for_reply
+    from atulya.dwar import voice_for_reply
 
     assert voice_for_reply("Hello there.", "en_female") == "en_female"
     assert voice_for_reply("नमस्ते, मैं अतुल्य हूँ।", "en_female") == "hi_female"
@@ -637,23 +637,23 @@ def test_recommend_tier_by_free_ram():
 
 
 def test_cloud_key_leads_unless_a_local_brain_is_chosen(monkeypatch):
-    from atulya.vahak import LocalGGUFProvider, OpenRouterProvider, ProviderRouter
+    from atulya.mastishk import LocalBrainProvider, OpenRouterProvider, ProviderRouter
 
     for key in ("ANTHROPIC_API_KEY", "GROQ_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY", "NVIDIA_API_KEY"):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("OPENROUTER_API_KEY", "x")
     monkeypatch.delenv("ATULYA_BRAIN", raising=False)
     names = [type(p) for p in ProviderRouter().providers]
-    assert names.index(OpenRouterProvider) < names.index(LocalGGUFProvider)
+    assert names.index(OpenRouterProvider) < names.index(LocalBrainProvider)
     monkeypatch.setenv("ATULYA_BRAIN", "tiny")
     names = [type(p) for p in ProviderRouter().providers]
-    assert names.index(LocalGGUFProvider) < names.index(OpenRouterProvider)
+    assert names.index(LocalBrainProvider) < names.index(OpenRouterProvider)
 
 
 def test_router_prefers_the_fastest_working_brain(monkeypatch):
     import asyncio
 
-    from atulya import vahak as ai
+    from atulya import mastishk as ai
 
     class Fake(ai.IntelligenceProvider):
         def __init__(self, label, delay=0.0, fail=False):
@@ -690,7 +690,7 @@ def test_router_prefers_the_fastest_working_brain(monkeypatch):
 
 def test_slow_measured_brain_still_beats_the_no_brain_reply(monkeypatch):
     """A real brain that took 28 s once must not be replaced by the 'no brain' message."""
-    import atulya.vahak as ai
+    import atulya.mastishk as ai
 
     monkeypatch.delenv("ATULYA_BRAIN", raising=False)
     monkeypatch.setattr(ai, "_SPEED", {})

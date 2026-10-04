@@ -7,7 +7,7 @@ import time
 
 import pytest
 
-from atulya.ghatna import EventBus
+from atulya.adhar import EventBus
 
 
 class RecordingRouter:
@@ -21,9 +21,9 @@ class RecordingRouter:
 
 def make_kernel(tmp_path):
     from atulya.buddhi import CognitiveKernel
-    from atulya.yojana import Planner, RoutineStore
-    from atulya.parichay import ProfileStore
-    from atulya.bhasha import AtulyaLLM
+    from atulya.buddhi import Planner, RoutineStore
+    from atulya.buddhi import ProfileStore
+    from atulya.mastishk import AtulyaLLM
 
     llm = AtulyaLLM()
     llm.router = RecordingRouter()
@@ -60,7 +60,7 @@ def _simulated_home(monkeypatch):
     ("remember that I take my medicine at 9", ("note", "note", "you take your medicine at 9")),
 ])
 def test_extracts_facts(text, expected):
-    from atulya.parichay import extract_facts
+    from atulya.buddhi import extract_facts
 
     facts = extract_facts(text)
     assert (facts[0]["kind"], facts[0]["key"], facts[0]["value"]) == expected
@@ -69,7 +69,7 @@ def test_extracts_facts(text, expected):
 @pytest.mark.parametrize("text", ["my wife is angry", "what's my wife's name?", "I'd like a coffee", "I like it",
                                   "turn on the kitchen light", "how do I like this"])
 def test_ignores_non_facts(text):
-    from atulya.parichay import extract_facts
+    from atulya.buddhi import extract_facts
 
     assert extract_facts(text) == []
 
@@ -176,7 +176,7 @@ class TestApprovals:
         assert say(kernel, "unlock the front door", user=other_admin).needs_approval
 
     def test_code_execution_is_never_learnable(self, tmp_path):
-        from atulya.parichay import ProfileStore
+        from atulya.buddhi import ProfileStore
 
         store = ProfileStore(tmp_path)
         for _ in range(10):
@@ -205,7 +205,7 @@ def _at(day: int, hour: int, minute: int = 0) -> float:
 
 class TestHabits:
     def test_habit_needs_three_days_around_the_same_hour(self, tmp_path):
-        from atulya.parichay import ProfileStore
+        from atulya.buddhi import ProfileStore
 
         store = ProfileStore(tmp_path)
         args = {"device_id": "kitchen_light", "action": "on"}
@@ -217,7 +217,7 @@ class TestHabits:
         assert habit["label"] == "turn on the kitchen light" and habit["when"] == "around 7 AM"
 
     def test_scattered_times_are_not_a_habit(self, tmp_path):
-        from atulya.parichay import ProfileStore
+        from atulya.buddhi import ProfileStore
 
         store = ProfileStore(tmp_path)
         for day, hour in ((1, 7), (2, 13), (3, 19), (4, 23)):
@@ -226,7 +226,7 @@ class TestHabits:
         assert store.habits("atul") == []
 
     def test_due_once_per_day_and_not_if_already_done(self, tmp_path):
-        from atulya.parichay import ProfileStore
+        from atulya.buddhi import ProfileStore
 
         store = ProfileStore(tmp_path)
         args = {"device_id": "kitchen_light", "action": "on"}
@@ -246,8 +246,8 @@ class TestHabits:
         assert kernel.profiles.load("automation")["habits"] == {}
 
     def test_watcher_publishes_due_habits(self, tmp_path, monkeypatch):
-        from atulya import parichay as profile_mod
-        from atulya.parichay import ProfileStore, watch_habits
+        from atulya import buddhi as profile_mod
+        from atulya.buddhi import ProfileStore, watch_habits
 
         store = ProfileStore(tmp_path)
         monkeypatch.setattr(store, "users", lambda: ["atul"])
@@ -273,9 +273,9 @@ class TestProfileApi:
     @pytest.fixture
     def client(self, tmp_path, monkeypatch):
         from fastapi.testclient import TestClient
-        from atulya import khata as helpers
+        from atulya import dwar as helpers
         from atulya.sevak import app
-        from atulya.bhasha import AtulyaLLM
+        from atulya.mastishk import AtulyaLLM
 
         monkeypatch.setenv("ATULYA_PROFILE_DIR", str(tmp_path / "profiles"))
         monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")

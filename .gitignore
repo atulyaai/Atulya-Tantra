@@ -50,7 +50,7 @@ runtime/
 
 # Runtime scratch / generated reports
 tmp/
-!drishti/public/hologram-head.bin
+!drishti/hologram-head.bin
 
 .claude/
 

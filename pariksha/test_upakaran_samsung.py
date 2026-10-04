@@ -6,9 +6,9 @@ import json
 import pytest
 import websockets
 
-from atulya import upakaran_hub as discovery
+from atulya import upakaran as discovery
 from atulya.upakaran import DeviceError, DeviceRecord
-from atulya.upakaran_hub import DeviceHub
+from atulya.upakaran import DeviceHub
 from atulya.upakaran import SamsungDriver
 from pariksha import sims
 

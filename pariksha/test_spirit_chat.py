@@ -15,7 +15,7 @@ class TestSpiritChatPanel:
         import importlib.util
         spec = importlib.util.spec_from_file_location(
             "voice",
-            str(Path(__file__).resolve().parents[1] / "atulya" / "dwar_vartalap.py"),
+            str(Path(__file__).resolve().parents[1] / "atulya" / "dwar.py"),
         )
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
@@ -25,7 +25,7 @@ class TestSpiritChatPanel:
         import importlib.util
         spec = importlib.util.spec_from_file_location(
             "voice",
-            str(Path(__file__).resolve().parents[1] / "atulya" / "dwar_vartalap.py"),
+            str(Path(__file__).resolve().parents[1] / "atulya" / "dwar.py"),
         )
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
@@ -36,7 +36,7 @@ class TestSpiritChatPanel:
         import importlib.util
         spec = importlib.util.spec_from_file_location(
             "voice",
-            str(Path(__file__).resolve().parents[1] / "atulya" / "dwar_vartalap.py"),
+            str(Path(__file__).resolve().parents[1] / "atulya" / "dwar.py"),
         )
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
@@ -47,7 +47,7 @@ class TestSpiritChatPanel:
         import importlib.util
         spec = importlib.util.spec_from_file_location(
             "voice",
-            str(Path(__file__).resolve().parents[1] / "atulya" / "dwar_vartalap.py"),
+            str(Path(__file__).resolve().parents[1] / "atulya" / "dwar.py"),
         )
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
@@ -225,14 +225,14 @@ class TestIntentClassificationFrontend:
 
 class TestVoiceChatRoutes:
     def test_routes_exist(self):
-        from atulya.dwar_vartalap import router
+        from atulya.dwar import router
         paths = [r.path for r in router.routes]
         assert "/api/voice/chat" in paths
         assert "/api/voice/tts" in paths
         assert "/api/voice/voices" in paths
 
     def test_get_voices(self):
-        from atulya.dwar_vartalap import get_voices
+        from atulya.dwar import get_voices
         r = get_voices()
         assert "voices" in r
         assert len(r["voices"]) >= 4

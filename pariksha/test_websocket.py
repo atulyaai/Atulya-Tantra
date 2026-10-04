@@ -11,7 +11,7 @@ from starlette.websockets import WebSocketDisconnect
 class TestWebSocket:
     @pytest.fixture
     def authed_ws(self, monkeypatch):
-        import atulya.dwar_vartalap as ws_mod
+        import atulya.dwar as ws_mod
         monkeypatch.setattr(
             ws_mod, "_require_auth", lambda token: {"username": "admin", "role": "admin", "display_name": "Admin"}
         )
@@ -26,7 +26,7 @@ class TestWebSocket:
     @pytest.fixture
     def anon_ws(self, monkeypatch):
         from fastapi import HTTPException
-        import atulya.dwar_vartalap as ws_mod
+        import atulya.dwar as ws_mod
         def _always_fail(token):
             raise HTTPException(status_code=401, detail="Not authenticated")
         monkeypatch.setattr(ws_mod, "_require_auth", _always_fail)
@@ -41,14 +41,14 @@ class TestWebSocket:
 
     @pytest.fixture
     def clean_state(self):
-        import atulya.dwar_vartalap as ws_mod
+        import atulya.dwar as ws_mod
         ws_mod._active_connections.clear()
         ws_mod._broadcast_history.clear()
         yield
 
     @pytest.mark.asyncio
     async def test_websocket_rejects_unauthenticated(self, anon_ws, clean_state):
-        from atulya.dwar_vartalap import websocket_endpoint
+        from atulya.dwar import websocket_endpoint
 
         await websocket_endpoint(anon_ws)
 
@@ -57,7 +57,7 @@ class TestWebSocket:
 
     @pytest.mark.asyncio
     async def test_broadcast_adds_to_history(self, clean_state):
-        import atulya.dwar_vartalap as ws_mod
+        import atulya.dwar as ws_mod
         await ws_mod.broadcast("test_event", {"key": "value"})
         assert len(ws_mod._broadcast_history) == 1
         entry = ws_mod._broadcast_history[0]
@@ -67,26 +67,26 @@ class TestWebSocket:
 
     @pytest.mark.asyncio
     async def test_broadcast_history_capped(self, clean_state):
-        import atulya.dwar_vartalap as ws_mod
+        import atulya.dwar as ws_mod
         for i in range(250):
             await ws_mod.broadcast(f"e{i}", {})
         assert len(ws_mod._broadcast_history) <= 200
 
     @pytest.mark.asyncio
     async def test_broadcast_training(self, clean_state):
-        import atulya.dwar_vartalap as ws_mod
+        import atulya.dwar as ws_mod
         await ws_mod.broadcast_training({"status": "running"})
         assert ws_mod._broadcast_history[0]["type"] == "training_status"
 
     @pytest.mark.asyncio
     async def test_broadcast_telemetry(self, clean_state):
-        import atulya.dwar_vartalap as ws_mod
+        import atulya.dwar as ws_mod
         await ws_mod.broadcast_telemetry({"cpu": 50})
         assert ws_mod._broadcast_history[0]["type"] == "telemetry"
 
     @pytest.mark.asyncio
     async def test_broadcast_event(self, clean_state):
-        import atulya.dwar_vartalap as ws_mod
+        import atulya.dwar as ws_mod
         await ws_mod.broadcast_event("Title", "Desc", "warning")
         entry = ws_mod._broadcast_history[0]
         assert entry["type"] == "event"
@@ -95,7 +95,7 @@ class TestWebSocket:
 
     @pytest.mark.asyncio
     async def test_websocket_connect_and_pong(self, authed_ws, clean_state):
-        from atulya.dwar_vartalap import websocket_endpoint
+        from atulya.dwar import websocket_endpoint
 
         authed_ws.receive_text.side_effect = [
             json.dumps({"type": "ping"}),
@@ -109,8 +109,8 @@ class TestWebSocket:
 
     @pytest.mark.asyncio
     async def test_websocket_sends_history_on_connect(self, authed_ws, clean_state):
-        from atulya.dwar_vartalap import websocket_endpoint
-        import atulya.dwar_vartalap as ws_mod
+        from atulya.dwar import websocket_endpoint
+        import atulya.dwar as ws_mod
 
         await ws_mod.broadcast("past", {"msg": "old"})
         authed_ws.receive_text.side_effect = [WebSocketDisconnect()]
@@ -121,8 +121,8 @@ class TestWebSocket:
 
     @pytest.mark.asyncio
     async def test_disconnect_removes_connection(self, authed_ws, clean_state):
-        from atulya.dwar_vartalap import websocket_endpoint
-        import atulya.dwar_vartalap as ws_mod
+        from atulya.dwar import websocket_endpoint
+        import atulya.dwar as ws_mod
 
         authed_ws.receive_text.side_effect = [WebSocketDisconnect()]
         ws_mod._active_connections.add(authed_ws)

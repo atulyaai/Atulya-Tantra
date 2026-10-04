@@ -63,7 +63,7 @@ async def test_mcp_http_latency():
 
 @pytest.mark.asyncio
 async def test_jwt_encode_decode_latency():
-    from atulya.khata import _jwt_encode, _jwt_decode
+    from atulya.dwar import _jwt_encode, _jwt_decode
 
     n = 500
     encode_times = []

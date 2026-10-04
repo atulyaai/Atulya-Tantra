@@ -41,6 +41,6 @@ def test_mood_route_requires_login_and_reports_values(monkeypatch):
 
     client = TestClient(app)
     assert client.get("/api/mood").status_code in (401, 403)
-    from atulya.khata import ADMIN_TOKEN as token
+    from atulya.dwar import ADMIN_TOKEN as token
     body = client.get("/api/mood", headers={"X-Atulya-Token": token}).json()
     assert set(body) == {"label", "valence", "energy"} and -1 <= body["valence"] <= 1

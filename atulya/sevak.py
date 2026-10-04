@@ -14,11 +14,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from atulya import dwar_ghar as api_home
-from atulya import dwar_karya as api_agent
-from atulya import dwar_khata as api_account
-from atulya import dwar_vartalap as api_chat
-from atulya.dwar_karya import AutomationRunner
+from atulya import dwar as api_account
+from atulya import dwar as api_agent
+from atulya import dwar as api_chat
+from atulya import dwar as api_home
+from atulya.dwar import AutomationRunner
 from atulya.raksha import cors_origins as _cors_origins
 from atulya.setu import MCPClientManager
 
@@ -60,9 +60,9 @@ async def _warm_llm(llm) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from atulya.bhasha import get_default_llm
-    from atulya.dwar_karya import set_agent
-    from atulya.karta import AgentCore
+    from atulya.dwar import set_agent
+    from atulya.kriya import AgentCore
+    from atulya.mastishk import get_default_llm
 
     app.state.llm = get_default_llm()
     app.state.mcp_manager = MCPClientManager()
@@ -80,10 +80,8 @@ async def lifespan(app: FastAPI):
     # Reflexes: event-driven proactivity + self-monitoring. Reminders, health
     # changes and automation outcomes become events; trigger rules react; the
     # resulting notifications are relayed to connected clients.
-    from atulya.buddhi import get_kernel
-    from atulya.dhadkan import HeartbeatSystem
-    from atulya.ghatna import default_bus
-    from atulya.prerak import TriggerEngine, connect_sensors
+    from atulya.adhar import HeartbeatSystem, default_bus
+    from atulya.buddhi import TriggerEngine, connect_sensors, get_kernel
 
     connect_sensors(default_bus)
     app.state.triggers = TriggerEngine(kernel=get_kernel(app.state.llm), events=default_bus)
@@ -92,11 +90,10 @@ async def lifespan(app: FastAPI):
     app.state.heartbeat = HeartbeatSystem(events=default_bus)
     app.state.heartbeat_task = asyncio.create_task(app.state.heartbeat.start())
     # Learned habits: "you usually … around now" when it hasn't happened yet today.
-    from atulya.parichay import watch_habits
+    from atulya.buddhi import watch_habits
 
     app.state.habit_task = asyncio.create_task(watch_habits(get_kernel(app.state.llm).profiles, default_bus))
-    from atulya.dhan import watch_bills
-    from atulya.sahayak import watch_calendar
+    from atulya.kriya import watch_bills, watch_calendar
 
     app.state.calendar_task = asyncio.create_task(watch_calendar(default_bus))
     app.state.bills_task = asyncio.create_task(watch_bills(default_bus))
@@ -126,7 +123,7 @@ async def lifespan(app: FastAPI):
 
 async def _relay_notification(event) -> None:
     """Push a proactive notification (e.g. a due reminder) to connected clients."""
-    from atulya.dwar_vartalap import broadcast_event
+    from atulya.dwar import broadcast_event
 
     payload = event.payload or {}
     logger.info("Atulya notification: %s — %s", payload.get("title"), payload.get("message"))
@@ -194,15 +191,14 @@ __all__ = ["main"]
 
 def _brain_report() -> None:
     """Say which brains found a key, so a missing or misspelled key is obvious at startup."""
-    from atulya.vahak import ProviderRouter
+    from atulya.mastishk import ProviderRouter
 
     names = [p.name() for p in ProviderRouter().providers if p.is_available() and p.name() != "No brain loaded"]
     print("  Brains ready: " + (", ".join(names) if names else "none. Add a key to .env (see .env.example)"))
 
 
 def main() -> None:
-    from atulya.kosh import migrate_all
-    from atulya.parivesh import load_env
+    from atulya.adhar import load_env, migrate_all
     from atulya.raksha import bind_host
 
     migrate_all()  # an old `data` folder becomes `kosh`, once
@@ -231,7 +227,7 @@ def main() -> None:
     print(f"  Running on: {scheme}://{host}:{port}\n")
     if scheme == "https":
         print("  Your browser will warn once about the certificate (it is your own): choose Advanced > Continue.\n")
-    from atulya import khata as users
+    from atulya import dwar as users
     users.seed_default_admin()
     
     print("  Starting Atulya. The first start can take a little longer while the screen is built...\n", flush=True)

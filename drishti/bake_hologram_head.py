@@ -6,8 +6,8 @@ the chest up, keep them in thin horizontal bands so they read as contour
 lines, and store how each particle moves for the jawOpen / viseme_aa /
 eyeBlink blend shapes, so the hologram can talk and blink.
 
-Usage:  python drishti/tools/bake_hologram_head.py path/to/mpfb.glb
-Writes: drishti/public/hologram-head.bin
+Usage:  python drishti/bake_hologram_head.py path/to/mpfb.glb
+Writes: drishti/hologram-head.bin
 
 Format (little endian): uint32 count, then per point 13 x int16:
 position xyz, jaw delta xyz, "aa" delta xyz, blink delta xyz, region
@@ -23,7 +23,7 @@ import numpy as np
 from pygltflib import GLTF2
 
 SCALE = 8000
-OUT = Path(__file__).resolve().parent / "public" / "hologram-head.bin"
+OUT = Path(__file__).resolve().parent / "hologram-head.bin"
 _TYPES = {5126: np.float32, 5123: np.uint16, 5125: np.uint32, 5121: np.uint8}
 _SIZES = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4}
 

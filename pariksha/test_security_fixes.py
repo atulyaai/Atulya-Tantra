@@ -133,7 +133,7 @@ def test_https_generates_certificates(tmp_path, monkeypatch):
 
 class TestJwtSecret:
     def test_created_once_private_and_reused(self, tmp_path, monkeypatch):
-        from atulya import khata as state
+        from atulya import dwar as state
 
         path = tmp_path / "kosh" / "jwt_secret.key"
         monkeypatch.delenv("ATULYA_JWT_SECRET", raising=False)
@@ -146,7 +146,7 @@ class TestJwtSecret:
         assert state._load_jwt_secret() == first  # a restart or another worker gets the same key
 
     def test_explicit_settings_win(self, tmp_path, monkeypatch):
-        from atulya import khata as state
+        from atulya import dwar as state
 
         monkeypatch.setenv("ATULYA_JWT_SECRET_FILE", str(tmp_path / "k"))
         monkeypatch.setenv("ATULYA_JWT_SECRET", "from-env")

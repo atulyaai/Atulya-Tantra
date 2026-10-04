@@ -9,7 +9,7 @@ import pytest
 
 np = pytest.importorskip("numpy")
 
-from atulya.ghatna import EventBus
+from atulya.adhar import EventBus
 
 HAS_CV2 = importlib.util.find_spec("cv2") is not None
 
@@ -189,7 +189,7 @@ class TestHomeSensors:
 # ── the reflex ────────────────────────────────────────────────────────────
 
 def test_someone_at_the_door_rule(tmp_path):
-    from atulya.prerak import TriggerEngine
+    from atulya.buddhi import TriggerEngine
 
     bus, seen = recorder()
     engine = TriggerEngine(rules_file=tmp_path / "t.json", events=bus)
@@ -251,8 +251,8 @@ class TestSensesHub:
 
     def test_kernel_answers_is_anyone_at_the_door(self, tmp_path):
         from atulya.buddhi import CognitiveKernel
-        from atulya.yojana import Planner, RoutineStore
-        from atulya.parichay import ProfileStore
+        from atulya.buddhi import Planner, RoutineStore
+        from atulya.buddhi import ProfileStore
         from atulya import indriya as senses_mod
 
         senses, _ = self.make(tmp_path)
@@ -274,7 +274,7 @@ class TestSensesApi:
     @pytest.fixture
     def client(self, tmp_path, monkeypatch):
         from fastapi.testclient import TestClient
-        from atulya import khata as helpers
+        from atulya import dwar as helpers
         from atulya.sevak import app
         from atulya.indriya import Senses
 

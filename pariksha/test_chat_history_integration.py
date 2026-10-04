@@ -10,7 +10,7 @@ class TestChatHistoryMerge:
         import importlib.util
         spec = importlib.util.spec_from_file_location(
             "chat",
-            str(Path(__file__).resolve().parents[1] / "atulya" / "dwar_vartalap.py"),
+            str(Path(__file__).resolve().parents[1] / "atulya" / "dwar.py"),
         )
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
@@ -98,7 +98,7 @@ class TestChatHistoryPersistence:
         import importlib.util
         spec = importlib.util.spec_from_file_location(
             "chat_history",
-            str(Path(__file__).resolve().parents[1] / "atulya" / "khata.py"),
+            str(Path(__file__).resolve().parents[1] / "atulya" / "dwar.py"),
         )
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
@@ -175,12 +175,12 @@ class TestChatHistoryPersistence:
 
 class TestChatAPIMerge:
     def test_merge_function_exists(self):
-        from atulya.dwar_vartalap import _merge_history
+        from atulya.dwar import _merge_history
         r = _merge_history([{"role": "user", "content": "hi"}], [])
         assert len(r) == 1
 
     def test_merge_dedup(self):
-        from atulya.dwar_vartalap import _merge_history
+        from atulya.dwar import _merge_history
         r = _merge_history(
             [{"role": "user", "content": "hi"}],
             [{"role": "user", "content": "hi"}],
@@ -188,6 +188,6 @@ class TestChatAPIMerge:
         assert len(r) == 1
 
     def test_merge_limit(self):
-        from atulya.dwar_vartalap import _merge_history
+        from atulya.dwar import _merge_history
         h = [{"role": "user", "content": f"m{i}"} for i in range(20)]
         assert len(_merge_history(h, [], limit=5)) == 5
