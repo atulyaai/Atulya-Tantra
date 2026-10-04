@@ -1,8 +1,8 @@
-FROM node:20-slim AS web
-WORKDIR /web
-COPY web/package.json web/package-lock.json ./
+FROM node:20-slim AS screen
+WORKDIR /screen
+COPY drishti/package.json drishti/package-lock.json ./
 RUN npm ci --no-audit --no-fund
-COPY web/ ./
+COPY drishti/ ./
 RUN npm run build
 
 FROM python:3.11-slim
@@ -18,7 +18,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY . .
-COPY --from=web /web/dist ./web/dist
+COPY --from=screen /screen/dist ./drishti/dist
 RUN pip install -e ".[serve]"
 
 VOLUME /app/data

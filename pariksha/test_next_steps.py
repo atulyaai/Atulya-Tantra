@@ -41,7 +41,7 @@ class _Resp:
 def test_local_vision_describes_through_ollama(monkeypatch):
     import urllib.request
 
-    from atulya.drishti import eyes
+    from atulya.indriya import eyes
 
     seen = {}
 
@@ -55,7 +55,7 @@ def test_local_vision_describes_through_ollama(monkeypatch):
 
 
 def test_describe_scene_prefers_local_then_cloud(monkeypatch):
-    from atulya.drishti import eyes
+    from atulya.indriya import eyes
 
     monkeypatch.setattr(eyes, "local_describe", lambda i, q: "")
     monkeypatch.setattr(eyes, "cloud_describe", lambda i, q: "cloud says hi")
@@ -429,7 +429,7 @@ def test_ensure_build_rebuilds_when_source_content_changes(tmp_path, monkeypatch
     import time
     from pathlib import Path
 
-    spec = importlib.util.spec_from_file_location("web_build", Path(__file__).resolve().parents[1] / "web" / "build.py")
+    spec = importlib.util.spec_from_file_location("web_build", Path(__file__).resolve().parents[1] / "drishti" / "build.py")
     eb = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(eb)
 

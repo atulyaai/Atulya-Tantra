@@ -13,7 +13,7 @@ def _senses(request: Request):
     senses = getattr(request.app.state, "senses", None)
     if senses is None:  # app started without lifespan (e.g. tests)
         from atulya.events import default_bus
-        from atulya.drishti import Senses
+        from atulya.indriya import Senses
 
         senses = Senses(default_bus)
         request.app.state.senses = senses

@@ -27,7 +27,7 @@ What is enforced today, and what is not.
 
 - Treat `data/` (memory, audit log, tokens), `.env` and `data/chat_history.json` as sensitive; they are git-ignored.
 - Do not expose the dashboard to an untrusted network without TLS, a reverse proxy and login.
-- See `docs/DEPLOYMENT.md` for the hardening checklist.
+- See `granth/DEPLOYMENT.md` for the hardening checklist.
 
 
 ## Encryption at rest (`ATULYA_VAULT_PASSPHRASE`)
