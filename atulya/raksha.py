@@ -311,7 +311,7 @@ def status(root: Path | str = "kosh") -> dict[str, object]:
 
 
 # Files that hold private data. Everything else (settings, caches, tokens meant to be read by tools) stays as is.
-PRIVATE = ("money.json", "calendar.json", "reminders.json", "email_config.json", "tracking.json", "chat_history.json", "fabric.json")
+PRIVATE = ("money.json", "calendar.json", "reminders.json", "email_config.json", "tracking.json", "chat_history.json", "fabric.json", "contacts.json")
 
 
 def encrypt_tree(root: Path | str = "kosh") -> int:

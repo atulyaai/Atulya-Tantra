@@ -984,11 +984,53 @@ def _device_intent(t: str) -> RoutedIntent | None:
     return RoutedIntent("device_do", arguments, confidence=0.9)
 
 
+_MESSAGE_VERB = re.compile(
+    r"^\s*(?:please\s+)?(?:(?P<verb>tell|text|message|msg|whatsapp|telegram|ping)\b|send\s+(?:a\s+)?(?:message|text)\s+to\b)\s+", re.I)
+
+
+def _message_intent(text: str) -> RoutedIntent | None:
+    """"tell Mum I'm late", "message Priya: running late", "whatsapp Dad that I reached".
+
+    Only a saved contact counts: the verb must be followed by one of their names. Anything else goes to the brain."""
+    m = _MESSAGE_VERB.match(text)
+    if not m:
+        return None
+    rest = text[m.end():]
+    low = rest.lower()
+    for name in contact_names():
+        if low.startswith(name) and (len(low) == len(name) or not low[len(name)].isalnum()):
+            body = re.sub(r"^(?:that|to say|saying)\s+", "", rest[len(name):].lstrip(" :,-"), flags=re.I).strip()
+            args: dict[str, Any] = {"to": find_contact(name)["name"], "text": body}
+            if (m.group("verb") or "").lower() in ("whatsapp", "telegram"):
+                args["via"] = m.group("verb").lower()
+            return RoutedIntent("message_send", args)
+    return None
+
+
+_CONTACT_ADD = re.compile(
+    r"^\s*(?:please\s+)?(?:add|save)\s+(?:contact\s+)?(?P<name>[A-Za-z][\w' ]{0,38}?)\s+(?:on|to|via)\s+"
+    r"(?P<chan>telegram|whatsapp|email|slack|discord|signal)\s+(?:with\s+|at\s+)?(?:(?:chat\s+id|id|number|address)\s+)?(?P<addr>\S+?)\s*$",
+    re.I)
+
+
+def _contact_intent(text: str) -> RoutedIntent | None:
+    """"add Mum on Telegram with chat id 5550101" saves a contact."""
+    m = _CONTACT_ADD.match(text)
+    if not m:
+        return None
+    return RoutedIntent("contact_add", {"name": m.group("name").strip(), "channel": m.group("chan").lower(), "address": m.group("addr")})
+
+
 def route_intent(text: str) -> RoutedIntent | None:
     """Return a concrete tool routing for a clear command, else None."""
     if not text or not text.strip():
         return None
     t = text.strip().lower()
+
+    # --- Messages to people you saved ("tell Mum I'm late") ---
+    message_hit = _message_intent(text) or _contact_intent(text)
+    if message_hit is not None:
+        return message_hit
 
     # --- Your devices (anything added through the device fabric), understood from their own capabilities ---
     device_hit = _device_intent(t)
@@ -2301,6 +2343,113 @@ class AgentCore:
 
     async def shutdown(self):
         logger.info("AgentCore shutdown")
+
+
+# ── contacts and messages ────────────────────────────────────────────────────
+# "tell Mum I'm late": a small contact book plus one send tool. Sending always asks first (see mastishk.py), and
+# only reaches a person you saved: Atulya never guesses a recipient or looks one up.
+_CHANNEL_WORDS = {"telegram": "telegram", "whatsapp": "whatsapp", "email": "email", "mail": "email", "slack": "slack",
+                  "discord": "discord", "signal": "signal", "sms": "sms"}
+MESSAGE_LIMIT = 500
+
+
+def _contacts() -> list[dict[str, Any]]:
+    data = _load_json("contacts.json")
+    rows = data.get("contacts") if isinstance(data, dict) else None
+    return rows if isinstance(rows, list) else []
+
+
+def _save_contacts(rows: list[dict[str, Any]]) -> None:
+    _save_json("contacts.json", {"contacts": rows})
+
+
+def find_contact(who: str) -> dict[str, Any] | None:
+    """A saved contact by name or nickname ("Mum", "mom", "Priya"), exact match only."""
+    w = " ".join(str(who or "").lower().split())
+    if not w:
+        return None
+    return next((c for c in _contacts() if w == c["name"].lower() or w in [a.lower() for a in c.get("aliases", [])]), None)
+
+
+def contact_names() -> list[str]:
+    """Every name and nickname that means a saved contact, longest first (the intent router matches on these)."""
+    names = [n for c in _contacts() for n in [c["name"], *c.get("aliases", [])]]
+    return sorted({n.lower() for n in names}, key=len, reverse=True)
+
+
+@tool("contact_add", "Save or update a person you can message, e.g. Mum on Telegram", {
+    "name": {"type": "string", "description": "Name, e.g. Mum"},
+    "channel": {"type": "string", "description": "telegram, whatsapp, email, slack, discord or signal"},
+    "address": {"type": "string", "description": "Telegram chat id, phone number or email address"},
+    "nicknames": {"type": "string", "description": "Other names for them, comma separated, e.g. Mom, Mummy", "default": ""},
+})
+async def contact_add(name: str, channel: str, address: str, nicknames: str = "") -> str:
+    name = " ".join(str(name).split())[:40]
+    chan = _CHANNEL_WORDS.get(str(channel).strip().lower())
+    address = str(address).strip()[:120]
+    if not name or not chan or not address:
+        return "I need a name, a channel (telegram, whatsapp, email, slack, discord, signal) and an address."
+    rows = _contacts()
+    row = next((c for c in rows if c["name"].lower() == name.lower()), None)
+    if row is None:
+        row = {"name": name, "aliases": [], "channels": {}}
+        rows.append(row)
+    row["channels"][chan] = address
+    row.setdefault("preferred", chan)
+    row["aliases"] = sorted({*row.get("aliases", []), *[a.strip() for a in str(nicknames).split(",") if a.strip()]})
+    _save_contacts(rows)
+    return f"Saved {name} on {chan}."
+
+
+@tool("contact_list", "List the people you can message", {})
+async def contact_list() -> str:
+    rows = _contacts()
+    if not rows:
+        return "No contacts yet. Say, for example: add Mum on Telegram with chat id 12345."
+    return "\n".join(f"{c['name']}: {', '.join(c.get('channels', {}))}" + (f" (also: {', '.join(c['aliases'])})" if c.get("aliases") else "")
+                     for c in rows)
+
+
+@tool("contact_remove", "Forget a saved contact", {"name": {"type": "string", "description": "Name or nickname"}})
+async def contact_remove(name: str) -> str:
+    c = find_contact(name)
+    if c is None:
+        return f"I don't have a contact called {name}."
+    _save_contacts([x for x in _contacts() if x["name"] != c["name"]])
+    return f"Forgot {c['name']}."
+
+
+@tool("message_send", "Send a message to a saved contact (asks you first)", {
+    "to": {"type": "string", "description": "A saved contact's name or nickname"},
+    "text": {"type": "string", "description": "What to say"},
+    "via": {"type": "string", "description": "telegram, whatsapp, email ... (default: their usual one)", "default": ""},
+})
+async def message_send(to: str, text: str, via: str = "") -> str:
+    contact = find_contact(to)
+    if contact is None:
+        return f"I don't have a contact called {to}. Save them first: add {to} on Telegram with their chat id."
+    text = " ".join(str(text).split())
+    if not text:
+        return "What should I say?"
+    if len(text) > MESSAGE_LIMIT:
+        return f"That is too long to send by voice ({len(text)} characters; the limit is {MESSAGE_LIMIT})."
+    channels = contact.get("channels", {})
+    chan = _CHANNEL_WORDS.get(str(via).strip().lower()) if via else contact.get("preferred")
+    if chan not in channels:
+        return f"I don't have {contact['name']} on {via or 'any channel'}. I have: {', '.join(channels) or 'nothing'}."
+    address = channels[chan]
+    if chan == "email":
+        return await send_email(address, "Message from Atulya", text)
+    from atulya.sandesh import create_default_registry
+
+    registry = create_default_registry(os.environ.get("ATULYA_CHANNELS_DIR", "kosh/channels"))
+    try:
+        sent = await registry.send(chan, text, chat_id=address)
+    except Exception as exc:  # noqa: BLE001 - say what went wrong instead of pretending
+        return f"I couldn't send to {contact['name']} on {chan}: {exc}"
+    if not sent:
+        return f"I couldn't send to {contact['name']} on {chan}. {chan.title()} isn't set up yet (see the Channels section of the README)."
+    return f"Sent to {contact['name']} on {chan}: “{text}”"
 
 
 from atulya import jaal  # noqa: E402,F401  (registers the web tools; jaal needs the tool registry above)
