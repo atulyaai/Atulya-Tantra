@@ -6,7 +6,7 @@ Status is from the code and unit tests. Anything marked "untested live" has not 
 
 | Area | Feature | Where |
 |---|---|---|
-| Face | One animated screen: hologram head (lip sync, blink, breathing), caption card, suggestion chips. Chat history, About you, Routines, Senses, Reflexes and Users open as pop-ups, by voice or the menu | `web/src/` |
+| Face | One animated screen: hologram head (lip sync, blink, breathing), caption card, suggestion chips. Chat history, About you, Routines, Senses, Reflexes and Users open as pop-ups, by voice or the menu | `drishti/src/` |
 | Voice in | Always-on listener, wake words in English and Hindi, "stop" interrupts speech, optional wake-word model | `atulya/shruti/` |
 | Voice out | Edge neural voices (online), system voice (offline), Piper (offline, optional) | `atulya/shruti/audio.py`, `atulya/vani/pipeline.py` |
 | Brain | Local Qwen3 0.6B / 1.7B / 4B, `ATULYA_BRAIN=auto`, cloud failover (Groq, OpenRouter, Gemini, OpenAI) | `atulya/buddhi/brain.py`, `atulya/buddhi/intelligence.py` |
@@ -17,7 +17,7 @@ Status is from the code and unit tests. Anything marked "untested live" has not 
 | Tracking | Price watchlist for public web pages | `atulya/yantra/agent/tracking.py` |
 | Briefing | Morning briefing, spoken daily at `ATULYA_BRIEFING_AT` | `atulya/yantra/agent/briefing.py`, `atulya/shruti/listener.py` |
 | PC control | Open apps, type, shortcuts, screenshot; off unless enabled, always asks | `atulya/yantra/agent/pc_control.py` |
-| Senses | Camera motion and person detection, OCR, scene description via Ollama (moondream) | `atulya/drishti/`, `atulya/drishti/eyes.py` |
+| Senses | Camera motion and person detection, OCR, scene description via Ollama (moondream) | `atulya/indriya/`, `atulya/indriya/eyes.py` |
 | Home | Home Assistant and MQTT bridges (untested live) | `atulya/yantra/capabilities/home_assistant.py` |
 | Channels | Telegram, Discord, Slack, email, webhooks and more (untested live) | `atulya/sandesh/__init__.py` |
 | Other | Google Workspace, browser automation, documents, MCP server and client | `atulya/yantra/capabilities/`, `atulya/yantra/mcp/` |

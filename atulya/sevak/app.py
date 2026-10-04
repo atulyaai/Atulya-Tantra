@@ -93,7 +93,7 @@ async def lifespan(app: FastAPI):
     app.state.calendar_task = asyncio.create_task(watch_calendar(default_bus))
     app.state.bills_task = asyncio.create_task(watch_bills(default_bus))
     # Senses: cameras and Home Assistant sensors publish what they perceive.
-    from atulya.drishti import Senses
+    from atulya.indriya import Senses
 
     app.state.senses = Senses(default_bus)
     await app.state.senses.start()
@@ -182,7 +182,7 @@ for module in (auth, system, chat, automation, openai, voice, upload, devices, w
     app.include_router(module.router)
 
 
-dist = Path(__file__).resolve().parents[2] / "web" / "dist"
+dist = Path(__file__).resolve().parents[2] / "drishti" / "dist"
 if dist.exists():
     app.mount("/", StaticFiles(directory=str(dist), html=True), name="web")
 

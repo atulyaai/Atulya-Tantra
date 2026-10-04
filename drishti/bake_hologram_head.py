@@ -6,8 +6,8 @@ the chest up, keep them in thin horizontal bands so they read as contour
 lines, and store how each particle moves for the jawOpen / viseme_aa /
 eyeBlink blend shapes, so the hologram can talk and blink.
 
-Usage:  python web/tools/bake_hologram_head.py path/to/mpfb.glb
-Writes: web/public/hologram-head.bin
+Usage:  python drishti/tools/bake_hologram_head.py path/to/mpfb.glb
+Writes: drishti/public/hologram-head.bin
 
 Format (little endian): uint32 count, then per point 13 x int16:
 position xyz, jaw delta xyz, "aa" delta xyz, blink delta xyz, region

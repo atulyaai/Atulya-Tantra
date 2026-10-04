@@ -6,9 +6,9 @@ __pycache__
 .ruff_cache
 .env
 *.md
-tests/
-docs/
-web/dist/
+pariksha/
+granth/
+drishti/dist/
 *.yml
 *.yaml
 Dockerfile

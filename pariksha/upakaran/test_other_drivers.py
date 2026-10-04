@@ -13,7 +13,7 @@ from atulya.upakaran.adb import AdbDriver
 from atulya.upakaran.base import DeviceError, DeviceRecord
 from atulya.upakaran.ha import HomeAssistantDriver
 from atulya.upakaran.wol import WolDriver, magic_packet
-from tests.upakaran import sims
+from pariksha.upakaran import sims
 
 
 @pytest.fixture(autouse=True)

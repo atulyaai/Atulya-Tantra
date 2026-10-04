@@ -57,7 +57,7 @@ flowchart LR
 | Nervous system | Publish/subscribe events | `atulya/events.py` |
 | Reflexes | Event → rule → notify and/or act | `atulya/buddhi/triggers.py` |
 | Interoception | Self-monitoring; publishes health *changes* | `atulya/heartbeat.py` |
-| Senses | Cameras (motion, people) and Home Assistant sensors → events | `atulya/drishti/` |
+| Senses | Cameras (motion, people) and Home Assistant sensors → events | `atulya/indriya/` |
 | Ears everywhere | Always-listening app: wake word, tray icon, speaks notifications | `atulya/shruti/` |
 | Personal accounts | Google sign-in: Gmail and Calendar per user | `atulya/yantra/capabilities/google_workspace.py` |
 

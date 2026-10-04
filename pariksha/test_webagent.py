@@ -106,5 +106,5 @@ def test_play_music_falls_back_to_search(monkeypatch):
 def test_camera_status_without_senses(monkeypatch):
     from atulya.yantra.agent.tools import camera_status
 
-    monkeypatch.setattr("atulya.drishti.current_senses", lambda: None)
+    monkeypatch.setattr("atulya.indriya.current_senses", lambda: None)
     assert "No cameras" in asyncio.run(camera_status())

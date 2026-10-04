@@ -43,7 +43,7 @@ docker compose -f docker-compose.yml up -d
 ```
 
 The nginx reverse proxy handles:
-- Static file serving from `web/dist/`
+- Static file serving from `drishti/dist/`
 - API proxy to uvicorn on port 8000
 - WebSocket upgrade headers
 - 100MB upload limit
