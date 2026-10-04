@@ -164,3 +164,21 @@ def test_notebook_protects_the_server_and_hardcodes_no_secret():
 
     assert not re.search(r"sk-[A-Za-z0-9]{16,}|hf_[A-Za-z0-9]{20,}|[A-Za-z0-9_-]{40,}", src.replace("urlsafe", ""))   # no key-shaped strings
     assert "connect_remote.py" in src and "--n_gpu_layers" in src
+
+
+def test_lean_request_drops_tool_text_for_plain_questions(monkeypatch):
+    """A local CPU model reads ~1,800 fewer tokens when the question is not an action."""
+    from atulya.buddhi.llm import POLICY_MARK
+    from atulya.buddhi.local_provider import lean_request
+
+    system = f"Persona text.\n\n{POLICY_MARK}\n- use tools\nAvailable tools:\n- web_search"
+    tools = [{"type": "function"}]
+    notes = "[Notes for this turn]\nCurrent local date and time: Monday, set the add send\n\n"
+
+    monkeypatch.delenv("ATULYA_LOCAL_LEAN", raising=False)
+    plain_system, plain_tools = lean_request(notes + "Why is the sky blue?", system, tools)
+    assert plain_system == "Persona text." and plain_tools is None   # words in the notes do not count
+    act_system, act_tools = lean_request(notes + "Play some jazz", system, tools)
+    assert act_system == system and act_tools == tools
+    monkeypatch.setenv("ATULYA_LOCAL_LEAN", "off")
+    assert lean_request("Why is the sky blue?", system, tools) == (system, tools)

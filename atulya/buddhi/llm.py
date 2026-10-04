@@ -97,6 +97,9 @@ def copies_memory(prompt: str, reply: str, memories: list[str]) -> bool:
     return False
 
 
+# Everything from this line on is tool plumbing; a local CPU model is sent only what is above it.
+POLICY_MARK = "Operating policy:"
+
 _PAST_CUES = re.compile(
     r"\b(remember|recall|remind me|earlier|before|last time|previous|yesterday|you said|i said|i told|"
     r"we talked|did i|what did|my name|my favou?rite)\b|याद|पहले|कल|बताया था",
@@ -428,7 +431,7 @@ class AtulyaLLM:
         return (
             f"{prompt}"
             f"{human_block}\n\n"
-            "Operating policy:\n"
+            f"{POLICY_MARK}\n"
             "- Use free/local providers first. Paid APIs are optional fallbacks only when configured.\n"
             "- Tantra must never block production behavior.\n"
             "- For tool use, emit exactly one JSON object like "

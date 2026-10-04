@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Slow local answers:** plain questions no longer send the tool list to a local model (about 2,100 tokens down to 350; Qwen3-4B on a 4-core CPU went from 77 s to 14 s per answer). Action requests still get the tools. `ATULYA_LOCAL_LEAN=off` restores the old behaviour.
+- **"My brain isn't loaded" after one slow answer:** the speed ranking put the "no brain" reply ahead of a real brain that had been timed once. It is now always last.
+- The local brain's label shows the model actually loaded.
+- **Camera:** starts by itself when the browser already allows it (before, only if you had turned it on earlier), and asks once on your first tap.
+- Removed the read-only "Users" menu item; "Brain & reflexes" is now "Reflexes".
+
 ### Added
 - `demo/`: download and benchmark bigger local models (`try_model.py`), and a Colab notebook plus `connect_remote.py` to use a remote GPU as the brain.
 

@@ -354,7 +354,7 @@ export function Orb({ onMenu, toast, onCommand }) {
   // ── One turn: send what was said, speak the answer ──────────────────────
   async function ask(text) {
     if (!text || busyRef.current) return;
-    const local = onCommand?.(text); // "show users", "close" … handled on screen, not by the brain
+    const local = onCommand?.(text); // "show routines", "close" … handled on screen, not by the brain
     if (local) { setHeard(text); setSaid(local); setHint(''); await speak(local); return; }
     busyRef.current = true;
     setHeard(text);
@@ -468,21 +468,33 @@ export function Orb({ onMenu, toast, onCommand }) {
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  // Find cameras on load and whenever one is plugged in; if you turned the camera on before and the browser
-  // already allows it, switch it back on by itself. Otherwise the camera button asks when you tap it.
+  // Find cameras on load and whenever one is plugged in. If the browser already allows the camera it
+  // starts by itself (unless you switched it off). The first time, it asks once on your first tap.
   useEffect(() => {
     let alive = true;
     const refresh = async () => {
       const found = await detectCameras();
       if (!alive) return;
       setCams(found);
-      if (found.state === 'granted' && found.devices.length && !webcamRef.current?.active && localStorage.getItem('atulya-cam') === 'on') {
+      if (found.state === 'granted' && found.devices.length && !webcamRef.current?.active && localStorage.getItem('atulya-cam') !== 'off') {
         toggleWebcam(true, found.devices[0].id);
       }
     };
     refresh();
+    const askOnce = async () => {
+      let asked = '';
+      try { asked = localStorage.getItem('atulya-cam') || ''; } catch { /* private mode */ }
+      if (asked) return; // already on, off, or declined: never ask again by itself
+      const found = await detectCameras();
+      if (found.state === 'prompt' && found.devices.length && !webcamRef.current?.active) toggleWebcam(true, found.devices[0].id);
+    };
+    window.addEventListener('pointerdown', askOnce, { once: true });
     navigator.mediaDevices?.addEventListener?.('devicechange', refresh);
-    return () => { alive = false; navigator.mediaDevices?.removeEventListener?.('devicechange', refresh); };
+    return () => {
+      alive = false;
+      window.removeEventListener('pointerdown', askOnce);
+      navigator.mediaDevices?.removeEventListener?.('devicechange', refresh);
+    };
   }, []);
 
   async function toggleWebcam(on, deviceId) {
@@ -505,6 +517,7 @@ export function Orb({ onMenu, toast, onCommand }) {
     } catch (err) {
       setCamOn(false);
       setCamError(explainCameraError(err));
+      try { if (err?.name === 'NotAllowedError') localStorage.setItem('atulya-cam', 'off'); } catch { /* private mode */ }
     }
   }
   useEffect(() => () => webcamRef.current?.stop(), []);

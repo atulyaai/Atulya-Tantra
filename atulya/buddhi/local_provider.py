@@ -159,6 +159,38 @@ def _with_think_switch(prompt: str) -> str:
         return prompt
     return f"{prompt} /no_think"
 
+_ACTION_CUES = re.compile(
+    r"\b(play|pause|open|launch|search|google|look up|find|turn|switch|set|remind|reminder|alarm|timer|"
+    r"send|call|text|message|email|book|buy|order|add|cart|schedule|calendar|weather|news|volume|"
+    r"tv|music|song|lights?|youtube|website|screenshot|click|type|run|download|read|write|save|delete|"
+    r"track|expense|budget|bill|device|phone|remember)\b",
+    re.IGNORECASE,
+)
+
+
+def _asked(prompt: str) -> str:
+    """The user's own words, without the per-turn notes or earlier turns around them."""
+    prompt = prompt.rsplit("\n\nUser: ", 1)[-1]
+    return prompt.split("\n\n", 1)[-1] if prompt.startswith("[Notes for this turn]") else prompt
+
+
+def lean_request(prompt: str, system_prompt: str, tools):
+    """Shrink what a local CPU model must read each turn.
+
+    Measured: the system prompt plus 14 tool schemas is ~1,800 tokens, read
+    again by a CPU for every answer. Plain questions get only the persona; the
+    tool section is added back when the message sounds like an action.
+    ATULYA_LOCAL_LEAN=off sends everything.
+    """
+    if os.environ.get("ATULYA_LOCAL_LEAN", "on").strip().lower() in {"off", "0", "false", "no"}:
+        return system_prompt, tools
+    from atulya.buddhi.llm import POLICY_MARK
+
+    if _ACTION_CUES.search(_asked(prompt)):
+        return system_prompt, tools
+    return system_prompt.split(POLICY_MARK)[0].rstrip(), None
+
+
 class LocalGGUFProvider:
     """Provider that loads a tiny GGUF model directly via llama-cpp-python.
 
@@ -218,6 +250,7 @@ class LocalGGUFProvider:
         """Chat with optional native tool calling (llama-cpp chat template)."""
         try:
             self._load()
+            system_prompt, tools = lean_request(prompt, system_prompt, tools)
             messages = []
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})
@@ -366,9 +399,8 @@ class PersonaLocalProvider(LocalGGUFProvider):
     """The local model wearing the Atulya persona (system prompt + native tool calling)."""
 
     def name(self) -> str:
-        from atulya.buddhi.brain import local_model_spec
-
-        return f"Atulya Local ({local_model_spec()['label']})"
+        # Same label rule as the base class, so a model picked by path shows its real name.
+        return super().name().replace("Local Brain", "Atulya Local", 1)
 
     @staticmethod
     def _system_prompt(extra: str = "") -> str:
