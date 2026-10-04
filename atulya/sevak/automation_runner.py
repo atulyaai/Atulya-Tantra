@@ -110,7 +110,7 @@ class AutomationRunner:
             pass
 
         try:
-            from atulya.sevak.routes.ws import broadcast_event
+            from atulya.sevak.api_chat import broadcast_event
             desc = (error or "job finished")[:280]
             await broadcast_event(
                 f"Automation job: {name}",

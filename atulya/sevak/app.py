@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from atulya.sevak.routes import agent, auth, automation, chat, create, google, notifications, dashboard, fabric, memory, money, mood, openai, profile, providers, routines, senses, system, triggers, upload, vault, voice, ws
+from atulya.sevak import api_account, api_agent, api_chat, api_home
 from atulya.sevak.automation_runner import AutomationRunner
 from atulya.yantra.mcp import MCPClientManager
 
@@ -53,14 +53,14 @@ async def _warm_llm(llm) -> None:
 async def lifespan(app: FastAPI):
     from atulya.buddhi.llm import get_default_llm
     from atulya.yantra.core import AgentCore
-    from atulya.sevak.routes.agent import set_agent
+    from atulya.sevak.api_agent import set_agent
 
     app.state.llm = get_default_llm()
     app.state.mcp_manager = MCPClientManager()
     app.state.mcp_errors = []
     await _connect_mcp_servers(app)
-    automation._seed_default_jobs()
-    app.state.automation_runner = AutomationRunner(automation.JOBS_FILE, app.state.llm)
+    api_agent._seed_default_jobs()
+    app.state.automation_runner = AutomationRunner(api_agent.JOBS_FILE, app.state.llm)
     app.state.automation_task = asyncio.create_task(app.state.automation_runner.start())
 
     # Initialize Atulya Agent
@@ -118,7 +118,7 @@ async def lifespan(app: FastAPI):
 
 async def _relay_notification(event) -> None:
     """Push a proactive notification (e.g. a due reminder) to connected clients."""
-    from atulya.sevak.routes.ws import broadcast_event
+    from atulya.sevak.api_chat import broadcast_event
 
     payload = event.payload or {}
     logger.info("Atulya notification: %s — %s", payload.get("title"), payload.get("message"))
@@ -172,7 +172,7 @@ app.middleware("http")(_rate_limiter)
 
 
 
-for module in (auth, system, chat, automation, openai, voice, upload, ws, notifications, agent, create, triggers, routines, profile, memory, mood, money, providers, dashboard, fabric, vault, senses, google):
+for module in (api_account, api_chat, api_agent, api_home):
     app.include_router(module.router)
 
 

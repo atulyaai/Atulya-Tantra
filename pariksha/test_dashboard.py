@@ -2,7 +2,7 @@ import time
 
 from fastapi.testclient import TestClient
 
-from atulya.sevak.routes.dashboard import build_dashboard
+from atulya.sevak.api_home import build_dashboard
 
 
 def make(is_admin=True, **over):

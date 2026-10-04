@@ -580,7 +580,7 @@ class TestRoutes:
         assert [s["stage"] for s in r["trace"]] == ["understand", "decide", "act"]
 
     def test_websocket_replays_history_flagged_as_replay(self, client):
-        from atulya.sevak.routes import ws as ws_mod
+        from atulya.sevak import api_chat as ws_mod
 
         ws_mod._broadcast_history.append({"type": "event", "data": {"title": "old"}, "timestamp": 1.0})
         try:
@@ -620,7 +620,7 @@ class TestNoBrain:
 
 
 def test_voice_for_reply_keeps_gender_and_follows_language():
-    from atulya.sevak.routes.voice import voice_for_reply
+    from atulya.sevak.api_chat import voice_for_reply
 
     assert voice_for_reply("Hello there.", "en_female") == "en_female"
     assert voice_for_reply("नमस्ते, मैं अतुल्य हूँ।", "en_female") == "hi_female"

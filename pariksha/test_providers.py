@@ -49,7 +49,7 @@ def test_routes_are_admin_only_and_never_return_keys(tmp_path, monkeypatch):
     from atulya.sevak.state import ADMIN_TOKEN
 
     monkeypatch.setattr(ef, "env_path", lambda: tmp_path / ".env")
-    monkeypatch.setattr("atulya.sevak.routes.providers.set_env_value", lambda k, v: ef.set_env_value(k, v, tmp_path / ".env"))
+    monkeypatch.setattr("atulya.sevak.api_account.set_env_value", lambda k, v: ef.set_env_value(k, v, tmp_path / ".env"))
     monkeypatch.setenv("DEEPSEEK_API_KEY", "x")
     monkeypatch.delenv("DEEPSEEK_API_KEY")
     c = TestClient(app)

@@ -21,7 +21,7 @@ Status is from the code and unit tests. Anything marked "untested live" has not 
 | Home | Home Assistant and MQTT bridges (untested live) | `atulya/yantra/capabilities/home_assistant.py` |
 | Channels | Telegram, Discord, Slack, email, webhooks and more (untested live) | `atulya/sandesh/__init__.py` |
 | Other | Google Workspace, browser automation, documents, MCP server and client | `atulya/yantra/capabilities/`, `atulya/yantra/mcp/` |
-| Local sign-in | No login on the computer Atulya runs on; other devices log in | `atulya/sevak/routes/auth.py` |
+| Local sign-in | No login on the computer Atulya runs on; other devices log in | `atulya/sevak/api_account.py` |
 
 ## Missing or incomplete
 
@@ -41,7 +41,7 @@ Status is from the code and unit tests. Anything marked "untested live" has not 
 
 ## Next for the interface
 
-- Keep route handlers thin: put logic in `atulya/` (cognition kernel and agent tools), not in `atulya/sevak/routes/`.
+- Keep route handlers thin: put logic in `atulya/` (cognition kernel and agent tools), not in `atulya/sevak/api_*.py`.
 - Stream event-bus updates from `atulya.events` to the frontend over WebSocket.
 - Add a compact system-health strip backed by heartbeat model, provider (circuit-breaker-aware), disk, and memory checks (provider check is done, need disk/memory in the web app).
 - Show the audit log (`kosh/agent/audit.jsonl`) and PC-control status in the UI.

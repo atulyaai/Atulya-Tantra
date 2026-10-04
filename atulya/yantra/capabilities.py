@@ -339,21 +339,8 @@ class CreateOutputTool(Tool):
 
 def create_default_registry(data_dir: str | Path = ".") -> ToolRegistry:
     from atulya.yantra.browser_automation import BrowserAutomationTool
-    from atulya.yantra.business_automation import (
-        AccountingERPTool,
-        DataScrubberTool,
-        GSTReconciliationTool,
-        HRAttendancePayrollTool,
-        SAPAutomationTool,
-    )
-    from atulya.yantra.office_tools import (
-        CalendarTool,
-        ChartGenerateTool,
-        CodeExecuteTool,
-        CSVAnalyzeTool,
-        EmailDraftTool,
-        PDFReadTool,
-    )
+    from atulya.yantra.business_automation import AccountingERPTool, DataScrubberTool, GSTReconciliationTool, HRAttendancePayrollTool, SAPAutomationTool
+    from atulya.yantra.office_tools import CalendarTool, ChartGenerateTool, CodeExecuteTool, CSVAnalyzeTool, EmailDraftTool, PDFReadTool
     registry = ToolRegistry()
     for tool_class in [FileReadTool, FileWriteTool, FileEditTool, FileSearchTool, GrepTool,
                        ExecTool, WebSearchTool, WebFetchTool, TodoCreateTool, TodoListTool,

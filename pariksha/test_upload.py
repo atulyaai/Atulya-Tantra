@@ -11,7 +11,7 @@ from fastapi import UploadFile
 class TestUploadRoute:
     @pytest.fixture
     def mock_auth(self):
-        with patch("atulya.sevak.routes.upload._require_auth") as m:
+        with patch("atulya.sevak.api_agent._require_auth") as m:
             m.return_value = {"username": "testuser", "role": "user"}
             yield m
 
@@ -23,8 +23,8 @@ class TestUploadRoute:
 
     @pytest.mark.asyncio
     async def test_upload_valid_file(self, tmp_path, mock_auth, mock_uuid):
-        from atulya.sevak.routes.upload import api_upload
-        import atulya.sevak.routes.upload as upload_mod
+        from atulya.sevak.api_agent import api_upload
+        import atulya.sevak.api_agent as upload_mod
         upload_mod.UPLOAD_DIR = tmp_path
 
         mock_file = MagicMock(spec=UploadFile)
@@ -41,8 +41,8 @@ class TestUploadRoute:
 
     @pytest.mark.asyncio
     async def test_upload_blocked_type(self, tmp_path, mock_auth):
-        from atulya.sevak.routes.upload import api_upload
-        import atulya.sevak.routes.upload as upload_mod
+        from atulya.sevak.api_agent import api_upload
+        import atulya.sevak.api_agent as upload_mod
         upload_mod.UPLOAD_DIR = tmp_path
 
         mock_file = MagicMock(spec=UploadFile)
@@ -56,8 +56,8 @@ class TestUploadRoute:
 
     @pytest.mark.asyncio
     async def test_list_files(self, tmp_path, mock_auth):
-        from atulya.sevak.routes.upload import api_list_files
-        import atulya.sevak.routes.upload as upload_mod
+        from atulya.sevak.api_agent import api_list_files
+        import atulya.sevak.api_agent as upload_mod
         upload_mod.UPLOAD_DIR = tmp_path
 
         user_dir = tmp_path / "testuser"
@@ -70,8 +70,8 @@ class TestUploadRoute:
 
     @pytest.mark.asyncio
     async def test_list_files_empty(self, tmp_path, mock_auth):
-        from atulya.sevak.routes.upload import api_list_files
-        import atulya.sevak.routes.upload as upload_mod
+        from atulya.sevak.api_agent import api_list_files
+        import atulya.sevak.api_agent as upload_mod
         upload_mod.UPLOAD_DIR = tmp_path
 
         result = await api_list_files(token="token")
@@ -79,8 +79,8 @@ class TestUploadRoute:
 
     @pytest.mark.asyncio
     async def test_delete_file(self, tmp_path, mock_auth):
-        from atulya.sevak.routes.upload import api_delete_file
-        import atulya.sevak.routes.upload as upload_mod
+        from atulya.sevak.api_agent import api_delete_file
+        import atulya.sevak.api_agent as upload_mod
         upload_mod.UPLOAD_DIR = tmp_path
 
         user_dir = tmp_path / "testuser"
@@ -94,8 +94,8 @@ class TestUploadRoute:
 
     @pytest.mark.asyncio
     async def test_delete_file_not_found(self, tmp_path, mock_auth):
-        from atulya.sevak.routes.upload import api_delete_file
-        import atulya.sevak.routes.upload as upload_mod
+        from atulya.sevak.api_agent import api_delete_file
+        import atulya.sevak.api_agent as upload_mod
         upload_mod.UPLOAD_DIR = tmp_path
         (tmp_path / "testuser").mkdir(parents=True)
 
