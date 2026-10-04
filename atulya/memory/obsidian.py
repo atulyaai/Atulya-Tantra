@@ -8,7 +8,7 @@ from typing import Any
 
 
 class ObsidianExporter:
-    def __init__(self, vault_dir: str | Path = "assets/obsidian"):
+    def __init__(self, vault_dir: str | Path = "data/obsidian"):
         self.vault_dir = Path(vault_dir)
         self.vault_dir.mkdir(parents=True, exist_ok=True)
         (self.vault_dir / "topics").mkdir(parents=True, exist_ok=True)

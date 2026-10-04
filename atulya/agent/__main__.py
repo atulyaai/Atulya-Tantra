@@ -51,7 +51,7 @@ async def _cmd_chat(args):
 
 
 def _cmd_users(args):
-    from drishti.dashboard import users
+    from atulya.server import users
     if args.action == "list":
         for u in users.list_users():
             print(f"  {u['username']:20s} role={u.get('role','user'):10s} display={u.get('display_name','')}")
@@ -73,7 +73,7 @@ def _cmd_users(args):
 
 
 def _cmd_config(args):
-    from drishti.dashboard.state import ADMIN_TOKEN, ADMIN_TOKEN_SOURCE
+    from atulya.server.state import ADMIN_TOKEN, ADMIN_TOKEN_SOURCE
     print(f"Admin token: {ADMIN_TOKEN[:16]}... (source: {ADMIN_TOKEN_SOURCE})")
     path = Path("config")
     for p in sorted(path.rglob("*")):
@@ -84,7 +84,7 @@ def _cmd_config(args):
 
 def _cmd_server(args):
     import uvicorn
-    from drishti.dashboard.app import app
+    from atulya.server.app import app
     host = args.host or "127.0.0.1"
     port = args.port or 7090
     print(f"Starting Atulya Dashboard on http://{host}:{port}")

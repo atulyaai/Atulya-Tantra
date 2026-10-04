@@ -8,7 +8,7 @@ import json
 import httpx
 import pytest
 
-from yantra.events import EventBus
+from atulya.events import EventBus
 
 
 class StubRouter:
@@ -67,7 +67,7 @@ class TestToolbelt:
     def test_exec_permission_cannot_be_supplied_by_caller(self):
         """allow_exec / allow_list are server policy, not call arguments."""
         from atulya.llm import AtulyaLLM
-        from yantra.capabilities import Tool, ToolRegistry, ToolResult
+        from atulya.capabilities import Tool, ToolRegistry, ToolResult
 
         received = {}
 
@@ -508,7 +508,7 @@ class TestBrainTiers:
 
 class TestHomeAssistant:
     def test_service_calls(self):
-        from yantra.capabilities.home_assistant import HomeAssistantBridge
+        from atulya.capabilities.home_assistant import HomeAssistantBridge
 
         calls = []
 
@@ -533,7 +533,7 @@ class TestHomeAssistant:
         ]
 
     def test_errors_are_reported_not_faked(self):
-        from yantra.capabilities.home_assistant import HomeAssistantBridge, HomeAssistantError
+        from atulya.capabilities.home_assistant import HomeAssistantBridge, HomeAssistantError
 
         bridge = HomeAssistantBridge(url="http://ha", token="t", entities={},
                                      transport=httpx.MockTransport(lambda r: httpx.Response(401, text="no")))
@@ -556,8 +556,8 @@ class TestRoutes:
     @pytest.fixture
     def client(self, tmp_path, monkeypatch):
         from fastapi.testclient import TestClient
-        from drishti.dashboard import helpers
-        from drishti.dashboard.app import app
+        from atulya.server import helpers
+        from atulya.server.app import app
         from atulya.cognition.triggers import TriggerEngine
 
         monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")
@@ -580,7 +580,7 @@ class TestRoutes:
         assert [s["stage"] for s in r["trace"]] == ["understand", "decide", "act"]
 
     def test_websocket_replays_history_flagged_as_replay(self, client):
-        from drishti.dashboard.routes import ws as ws_mod
+        from atulya.server.routes import ws as ws_mod
 
         ws_mod._broadcast_history.append({"type": "event", "data": {"title": "old"}, "timestamp": 1.0})
         try:
@@ -620,7 +620,7 @@ class TestNoBrain:
 
 
 def test_voice_for_reply_keeps_gender_and_follows_language():
-    from drishti.dashboard.routes.voice import voice_for_reply
+    from atulya.server.routes.voice import voice_for_reply
 
     assert voice_for_reply("Hello there.", "en_female") == "en_female"
     assert voice_for_reply("नमस्ते, मैं अतुल्य हूँ।", "en_female") == "hi_female"

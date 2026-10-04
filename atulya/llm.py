@@ -22,7 +22,7 @@ from atulya.cognition.safety import RISKY_TOOLS, needs_confirmation  # noqa: F40
 from atulya.intelligence import ProviderRouter
 from atulya.persona import Persona, get_atulya_fallback_response
 from atulya.emotion import MoodState, build_emotional_directive, detect_emotion
-from yantra.capabilities import ToolRegistry
+from atulya.capabilities import ToolRegistry
 
 
 # Style rules that make replies read as a person, not a robot. Appended to
@@ -166,7 +166,7 @@ class AtulyaLLM:
         max_tool_iterations: int = 3,
         allow_exec: bool = False,
         use_memory: bool = False,
-        memory_dir: str = "assets/memory",
+        memory_dir: str = "data/memory",
     ):
         if tools is None:
             # One tool surface: yantra tools + personal-assistant tools.

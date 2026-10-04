@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 # ── Tool Registry ──────────────────────────────────────────────────────────
 
 TOOL_REGISTRY: dict[str, dict[str, Any]] = {}
-_DATA_DIR = Path(os.environ.get("ATULYA_AGENT_DATA_DIR", "assets/agent"))
+_DATA_DIR = Path(os.environ.get("ATULYA_AGENT_DATA_DIR", "data/agent"))
 _DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -260,7 +260,7 @@ _EMAIL_CFG: dict[str, Any] = {}
 def _google():
     """The current user's connected Google account, or None."""
     try:
-        from yantra.capabilities.google_workspace import GoogleAccount
+        from atulya.capabilities.google_workspace import GoogleAccount
 
         account = GoogleAccount.for_current_user()
         return account if account.connected else None
@@ -303,7 +303,7 @@ async def configure_email(imap_server: str, imap_port: int = 993, smtp_server: s
 async def send_email(to: str, subject: str, body: str) -> str:
     google = _google()
     if google is not None:
-        from yantra.capabilities.google_workspace import GoogleError
+        from atulya.capabilities.google_workspace import GoogleError
 
         try:
             await google.send_message(to, subject, body)
@@ -336,7 +336,7 @@ async def send_email(to: str, subject: str, body: str) -> str:
 async def fetch_emails(limit: int = 5, query: str = "") -> str:
     google = _google()
     if google is not None:
-        from yantra.capabilities.google_workspace import GoogleError
+        from atulya.capabilities.google_workspace import GoogleError
 
         try:
             messages = await google.list_messages(query or "in:inbox", limit)
@@ -485,7 +485,7 @@ async def calendar_add(title: str, date: str, duration_minutes: int = 60, descri
         return f"Could not parse date: '{date}'. Use YYYY-MM-DD HH:MM or natural language."
     google = _google()
     if google is not None:
-        from yantra.capabilities.google_workspace import GoogleError
+        from atulya.capabilities.google_workspace import GoogleError
 
         try:
             await google.create_event(title, evt_time, duration_minutes, description)
@@ -505,7 +505,7 @@ async def calendar_add(title: str, date: str, duration_minutes: int = 60, descri
 async def calendar_list(days: int = 7) -> str:
     google = _google()
     if google is not None:
-        from yantra.capabilities.google_workspace import GoogleError, friendly_time
+        from atulya.capabilities.google_workspace import GoogleError, friendly_time
 
         try:
             events = await google.list_events(days)
@@ -533,7 +533,7 @@ async def calendar_list(days: int = 7) -> str:
 async def calendar_remove(event_id: str) -> str:
     google = _google()
     if google is not None and event_id not in _CALENDAR:
-        from yantra.capabilities.google_workspace import GoogleError
+        from atulya.capabilities.google_workspace import GoogleError
 
         try:
             await google.delete_event(event_id)
@@ -609,7 +609,7 @@ _HOME_DEVICES: dict[str, dict[str, Any]] = {
 
 @tool("home_list_devices", "List all home automation devices", {})
 async def home_list_devices() -> str:
-    from yantra.capabilities.home_assistant import HomeAssistantBridge
+    from atulya.capabilities.home_assistant import HomeAssistantBridge
 
     bridge = HomeAssistantBridge()
     lines = ["Home Devices (connected to Home Assistant):" if bridge.configured else "Home Devices (simulated):"]
@@ -631,7 +631,7 @@ async def home_list_devices() -> str:
 async def home_control(device_id: str, action: str, value: str = "") -> str:
     # Real devices via Home Assistant when HOME_ASSISTANT_URL/TOKEN are set;
     # otherwise the built-in simulation below.
-    from yantra.capabilities.home_assistant import HomeAssistantBridge
+    from atulya.capabilities.home_assistant import HomeAssistantBridge
 
     bridge = HomeAssistantBridge()
     if bridge.configured:
@@ -687,7 +687,7 @@ def _simulate_home_control(device_id: str, action: str, value: str = "") -> str:
 
 @tool("camera_status", "What the cameras and door sensors have seen recently (is anyone at the door?)", {})
 async def camera_status() -> str:
-    from yantra.senses import current_senses
+    from atulya.senses import current_senses
 
     senses = current_senses()
     if senses is None:
@@ -702,7 +702,7 @@ async def camera_status() -> str:
 })
 async def calculate(expression: str) -> str:
     try:
-        from atulya.core.safe_eval import safe_math_eval
+        from atulya.safe_eval import safe_math_eval
         result = safe_math_eval(expression)
         return f"{expression} = {result}"
     except Exception as e:

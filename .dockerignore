@@ -8,8 +8,7 @@ __pycache__
 *.md
 tests/
 docs/
-drishti/nginx/
-drishti/dist/
+web/dist/
 *.yml
 *.yaml
 Dockerfile

@@ -52,14 +52,14 @@ flowchart LR
 | Brain size | `ATULYA_BRAIN` tiers: tiny / balanced / power / cloud | `atulya/cognition/brain.py` |
 | Conscience | Which actions run vs. wait for confirmation | `atulya/cognition/safety.py` |
 | Hands | One tool surface: files, web, office, ERP + home, reminders, weather, email, calendar | `atulya/cognition/toolbelt.py` |
-| Real-world reach | Home Assistant (Zigbee, Z-Wave, Wi-Fi, Matter…) | `yantra/capabilities/home_assistant.py` |
+| Real-world reach | Home Assistant (Zigbee, Z-Wave, Wi-Fi, Matter…) | `atulya/capabilities/home_assistant.py` |
 | Memory | Remembers conversations and the actions it took | `atulya/memory/` |
-| Nervous system | Publish/subscribe events | `yantra/events.py` |
+| Nervous system | Publish/subscribe events | `atulya/events.py` |
 | Reflexes | Event → rule → notify and/or act | `atulya/cognition/triggers.py` |
 | Interoception | Self-monitoring; publishes health *changes* | `atulya/heartbeat.py` |
-| Senses | Cameras (motion, people) and Home Assistant sensors → events | `yantra/senses/` |
+| Senses | Cameras (motion, people) and Home Assistant sensors → events | `atulya/senses/` |
 | Ears everywhere | Always-listening app: wake word, tray icon, speaks notifications | `atulya/ambient/` |
-| Personal accounts | Google sign-in: Gmail and Calendar per user | `yantra/capabilities/google_workspace.py` |
+| Personal accounts | Google sign-in: Gmail and Calendar per user | `atulya/capabilities/google_workspace.py` |
 
 ## A request's life
 

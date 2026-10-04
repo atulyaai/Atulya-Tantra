@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from yantra.capabilities.connector import AtulyaTantraConnector
-from yantra.capabilities.output_classifier import OutputTypeClassifier
+from atulya.capabilities.connector import AtulyaTantraConnector
+from atulya.capabilities.output_classifier import OutputTypeClassifier
 
 
 def test_output_classifier_detects_formats():

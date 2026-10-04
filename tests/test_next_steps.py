@@ -190,7 +190,7 @@ def test_microphone_holds_back_speech_without_wake_word():
 def test_pick_language_never_returns_arabic():
     from types import SimpleNamespace
 
-    from yantra.capabilities.voice_pipeline import pick_language
+    from atulya.capabilities.voice_pipeline import pick_language
 
     noisy = SimpleNamespace(language="ar", all_language_probs=[("ar", 0.5), ("hi", 0.3), ("en", 0.1)])
     assert pick_language(noisy) == "hi"
@@ -201,7 +201,7 @@ def test_pick_language_never_returns_arabic():
 def _client(host="127.0.0.1", headers=None):
     from fastapi.testclient import TestClient
 
-    from drishti.dashboard.app import app
+    from atulya.server.app import app
 
     return TestClient(app, client=(host, 5000), headers=headers or {})
 
@@ -340,7 +340,7 @@ def test_openrouter_skips_busy_and_empty_free_models(monkeypatch):
 def test_emoji_are_never_spoken():
     from atulya.ambient.listener import speakable
     from atulya.textutil import strip_emoji
-    from yantra.capabilities.voice_pipeline import TextToSpeech
+    from atulya.capabilities.voice_pipeline import TextToSpeech
 
     assert strip_emoji("Hello! \U0001F60A How are you? \u2764\ufe0f") == "Hello! How are you?"
     assert strip_emoji("नमस्ते \U0001F44B") == "नमस्ते"
@@ -375,8 +375,8 @@ def test_safety_classifier_labels_are_not_answers():
 
 @pytest.fixture
 def two_users(tmp_path, monkeypatch):
-    import drishti.dashboard.users as users_mod
-    from drishti.dashboard import helpers
+    import atulya.server.users as users_mod
+    from atulya.server import helpers
 
     monkeypatch.setattr(users_mod, "USERS_FILE", tmp_path / "users.json")
     monkeypatch.setattr(users_mod, "SESSIONS_FILE", tmp_path / "sessions.json")
@@ -406,7 +406,7 @@ def test_bootstrap_hides_models_from_normal_users(two_users):
 
 
 def test_chat_replies_hide_model_details_from_normal_users():
-    from drishti.dashboard.helpers import redact_for
+    from atulya.server.helpers import redact_for
 
     reply = {"response": "Hi", "provider": "Claude (haiku)", "model_id": "x", "steps": [{"tool": "t"}],
              "trace": [{"stage": "think"}], "needs_approval": False}
@@ -427,7 +427,12 @@ def test_ensure_build_only_builds_when_source_is_newer(tmp_path, monkeypatch):
     import os
     import time
 
-    from drishti.tools import ensure_build as eb
+    import importlib.util
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location("web_build", Path(__file__).resolve().parents[1] / "web" / "build.py")
+    eb = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(eb)
 
     (tmp_path / "frontend").mkdir()
     src = tmp_path / "frontend" / "main.jsx"

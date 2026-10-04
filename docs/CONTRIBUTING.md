@@ -31,60 +31,42 @@
 This is the current ownership map after the package cleanup.
 
 The repo root intentionally has three product directories: `atulya/`,
-`yantra/`, and `drishti/`. Shared support files live inside the product folder
+`atulya/`, and `web/`. Shared support files live inside the product folder
 that owns them.
 
 Allowed root support directories:
 
-- `assets/`: runtime-local app state such as generated voice audio, temp uploads, and scheduler state.
+- `data/`: runtime-local app state such as generated voice audio, temp uploads, and scheduler state.
 - `docs/`: guides, architecture, security, features and images (the one place for documentation).
-- `config/`: cross-package static configuration that is not owned by one runtime package.
-- `outputs/`: generated reports, invoices, benchmarks, and other local run artifacts.
 
 Do not add new root directories unless they are documented here. New implementation should go into the owning product package.
 
-### Model Work
+### Folders
 
-The NP-DNA research model and its training code were removed from this repo.
-Custom model architecture, tokenizer development, training jobs, checkpoints,
-and model release artifacts belong in the separate model repository. The
-security, task-classification and safe-eval helpers the assistant needs now live
-in `atulya/core/`; the Gmail OAuth refresh-token helper is
-`install/generate_gmail_refresh_token.mjs`.
+The repo root has three code-and-docs folders (`atulya/`, `web/`, `docs/`), plus `tests/` and one local-data folder.
 
-### Drishti: User Interface Surface
+- `data/`: everything Atulya stores on your machine (memory, accounts, sessions, chat history, audit log, tokens). Git-ignored. Override the agent part with `ATULYA_AGENT_DATA_DIR`.
+- `docs/`: guides, architecture, security, features and images (the one place for documentation).
+- `web/`: the animated screen. `src/` is the React source (`pages/Orb.jsx` the orb, `pages/Hologram.js` the head, `Panel.jsx` the pop-up shell), `public/` holds static files, `android/` the phone shell. `build.py` builds only when the source changed. `dist/` is generated.
+- `atulya/`: all the Python.
 
-Drishti-owned files live under `drishti/`.
+### Inside `atulya/`
 
-- `drishti/frontend/src/`: editable React source: the orb screen (`pages/Orb.jsx`), the hologram (`pages/Hologram.js`), pop-up pages and `Panel.jsx` (the pop-up shell).
-- `drishti/dist/`: generated frontend/package artifacts (built, gitignored).
-- `drishti/dashboard/`: FastAPI dashboard app, helpers, state, chat history, and API routes.
-- `drishti/app.py`: dashboard launcher for `python -m drishti.app`.
-- `drishti/nginx/`: nginx reverse-proxy config used by `docker-compose.yml`.
-- `drishti/package.json`, `drishti/vite.config.js`, `drishti/index.html`: frontend build and Vite setup.
+- `cognition/`: the single pipeline every request goes through: `kernel` (perceive, understand, decide, act, remember, react), `safety` (what needs confirmation), `planner`, `triggers` (event-driven proactivity), `brain` (`ATULYA_BRAIN` tiers). See [COGNITIVE_ARCHITECTURE.md](COGNITIVE_ARCHITECTURE.md).
+- `agent/`: assistant tools (reminders, email, calendar, weather, media, tracking, briefing, PC control), the intent router and the audit log.
+- `ambient/`: the always-on listener: microphone, wake words (English and Hindi), barge-in, tray icon, autostart.
+- `memory/`: memory providers, session search, reflection, vectors, Obsidian export.
+- `capabilities/`: browser automation, documents, voice pipeline, Google Workspace, Home Assistant, web search and the creation tools.
+- `senses/`: camera and home-sensor adapters.
+- `mcp/`: MCP server, client, signed manifests and `servers.json` (all integrations ship disabled).
+- `server/`: the FastAPI server (`python -m atulya.server`): API routes, accounts, sessions, chat history.
+- `channels.py`: Discord, Telegram, Slack, email, webhooks, WhatsApp, Signal, Matrix, Teams, IRC and more.
+- `llm.py`, `intelligence.py`, `local_provider.py`: the brain and the provider failover chain.
+- `persona.py`, `emotion.py`, `eyes.py`, `heartbeat.py`, `events.py`, `security.py`, `safe_eval.py`, `lockdown.py`, `textutil.py`, `cli.py`.
 
-### Yantra: Automation And Tools
+The NP-DNA research model was removed. Custom model work belongs in a separate repository.
 
-Automation-owned files live under `yantra/`.
-
-- `yantra/capabilities/`: tool registry, workflow engine, browser automation, voice pipeline, and web search.
-- `yantra/mcp/`: MCP server, client, transport, signed manifests, dashboard bridge, and agent runner.
-- `yantra/mcp/external_client.py`: external MCP server connection manager.
-- `yantra/senses/`: camera and home-sensor adapters.
-- `yantra/channels.py`: unified 14-channel system (Discord, Telegram, Slack, Email, Webhook, WhatsApp, Signal, Matrix, Teams, IRC, WebChat, Console, Log, Twitter).
-
-### Atulya: Application AI Layer
-
-Application-owned AI files live under `atulya/`.
-
-- `memory/`: memory orchestrator, session search, prompt cache, subconscious log, reflection, memory tree, and Obsidian export.
-- `agent/`: assistant tools (reminders, email, calendar, weather, media, tracking, briefing, PC control), intent router, audit log.
-- `ambient/`: always-on listener — microphone, wake word (English/Hindi), barge-in, tray icon, autostart.
-- `cognition/`: the single pipeline every request goes through — `kernel` (perceive → understand → decide → act → remember → react), `safety` (action confirmation policy), `toolbelt` (one tool surface), `triggers` (event-driven proactivity), `brain` (`ATULYA_BRAIN` tiers). See [COGNITIVE_ARCHITECTURE.md](COGNITIVE_ARCHITECTURE.md).
-- `atulya/persona.py`: identity, personality and prompt rules.
-- `atulya/cli.py`: command-line entry point.
-
-New implementation should go into the owning package above. Do not add duplicate compatibility packages unless a real external API requires it.
+New code goes into the folder above that owns it. Do not add duplicate compatibility packages.
 
 ---
 
@@ -103,7 +85,7 @@ New implementation should go into the owning package above. Do not add duplicate
 ### 1. New Tool or Capability
 ```
 1. Assistant tool: add a function with `@tool(...)` under `atulya/agent/` and import its module at the bottom of `agent/tools.py`; if it acts on the outside world, add it to `_CONFIRM_TOOLS` in `cognition/safety.py`.
-   Heavier capability: add it under `yantra/capabilities/`.
+   Heavier capability: add it under `atulya/capabilities/`.
 2. Add tests under tests/
 3. Run: python -m pytest -q
 ```
@@ -138,5 +120,5 @@ Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`
 ## Release Process
 
 1. Run all tests: `python -m pytest -q`
-2. Build the frontend: `cd drishti && npm run build`
+2. Build the frontend: `cd web && npm run build`
 3. Tag release: `git tag v0.3.1 && git push --tags`

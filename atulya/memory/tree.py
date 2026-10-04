@@ -10,7 +10,7 @@ from typing import Any
 
 
 class MemoryTree:
-    def __init__(self, data_dir: str | Path = "assets/memory"):
+    def __init__(self, data_dir: str | Path = "data/memory"):
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.db_path = self.data_dir / "memory_tree.db"

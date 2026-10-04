@@ -1,12 +1,12 @@
 @echo off
 setlocal enabledelayedexpansion
-title Atulya - Digital Organism OS
+title Atulya
 color 0A
 
 echo.
 echo   +------------------------------------------+
-echo   ^|         ATULYA - DIGITAL ORGANISM OS     ^|
-echo   ^|   Atulya . Yantra . Drishti             ^|
+echo   ^|                 ATULYA                   ^|
+echo   ^|   Your personal AI assistant            ^|
 echo   +------------------------------------------+
 echo.
 
@@ -66,29 +66,29 @@ echo   [3/4] Building the web app...
 rem Builds only when the source changed; installs the web tools only when missing (so node_modules can be deleted).
 where node >nul 2>&1
 if errorlevel 1 (
-    if exist "drishti\dist\index.html" (
+    if exist "web\dist\index.html" (
         echo   Node.js not found - using the existing build, which may be out of date.
     ) else (
         echo   WARNING: Node.js not found. Install Node.js 18+ from https://nodejs.org
     )
     goto :start_backend
 )
-python drishti\tools\ensure_build.py
-if not exist "drishti\dist\index.html" (
+python web\build.py
+if not exist "web\dist\index.html" (
     echo   WARNING: The web app failed to build, so there is no web UI.
 )
 
 :start_backend
 )
-pushd drishti
+pushd web
 rem Always sync packages (instant when nothing changed) so new dependencies like three.js are installed.
 call npm install --silent
 rem Remove the old build first, so a failed build can never leave an out-of-date web app behind.
 if exist "dist\index.html" del /q "dist\index.html"
 call npm run build --silent
 popd
-if not exist "drishti\dist\index.html" (
-    echo   WARNING: The web app failed to build, so there is no web UI. Run: cd drishti ^&^& npm run build
+if not exist "web\dist\index.html" (
+    echo   WARNING: The web app failed to build, so there is no web UI. Run: cd web ^&^& npm run build
 )
 
 :start_backend
@@ -97,7 +97,7 @@ echo.
 echo   +------------------------------------------+
 echo   ^|  Atulya is starting...                   ^|
 echo   ^|                                          ^|
-echo   ^|  Drishti:  http://%ATULYA_HOST%:%ATULYA_PORT%        ^|
+echo   ^|  Open:     http://%ATULYA_HOST%:%ATULYA_PORT%        ^|
 echo   ^|                                          ^|
 echo   ^|  Mobile: Set ATULYA_HOST=0.0.0.0 in .env ^|
 echo   ^|          then open http://YOUR_PC_IP:%ATULYA_PORT% ^|
@@ -109,6 +109,6 @@ echo.
 
 start "" cmd /c "timeout /t 2 >nul & start http://%ATULYA_HOST%:%ATULYA_PORT%"
 
-python -m drishti.app
+python -m atulya.server
 
 pause

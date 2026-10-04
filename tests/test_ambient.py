@@ -207,10 +207,10 @@ class TestEngine:
 class TestServerRoundTrip:
     @pytest.fixture
     def app(self, monkeypatch, tmp_path):
-        from drishti.dashboard import helpers
-        from drishti.dashboard.app import app
-        from yantra.events import EventBus
-        from yantra.senses import Senses
+        from atulya.server import helpers
+        from atulya.server.app import app
+        from atulya.events import EventBus
+        from atulya.senses import Senses
 
         monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")
         monkeypatch.delenv("HOME_ASSISTANT_URL", raising=False)

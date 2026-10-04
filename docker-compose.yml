@@ -1,29 +1,8 @@
-version: "3.9"
-
 services:
-  app:
+  atulya:
     build: .
-    ports: ["8000:8000"]
+    ports: ["8501:8501"]
     volumes:
-      - ./config:/app/config
-      - ./assets:/app/assets
-      - ./outputs:/app/outputs
-      - atulya_data:/app/data
-    environment:
-      - ATULYA_ENCRYPTION_KEY=${ATULYA_ENCRYPTION_KEY:-}
-      - GROQ_API_KEY=${GROQ_API_KEY:-}
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - ./data:/app/data
+    env_file: [.env]
     restart: unless-stopped
-
-  nginx:
-    image: nginx:alpine
-    ports: ["80:80", "443:443"]
-    volumes:
-      - ./drishti/nginx:/etc/nginx/conf.d:ro
-      - ./drishti/dist:/usr/share/nginx/html:ro
-    depends_on: [app]
-    restart: unless-stopped
-
-volumes:
-  atulya_data:

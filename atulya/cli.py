@@ -305,7 +305,7 @@ def _cmd_providers() -> None:
 
 
 def _cmd_tools() -> None:
-    from yantra.capabilities import create_default_registry
+    from atulya.capabilities import create_default_registry
 
     registry = create_default_registry()
     tools = registry.list_tools()

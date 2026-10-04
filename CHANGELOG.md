@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **One English layout:** `yantra/` and `drishti/` are gone. All Python lives in `atulya/` (`capabilities/`, `senses/`, `mcp/`, `server/`, `channels.py` ...), the screen is `web/` (flat `src/`), and `assets/` + `config/` are one `data/` folder. `python -m atulya.server` starts the server; `atulya/core/` was flattened. Update imports (`yantra.x` -> `atulya.x`, `drishti.dashboard` -> `atulya.server`). The nginx container and the empty Docker volume were dropped; the Dockerfile now builds the web app.
+
 ### Added
 - `start.bat` builds the web app only when its source changed and installs the web tools only when missing, so `drishti/node_modules` can be deleted (project: 260 files in 59 folders).
 - All documentation now lives in `docs/` (was split with `atulya/docs/`).

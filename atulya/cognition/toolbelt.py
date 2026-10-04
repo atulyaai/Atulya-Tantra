@@ -14,7 +14,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from yantra.capabilities import Tool, ToolRegistry, ToolResult, create_default_registry
+from atulya.capabilities import Tool, ToolRegistry, ToolResult, create_default_registry
 
 # Setup/admin actions the conversational brain should not trigger on its own:
 # downloading multi-GB models and storing mail credentials. Still available via

@@ -96,7 +96,7 @@ atulya = "atulya.cli:main"
 atulya-listen = "atulya.ambient.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["atulya*", "yantra*", "drishti*"]
+include = ["atulya*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
