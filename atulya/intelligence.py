@@ -11,6 +11,7 @@ import json
 import re
 import logging
 import os
+import time
 import inspect
 import urllib.request
 import urllib.error
@@ -477,6 +478,30 @@ class LocalGGUFProvider(IntelligenceProvider):
             yield piece
 
 
+# Learned speed of each brain: smoothed seconds to answer, and when a recent failure expires.
+_SPEED: dict[str, dict[str, float]] = {}
+_FAIL_COOLDOWN = 120.0
+_FAIL_SCORE = 1000.0
+
+
+def _record_speed(name: str, seconds: float | None) -> None:
+    """Remember how long a brain took (None = it failed, so it goes to the back for a while)."""
+    entry = _SPEED.setdefault(name, {})
+    if seconds is None:
+        entry["failed_until"] = time.monotonic() + _FAIL_COOLDOWN
+        return
+    entry["failed_until"] = 0.0
+    entry["avg"] = seconds if "avg" not in entry else 0.7 * entry["avg"] + 0.3 * seconds
+
+
+def _speed_score(name: str, rank: int) -> float:
+    entry = _SPEED.get(name, {})
+    if entry.get("failed_until", 0.0) > time.monotonic():
+        return _FAIL_SCORE + rank
+    # Not measured yet: the configured order decides, as a small head start for earlier brains.
+    return entry.get("avg", 0.5 * rank)
+
+
 class ProviderRouter(IntelligenceProvider):
     """Atulya Intelligence Provider Fallback Chain Router."""
     
@@ -495,8 +520,12 @@ class ProviderRouter(IntelligenceProvider):
         ]
         # ATULYA_BRAIN=cloud: configured cloud APIs lead; the local brain and
         # Ollama become the offline fallback (still ahead of the persona reply).
+        # With no ATULYA_BRAIN chosen, a configured cloud key also leads: the tiny local model
+        # is slow on CPU and weak, so it stays the offline fallback instead of answering first.
         from atulya.cognition.brain import cloud_first
-        if cloud_first():
+        cloud_keys = [p for p in self.providers
+                      if not isinstance(p, (LocalGGUFProvider, OllamaProvider, OpenCodeProvider)) and p.is_available()]
+        if cloud_first() or (not os.environ.get("ATULYA_BRAIN", "").strip() and cloud_keys):
             local = (LocalGGUFProvider, OllamaProvider)
             last = [p for p in self.providers if isinstance(p, OpenCodeProvider)]
             locals_ = [p for p in self.providers if isinstance(p, local)]
@@ -505,6 +534,13 @@ class ProviderRouter(IntelligenceProvider):
         
     def name(self) -> str:
         return "Atulya Provider Router"
+
+    def _ordered(self, providers: list["IntelligenceProvider"]) -> list["IntelligenceProvider"]:
+        """Fastest working brain first, unless ATULYA_BRAIN pins an order."""
+        if os.environ.get("ATULYA_BRAIN", "").strip():
+            return providers
+        ranked = sorted(enumerate(providers), key=lambda ir: _speed_score(ir[1].name(), ir[0]))
+        return [p for _, p in ranked]
         
     def is_available(self) -> bool:
         return True
@@ -512,7 +548,7 @@ class ProviderRouter(IntelligenceProvider):
     async def chat(self, prompt: str, system_prompt: str = "", preferred_provider: str = "", tools: list[dict[str, Any]] | None = None) -> str:
         """Route request through priority chain and failover automatically."""
         attempted = []
-        providers = self.providers
+        providers = self._ordered(self.providers)
         preferred = (preferred_provider or "").strip().lower()
         if preferred and preferred not in {"auto", "latest"}:
             preferred_matches = [p for p in providers if preferred in p.name().lower()]
@@ -520,14 +556,17 @@ class ProviderRouter(IntelligenceProvider):
 
         for provider in providers:
             if provider.is_available():
+                started = time.monotonic()
                 try:
                     logger.info(f"Atulya OS routing request to provider: {provider.name()}")
                     if tools and _supports_tools(provider):
                         response = await provider.chat(prompt, system_prompt, tools=tools)
                     else:
                         response = await provider.chat(prompt, system_prompt)
+                    _record_speed(provider.name(), time.monotonic() - started)
                     return response, provider.name()
                 except Exception as exc:
+                    _record_speed(provider.name(), None)
                     logger.warning(f"Provider {provider.name()} failed: {exc}. Attempting next fallback.")
                     attempted.append(f"{provider.name()} (Error: {exc})")
             else:
@@ -552,7 +591,7 @@ class ProviderRouter(IntelligenceProvider):
         Falls back to chunking a full provider.chat() response when the chosen
         provider only implements chat(). Yields (text_piece, provider_name).
         """
-        providers = self.providers
+        providers = self._ordered(self.providers)
         preferred = (preferred_provider or "").strip().lower()
         if preferred and preferred not in {"auto", "latest"}:
             preferred_matches = [p for p in providers if preferred in p.name().lower()]
@@ -562,16 +601,24 @@ class ProviderRouter(IntelligenceProvider):
             if not provider.is_available():
                 continue
             stream_method = getattr(provider, "chat_stream", None)
+            started = time.monotonic()
+            first = True
             try:
                 if stream_method is not None:
                     async for piece in stream_method(prompt, system_prompt):
+                        if first:
+                            _record_speed(provider.name(), time.monotonic() - started)
+                            first = False
                         yield piece, provider.name()
                 else:
                     text = await provider.chat(prompt, system_prompt)
+                    _record_speed(provider.name(), time.monotonic() - started)
                     for piece in _chunk_stream_text(text):
                         yield piece, provider.name()
                 return
             except Exception as exc:
+                if first:
+                    _record_speed(provider.name(), None)
                 logger.warning(f"Provider {provider.name()} stream failed: {exc}. Attempting next fallback.")
 
         yield NO_BRAIN_MESSAGE, "Diagnostics Fallback"

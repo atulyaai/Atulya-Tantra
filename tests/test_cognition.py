@@ -634,3 +634,55 @@ def test_recommend_tier_by_free_ram():
     assert recommend_tier(2) == "tiny"
     assert recommend_tier(5) == "balanced"
     assert recommend_tier(16) == "power"
+
+
+def test_cloud_key_leads_unless_a_local_brain_is_chosen(monkeypatch):
+    from atulya.intelligence import LocalGGUFProvider, OpenRouterProvider, ProviderRouter
+
+    for key in ("ANTHROPIC_API_KEY", "GROQ_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY", "NVIDIA_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "x")
+    monkeypatch.delenv("ATULYA_BRAIN", raising=False)
+    names = [type(p) for p in ProviderRouter().providers]
+    assert names.index(OpenRouterProvider) < names.index(LocalGGUFProvider)
+    monkeypatch.setenv("ATULYA_BRAIN", "tiny")
+    names = [type(p) for p in ProviderRouter().providers]
+    assert names.index(LocalGGUFProvider) < names.index(OpenRouterProvider)
+
+
+def test_router_prefers_the_fastest_working_brain(monkeypatch):
+    import asyncio
+
+    from atulya import intelligence as ai
+
+    class Fake(ai.IntelligenceProvider):
+        def __init__(self, label, delay=0.0, fail=False):
+            self.label, self.delay, self.fail = label, delay, fail
+
+        def name(self):
+            return self.label
+
+        def is_available(self):
+            return True
+
+        async def chat(self, prompt, system_prompt=""):
+            await asyncio.sleep(self.delay)
+            if self.fail:
+                raise RuntimeError("down")
+            return "ok"
+
+    monkeypatch.delenv("ATULYA_BRAIN", raising=False)
+    monkeypatch.setattr(ai, "_SPEED", {})
+    router = ai.ProviderRouter()
+    slow, fast, broken = Fake("slow", 0.05), Fake("fast", 0.0), Fake("broken", fail=True)
+    router.providers = [broken, slow, fast]
+
+    async def ask():
+        return (await router.chat("hi"))[1]
+
+    assert asyncio.run(ask()) == "slow"      # first try follows the configured order; broken is skipped
+    assert asyncio.run(ask()) == "slow"      # still the only one measured; broken is in its cooldown
+    ai._SPEED["fast"] = {"avg": 0.001}
+    assert asyncio.run(ask()) == "fast"      # measured faster, so it now leads
+    monkeypatch.setenv("ATULYA_BRAIN", "tiny")
+    assert [p.name() for p in router._ordered(router.providers)] == ["broken", "slow", "fast"]  # pinned: no reordering

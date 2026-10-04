@@ -50,6 +50,7 @@ export function Orb({ onMenu, toast, onCommand }) {
   const [started, setStarted] = useState(false);
   const [heard, setHeard] = useState('');
   const [said, setSaid] = useState('');
+  const captionsRef = useRef(null);
   const [hint, setHint] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [typed, setTyped] = useState('');
@@ -455,6 +456,12 @@ export function Orb({ onMenu, toast, onCommand }) {
     return () => window.removeEventListener('keydown', onKey);
   });
 
+  // Keep the newest line of a long answer in view inside the fixed caption box.
+  useEffect(() => {
+    const box = captionsRef.current;
+    if (box) box.scrollTop = box.scrollHeight;
+  }, [said, heard]);
+
   // Reminders and alerts from the server are said aloud when Atulya is free.
   useEffect(() => {
     function onNotification(event) {
@@ -547,7 +554,7 @@ export function Orb({ onMenu, toast, onCommand }) {
         <button type="button" className="orb-icon" onClick={() => setShowSettings((v) => !v)} title="Settings" aria-label="Settings">⚙</button>
       </div>
 
-      <div className="orb-captions">
+      <div className="orb-captions" ref={captionsRef}>
         <div className="orb-status">{STATUS[state]}</div>
         {heard && <div className="orb-heard">“{heard}”</div>}
         {said && <div className="orb-said">{said}</div>}

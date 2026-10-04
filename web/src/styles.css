@@ -658,24 +658,31 @@ button.icon:hover { border-color: var(--line); }
 }
 .orb-icon:hover { background: rgba(30, 70, 100, 0.6); }
 .orb-captions {
-  position: absolute; left: 50%; bottom: 84px; transform: translateX(-50%);
-  width: min(720px, calc(100% - 28px));
-  display: flex; flex-direction: column; align-items: center; gap: 8px;
-  text-align: center;
-  padding: 12px 18px 14px; border-radius: 18px;
-  background: rgba(5, 14, 26, 0.62); border: 1px solid rgba(120, 220, 255, 0.14);
+  /* A fixed prompter box: it never grows over the face, the text scrolls inside it. */
+  position: absolute; right: 20px; top: 50%; transform: translateY(-50%);
+  width: min(380px, 34vw); height: min(56vh, 460px);
+  display: flex; flex-direction: column; align-items: stretch; gap: 8px;
+  text-align: left;
+  padding: 14px 16px; border-radius: 16px;
+  background: rgba(5, 14, 26, 0.78); border: 1px solid rgba(120, 220, 255, 0.16);
   backdrop-filter: blur(10px);
-  max-height: 36vh; overflow-y: auto; overscroll-behavior: contain;
+  overflow-y: auto; overscroll-behavior: contain; scroll-behavior: smooth;
 }
-.orb-captions:has(.orb-chips):not(:has(.orb-said)):not(:has(.orb-heard)) { background: transparent; border-color: transparent; backdrop-filter: none; }
-.with-holo .orb-captions { top: auto; }
+.orb-captions:has(.orb-chips):not(:has(.orb-said)):not(:has(.orb-heard)) { background: transparent; border-color: transparent; backdrop-filter: none; height: auto; }
+.with-holo .orb-captions { bottom: auto; }
+@media (max-width: 899px) {
+  .orb-captions, .with-holo .orb-captions {
+    right: auto; left: 50%; top: auto; bottom: 84px; transform: translateX(-50%);
+    width: min(720px, calc(100% - 28px)); height: 30vh;
+  }
+}
 .orb-status { font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: rgba(140, 220, 255, 0.8); }
 .listening .orb-status { color: #6fe7ff; }
 .thinking .orb-status { color: #ffc46b; }
 .speaking .orb-status { color: #ffe08a; }
 .error .orb-status { color: #ff8a8a; }
 .orb-heard { font-size: 14px; color: rgba(200, 235, 255, 0.55); font-style: italic; }
-.orb-said { font-size: 18px; line-height: 1.55; color: #eef9ff; text-align: left; white-space: pre-wrap; }
+.orb-said { font-size: 16px; line-height: 1.55; color: #eef9ff; text-align: left; white-space: pre-wrap; }
 .orb-hint { font-size: 13px; color: rgba(255, 210, 150, 0.9); }
 .orb-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 .orb-chips button {
@@ -714,7 +721,7 @@ button.icon:hover { border-color: var(--line); }
   border: 1px solid rgba(120, 220, 255, 0.25); border-radius: 8px; padding: 8px;
 }
 @media (max-width: 600px) {
-  .orb-said { font-size: 16px; }
+  .orb-said { font-size: 15px; }
   .orb-hud { display: none; }
 }
 

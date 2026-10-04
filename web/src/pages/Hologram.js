@@ -48,6 +48,7 @@ const SKIN = [0.12, 0.3, 0.6];
 const HEAD_FILE_SCALE = 8000; // see web/bake_hologram_head.py
 const MESH_SCALE = 3.2;
 const MESH_Y = 0.5; // eye level in the scene
+const MOUTH_Y = 0.27; // where the lips sit, for the lip glow
 
 async function loadHead() {
   const res = await fetch('/hologram-head.bin');
@@ -138,9 +139,9 @@ function buildParticles(head) {
       add([x, y, 0.14], GOLD, rand(0.012, 0.02), KIND.body);
     }
   }
-  // Warm core inside the head.
-  for (let i = 0; i < 1600; i += 1) {
-    add([HEAD.x + gauss() * 0.12, HEAD.y - 0.05 + gauss() * 0.12, 0.2 + gauss() * 0.05],
+  // A faint warm core behind the face (kept small and dim so the face stays readable).
+  for (let i = 0; i < 260; i += 1) {
+    add([HEAD.x + gauss() * 0.08, HEAD.y - 0.05 + gauss() * 0.09, -0.08 + gauss() * 0.03],
       Math.random() < 0.8 ? ORANGE : GOLD, rand(0.014, 0.026), KIND.core);
   }
   // Ripple rings behind the head.
@@ -236,7 +237,7 @@ const vertexShader = /* glsl */`
       float a = uTime * (0.4 + uSpin * 2.0) * (1.0 - length(d) * 2.0);
       d = mat2(cos(a), -sin(a), sin(a), cos(a)) * d;
       p.xy = HEAD + vec2(0.0, 0.02) + d * (0.9 + uLevel * 0.55);
-      alpha = 0.9;
+      alpha = 0.2;
     }
 
     // Opening: particles stream up from the bright point, then fly into place.
@@ -332,14 +333,16 @@ export async function createHologram(container, getSignal) {
   const points = new THREE.Points(buildParticles(head), material);
   scene.add(points);
 
-  const coreGlow = glowSprite('255,120,30', 0.3, HEAD.x, HEAD.y - 0.03, -0.1);
+  const coreGlow = glowSprite('255,120,30', 0.3, HEAD.x, HEAD.y - 0.03, -0.2);
+  // Soft glow on the lips: brightens with the voice so you can see her speak.
+  const lipGlow = glowSprite('255,150,125', 0.1, HEAD.x, MOUTH_Y, 0.22);
   const bodyGlow = glowSprite('60,150,255', 2.4, 0, 0.2, -0.4);
   const point = glowSprite('200,235,255', 0.35, CHEST_POINT.x, CHEST_POINT.y, 0.3);
-  scene.add(bodyGlow, coreGlow, point);
+  scene.add(bodyGlow, coreGlow, lipGlow, point);
 
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.7, 0.5, 0.12);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.4, 0.4, 0.45);
   composer.addPass(bloom);
 
   function resize() {
@@ -386,12 +389,15 @@ export async function createHologram(container, getSignal) {
     u.uScatter.value = scatter * morph;
     u.uTint.value.lerp(TINTS[sig.state] || TINTS.idle, 0.08);
     const breathe = 0.5 + 0.5 * Math.sin(t * 1.3);
-    coreGlow.material.opacity = morph * (0.38 + 0.12 * breathe + level * 0.5);
-    coreGlow.scale.setScalar(0.85 + level * 0.5);
+    coreGlow.material.opacity = morph * (0.08 + 0.03 * breathe + level * 0.1);
+    coreGlow.scale.setScalar(1.1 + level * 0.3);
+    const speaking = sig.state === 'speaking';
+    lipGlow.material.opacity = morph * (0.1 + (speaking ? Math.min(1, level * 1.6) * 0.85 : 0));
+    lipGlow.scale.setScalar(0.07 + (speaking ? level * 0.1 : 0));
     bodyGlow.material.opacity = 0.05 + morph * 0.06 + level * 0.12;
     point.material.opacity = 0.9;
     point.scale.setScalar(0.17 + 0.05 * breathe + level * 0.2);
-    bloom.strength = 0.65 + level * 0.5;
+    bloom.strength = 0.35 + level * 0.25;
     composer.render();
   }
   frame();
@@ -403,7 +409,7 @@ export async function createHologram(container, getSignal) {
       observer.disconnect();
       points.geometry.dispose();
       material.dispose();
-      [coreGlow, bodyGlow, point].forEach((s) => { s.material.map.dispose(); s.material.dispose(); });
+      [coreGlow, bodyGlow, lipGlow, point].forEach((s) => { s.material.map.dispose(); s.material.dispose(); });
       composer.dispose?.();
       renderer.dispose();
       container.replaceChildren();

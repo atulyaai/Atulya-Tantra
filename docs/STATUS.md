@@ -44,13 +44,14 @@ Order matters: each step needs the one above it. Anything that spends money, boo
 |---|---|
 | Proactive: meeting heads-up | Done (PR #58) |
 | Proactive: more triggers (traffic, bills, "you usually…") | Habit nudges done; the rest planned |
+| Hologram readability: face no longer washed out; caption in a fixed side box that auto-scrolls; soft lip glow that follows the voice | Done and checked in a real render when idle. **Lip glow position is estimated and not yet seen while speaking** |
 | Mood and eye contact on the hologram (`emotion.py` to `Hologram.js`) | Planned |
 | Voice ID (who is speaking) | Planned; needs a speaker-embedding model |
 | Memory tree view in the web app (menu → Memory tree, or say "show memory"): animated tree, trunk = you, branch per kind, leaf per stored fact, new facts grow in live | **Done**: backend (`/api/memory/graph`, tested) and canvas animation, checked in a real browser with 12 seeded facts. Not yet: relations between people (Alice → Bob), vector-memory leaves |
 | Automation dashboard in the web app (jobs, reminders, calendar, media, devices) | Planned |
 | Encrypted memory at rest | `encrypted_storage.py` exists, nothing uses it |
 | Phone sync and push | Planned |
-| Smarter local brain | Planned; try `balanced` or `power`, measure on a fixed prompt set |
+| Brain speed | **Done**: with a cloud key set, cloud brains lead and the tiny local model is the offline fallback; the router measures each brain and tries the fastest first (pin an order with `ATULYA_BRAIN`). Not done: a smarter local model |
 | Real hardware test pass (voice, PC control, camera) | **Needs you**: cannot be done from the cloud container |
 
 ## 4. Fixes
