@@ -550,3 +550,88 @@ def test_connector_creates_standard_library_outputs(tmp_path: Path):
     assert image.ok and "<svg" in Path(image.path).read_text(encoding="utf-8")
     assert video.ok and len(json.loads(Path(video.path).read_text(encoding="utf-8"))["scenes"]) == 3
 
+
+
+# ── messages to saved contacts ─────────────────────────────────────────────
+def _book():
+    run(tools.contact_add("Mum", "telegram", "5550101", "Mom, Mummy"))
+    run(tools.contact_add("Dad", "whatsapp", "+911234567890"))
+
+
+def test_contacts_are_saved_found_by_nickname_and_forgotten():
+    _book()
+    assert tools.find_contact("mom")["name"] == "Mum" and tools.find_contact("DAD")["channels"] == {"whatsapp": "+911234567890"}
+    assert tools.find_contact("Priya") is None                      # never guesses a recipient
+    assert "Mum: telegram" in run(tools.contact_list()) and "Mom" in run(tools.contact_list())
+    assert "Forgot Mum" in run(tools.contact_remove("Mummy")) and tools.find_contact("Mum") is None
+    assert "need a name" in run(tools.contact_add("X", "carrier pigeon", "1"))
+
+
+def test_message_goes_to_telegram_with_the_right_chat_and_text(monkeypatch):
+    import atulya.sandesh as sandesh
+
+    sent = []
+
+    async def fake_post(url, payload, **kw):
+        sent.append((url, payload))
+        return 200, {}
+
+    monkeypatch.setattr(sandesh, "_post_json", fake_post)
+    monkeypatch.setenv("ATULYA_TELEGRAM_BOT_TOKEN", "bot-token")
+    monkeypatch.setenv("ATULYA_CHANNELS_DIR", str(Path(tools._DATA_DIR) / "channels"))
+    _book()
+    assert "Sent to Mum on telegram" in run(tools.message_send("mom", "I'm late"))
+    assert sent == [("https://api.telegram.org/botbot-token/sendMessage", {"chat_id": "5550101", "text": "I'm late"})]
+
+
+def test_message_says_so_when_the_channel_is_not_set_up_or_the_person_is_unknown(monkeypatch):
+    monkeypatch.delenv("ATULYA_TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.setenv("ATULYA_CHANNELS_DIR", str(Path(tools._DATA_DIR) / "channels"))
+    _book()
+    assert "isn't set up" in run(tools.message_send("Mum", "hi"))            # no pretend success
+    assert "don't have a contact called Priya" in run(tools.message_send("Priya", "hi"))
+    assert "don't have Mum on whatsapp" in run(tools.message_send("Mum", "hi", via="whatsapp"))
+    assert "What should I say" in run(tools.message_send("Mum", "   "))
+    assert "too long" in run(tools.message_send("Mum", "x" * (tools.MESSAGE_LIMIT + 1)))
+
+
+def test_sending_a_message_always_asks_first():
+    assert assess("message_send", {"to": "Mum", "text": "hi"}).needs_confirmation
+    assert assess("contact_remove", {"name": "Mum"}).needs_confirmation
+    assert not assess("contact_add", {"name": "Mum"}).needs_confirmation
+
+
+def test_spoken_messages_route_only_to_saved_contacts():
+    from atulya.kriya import route_intent
+
+    _book()
+    hit = route_intent("Tell Mum I'm late")
+    assert (hit.tool, hit.arguments) == ("message_send", {"to": "Mum", "text": "I'm late"})
+    assert route_intent("message mom: running 10 min late").arguments == {"to": "Mum", "text": "running 10 min late"}
+    hit = route_intent("whatsapp Dad that I reached")
+    assert hit.arguments == {"to": "Dad", "text": "I reached", "via": "whatsapp"}
+    for text in ("tell me a joke", "tell Priya I'm late", "text the plumber tomorrow"):   # not a saved contact
+        hit = route_intent(text)
+        assert hit is None or hit.tool != "message_send"
+
+
+def test_contacts_file_is_private_when_the_vault_is_on():
+    from atulya.raksha import PRIVATE
+
+    assert "contacts.json" in PRIVATE
+
+
+def test_spoken_contact_add_routes_to_contact_add():
+    from atulya.kriya import route_intent
+
+    hit = route_intent("add Mum on Telegram with chat id 5550101")
+    assert (hit.tool, hit.arguments) == ("contact_add", {"name": "Mum", "channel": "telegram", "address": "5550101"})
+    assert route_intent("Save Priya Sharma to WhatsApp +911234567890").arguments["name"] == "Priya Sharma"
+    assert route_intent("add milk to my shopping list") is None
+
+
+def test_the_confirmation_says_what_will_be_sent_and_to_whom():
+    from atulya.mastishk import describe_action
+
+    assert describe_action("message_send", {"to": "Mum", "text": "I'm late"}) == "send “I'm late” to Mum"
+    assert describe_action("message_send", {"to": "Dad", "text": "hi", "via": "whatsapp"}) == "send “hi” to Dad on whatsapp"

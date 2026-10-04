@@ -32,7 +32,7 @@ Order matters: each step needs the one above it. Anything that spends money, boo
 | A2 | Real playback: play a named song | Done for YouTube (top result, autoplay). Still planned: a controlled tab so pause/next work on it, and Spotify through its API | Partly done |
 | A3 | Shopping helper | Built on A1: search several sites, compare price, add to cart, never pay | Planned |
 | A4 | Appointments | Google Calendar invite and booking-site forms through A1; confirm the slot before submitting | Planned |
-| A5 | Messaging by voice: "tell Mum I'm late" | `channels.py` has Telegram, Discord, Slack. Needs a contact book and a confirm-before-send | Planned |
+| A5 | Messaging by voice: "tell Mum I'm late" | Contact book + `message_send`, asks first, only to saved contacts, honest when a channel is not set up (Telegram, WhatsApp, email, Slack, Discord, Signal) | **Built**, 7 tests including the exact Telegram request; checked through the real server up to the confirmation. **Not sent to a real Telegram bot or phone**; WhatsApp and the others need their own setup. No calls or SMS |
 | A6 | Phone control | Android over ADB (keys, volume, open app by name, open link, battery, screenshot); anything else through Home Assistant. Ringing a phone and push alerts need a companion app. iPhone: very limited | **Built for Android** (see device fabric below); not tried on a real phone. iPhone not covered |
 | A7 | TV control | Roku, Kodi, Android/Fire TV (ADB), Wake-on-LAN, and Samsung/LG/others via Home Assistant (see device fabric below) | **Built**; not tried on a real TV. Samsung/LG direct, Chromecast and AirPlay are not coveredr TV model |
 | A8 | Desktop control beyond keystrokes | Window list, focus, click by text on screen (OCR), file search and open | Planned |
@@ -114,7 +114,7 @@ Honest list, most valuable first. "Built" means written and tested here; nothing
 | 3 | **Knows who is there**: voice ID, face recognition, hand gestures, sound events (doorbell, clap, glass) | Personal answers per person; reacting without being spoken to | Not built (needs small downloaded models) |
 | 4 | **Sees the screen**: "what is on my screen", click a button by its text, find a file | Real PC assistant behaviour (A8) | Not built |
 | 5 | **Acts on the web safely**: shopping, booking, bills, food, rides | `web_task` exists with hard stops (never pays); the shopping and booking flows on top (A3, A4, A9) are not built | Partly built |
-| 6 | **Messages and calls by voice**: "tell Mum I'm late" | Needs a contact book and confirm-before-send (A5); no calls at all | Not built |
+| 6 | **Messages and calls by voice**: "tell Mum I'm late" | Messages are built (contact book, confirm-first); calls and SMS are not | Messages built, untested on a real bot; calls not built |
 | 7 | **Phone companion**: push alerts, ring my phone, location, read notifications, sync | The PWA and a Capacitor shell exist; no cross-device sync | Not built |
 | 8 | **Works while you are away**: long jobs in the background that report back ("watch this price, research that, tell me tonight") | Routines and price watch exist; open-ended research tasks and sub-agents do not | Partly built |
 | 9 | **Gets better from feedback**: thumbs up/down, "that was wrong", learning your style | It learns facts and habits (About you); there is no feedback loop | Not built |

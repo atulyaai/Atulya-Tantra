@@ -182,6 +182,8 @@ RISKY_TOOLS = {
 _CONFIRM_TOOLS = {
     **{name: "runs code or changes files" for name in RISKY_TOOLS},
     "send_email": "sends a message on your behalf",
+    "message_send": "sends a message to someone on your behalf",
+    "contact_remove": "forgets a contact",
     "calendar_remove": "permanently deletes a calendar event",
     "cancel_reminder": "deletes a reminder",
     "configure_email": "stores email credentials",
@@ -277,6 +279,11 @@ def describe_action(tool: str, arguments: dict[str, Any] | None = None) -> str:
         return f"approve device profile {args.get('proposal', '')}".strip()
     if tool == "web_task":
         return f"do this on the web: {str(args.get('goal', 'a task'))[:80]}"
+    if tool == "message_send":
+        via = f" on {args['via']}" if args.get("via") else ""
+        return f"send “{str(args.get('text', ''))[:80]}” to {args.get('to', 'them')}{via}"
+    if tool == "contact_remove":
+        return f"forget the contact {args.get('name', '')}".strip()
     if tool == "pc_open_app":
         return f"open {args.get('app', 'an app')}"
     if tool == "pc_type":

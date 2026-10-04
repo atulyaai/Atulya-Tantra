@@ -108,7 +108,7 @@ export function Routines({ toast }) {
           <span className="muted">Say a phrase and Atulya does several things, checking each one.</span>
         </div>
         <div className="reflex-list">
-          {routines.length === 0 && <p className="muted">No routines yet.</p>}
+          {routines.length === 0 && <p className="muted">No routines yet. Add one below: a phrase you say, and the steps Atulya runs (for example “turn off the living room light”). Example routines appear by themselves once Atulya has a device or Home Assistant to run them on.</p>}
           {routines.map((routine) => (
             <div className={`reflex-card${routine.enabled === false ? ' paused' : ''}`} key={routine.id}>
               <div className="reflex-head">
