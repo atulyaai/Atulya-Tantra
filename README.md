@@ -112,8 +112,9 @@ Atulya never reads out emoji and answers "what can you do" with a real list.
 1. In `.env` set `ATULYA_HOST=0.0.0.0`, then restart. (`ATULYA_LOCKDOWN=on` does the opposite: this computer only.)
 2. Find your PC's address (for example `192.168.1.15`) and open `http://192.168.1.15:8501` on the phone.
 3. Log in with username `admin` and the password you set in `ATULYA_DASHBOARD_TOKEN` (or the one written to `data/admin_token.txt` the first time). Other devices always need a login; only this computer skips it (`ATULYA_REQUIRE_LOGIN=on` turns that off).
-4. Add to the home screen: **iOS** Share, Add to Home Screen; **Android** menu, Install app.
-5. Away from home: install Tailscale on the PC and phone and use the private address (`http://100.x.y.z:8501`). Avoid exposing the port to the internet.
+4. **Camera and microphone on the phone need https.** Browsers only allow them on `https://` pages or on `http://localhost`. Set `ATULYA_HTTPS=on` in `.env` and restart: Atulya then serves `https://192.168.1.15:8501` with a certificate made for this computer. The browser warns once (the certificate is your own); choose Advanced, then Continue. If your PC's address changes, a new certificate is made automatically.
+5. Add to the home screen: **iOS** Share, Add to Home Screen; **Android** menu, Install app.
+6. Away from home: install Tailscale on the PC and phone and use the private address (`http://100.x.y.z:8501`). Avoid exposing the port to the internet.
 
 ## Devices
 

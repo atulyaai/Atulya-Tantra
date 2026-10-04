@@ -26,6 +26,8 @@ if exist ".env" (
 
 if not defined ATULYA_HOST set "ATULYA_HOST=127.0.0.1"
 if not defined ATULYA_PORT set "ATULYA_PORT=8501"
+set "SCHEME=http"
+if /i "%ATULYA_HTTPS%"=="on" set "SCHEME=https"
 
 echo   [1/4] Checking Python environment...
 where python >nul 2>&1
@@ -84,17 +86,17 @@ echo.
 echo   +------------------------------------------+
 echo   ^|  Atulya is starting...                   ^|
 echo   ^|                                          ^|
-echo   ^|  Open:     http://%ATULYA_HOST%:%ATULYA_PORT%        ^|
+echo   ^|  Open:     %SCHEME%://%ATULYA_HOST%:%ATULYA_PORT%        ^|
 echo   ^|                                          ^|
 echo   ^|  Mobile: Set ATULYA_HOST=0.0.0.0 in .env ^|
-echo   ^|          then open http://YOUR_PC_IP:%ATULYA_PORT% ^|
+echo   ^|          then open %SCHEME%://YOUR_PC_IP:%ATULYA_PORT% ^|
 echo   ^|          on your phone's browser          ^|
 echo   ^|                                          ^|
 echo   ^|  Press Ctrl+C to stop                    ^|
 echo   +------------------------------------------+
 echo.
 
-start "" cmd /c "timeout /t 2 >nul & start http://%ATULYA_HOST%:%ATULYA_PORT%"
+start "" cmd /c "timeout /t 2 >nul & start %SCHEME%://%ATULYA_HOST%:%ATULYA_PORT%"
 
 python -m atulya.sevak
 
