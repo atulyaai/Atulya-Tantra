@@ -79,19 +79,6 @@ if not exist "web\dist\index.html" (
 )
 
 :start_backend
-)
-pushd web
-rem Always sync packages (instant when nothing changed) so new dependencies like three.js are installed.
-call npm install --silent
-rem Remove the old build first, so a failed build can never leave an out-of-date web app behind.
-if exist "dist\index.html" del /q "dist\index.html"
-call npm run build --silent
-popd
-if not exist "web\dist\index.html" (
-    echo   WARNING: The web app failed to build, so there is no web UI. Run: cd web ^&^& npm run build
-)
-
-:start_backend
 echo   [4/4] Starting Atulya backend...
 echo.
 echo   +------------------------------------------+

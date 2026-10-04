@@ -4,6 +4,7 @@ Run by start.bat. Exit code 0 means ``web/dist/index.html`` is ready.
 """
 from __future__ import annotations
 
+import hashlib
 import shutil
 import subprocess
 import sys
@@ -26,13 +27,30 @@ def newest(paths: list[Path]) -> float:
     return latest
 
 
+STAMP = WEB / "dist" / ".source-hash"
+
+
+def source_hash() -> str:
+    """Hash of what the build is made from. File times lie after a git pull or a copy; content does not."""
+    digest = hashlib.sha256()
+    for path in SOURCES:
+        files = sorted(p for p in path.rglob("*") if p.is_file() and "node_modules" not in p.parts) if path.is_dir() else [path]
+        for file in files:
+            if file.exists():
+                digest.update(str(file.relative_to(WEB)).encode())
+                digest.update(file.read_bytes())
+    return digest.hexdigest()
+
+
 def needs_install() -> bool:
     marker = MODULES / ".package-lock.json"
     return not MODULES.exists() or not marker.exists() or (WEB / "package.json").stat().st_mtime > marker.stat().st_mtime
 
 
 def needs_build() -> bool:
-    return not DIST.exists() or newest(SOURCES) > DIST.stat().st_mtime
+    if not DIST.exists() or not STAMP.exists():
+        return True
+    return STAMP.read_text().strip() != source_hash()
 
 
 def run(cmd: list[str]) -> int:
@@ -57,6 +75,7 @@ def main() -> int:
     if run(["run", "build", "--silent"]) != 0 or not DIST.exists():
         print("  WARNING: the web app failed to build. Try: cd web && npm run build")
         return 1
+    STAMP.write_text(source_hash())
     return 0
 
 

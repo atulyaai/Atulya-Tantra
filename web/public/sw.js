@@ -6,7 +6,7 @@
 // Strategy: network-first. Online, you always get the latest app; each
 // successful same-origin GET is cached so the last-seen app still opens
 // offline. API calls, streaming chat and non-GET requests are never touched.
-const CACHE = 'atulya-v2';
+const CACHE = 'atulya-v3'; // bump to throw away every older saved copy of the app
 const SHELL = ['/', '/index.html'];
 
 self.addEventListener('install', (event) => {
