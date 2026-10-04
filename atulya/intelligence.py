@@ -538,6 +538,8 @@ _FAIL_SCORE = 1000.0
 
 def _record_speed(name: str, seconds: float | None) -> None:
     """Remember how long a brain took (None = it failed, so it goes to the back for a while)."""
+    if name == "No brain loaded":  # the "nothing is configured" message is not a brain to rank
+        return
     entry = _SPEED.setdefault(name, {})
     if seconds is None:
         entry["failed_until"] = time.monotonic() + _FAIL_COOLDOWN

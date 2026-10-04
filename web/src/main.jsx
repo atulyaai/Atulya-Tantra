@@ -4,6 +4,7 @@ import { api, boostAudio, clearToken, getToken, setToken, getUser, setUser } fro
 import { UserManagement } from './pages/UserManagement.jsx';
 import { Orb } from './pages/Orb.jsx';
 import { MenuPopover, Panel } from './Panel.jsx';
+import { selectSectionByText } from './sections.js';
 import './styles.css';
 
 // Lazy-load the heavy Spirit view so it is fetched only when opened, keeping
@@ -13,6 +14,7 @@ const Reflexes = lazy(() => import('./pages/Reflexes.jsx').then((m) => ({ defaul
 const Routines = lazy(() => import('./pages/Routines.jsx').then((m) => ({ default: m.Routines })));
 const MemoryTree = lazy(() => import('./pages/MemoryTree.jsx').then((m) => ({ default: m.MemoryTree })));
 const Providers = lazy(() => import('./pages/Providers.jsx').then((m) => ({ default: m.Providers })));
+const Dashboard = lazy(() => import('./pages/Dashboard.jsx').then((m) => ({ default: m.Dashboard })));
 const AboutYou = lazy(() => import('./pages/AboutYou.jsx').then((m) => ({ default: m.AboutYou })));
 const Senses = lazy(() => import('./pages/Senses.jsx').then((m) => ({ default: m.Senses })));
 
@@ -344,7 +346,8 @@ function Login({ onLogin }) {
 const MENU_ITEMS = [
   { id: 'chat', label: 'Chat history', icon: '✎' },
   { id: 'about', label: 'About you', icon: '☺' },
-  { id: 'memory', label: 'Memory tree', icon: '❋' },
+  { id: 'dashboard', label: 'Action engine', icon: '◈', wide: true },
+  { id: 'memory', label: 'Memory tree', icon: '❋', wide: true },
   { id: 'routines', label: 'Routines', icon: '↻', admin: true },
   { id: 'senses', label: 'Senses', icon: '◎', admin: true },
   { id: 'brains', label: 'Brains & keys', icon: '🔑', admin: true },
@@ -359,6 +362,7 @@ const PANEL_WORDS = [
   ['senses', /\b(senses|sensors?|cameras?)\b/],
   ['brains', /\b(api keys?|brains?|providers?|models?)\b/],
   ['reflexes', /\b(reflexes|triggers?|brain settings)\b/],
+  ['dashboard', /\b(dashboard|action engine|control cent(?:er|re)|command cent(?:er|re))\b/],
   ['memory', /\b(memory|memories|memory tree|what do you remember)\b/],
   ['about', /\b(about me|profile|my details)\b/],
   ['chat', /\b(chat|history|conversation|transcript)\b/],
@@ -489,6 +493,7 @@ function App() {
     if (panel === 'chat') return <Chat bootstrap={bootstrap} toast={toast} />;
     if (panel === 'about') return lazyPage(AboutYou, 'about you');
     if (panel === 'memory') return lazyPage(MemoryTree, 'memory tree');
+    if (panel === 'dashboard') return lazyPage(Dashboard, 'action engine');
     if (!isAdmin) return <p className="lazy-loading">That area is for the admin.</p>;
     if (panel === 'users') return <UserManagement toast={toast} />;
     if (panel === 'brains') return lazyPage(Providers, 'brains');
@@ -506,6 +511,8 @@ function App() {
       setPanel(null);
       return 'Closed.';
     }
+    const inside = panel ? selectSectionByText(t) : null; // "open episodic memories" inside the open window
+    if (inside) return inside;
     if (!/\b(show|open|go to|take me to|display)\b/.test(t)) return null;
     for (const [id, pattern] of PANEL_WORDS) {
       if (!pattern.test(t)) continue;
@@ -554,7 +561,7 @@ function App() {
           onPick={(id) => setPanel(id)} onSignOut={handleLogout} />
       )}
       {panel && panel !== 'menu' && (
-        <Panel title={titles[panel] || 'Atulya'} onClose={() => setPanel(null)}>{panelContent()}</Panel>
+        <Panel title={titles[panel] || 'Atulya'} wide={Boolean(MENU_ITEMS.find((m) => m.id === panel)?.wide)} onClose={() => setPanel(null)}>{panelContent()}</Panel>
       )}
       {(error || healthWarnings.some((w) => w.severity === 'high')) && (
         <div className="orb-alert" role="alert">
