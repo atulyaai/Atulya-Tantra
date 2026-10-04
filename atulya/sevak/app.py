@@ -170,12 +170,6 @@ app.add_middleware(
 )
 app.middleware("http")(_rate_limiter)
 
-from atulya.raksha.vault import VaultLocked  # noqa: E402
-
-
-@app.exception_handler(VaultLocked)
-async def _vault_locked(request, exc):
-    return JSONResponse(status_code=423, content={"detail": str(exc)})
 
 
 for module in (auth, system, chat, automation, openai, voice, upload, devices, ws, notifications, agent, create, triggers, routines, profile, memory, mood, money, providers, dashboard, fabric, vault, senses, google):

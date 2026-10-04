@@ -161,33 +161,3 @@ class MCPServer:
         except Exception as exc:
             return {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32000, "message": str(exc)}}
 
-
-def create_mcp_app(server: MCPServer | None = None, auth_token: str = ""):
-    from fastapi import FastAPI, Header, HTTPException
-    from fastapi.responses import StreamingResponse
-    from atulya.yantra.capabilities import create_default_registry
-
-    mcp = server or MCPServer()
-    if mcp._tool_registry is None:
-        mcp.bridge_tool_registry(create_default_registry())
-    app = FastAPI(title="Atulya MCP Server")
-
-    def require_auth(token: str | None) -> None:
-        if auth_token and token != auth_token:
-            raise HTTPException(status_code=401, detail="Unauthorized")
-
-    @app.post("/mcp/rpc")
-    async def rpc(payload: dict[str, Any], x_atulya_token: str | None = Header(default=None, alias="X-Atulya-Token")):
-        require_auth(x_atulya_token)
-        return await mcp.handle_jsonrpc(payload)
-
-    @app.get("/mcp/sse")
-    async def sse(x_atulya_token: str | None = Header(default=None, alias="X-Atulya-Token")):
-        require_auth(x_atulya_token)
-
-        async def events():
-            yield 'event: ready\ndata: {"ok": true}\n\n'
-
-        return StreamingResponse(events(), media_type="text/event-stream")
-
-    return app

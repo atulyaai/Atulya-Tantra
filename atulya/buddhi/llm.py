@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 from atulya.buddhi.safety import RISKY_TOOLS, needs_confirmation  # noqa: F401  (RISKY_TOOLS re-exported)
 from atulya.buddhi.intelligence import ProviderRouter
-from atulya.bhava.persona import Persona, get_atulya_fallback_response
+from atulya.bhava.persona import Persona
 from atulya.bhava.emotion import MoodState, build_emotional_directive, detect_emotion
 from atulya.yantra.capabilities import ToolRegistry
 
@@ -556,10 +556,6 @@ async def stream(
 ) -> AsyncIterator[LLMEvent]:
     async for event in get_default_llm().stream(prompt, history=history, approved_tool_call=approved_tool_call):
         yield event
-
-
-def fallback_answer(prompt: str) -> str:
-    return get_atulya_fallback_response(prompt, "en_female")
 
 
 @lru_cache(maxsize=1)

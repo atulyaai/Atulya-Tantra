@@ -152,6 +152,30 @@ def _match_ssdp(replies: list[tuple[str, dict[str, str]]], profiles: dict[str, d
     return list(seen.values())
 
 
+async def samsung_tvs(hosts: list[str], port: int = 8001) -> list[Candidate]:
+    """Samsung Smart TVs answer a plain GET on port 8001 with their model name."""
+    lan = [h for h in hosts if is_lan_host(h)]
+    sem = asyncio.Semaphore(256)
+
+    async def open_host(host: str) -> str | None:
+        async with sem:
+            return host if await _port_open(host, port) else None
+
+    found: list[Candidate] = []
+    open_hosts = [h for h in await asyncio.gather(*(open_host(h) for h in lan)) if h]
+    async with httpx.AsyncClient(timeout=1.5) as client:
+        for host in open_hosts:
+            try:
+                resp = await client.get(f"http://{host}:{port}/api/v2/")
+                info = resp.json().get("device", {}) if resp.status_code < 400 and "Samsung" in resp.text else None
+            except (httpx.HTTPError, OSError, ValueError, AttributeError):
+                continue
+            if info is not None:
+                label = str(info.get("name") or info.get("modelName") or "Samsung TV")[:60]
+                found.append(Candidate(host, "samsung", label, "tv", "answered like a Samsung Smart TV", {"port": 8002}))
+    return found
+
+
 async def adb_devices() -> list[Candidate]:
     if not adbmod.adb_path():
         return []
@@ -174,20 +198,21 @@ async def discover(hosts: list[str] | None = None, profiles: dict[str, dict[str,
     """Everything findable right now, best evidence first, one entry per (driver, host, thing)."""
     profiles = profiles if profiles is not None else load_profiles()
     hosts = hosts if hosts is not None else local_subnet_hosts()
-    tasks: list[Any] = [probe_hosts(hosts, profiles)]
+    jobs: dict[str, Any] = {"probe": probe_hosts(hosts, profiles), "samsung": samsung_tvs(hosts)}
     if ssdp:
-        tasks.append(ssdp_search(target=ssdp_target))
+        jobs["ssdp"] = ssdp_search(target=ssdp_target)
     if use_adb:
-        tasks.append(adb_devices())
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+        jobs["adb"] = adb_devices()
+    done = dict(zip(jobs, await asyncio.gather(*jobs.values(), return_exceptions=True)))
+    ok = {k: v for k, v in done.items() if not isinstance(v, BaseException)}
     found: list[Candidate] = []
-    probed = results[0] if not isinstance(results[0], BaseException) else []
+    probed = ok.get("probe", [])
     found += probed
-    if ssdp and not isinstance(results[1], BaseException):
-        have = {c.host for c in probed}
-        found += [c for c in _match_ssdp(results[1], profiles) if c.host not in have]
-    if use_adb and not isinstance(results[-1], BaseException):
-        found += results[-1]
+    found += ok.get("samsung", [])
+    if "ssdp" in ok:
+        have = {c.host for c in found}
+        found += [c for c in _match_ssdp(ok["ssdp"], profiles) if c.host not in have]
+    found += ok.get("adb", [])
     driver = ha if ha is not None else HomeAssistantDriver()
     if driver.configured:
         try:

@@ -234,7 +234,7 @@ Contributions, bug reports, and ideas are welcome!
 3. **Commit** your changes: `git commit -m "feat: add your feature"`
 4. **Push** and open a **Pull Request**
 
-Please keep PRs focused and include tests where relevant. For major changes, open an issue first. See [granth/CONTRIBUTING.md](granth/CONTRIBUTING.md) for the project rules and where things go, and [ROADMAP.md](ROADMAP.md) for what is planned.
+Please keep PRs focused and include tests where relevant. For major changes, open an issue first. See [granth/CONTRIBUTING.md](granth/CONTRIBUTING.md) for the project rules and where things go, and [granth/STATUS.md](granth/STATUS.md) for what is done and planned.
 
 > All contributions are released under the [MIT License](LICENSE).
 

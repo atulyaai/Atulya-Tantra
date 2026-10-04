@@ -72,15 +72,6 @@ def safe_math_eval(expression: str) -> Any:
     return _eval_node(tree.body)
 
 
-def safe_expression_output(expression: str) -> str:
-    """Return a printable result or a user-facing validation error."""
-
-    try:
-        return str(safe_math_eval(expression))
-    except Exception as exc:
-        return f"Expression blocked: {str(exc)[:200]}"
-
-
 def _eval_node(node: ast.AST) -> Any:
     if isinstance(node, ast.Constant):
         if isinstance(node.value, (int, float)):

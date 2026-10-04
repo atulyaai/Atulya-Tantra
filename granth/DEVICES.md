@@ -19,6 +19,17 @@ Home Assistant's companion app can do some of it), Bluetooth and infrared gadget
 covers IR). The built-in profiles were written from the public protocol descriptions and tested against simulated devices, **not
 against real hardware yet**.
 
+## Your own devices (what to do for each)
+
+| Device | How | One-time setup |
+|---|---|---|
+| **Samsung Smart TV** (2014 and newer) | `samsung` driver (built in) | Same Wi-Fi as the PC. Say "scan for devices", add it, then press a key; the TV shows "Allow Atulya?" once. "Turn on" needs Wake-on-LAN (add the TV's MAC as a `wol` device) and the TV's "Power on with mobile" setting |
+| **Old Samsung plasma without Smart Hub** | Not possible over the network | These sets have no network port; they need an infrared blaster (not built) |
+| **CloudWalker TV** | If it runs Android TV / Google TV (most recent models): `adb` driver | Settings > About: tap Build number 7 times, then Developer options > Network debugging (or USB debugging over Wi-Fi) on. Use the TV's IP address |
+| **Xiaomi (Mi / Redmi / POCO) phone** | `adb` driver | Developer options (tap MIUI version 7 times) > Wireless debugging; on the PC run `adb pair IP:PORT` once with the code the phone shows, then Atulya can connect. Xiaomi also needs "USB debugging (Security settings)" for some actions such as typing and taps |
+
+Not tried on any of these real devices yet; the Samsung driver is tested against a simulated TV that speaks the same websocket protocol.
+
 ## Using it
 
 1. **Find devices:** say "scan for devices", or open **Action engine → Smart home hub → Scan network for devices**. This only looks.

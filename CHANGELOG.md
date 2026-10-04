@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Samsung Smart TV control (`samsung` driver, discovery, pairing token) and a per-device setup table (Samsung, CloudWalker, Xiaomi phones) in `granth/DEVICES.md`.
+
+### Removed
+- Dead code: unused memory modules (`tree`, `obsidian`, `subconscious`, `prompt_cache`, `reflection`), ten unreferenced functions, `requirements.txt` (use `pyproject.toml`), `ROADMAP.md` (see `granth/STATUS.md`), four unused images.
+
 ### Fixed
 - **Slow local answers:** plain questions no longer send the tool list to a local model (about 2,100 tokens down to 350; Qwen3-4B on a 4-core CPU went from 77 s to 14 s per answer). Action requests still get the tools. `ATULYA_LOCAL_LEAN=off` restores the old behaviour.
 - **"My brain isn't loaded" after one slow answer:** the speed ranking put the "no brain" reply ahead of a real brain that had been timed once. It is now always last.

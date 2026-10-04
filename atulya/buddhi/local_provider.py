@@ -383,18 +383,6 @@ How you speak:
 - If you don't know something, say so briefly. Never make up facts or tool results."""
 
 
-def _tool_to_schema(tool: dict[str, str]) -> dict[str, Any]:
-    """Convert a simple tool entry to an OpenAI-style function schema."""
-    return {
-        "type": "function",
-        "function": {
-            "name": tool["name"],
-            "description": tool.get("description", ""),
-            "parameters": {"type": "object", "properties": {}},
-        },
-    }
-
-
 class PersonaLocalProvider(LocalGGUFProvider):
     """The local model wearing the Atulya persona (system prompt + native tool calling)."""
 
