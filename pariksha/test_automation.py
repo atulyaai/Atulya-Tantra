@@ -15,16 +15,16 @@ class TestAutomationRoutes:
             yield m
 
     def test_list_jobs_empty(self, tmp_path, mock_admin):
-        from atulya.dwar import api_cron_jobs
         import atulya.dwar as auto_mod
+        from atulya.dwar import api_cron_jobs
         auto_mod.JOBS_FILE = tmp_path / "jobs.json"
 
         result = api_cron_jobs(_admin=mock_admin.return_value)
         assert result["jobs"] == []
 
     def test_list_jobs_with_data(self, tmp_path, mock_admin):
-        from atulya.dwar import api_cron_jobs
         import atulya.dwar as auto_mod
+        from atulya.dwar import api_cron_jobs
         jobs_file = tmp_path / "jobs.json"
         auto_mod.JOBS_FILE = jobs_file
         jobs_file.write_text(json.dumps([{"id": "1", "name": "test"}]))
@@ -33,8 +33,8 @@ class TestAutomationRoutes:
         assert len(result["jobs"]) == 1
 
     def test_add_job(self, tmp_path, mock_admin):
-        from atulya.dwar import api_cron_add_job
         import atulya.dwar as auto_mod
+        from atulya.dwar import api_cron_add_job
         auto_mod.JOBS_FILE = tmp_path / "jobs.json"
 
         with patch("time.time", return_value=1000):
@@ -44,8 +44,8 @@ class TestAutomationRoutes:
         assert result["job"]["name"] == "myjob"
 
     def test_delete_job(self, tmp_path, mock_admin):
-        from atulya.dwar import api_cron_delete_job
         import atulya.dwar as auto_mod
+        from atulya.dwar import api_cron_delete_job
         jobs_file = tmp_path / "jobs.json"
         auto_mod.JOBS_FILE = jobs_file
         jobs_file.write_text(json.dumps([{"id": "1", "name": "a"}, {"id": "2", "name": "b"}]))
@@ -56,8 +56,8 @@ class TestAutomationRoutes:
         assert len(remaining) == 1
 
     def test_update_job(self, tmp_path, mock_admin):
-        from atulya.dwar import api_cron_update_job
         import atulya.dwar as auto_mod
+        from atulya.dwar import api_cron_update_job
         jobs_file = tmp_path / "jobs.json"
         auto_mod.JOBS_FILE = jobs_file
         jobs_file.write_text(json.dumps([{"id": "1", "name": "old", "schedule": "3600"}]))
@@ -67,16 +67,16 @@ class TestAutomationRoutes:
         assert result["job"]["name"] == "new"
 
     def test_update_job_not_found(self, tmp_path, mock_admin):
-        from atulya.dwar import api_cron_update_job
         import atulya.dwar as auto_mod
+        from atulya.dwar import api_cron_update_job
         auto_mod.JOBS_FILE = tmp_path / "jobs.json"
 
         result = api_cron_update_job("nonexistent", {"name": "x"}, _admin=mock_admin.return_value)
         assert result["ok"] is False
 
     def test_run_job(self, tmp_path, mock_admin):
-        from atulya.dwar import api_cron_run_job
         import atulya.dwar as auto_mod
+        from atulya.dwar import api_cron_run_job
         jobs_file = tmp_path / "jobs.json"
         auto_mod.JOBS_FILE = jobs_file
         jobs_file.write_text(json.dumps([{"id": "1", "name": "test", "command": "say hi"}]))
@@ -95,8 +95,8 @@ class TestAutomationRoutes:
         assert result["ok"] is True
 
     def test_seed_default_jobs(self, tmp_path):
-        from atulya.dwar import _seed_default_jobs
         import atulya.dwar as auto_mod
+        from atulya.dwar import _seed_default_jobs
         jobs_file = tmp_path / "jobs.json"
         auto_mod.JOBS_FILE = jobs_file
 
@@ -107,8 +107,8 @@ class TestAutomationRoutes:
         assert all(job.get("command") for job in seeded)
 
     def test_seed_default_jobs_idempotent(self, tmp_path):
-        from atulya.dwar import _seed_default_jobs
         import atulya.dwar as auto_mod
+        from atulya.dwar import _seed_default_jobs
         jobs_file = tmp_path / "jobs.json"
         auto_mod.JOBS_FILE = jobs_file
         jobs_file.write_text(json.dumps([{"id": "custom", "name": "mine"}]))

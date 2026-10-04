@@ -394,17 +394,30 @@ KIND = {"light": "light", "switch": "switch", "fan": "fan", "media_player": "tv"
         "scene": "scene", "script": "script", "button": "button", "vacuum": "vacuum", "input_boolean": "switch"}
 
 
-class HomeAssistantDriver(Driver):
-    id = "homeassistant"
+class HomeAssistantConnection:
+    """Where Home Assistant is and how to sign in (``HOME_ASSISTANT_URL`` and ``HOME_ASSISTANT_TOKEN``).
 
-    def __init__(self, url: str | None = None, token: str | None = None, transport: httpx.AsyncBaseTransport | None = None):
+    The device driver (discovery and the hub) and the bridge (the old ``home_control`` tool and the sensors)
+    both use it, so the address, the token and the "is it set up?" test live in one place."""
+
+    def __init__(self, url: str | None = None, token: str | None = None,
+                 transport: httpx.AsyncBaseTransport | None = None, timeout: float = 10.0):
         self.url = (url if url is not None else os.environ.get("HOME_ASSISTANT_URL", "")).rstrip("/")
         self.token = token if token is not None else os.environ.get("HOME_ASSISTANT_TOKEN", "")
         self._transport = transport
+        self._timeout = timeout
 
     @property
     def configured(self) -> bool:
         return bool(self.url and self.token)
+
+    @property
+    def headers(self) -> dict[str, str]:
+        return {"Authorization": f"Bearer {self.token}"}
+
+
+class HomeAssistantDriver(HomeAssistantConnection, Driver):
+    id = "homeassistant"
 
     def _client(self) -> httpx.AsyncClient:
         if not self.configured:
@@ -412,7 +425,7 @@ class HomeAssistantDriver(Driver):
         host = httpx.URL(self.url).host
         if not is_lan_host(host):
             raise DeviceError("Home Assistant must be on your home network.")
-        return httpx.AsyncClient(base_url=self.url, headers={"Authorization": f"Bearer {self.token}"}, timeout=10.0, transport=self._transport)
+        return httpx.AsyncClient(base_url=self.url, headers=self.headers, timeout=self._timeout, transport=self._transport)
 
     async def entities(self) -> list[dict[str, Any]]:
         try:
@@ -644,7 +657,7 @@ def _env_entities() -> dict[str, str]:
     return {str(k): str(v) for k, v in data.items()} if isinstance(data, dict) else {}
 
 
-class HomeAssistantBridge:
+class HomeAssistantBridge(HomeAssistantConnection):
     def __init__(
         self,
         url: str | None = None,
@@ -653,15 +666,8 @@ class HomeAssistantBridge:
         transport: httpx.AsyncBaseTransport | None = None,
         timeout: float = 10.0,
     ):
-        self.url = (url if url is not None else os.environ.get("HOME_ASSISTANT_URL", "")).rstrip("/")
-        self.token = token if token is not None else os.environ.get("HOME_ASSISTANT_TOKEN", "")
+        super().__init__(url, token, transport, timeout)
         self.entities = {**_CONVENTION, **(entities if entities is not None else _env_entities())}
-        self._transport = transport
-        self._timeout = timeout
-
-    @property
-    def configured(self) -> bool:
-        return bool(self.url and self.token)
 
     def entity_for(self, device_id: str) -> str | None:
         if device_id in self.entities:
@@ -699,7 +705,7 @@ class HomeAssistantBridge:
             resp = await client.post(
                 f"{self.url}/api/services/{domain}/{service}",
                 json=data,
-                headers={"Authorization": f"Bearer {self.token}"},
+                headers=self.headers,
             )
         if resp.status_code >= 400:
             raise HomeAssistantError(f"Home Assistant returned {resp.status_code}: {resp.text[:200]}")
@@ -717,7 +723,7 @@ class HomeAssistantBridge:
 
     async def _get(self, path: str) -> Any:
         async with httpx.AsyncClient(timeout=self._timeout, transport=self._transport) as client:
-            resp = await client.get(f"{self.url}{path}", headers={"Authorization": f"Bearer {self.token}"})
+            resp = await client.get(f"{self.url}{path}", headers=self.headers)
         if resp.status_code >= 400:
             raise HomeAssistantError(f"Home Assistant returned {resp.status_code}: {resp.text[:200]}")
         return resp.json()

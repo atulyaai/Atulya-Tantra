@@ -3,7 +3,7 @@
 Legend: **Done** = implemented and has unit tests. **Unverified** = implemented, but never run on real hardware or accounts
 (a unit test with mocks does not count). **Planned** = not written yet. Update this file in every PR.
 
-Last full test run: 542 passed, 8 skipped (`test_ambient.py` and `test_senses.py` skip without numpy).
+Last full test run: 698 passed, 6 skipped (the skips need numpy).
 
 ## 1. Everyday actions (tools in `atulya/kriya.py` and friends)
 
@@ -51,7 +51,7 @@ Order matters: each step needs the one above it. Anything that spends money, boo
 | Hand gestures, face recognition, sound events (claps, doorbell, glass) | **Not built.** Gestures and faces need a downloaded vision model (about 10 MB) and sound classes need an audio model; neither could be tested here, so I did not ship guesses |
 | Voice ID (who is speaking) | **Not built**: needs a speaker-embedding model and real voices to test. Even when built it should only personalise, never unlock anything |
 | Memory tree view in the web app (menu → Memory tree, or say "show memory"): animated tree, trunk = you, branch per kind, leaf per stored fact, new facts grow in live | **Done**: backend (`/api/memory/graph`, tested) and canvas animation, checked in a real browser with 12 seeded facts. Not yet: relations between people (Alice → Bob), vector-memory leaves |
-| Automation dashboard in the web app (jobs, reminders, calendar, media, devices) | Planned |
+| Automation dashboard in the web app (jobs, reminders, calendar, media, devices) | **Done** (menu → Action engine); media buttons Windows only |
 | Encrypted memory at rest (`atulya/raksha.py`): set `ATULYA_VAULT_PASSPHRASE` in `.env`; money, calendar, reminders, email settings, chat history and your profile are then stored encrypted (scrypt key, Fernet). Tamper is detected; a wrong passphrase locks the data and can never overwrite it; with no passphrase it says plainly that it is off. Status in the dashboard (System tile) | Done, 7 tests. **Lose the passphrase and the data is gone.** Not covered: the vector memory, the audit log, `.env` itself, and anyone who can read your running PC's memory. The old `encrypted_storage.py` is not used (it fell back to base64 and kept its key beside the data) |
 | Phone sync and push | Planned |
 | Brain speed | **Done**: with a cloud key set, cloud brains lead and the tiny local model is the offline fallback; the router measures each brain and tries the fastest first (pin an order with `ATULYA_BRAIN`). Not done: a smarter local model |
@@ -99,3 +99,27 @@ Order matters: each step needs the one above it. Anything that spends money, boo
 2. Never type passwords or card numbers. At a login or payment page, stop and hand over to you.
 3. Every step goes to `kosh/agent/audit.jsonl`.
 4. A page's text is data, never instructions (a product page cannot tell Atulya to do anything).
+
+## 6. What a real Jarvis has that Atulya does not (yet)
+
+Honest list, most valuable first. "Built" means written and tested here; nothing below is proven on your own devices.
+
+| # | Gap | Why it matters | State |
+|---|---|---|---|
+| 1 | **Everything proven on real hardware** (microphone, camera, TV, phone, PC control, Windows media keys) | Every "Unverified" row above. A Jarvis that fails on the real TV is not Jarvis | Needs you: report what breaks; I fix |
+| 2 | **Fast answers by default** | Local CPU brains take 14-90 s for a sentence; a cloud key or a Colab GPU is the fast route (`prayog/`) | Cloud keys and the GPU route exist; a smaller, quicker local path is not built |
+| 3 | **Knows who is there**: voice ID, face recognition, hand gestures, sound events (doorbell, clap, glass) | Personal answers per person; reacting without being spoken to | Not built (needs small downloaded models) |
+| 4 | **Sees the screen**: "what is on my screen", click a button by its text, find a file | Real PC assistant behaviour (A8) | Not built |
+| 5 | **Acts on the web safely**: shopping, booking, bills, food, rides | `web_task` exists with hard stops (never pays); the shopping and booking flows on top (A3, A4, A9) are not built | Partly built |
+| 6 | **Messages and calls by voice**: "tell Mum I'm late" | Needs a contact book and confirm-before-send (A5); no calls at all | Not built |
+| 7 | **Phone companion**: push alerts, ring my phone, location, read notifications, sync | The PWA and a Capacitor shell exist; no cross-device sync | Not built |
+| 8 | **Works while you are away**: long jobs in the background that report back ("watch this price, research that, tell me tonight") | Routines and price watch exist; open-ended research tasks and sub-agents do not | Partly built |
+| 9 | **Gets better from feedback**: thumbs up/down, "that was wrong", learning your style | It learns facts and habits (About you); there is no feedback loop | Not built |
+| 10 | **Hindi voice quality**: speech recognition and speaking in Hindi, mixed Hindi-English | Hindi wake words exist; quality of Hindi speech in and out is untested | Unverified |
+| 11 | **Trained "Atulya" wake word** | The text-matched wake word is the default; no trained model | Not built |
+| 12 | **Smart-home scenes by voice** ("movie mode": dim lights, TV on, volume 30) | Single commands work; named scenes spanning devices are not built | Not built |
+| 13 | **Safer by construction**: OS sandbox for tools, tamper-evident audit log, per-user rate limits | Today it is confirmations and allow-lists | Not built |
+| 14 | **Easy to install and keep**: one-click Windows installer, automatic updates, scheduled backups of `kosh/`, real CI on every change | Today: `git clone`, `start.bat`, tests run by hand | Not built |
+| 15 | **Mood and eye contact on the hologram** | Mood detection exists; the figure's colour change is subtle and the eyes do not follow you yet | Partly built |
+
+Smaller known gaps (from the old features list): a controlled player for real pause/next on YouTube and Spotify; scene description needs `ollama pull moondream` or a Gemini key; the Docker image has never been built; vector memory, the audit log and `.env` are not encrypted.

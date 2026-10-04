@@ -66,8 +66,8 @@ class TestToolbelt:
 
     def test_exec_permission_cannot_be_supplied_by_caller(self):
         """allow_exec / allow_list are server policy, not call arguments."""
-        from atulya.mastishk import AtulyaLLM
         from atulya.kaushal import Tool, ToolRegistry, ToolResult
+        from atulya.mastishk import AtulyaLLM
 
         received = {}
 
@@ -320,8 +320,7 @@ class TestKernel:
 
 class TestTriggers:
     def make(self, tmp_path):
-        from atulya.buddhi import CognitiveKernel
-        from atulya.buddhi import TriggerEngine
+        from atulya.buddhi import CognitiveKernel, TriggerEngine
 
         bus = EventBus()
         notes: list[str] = []
@@ -556,9 +555,10 @@ class TestRoutes:
     @pytest.fixture
     def client(self, tmp_path, monkeypatch):
         from fastapi.testclient import TestClient
+
         from atulya import dwar as helpers
-        from atulya.sevak import app
         from atulya.buddhi import TriggerEngine
+        from atulya.sevak import app
 
         monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")
         app.state.llm = make_llm()

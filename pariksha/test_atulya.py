@@ -1,7 +1,7 @@
 """Tests for HeartbeatSystem — health checks and status persistence."""
 
-import tempfile
 import json
+import tempfile
 
 
 class TestHeartbeatSystem:
@@ -17,10 +17,12 @@ class TestHeartbeatSystem:
 
     def test_memory_check_import_fallback(self, monkeypatch):
         """_memory_check reports ok for normal memory use, whatever this machine is doing right now."""
-        from atulya.adhar import HeartbeatSystem
         import asyncio
-        import psutil
         from types import SimpleNamespace
+
+        import psutil
+
+        from atulya.adhar import HeartbeatSystem
         monkeypatch.setattr(psutil, "virtual_memory", lambda: SimpleNamespace(percent=40.0))
         with tempfile.TemporaryDirectory() as tmp:
             hb = HeartbeatSystem(data_dir=tmp)
@@ -29,8 +31,9 @@ class TestHeartbeatSystem:
             assert result.status == "ok"
 
     def test_disk_check(self):
-        from atulya.adhar import HeartbeatSystem
         import asyncio
+
+        from atulya.adhar import HeartbeatSystem
         with tempfile.TemporaryDirectory() as tmp:
             hb = HeartbeatSystem(data_dir=tmp)
             result = asyncio.run(hb._disk_check())
@@ -38,8 +41,9 @@ class TestHeartbeatSystem:
             assert result.status in ("ok", "warning", "error")
 
     def test_maintenance_check(self):
-        from atulya.adhar import HeartbeatSystem
         import asyncio
+
+        from atulya.adhar import HeartbeatSystem
         with tempfile.TemporaryDirectory() as tmp:
             hb = HeartbeatSystem(data_dir=tmp)
             result = asyncio.run(hb._maintenance_check())
@@ -47,8 +51,9 @@ class TestHeartbeatSystem:
             assert result.status in ("ok", "warning", "info", "error")
 
     def test_save_status_creates_file(self):
-        from atulya.adhar import HeartbeatSystem
         import asyncio
+
+        from atulya.adhar import HeartbeatSystem
         with tempfile.TemporaryDirectory() as tmp:
             hb = HeartbeatSystem(data_dir=tmp)
             asyncio.run(hb._run_checks())
@@ -78,16 +83,18 @@ class TestHeartbeatSystem:
 
     def test_task_check_no_crash(self):
         """_task_check should handle missing kanban directory."""
-        from atulya.adhar import HeartbeatSystem
         import asyncio
+
+        from atulya.adhar import HeartbeatSystem
         with tempfile.TemporaryDirectory() as tmp:
             hb = HeartbeatSystem(data_dir=tmp)
             result = asyncio.run(hb._task_check())
             assert result.name == "tasks"
 
     def test_start_stop(self):
-        from atulya.adhar import HeartbeatSystem
         import asyncio
+
+        from atulya.adhar import HeartbeatSystem
         with tempfile.TemporaryDirectory() as tmp:
             hb = HeartbeatSystem(data_dir=tmp)
             hb._interval = 0.1

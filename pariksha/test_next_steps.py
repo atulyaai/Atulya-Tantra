@@ -338,8 +338,8 @@ def test_openrouter_skips_busy_and_empty_free_models(monkeypatch):
 # ── no emoji in speech ───────────────────────────────────────────────────
 
 def test_emoji_are_never_spoken():
-    from atulya.shruti import speakable
     from atulya.adhar import strip_emoji
+    from atulya.shruti import speakable
     from atulya.vani import TextToSpeech
 
     assert strip_emoji("Hello! \U0001F60A How are you? \u2764\ufe0f") == "Hello! How are you?"
