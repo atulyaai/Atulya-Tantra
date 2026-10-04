@@ -5,8 +5,9 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 
-import numpy as np
 import pytest
+
+np = pytest.importorskip("numpy")
 
 from atulya.events import EventBus
 

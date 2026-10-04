@@ -779,6 +779,10 @@ def _bootstrap():
         _reminders.clear()
         for item in data if isinstance(data, list) else []:
             _reminders[item["id"]] = item
+    events = _load_json("calendar.json")  # saved on every change; without this a restart forgot the calendar
+    for item in events if isinstance(events, list) else []:
+        if isinstance(item, dict) and "id" in item and "time" in item:
+            _CALENDAR[item["id"]] = item
     _load_email_config()
 
 
@@ -786,4 +790,4 @@ _bootstrap()
 
 
 # Skill modules register their tools with @tool on import.
-from atulya.agent import briefing, media, pc_control, tracking  # noqa: E402,F401
+from atulya.agent import briefing, media, money, pc_control, tracking, webagent  # noqa: E402,F401

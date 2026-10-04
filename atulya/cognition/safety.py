@@ -45,6 +45,7 @@ _CONFIRM_TOOLS = {
     "pc_type": "types on your keyboard",
     "pc_hotkey": "presses keyboard shortcuts",
     "pc_screenshot": "captures your screen",
+    "web_task": "drives a web browser to do a task for you",
 }
 
 # Specific (tool, action) pairs that need confirmation.
@@ -116,6 +117,8 @@ def describe_action(tool: str, arguments: dict[str, Any] | None = None) -> str:
         return f"check the weather in {args.get('location', 'your city')}"
     if tool == "open_website":
         return f"open {args.get('site', 'a website')}"
+    if tool == "web_task":
+        return f"do this on the web: {str(args.get('goal', 'a task'))[:80]}"
     if tool == "pc_open_app":
         return f"open {args.get('app', 'an app')}"
     if tool == "pc_type":

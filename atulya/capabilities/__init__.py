@@ -40,7 +40,7 @@ class ToolRegistry:
             self._duplicate_names.add(tool.name)
         self._tools[tool.name] = tool
 
-    async def execute(self, name: str, **kwargs: Any) -> ToolResult:
+    async def execute(self, name: str, /, **kwargs: Any) -> ToolResult:
         tool = self._tools.get(name)
         if not tool:
             return ToolResult(success=False, error=f"Tool not found: {name}")

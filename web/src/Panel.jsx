@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 
 // A pop-up that slides over the orb. Esc or a tap outside closes it, and the orb keeps running underneath.
-export function Panel({ title, onClose, children }) {
+export function Panel({ title, onClose, children, wide = false }) {
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -9,8 +9,8 @@ export function Panel({ title, onClose, children }) {
   }, [onClose]);
 
   return (
-    <div className="panel-scrim" onClick={onClose}>
-      <aside className="panel" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
+    <div className={`panel-scrim${wide ? ' center' : ''}`} onClick={onClose}>
+      <aside className={`panel${wide ? ' wide' : ''}`} role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
         <header className="panel-head">
           <strong>{title}</strong>
           <button type="button" className="panel-close" onClick={onClose} aria-label="Close">✕</button>

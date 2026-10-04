@@ -3,6 +3,10 @@ from __future__ import annotations
 
 import asyncio
 import platform
+import re
+import urllib.parse
+import urllib.request
+import webbrowser
 
 from atulya.agent.tools import open_website, tool
 
@@ -19,7 +23,23 @@ def _press(vk: int, times: int = 1) -> None:
         ctypes.windll.user32.keybd_event(vk, 0, 2, 0)  # type: ignore[attr-defined]
 
 
-@tool("play_music", "Play a song, artist or playlist by searching a music site in the browser", {
+_VIDEO_ID = re.compile(r'"videoId":"([\w-]{11})"')
+
+
+def _find_youtube_video(query: str) -> str | None:
+    """Id of the top YouTube result for ``query`` (None when the page can't be read)."""
+    url = "https://www.youtube.com/results?search_query=" + urllib.parse.quote_plus(query)
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0", "Accept-Language": "en"})
+    try:
+        with urllib.request.urlopen(req, timeout=8) as resp:  # noqa: S310 - fixed https host
+            html = resp.read(600_000).decode("utf-8", "ignore")
+    except Exception:  # noqa: BLE001 - fall back to the search page
+        return None
+    match = _VIDEO_ID.search(html)
+    return match.group(1) if match else None
+
+
+@tool("play_music", "Play a song, artist or playlist: starts the top YouTube result (or opens a Spotify search)", {
     "query": {"type": "string", "description": "Song, artist or mood, e.g. 'arijit singh' or 'lofi beats'"},
     "service": {"type": "string", "description": "'youtube' or 'spotify'", "default": "youtube"},
 })
@@ -27,8 +47,15 @@ async def play_music(query: str, service: str = "youtube") -> str:
     service = service.strip().lower()
     if service not in ("youtube", "spotify"):
         service = "youtube"
-    if not query.strip():
+    query = query.strip()
+    if not query:
         return "Tell me what to play."
+    if service == "youtube":
+        video = await asyncio.to_thread(_find_youtube_video, query)
+        if video:
+            url = f"https://www.youtube.com/watch?v={video}&autoplay=1"
+            if await asyncio.to_thread(webbrowser.open, url):
+                return f"Playing {query} on YouTube."
     return await open_website(service, query)
 
 

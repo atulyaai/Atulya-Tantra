@@ -34,6 +34,9 @@ FREE_DEFAULTS = {
 
 
 def main() -> None:
+    from atulya.envfile import load_env
+
+    load_env()
     if len(sys.argv) > 1 and sys.argv[1] == "listen":  # the always-listening app has its own options
         from atulya.ambient.cli import main as listen
 

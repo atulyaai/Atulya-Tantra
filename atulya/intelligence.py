@@ -11,10 +11,13 @@ import json
 import re
 import logging
 import os
+import time
 import inspect
 import urllib.request
 import urllib.error
 from typing import Any, AsyncIterator
+
+from atulya.providers_catalog import CATALOG  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -224,12 +227,19 @@ class OpenRouterProvider(IntelligenceProvider):
     def name(self) -> str:
         return "OpenRouter"
 
+    KEY_VARS = ("OPENROUTER_API_KEY",)
+    MODEL_VAR = "ATULYA_OPENROUTER_MODEL"
+
+    @classmethod
+    def _key(cls) -> str:
+        return next((os.environ[v] for v in cls.KEY_VARS if os.environ.get(v)), "")
+
     def is_available(self) -> bool:
-        return bool(os.environ.get("OPENROUTER_API_KEY"))
+        return bool(self._key())
 
     @classmethod
     def models(cls) -> list[str]:
-        raw = os.environ.get("ATULYA_OPENROUTER_MODEL", "")
+        raw = os.environ.get(cls.MODEL_VAR, "")
         listed = [m.strip() for m in raw.split(",") if m.strip()]
         return listed or list(cls.DEFAULT_MODELS)
 
@@ -239,7 +249,7 @@ class OpenRouterProvider(IntelligenceProvider):
             self.URL, data=json.dumps(payload).encode("utf-8"), method="POST",
             headers={
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {os.environ.get('OPENROUTER_API_KEY', '')}",
+                "Authorization": f"Bearer {self._key()}",
                 "HTTP-Referer": "https://github.com/atulyaai/Atulya-Tantra",
                 "X-Title": "Atulya OS",
             },
@@ -253,8 +263,8 @@ class OpenRouterProvider(IntelligenceProvider):
         return re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
 
     async def chat(self, prompt: str, system_prompt: str = "") -> str:
-        if not os.environ.get("OPENROUTER_API_KEY"):
-            raise ValueError("OPENROUTER_API_KEY is not configured")
+        if not self._key():
+            raise ValueError(f"{self.KEY_VARS[0]} is not configured")
         messages = ([{"role": "system", "content": system_prompt}] if system_prompt else []) + [
             {"role": "user", "content": prompt}]
         failures: list[str] = []
@@ -267,8 +277,24 @@ class OpenRouterProvider(IntelligenceProvider):
             if text:
                 return text
             failures.append(f"{model}: empty reply")
-        logger.warning("OpenRouter: no free model answered (%s)", "; ".join(failures))
-        raise RuntimeError("No OpenRouter model answered: " + "; ".join(failures))
+        logger.warning("%s: no model answered (%s)", self.name(), "; ".join(failures))
+        raise RuntimeError(f"No {self.name()} model answered: " + "; ".join(failures))
+
+
+class OpenCodeGoProvider(OpenRouterProvider):
+    """OpenCode Go: an OpenAI-style endpoint (``OPENCODE_API_KEY``). Models and URL can be changed in .env."""
+
+    KEY_VARS = ("OPENCODE_API_KEY", "OPENCODE_GO_API_KEY")
+    MODEL_VAR = "ATULYA_OPENCODE_MODEL"
+    DEFAULT_MODELS = ("deepseek-v4-flash", "kimi-k2.5", "glm-5.2")
+
+    @property
+    def URL(self) -> str:  # noqa: N802 - mirrors the parent's class attribute
+        base = os.environ.get("ATULYA_OPENCODE_URL", "https://opencode.ai/zen/go/v1").rstrip("/")
+        return base + "/chat/completions"
+
+    def name(self) -> str:
+        return "OpenCode Go"
 
 
 class NvidiaNimProvider(IntelligenceProvider):
@@ -415,7 +441,31 @@ NO_BRAIN_MESSAGE = (
 )
 
 
-class OpenCodeProvider(IntelligenceProvider):
+class OpenAICompatProvider(OpenRouterProvider):
+    """Any OpenAI-style provider from ``providers_catalog`` (Mistral, DeepSeek, Qwen, Together …)."""
+
+    def __init__(self, spec: Any):
+        self.spec = spec
+
+    @property
+    def URL(self) -> str:  # noqa: N802
+        base = os.environ.get("ATULYA_CUSTOM_URL", "") if self.spec.id == "custom" else self.spec.base_url
+        return base.rstrip("/") + "/chat/completions"
+
+    def name(self) -> str:
+        return self.spec.label.split(" (")[0]
+
+    def _key(self) -> str:  # type: ignore[override]
+        # A custom local server often needs no key, so a URL alone makes it available.
+        key = os.environ.get(self.spec.key_var, "")
+        return key or ("none" if self.spec.id == "custom" and os.environ.get("ATULYA_CUSTOM_URL") else "")
+
+    def models(self) -> list[str]:  # type: ignore[override]
+        raw = os.environ.get(self.spec.model_var, "") or self.spec.default_model
+        return [m.strip() for m in raw.split(",") if m.strip()]
+
+
+class NoBrainProvider(IntelligenceProvider):
     """Last link in the chain: says plainly that no brain is loaded.
 
     It used to answer with canned persona lines ("At your service, sir…") that
@@ -430,6 +480,9 @@ class OpenCodeProvider(IntelligenceProvider):
 
     async def chat(self, prompt: str, system_prompt: str = "") -> str:
         return NO_BRAIN_MESSAGE
+
+
+OpenCodeProvider = NoBrainProvider  # old name, kept so existing imports keep working
 
 
 class LocalGGUFProvider(IntelligenceProvider):
@@ -477,6 +530,32 @@ class LocalGGUFProvider(IntelligenceProvider):
             yield piece
 
 
+# Learned speed of each brain: smoothed seconds to answer, and when a recent failure expires.
+_SPEED: dict[str, dict[str, float]] = {}
+_FAIL_COOLDOWN = 120.0
+_FAIL_SCORE = 1000.0
+
+
+def _record_speed(name: str, seconds: float | None) -> None:
+    """Remember how long a brain took (None = it failed, so it goes to the back for a while)."""
+    if name == "No brain loaded":  # the "nothing is configured" message is not a brain to rank
+        return
+    entry = _SPEED.setdefault(name, {})
+    if seconds is None:
+        entry["failed_until"] = time.monotonic() + _FAIL_COOLDOWN
+        return
+    entry["failed_until"] = 0.0
+    entry["avg"] = seconds if "avg" not in entry else 0.7 * entry["avg"] + 0.3 * seconds
+
+
+def _speed_score(name: str, rank: int) -> float:
+    entry = _SPEED.get(name, {})
+    if entry.get("failed_until", 0.0) > time.monotonic():
+        return _FAIL_SCORE + rank
+    # Not measured yet: the configured order decides, as a small head start for earlier brains.
+    return entry.get("avg", 0.5 * rank)
+
+
 class ProviderRouter(IntelligenceProvider):
     """Atulya Intelligence Provider Fallback Chain Router."""
     
@@ -488,6 +567,8 @@ class ProviderRouter(IntelligenceProvider):
             OllamaProvider(),      # Free local model via Ollama (2nd choice)
             GroqProvider(),        # Fast free developer-tier API (3rd choice)
             OpenRouterProvider(),  # Free model aggregator when configured (3rd choice)
+            OpenCodeGoProvider(),  # OpenCode Go key, when configured
+            *[OpenAICompatProvider(spec) for spec in CATALOG if not spec.builtin],  # Mistral, DeepSeek, Qwen …
             GeminiProvider(),      # Google free-tier key when configured (4th choice)
             OpenAIProvider(),      # Paid/optional fallback only (6th choice)
             NvidiaNimProvider(),   # Optional provider fallback (7th choice)
@@ -495,8 +576,12 @@ class ProviderRouter(IntelligenceProvider):
         ]
         # ATULYA_BRAIN=cloud: configured cloud APIs lead; the local brain and
         # Ollama become the offline fallback (still ahead of the persona reply).
+        # With no ATULYA_BRAIN chosen, a configured cloud key also leads: the tiny local model
+        # is slow on CPU and weak, so it stays the offline fallback instead of answering first.
         from atulya.cognition.brain import cloud_first
-        if cloud_first():
+        cloud_keys = [p for p in self.providers
+                      if not isinstance(p, (LocalGGUFProvider, OllamaProvider, OpenCodeProvider)) and p.is_available()]
+        if cloud_first() or (not os.environ.get("ATULYA_BRAIN", "").strip() and cloud_keys):
             local = (LocalGGUFProvider, OllamaProvider)
             last = [p for p in self.providers if isinstance(p, OpenCodeProvider)]
             locals_ = [p for p in self.providers if isinstance(p, local)]
@@ -505,6 +590,13 @@ class ProviderRouter(IntelligenceProvider):
         
     def name(self) -> str:
         return "Atulya Provider Router"
+
+    def _ordered(self, providers: list["IntelligenceProvider"]) -> list["IntelligenceProvider"]:
+        """Fastest working brain first, unless ATULYA_BRAIN pins an order."""
+        if os.environ.get("ATULYA_BRAIN", "").strip():
+            return providers
+        ranked = sorted(enumerate(providers), key=lambda ir: _speed_score(ir[1].name(), ir[0]))
+        return [p for _, p in ranked]
         
     def is_available(self) -> bool:
         return True
@@ -512,7 +604,7 @@ class ProviderRouter(IntelligenceProvider):
     async def chat(self, prompt: str, system_prompt: str = "", preferred_provider: str = "", tools: list[dict[str, Any]] | None = None) -> str:
         """Route request through priority chain and failover automatically."""
         attempted = []
-        providers = self.providers
+        providers = self._ordered(self.providers)
         preferred = (preferred_provider or "").strip().lower()
         if preferred and preferred not in {"auto", "latest"}:
             preferred_matches = [p for p in providers if preferred in p.name().lower()]
@@ -520,14 +612,17 @@ class ProviderRouter(IntelligenceProvider):
 
         for provider in providers:
             if provider.is_available():
+                started = time.monotonic()
                 try:
                     logger.info(f"Atulya OS routing request to provider: {provider.name()}")
                     if tools and _supports_tools(provider):
                         response = await provider.chat(prompt, system_prompt, tools=tools)
                     else:
                         response = await provider.chat(prompt, system_prompt)
+                    _record_speed(provider.name(), time.monotonic() - started)
                     return response, provider.name()
                 except Exception as exc:
+                    _record_speed(provider.name(), None)
                     logger.warning(f"Provider {provider.name()} failed: {exc}. Attempting next fallback.")
                     attempted.append(f"{provider.name()} (Error: {exc})")
             else:
@@ -536,7 +631,7 @@ class ProviderRouter(IntelligenceProvider):
         # All providers failed, return a diagnostic error response
         errors_summary = ", ".join(attempted)
         logger.warning("No brain answered. Attempted: %s", errors_summary)
-        cloud_keys = ("ANTHROPIC_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY", "NVIDIA_API_KEY")
+        cloud_keys = tuple(spec.key_var for spec in CATALOG if spec.id != "custom")
         if any(os.environ.get(k) for k in cloud_keys):
             return CLOUD_BUSY_MESSAGE, "Diagnostics Fallback"
         return NO_BRAIN_MESSAGE, "Diagnostics Fallback"
@@ -552,7 +647,7 @@ class ProviderRouter(IntelligenceProvider):
         Falls back to chunking a full provider.chat() response when the chosen
         provider only implements chat(). Yields (text_piece, provider_name).
         """
-        providers = self.providers
+        providers = self._ordered(self.providers)
         preferred = (preferred_provider or "").strip().lower()
         if preferred and preferred not in {"auto", "latest"}:
             preferred_matches = [p for p in providers if preferred in p.name().lower()]
@@ -562,16 +657,24 @@ class ProviderRouter(IntelligenceProvider):
             if not provider.is_available():
                 continue
             stream_method = getattr(provider, "chat_stream", None)
+            started = time.monotonic()
+            first = True
             try:
                 if stream_method is not None:
                     async for piece in stream_method(prompt, system_prompt):
+                        if first:
+                            _record_speed(provider.name(), time.monotonic() - started)
+                            first = False
                         yield piece, provider.name()
                 else:
                     text = await provider.chat(prompt, system_prompt)
+                    _record_speed(provider.name(), time.monotonic() - started)
                     for piece in _chunk_stream_text(text):
                         yield piece, provider.name()
                 return
             except Exception as exc:
+                if first:
+                    _record_speed(provider.name(), None)
                 logger.warning(f"Provider {provider.name()} stream failed: {exc}. Attempting next fallback.")
 
         yield NO_BRAIN_MESSAGE, "Diagnostics Fallback"

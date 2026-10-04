@@ -42,6 +42,9 @@ class AgentToolAdapter(Tool):
         self._fn = info["fn"]
 
     async def execute(self, **kwargs: Any) -> ToolResult:
+        from atulya.agent.audit import audit
+
+        audit("tool", name=self.name, args=kwargs)  # every assistant action the brain takes is on the record
         try:
             out = await self._fn(**kwargs)
         except TypeError as exc:  # wrong/missing arguments from the model

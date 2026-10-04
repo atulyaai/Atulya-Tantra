@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from atulya.server.routes import agent, auth, automation, chat, create, devices, google, notifications, openai, profile, routines, senses, system, triggers, upload, voice, ws
+from atulya.server.routes import agent, auth, automation, chat, create, devices, google, notifications, dashboard, memory, money, mood, openai, profile, providers, routines, senses, system, triggers, upload, voice, ws
 from atulya.server.automation_runner import AutomationRunner
 from atulya.mcp.external_client import MCPClientManager
 
@@ -86,6 +86,12 @@ async def lifespan(app: FastAPI):
     from atulya.cognition.profile import watch_habits
 
     app.state.habit_task = asyncio.create_task(watch_habits(get_kernel(app.state.llm).profiles, default_bus))
+    from atulya.agent.calendar_watch import watch_calendar
+
+    from atulya.agent.money import watch_bills
+
+    app.state.calendar_task = asyncio.create_task(watch_calendar(default_bus))
+    app.state.bills_task = asyncio.create_task(watch_bills(default_bus))
     # Senses: cameras and Home Assistant sensors publish what they perceive.
     from atulya.senses import Senses
 
@@ -101,6 +107,8 @@ async def lifespan(app: FastAPI):
         await app.state.heartbeat.stop()
         app.state.heartbeat_task.cancel()
         app.state.habit_task.cancel()
+        app.state.calendar_task.cancel()
+        app.state.bills_task.cancel()
         await app.state.senses.stop()
         await app.state.automation_runner.stop()
         app.state.automation_task.cancel()
@@ -162,7 +170,7 @@ app.add_middleware(
 )
 app.middleware("http")(_rate_limiter)
 
-for module in (auth, system, chat, automation, openai, voice, upload, devices, ws, notifications, agent, create, triggers, routines, profile, senses, google):
+for module in (auth, system, chat, automation, openai, voice, upload, devices, ws, notifications, agent, create, triggers, routines, profile, memory, mood, money, providers, dashboard, senses, google):
     app.include_router(module.router)
 
 

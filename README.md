@@ -90,7 +90,7 @@ Atulya asks the first brain that is set up and falls back to the next. Put keys 
 
 ## What Atulya can do
 
-Full list, with what is missing: [docs/FEATURES.md](docs/FEATURES.md).
+Full list, with what is missing: [docs/FEATURES.md](docs/FEATURES.md). What is done, tested and planned: [docs/STATUS.md](docs/STATUS.md).
 
 | Ability | Status |
 |---|---|
@@ -114,6 +114,18 @@ Atulya never reads out emoji and answers "what can you do" with a real list.
 3. Log in with username `admin` and the password you set in `ATULYA_DASHBOARD_TOKEN` (or the one written to `data/admin_token.txt` the first time). Other devices always need a login; only this computer skips it (`ATULYA_REQUIRE_LOGIN=on` turns that off).
 4. Add to the home screen: **iOS** Share, Add to Home Screen; **Android** menu, Install app.
 5. Away from home: install Tailscale on the PC and phone and use the private address (`http://100.x.y.z:8501`). Avoid exposing the port to the internet.
+
+## Money
+
+Say "I spent 500 on groceries", "how much did I spend this month", "set a budget for food of 5000", "add bill electricity 2300 due on 18", "what bills are due". Everything stays in `data/agent/money.json`; Atulya never connects to a bank and never pays anything.
+
+Automatic recording of bank alerts (open **Action engine → Money** to set this up):
+
+- **Email:** say "check my email for bank transactions" (needs Google connected, or `configure_email`).
+- **SMS from your phone:** an SMS-forwarding app on the phone posts each bank SMS to your PC. Atulya gives you the address and a key that can only add bank alerts. The phone must reach the PC (see [Phone and other devices](#phone-and-other-devices)).
+- **Bank statement:** put the CSV in `data/` and say "import statement.csv".
+
+OTPs, offers and due reminders are ignored, and the same transaction arriving by SMS and email is counted once. Bank messages vary, so check the totals the first week.
 
 ## Layout
 
@@ -147,8 +159,6 @@ More detail: [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md). The cognitive pipelin
 
 ## How a request flows
 
-<p align="center"><img src="docs/images/automation_hud.jpg" alt="Tools and automation" width="80%"/></p>
-
 ```mermaid
 flowchart LR
     You["You: voice or text"] --> Web["web/ (the orb)"]
@@ -163,8 +173,6 @@ flowchart LR
 Assistant tools live in `atulya/agent/` and register themselves with `@tool`. Risky ones (sending email, deleting events, PC control) ask first by default (`ATULYA_AUTO_APPROVE` can pre-approve specific ones), and every call is appended to `data/agent/audit.jsonl`.
 
 ## Memory
-
-<p align="center"><img src="docs/images/memory_tree.jpg" alt="Memory tree" width="80%"/></p>
 
 Atulya's memory is in `atulya/memory/`: a vector store and session search (what the brain uses), plus reflection, a hierarchical summary tree and Obsidian export. A small local model copies recalled answers back, so with it memory is only shown when you ask about the past. Your profile (facts it learned, habits, what you trust it to do without asking) is under the **About you** pop-up. Identity and prompt rules are in `atulya/persona.py`; an optional override goes in `data/identity.json`.
 
