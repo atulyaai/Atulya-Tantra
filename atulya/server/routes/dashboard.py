@@ -49,7 +49,8 @@ def _web_flow(events: list[dict[str, Any]]) -> dict[str, Any]:
 def build_dashboard(*, audit: list[dict[str, Any]], speeds: dict[str, dict[str, float]], ready: list[str],
                     calendar: list[dict[str, Any]], reminders: list[dict[str, Any]], devices: dict[str, dict[str, Any]],
                     simulated_home: bool, pc_on: bool, is_admin: bool, now: float | None = None,
-                    money: dict[str, Any] | None = None, vault: dict[str, Any] | None = None) -> dict[str, Any]:
+                    money: dict[str, Any] | None = None, vault: dict[str, Any] | None = None,
+                    fabric: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     now = now or time.time()
     measured = sorted(((n, v["avg"]) for n, v in speeds.items() if v.get("avg")), key=lambda x: x[1])
     tools_used = [e for e in audit if e.get("event") == "tool"]
@@ -66,6 +67,7 @@ def build_dashboard(*, audit: list[dict[str, Any]], speeds: dict[str, dict[str, 
         "media": {"now_playing": (music or {}).get("args", {}).get("query", "") if music else "",
                   "at": (music or {}).get("t")},
         "money": money or {},
+        "fabric": fabric or [],
         "home": {"simulated": simulated_home,
                  "devices": [{"id": i, **d} for i, d in devices.items()]},
     }
@@ -85,6 +87,7 @@ def api_dashboard(user: dict = Depends(_require_auth)):
     from atulya.agent.audit import recent
     from atulya.intelligence import _SPEED, ProviderRouter
     from atulya import vault
+    from atulya.devices.hub import get_hub
     from atulya.agent import money, pc_control
 
     ready = [p.name() for p in ProviderRouter().providers if p.is_available() and p.name() != "No brain loaded"]
@@ -94,6 +97,7 @@ def api_dashboard(user: dict = Depends(_require_auth)):
         devices=tools._HOME_DEVICES, simulated_home=not os.environ.get("HOME_ASSISTANT_URL"),
         pc_on=pc_control.enabled(),
         is_admin=user.get("role") == "admin", money=money.snapshot(), vault=vault.status(),
+        fabric=get_hub().describe(),
     )
 
 

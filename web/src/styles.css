@@ -851,3 +851,9 @@ button.icon:hover { border-color: var(--line); }
 .db-big { font-size: 26px; font-weight: 700; color: #fff; margin: 0; } .db-big small { font-size: 12px; font-weight: 400; margin-left: 6px; }
 .db-phone { margin-top: 8px; padding: 10px 12px; border-radius: 10px; border: 1px dashed rgba(255, 184, 77, 0.4); } .db-phone code { display: block; word-break: break-all; padding: 6px 8px; margin: 6px 0; border-radius: 6px; background: rgba(0, 0, 0, 0.35); color: #ffd36b; font-size: 12px; }
 .db-phone button { background: rgba(255, 184, 77, 0.12); color: #ffd36b; border: 1px solid rgba(255, 184, 77, 0.5); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+
+.db-fdev { padding: 8px 10px; margin: 6px 0; border-radius: 8px; background: rgba(120, 220, 255, 0.06); border: 1px solid rgba(255, 184, 77, 0.18); }
+.db-fbtns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.db-fbtns button, .db-scan { background: rgba(255, 184, 77, 0.1); color: #ffd36b; border: 1px solid rgba(255, 184, 77, 0.45); border-radius: 8px; padding: 4px 10px; cursor: pointer; font-size: 12px; }
+.db-fbtns button.danger { color: #ff9a9a; border-color: rgba(255, 154, 154, 0.5); } .db-fbtns button:disabled, .db-scan:disabled { opacity: 0.5; cursor: default; }
+.db-scan { margin: 6px 0; padding: 6px 12px; font-size: 13px; }

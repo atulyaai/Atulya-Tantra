@@ -1,0 +1,20 @@
+{"id": "roku", "label": "Roku TV or player", "kind": "tv", "port": 8060,
+ "detect": [{"path": "/query/device-info", "contains": "<device-info>"}],
+ "ssdp": {"contains": "roku"},
+ "state": {"path": "/query/device-info"},
+ "capabilities": {
+  "power_off": {"description": "Turn the TV off", "phrases": ["turn off", "switch off", "power off"], "request": {"method": "POST", "path": "/keypress/PowerOff"}},
+  "power_on": {"description": "Turn the TV on", "phrases": ["turn on", "switch on", "power on"], "request": {"method": "POST", "path": "/keypress/PowerOn"}},
+  "volume_up": {"description": "Louder", "phrases": ["volume up", "louder", "turn it up"], "repeat": true, "request": {"method": "POST", "path": "/keypress/VolumeUp"}},
+  "volume_down": {"description": "Quieter", "phrases": ["volume down", "quieter", "turn it down"], "repeat": true, "request": {"method": "POST", "path": "/keypress/VolumeDown"}},
+  "mute": {"description": "Mute or unmute", "phrases": ["mute", "unmute"], "request": {"method": "POST", "path": "/keypress/VolumeMute"}},
+  "home": {"description": "Go to the home screen", "phrases": ["go home", "home screen"], "request": {"method": "POST", "path": "/keypress/Home"}},
+  "back": {"description": "Go back", "phrases": ["go back"], "request": {"method": "POST", "path": "/keypress/Back"}},
+  "select": {"description": "Press OK", "phrases": ["select", "press ok", "press enter"], "request": {"method": "POST", "path": "/keypress/Select"}},
+  "up": {"phrases": ["move up"], "request": {"method": "POST", "path": "/keypress/Up"}},
+  "down": {"phrases": ["move down"], "request": {"method": "POST", "path": "/keypress/Down"}},
+  "left": {"phrases": ["move left"], "request": {"method": "POST", "path": "/keypress/Left"}},
+  "right": {"phrases": ["move right"], "request": {"method": "POST", "path": "/keypress/Right"}},
+  "play_pause": {"description": "Play or pause", "phrases": ["play", "pause", "resume"], "request": {"method": "POST", "path": "/keypress/Play"}},
+  "launch_app_id": {"description": "Open an app by its Roku id (12 is Netflix)", "params": {"app_id": {"type": "integer", "min": 1}}, "request": {"method": "POST", "path": "/launch/{app_id}"}}
+ }}

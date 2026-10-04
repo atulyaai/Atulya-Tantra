@@ -46,6 +46,8 @@ _CONFIRM_TOOLS = {
     "pc_hotkey": "presses keyboard shortcuts",
     "pc_screenshot": "captures your screen",
     "web_task": "drives a web browser to do a task for you",
+    "device_remove": "forgets a device",
+    "device_profile_approve": "lets me send a new kind of command to a device",
 }
 
 # Specific (tool, action) pairs that need confirmation.
@@ -75,6 +77,11 @@ def assess(tool: str, arguments: dict[str, Any] | None = None) -> Assessment:
     action = str((arguments or {}).get("action") or "").strip().lower()
     approved = _auto_approved()
 
+    if tool == "device_do":  # the device's own profile says which actions need a yes (unlock, restart, typing …)
+        from atulya.devices.hub import get_hub
+
+        if get_hub().is_risky(str((arguments or {}).get("device", "")), str((arguments or {}).get("action", ""))) and "device_do" not in approved:
+            return Assessment(CONFIRM, "could change or restart a device")
     reason = _CONFIRM_ACTIONS.get((tool, action))
     if reason and f"{tool}:{action}".lower() not in approved and tool.lower() not in approved:
         return Assessment(CONFIRM, reason)
@@ -117,6 +124,12 @@ def describe_action(tool: str, arguments: dict[str, Any] | None = None) -> str:
         return f"check the weather in {args.get('location', 'your city')}"
     if tool == "open_website":
         return f"open {args.get('site', 'a website')}"
+    if tool == "device_do":
+        return f"{str(args.get('action', 'do something')).replace('_', ' ')} on {args.get('device', 'a device')}"
+    if tool == "device_remove":
+        return f"forget the device {args.get('device', '')}".strip()
+    if tool == "device_profile_approve":
+        return f"approve device profile {args.get('proposal', '')}".strip()
     if tool == "web_task":
         return f"do this on the web: {str(args.get('goal', 'a task'))[:80]}"
     if tool == "pc_open_app":
