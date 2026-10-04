@@ -109,6 +109,25 @@ export function Dashboard({ toast }) {
         </div>
       </Tile>
     ),
+    money: d.money && d.money.month && (
+      <Tile id="money" area="money" title="Money" open={full('money')} onOpen={pick}
+        badge={<span className="db-chip">{d.money.month.label.toUpperCase()}</span>}>
+        <p className="db-big">{d.money.currency}{Math.round(d.money.month.total).toLocaleString()}
+          {d.money.last_month_total > 0 && <small> vs {d.money.currency}{Math.round(d.money.last_month_total).toLocaleString()} last month</small>}</p>
+        <div className="db-bars">
+          {d.money.month.by_category.slice(0, full('money') ? 12 : 3).map(([c, v]) => (
+            <div key={c}><span>{c}</span><i style={{ width: `${Math.min(100, (v / Math.max(1, d.money.month.total)) * 100)}%` }} /><em>{Math.round(v).toLocaleString()}</em></div>
+          ))}
+          {!d.money.month.by_category.length && <small>No spending yet. Say “I spent 500 on groceries”.</small>}
+        </div>
+        {(full('money') || d.money.budgets.length > 0) && d.money.budgets.slice(0, full('money') ? 12 : 2).map((b) => (
+          <p key={b.category} className="db-item" style={b.spent > b.limit ? { color: '#ff9a9a' } : undefined}>
+            {b.category}: {Math.round(b.spent).toLocaleString()} / {Math.round(b.limit).toLocaleString()}{b.spent > b.limit ? ' (over)' : ''}</p>
+        ))}
+        {d.money.bills.length > 0 && <h4>Bills due</h4>}
+        {d.money.bills.slice(0, full('money') ? 10 : 2).map((b) => <p key={b.id} className="db-item">{b.name} <small>{d.money.currency}{Math.round(b.amount).toLocaleString()} · {b.days === 0 ? 'today' : `in ${b.days}d`}</small></p>)}
+      </Tile>
+    ),
     media: (
       <Tile id="media" area="media" title="Audio media player" open={full('media')} onOpen={pick}>
         <p className="db-now">{d.media.now_playing ? <>Now playing: <b>{d.media.now_playing}</b> <small>{ago(d.media.at)}</small></> : <small>Nothing played yet. Say “play some music”.</small>}</p>

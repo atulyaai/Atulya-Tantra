@@ -22,6 +22,7 @@ SECTIONS = [
     {"id": "web", "label": "Web browser automation", "words": ["web", "browser", "workflow"]},
     {"id": "home", "label": "Smart home hub", "words": ["home", "smart home", "lights", "devices"]},
     {"id": "calendar", "label": "Calendar & reminders", "words": ["calendar", "reminders", "schedule", "meetings"]},
+    {"id": "money", "label": "Money", "words": ["money", "spending", "expenses", "bills", "budget", "finance"]},
     {"id": "media", "label": "Audio media player", "words": ["music", "media", "player", "audio", "song"]},
 ]
 
@@ -47,7 +48,8 @@ def _web_flow(events: list[dict[str, Any]]) -> dict[str, Any]:
 
 def build_dashboard(*, audit: list[dict[str, Any]], speeds: dict[str, dict[str, float]], ready: list[str],
                     calendar: list[dict[str, Any]], reminders: list[dict[str, Any]], devices: dict[str, dict[str, Any]],
-                    simulated_home: bool, pc_on: bool, is_admin: bool, now: float | None = None) -> dict[str, Any]:
+                    simulated_home: bool, pc_on: bool, is_admin: bool, now: float | None = None,
+                    money: dict[str, Any] | None = None) -> dict[str, Any]:
     now = now or time.time()
     measured = sorted(((n, v["avg"]) for n, v in speeds.items() if v.get("avg")), key=lambda x: x[1])
     tools_used = [e for e in audit if e.get("event") == "tool"]
@@ -63,6 +65,7 @@ def build_dashboard(*, audit: list[dict[str, Any]], speeds: dict[str, dict[str, 
         },
         "media": {"now_playing": (music or {}).get("args", {}).get("query", "") if music else "",
                   "at": (music or {}).get("t")},
+        "money": money or {},
         "home": {"simulated": simulated_home,
                  "devices": [{"id": i, **d} for i, d in devices.items()]},
     }
@@ -81,7 +84,7 @@ def api_dashboard(user: dict = Depends(_require_auth)):
     from atulya.agent import tools
     from atulya.agent.audit import recent
     from atulya.intelligence import _SPEED, ProviderRouter
-    from atulya.agent import pc_control
+    from atulya.agent import money, pc_control
 
     ready = [p.name() for p in ProviderRouter().providers if p.is_available() and p.name() != "No brain loaded"]
     return build_dashboard(
@@ -89,7 +92,7 @@ def api_dashboard(user: dict = Depends(_require_auth)):
         calendar=list(tools._CALENDAR.values()), reminders=list(tools._reminders.values()),
         devices=tools._HOME_DEVICES, simulated_home=not os.environ.get("HOME_ASSISTANT_URL"),
         pc_on=pc_control.enabled(),
-        is_admin=user.get("role") == "admin",
+        is_admin=user.get("role") == "admin", money=money.snapshot(),
     )
 
 

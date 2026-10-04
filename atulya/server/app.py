@@ -88,7 +88,10 @@ async def lifespan(app: FastAPI):
     app.state.habit_task = asyncio.create_task(watch_habits(get_kernel(app.state.llm).profiles, default_bus))
     from atulya.agent.calendar_watch import watch_calendar
 
+    from atulya.agent.money import watch_bills
+
     app.state.calendar_task = asyncio.create_task(watch_calendar(default_bus))
+    app.state.bills_task = asyncio.create_task(watch_bills(default_bus))
     # Senses: cameras and Home Assistant sensors publish what they perceive.
     from atulya.senses import Senses
 
@@ -105,6 +108,7 @@ async def lifespan(app: FastAPI):
         app.state.heartbeat_task.cancel()
         app.state.habit_task.cancel()
         app.state.calendar_task.cancel()
+        app.state.bills_task.cancel()
         await app.state.senses.stop()
         await app.state.automation_runner.stop()
         app.state.automation_task.cancel()

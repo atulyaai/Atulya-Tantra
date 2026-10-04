@@ -47,6 +47,39 @@ def _match_device(text: str) -> str | None:
     return None
 
 
+_AMT = r"(?:rs\.?|₹|inr)?\s*([\d,]+(?:\.\d+)?)\s*(?:rupees|rs|inr)?"
+
+
+def _money_intent(t: str) -> RoutedIntent | None:
+    m = re.search(r"\b(?:i |we )?(?:spent|paid|bought|used)\s+" + _AMT + r"\s+(?:on|for|at|in)\s+(.+)$", t)
+    if m:
+        note = m.group(2).strip(" .")
+        when = "yesterday" if re.search(r"\byesterday\b", note) else ""
+        note = re.sub(r"\b(?:today|yesterday)\b", "", note).strip(" .")
+        return RoutedIntent("expense_add", {"amount": float(m.group(1).replace(",", "")), "note": note, **({"date": when} if when else {})})
+    m = re.search(r"\bhow much (?:did|have|do) (?:i|we) (?:spend|spent)\b(.*)$", t)
+    if m:
+        tail = m.group(1)
+        period = ("today" if "today" in tail else "last_month" if "last month" in tail else "week" if "week" in tail
+                  else "year" if "year" in tail else "month")
+        cat = re.search(r"\b(?:on|for)\s+([a-z ]+?)(?:\s+(?:this|last|today)\b.*)?$", tail)
+        return RoutedIntent("expense_summary", {"period": period, **({"category": cat.group(1).strip()} if cat else {})})
+    m = re.search(r"\b(?:set|make)\s+(?:a |my )?budget\s+(?:for|of)\s+([a-z ]+?)\s+(?:to|at|of)?\s*" + _AMT + r"$", t)
+    if m:
+        return RoutedIntent("budget_set", {"category": m.group(1).strip(), "amount": float(m.group(2).replace(",", ""))})
+    m = re.search(r"\badd (?:a )?bill\s+(?:for\s+)?([a-z ]+?)\s+" + _AMT + r"\s+(?:due\s+)?(?:on\s+)?(?:the\s+)?(\d{1,2})", t)
+    if m:
+        return RoutedIntent("bill_add", {"name": m.group(1).strip(), "amount": float(m.group(2).replace(",", "")), "due_day": int(m.group(3))})
+    if re.search(r"\bbills?\b.{0,20}\bdue\b|\bdue\b.{0,20}\bbills?\b|\bwhat bills\b", t):
+        return RoutedIntent("bills_due", {})
+    m = re.search(r"\b(?:i )?paid (?:the |my )?([a-z ]+?) bill\b", t)
+    if m:
+        return RoutedIntent("bill_paid", {"name": m.group(1).strip()})
+    if re.search(r"\bundo (?:the |that |my )?(?:last )?(?:expense|import|entry)\b", t):
+        return RoutedIntent("expense_undo", {})
+    return None
+
+
 def route_intent(text: str) -> RoutedIntent | None:
     """Return a concrete tool routing for a clear command, else None."""
     if not text or not text.strip():
@@ -103,6 +136,11 @@ def route_intent(text: str) -> RoutedIntent | None:
             {"message": msg or "reminder", "time_str": time_str},
             confidence=0.85,
         )
+
+    # --- Money: "I spent 500 on groceries", "how much did I spend this month", "bills due" ----
+    money_intent = _money_intent(t)
+    if money_intent is not None:
+        return money_intent
 
     # --- Websites: "open youtube", "play lofi on youtube", "google cricket score"
     web = _website_intent(t)

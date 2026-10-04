@@ -790,4 +790,4 @@ _bootstrap()
 
 
 # Skill modules register their tools with @tool on import.
-from atulya.agent import briefing, media, pc_control, tracking, webagent  # noqa: E402,F401
+from atulya.agent import briefing, media, money, pc_control, tracking, webagent  # noqa: E402,F401

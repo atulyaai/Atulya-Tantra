@@ -826,7 +826,7 @@ button.icon:hover { border-color: var(--line); }
 .db-logo { font-size: 26px; font-weight: 800; letter-spacing: 0.32em; color: #ffb84d; text-shadow: 0 0 18px rgba(255, 184, 77, 0.45); }
 .db-head b { display: block; letter-spacing: 0.22em; font-size: 12px; color: #e6f8ff; } .db-head span { font-size: 11px; letter-spacing: 0.2em; color: #8fbbb4; }
 .db-back { margin-left: auto; background: rgba(40, 30, 10, 0.8); color: #ffd36b; border: 1px solid rgba(255, 184, 77, 0.5); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
-.db-grid { flex: 1; display: grid; gap: 14px; grid-template-columns: 1fr 1.5fr 1fr; grid-template-rows: auto 1fr 1fr; grid-template-areas: "sys web home" "pc web home" "cal cal media"; min-height: 0; }
+.db-grid { flex: 1; display: grid; gap: 14px; grid-template-columns: 1fr 1.5fr 1fr; grid-template-rows: auto 1fr 1fr; grid-template-areas: "sys web home" "pc web home" "cal money media"; min-height: 0; }
 .db-grid.one { grid-template-columns: 1fr; grid-template-rows: 1fr; grid-template-areas: "x"; }
 .db-grid.one .db-tile { grid-area: x !important; }
 @media (max-width: 900px) { .db-grid { grid-template-columns: 1fr; grid-template-rows: none; grid-template-areas: none; } .db-grid .db-tile { grid-area: auto !important; } }
@@ -848,3 +848,4 @@ button.icon:hover { border-color: var(--line); }
 .db-devices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .db-dev { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(255, 184, 77, 0.25); background: rgba(255, 255, 255, 0.03); } .db-dev.on { background: rgba(255, 184, 77, 0.12); border-color: rgba(255, 184, 77, 0.6); } .db-dev span { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #bcd; } .db-dev b { font-size: 18px; color: #fff; }
 .db-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .db-now { font-size: 15px; } .db-controls { display: flex; gap: 8px; margin-top: auto; } .db-controls button { flex: 1; font-size: 18px; padding: 8px; border-radius: 10px; border: 1px solid rgba(255, 184, 77, 0.4); background: rgba(255, 184, 77, 0.08); color: #ffd36b; cursor: pointer; } .db-controls button:hover { background: rgba(255, 184, 77, 0.2); }
+.db-big { font-size: 26px; font-weight: 700; color: #fff; margin: 0; } .db-big small { font-size: 12px; font-weight: 400; margin-left: 6px; }
