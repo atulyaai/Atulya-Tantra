@@ -22,8 +22,8 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
-from .camera import CameraWatcher, default_person_detector, mask_source, open_source, spoken_name
-from .home_sensors import HomeSensorWatcher
+from atulya.indriya.camera import CameraWatcher, default_person_detector, mask_source, open_source, spoken_name
+from atulya.indriya.home_sensors import HomeSensorWatcher
 
 logger = logging.getLogger(__name__)
 

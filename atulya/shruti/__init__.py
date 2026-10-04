@@ -19,6 +19,6 @@ Install the extras with ``pip install -e ".[ambient]"``.
 """
 from __future__ import annotations
 
-from .listener import AmbientEngine, AmbientSession, AtulyaClient, Segmenter, WakeMatcher
+from atulya.shruti.listener import AmbientEngine, AmbientSession, AtulyaClient, Segmenter, WakeMatcher
 
 __all__ = ["AmbientEngine", "AmbientSession", "AtulyaClient", "Segmenter", "WakeMatcher"]

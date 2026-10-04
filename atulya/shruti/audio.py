@@ -21,7 +21,7 @@ import time
 import wave
 from typing import Any, AsyncIterator, Callable
 
-from .listener import FRAME_SAMPLES, SAMPLE_RATE, Segmenter
+from atulya.shruti.listener import FRAME_SAMPLES, SAMPLE_RATE, Segmenter
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from .orchestrator import MemoryProvider, MemoryEntry
+from atulya.smriti.orchestrator import MemoryProvider, MemoryEntry
 
 
 class SessionSearchProvider(MemoryProvider):

@@ -8,7 +8,7 @@ import json
 import sys
 from pathlib import Path
 
-from .tools import TOOL_REGISTRY, execute_tool, get_tool_schemas, download_vision_model
+from atulya.yantra.agent.tools import TOOL_REGISTRY, execute_tool, get_tool_schemas, download_vision_model
 
 
 async def _cmd_list(args):
@@ -39,7 +39,7 @@ async def _cmd_download(args):
 
 
 async def _cmd_chat(args):
-    from .core import AgentCore
+    from atulya.yantra.agent.core import AgentCore
     from atulya.buddhi.llm import ProviderRouter
     router = ProviderRouter()
     core = AgentCore(llm_provider=router)

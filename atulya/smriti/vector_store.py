@@ -9,7 +9,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from .orchestrator import MemoryEntry, MemoryProvider
+from atulya.smriti.orchestrator import MemoryEntry, MemoryProvider
 
 _WORD_RE = re.compile(r"[a-z0-9]+")
 _CHAR_NGRAMS = (3, 4)

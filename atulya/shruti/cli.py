@@ -23,7 +23,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from .listener import DEFAULT_WAKE_WORDS, AmbientEngine, AmbientSession, AtulyaClient, AuthError, WakeMatcher
+from atulya.shruti.listener import DEFAULT_WAKE_WORDS, AmbientEngine, AmbientSession, AtulyaClient, AuthError, WakeMatcher
 
 logger = logging.getLogger("atulya.shruti")
 
@@ -118,7 +118,7 @@ def main(argv: list[str] | None = None) -> int:
     opts = resolve(args, cfg)
 
     if args.install_autostart or args.remove_autostart:
-        from . import autostart
+        from atulya.shruti import autostart
 
         if args.remove_autostart:
             removed = autostart.uninstall(mode=args.remove_autostart)
@@ -147,7 +147,7 @@ def main(argv: list[str] | None = None) -> int:
         print("This device isn't signed in yet. Run: atulya listen --url <server> --login")
         return 1
 
-    from .audio import Microphone, Speaker, WakeGate, make_stt
+    from atulya.shruti.audio import Microphone, Speaker, WakeGate, make_stt
 
     client = AtulyaClient(opts["url"], opts["token"], opts["device"])
     wake_words = [w.strip() for w in str(opts["wake"]).split(",") if w.strip()]
@@ -171,7 +171,7 @@ def main(argv: list[str] | None = None) -> int:
                      active=lambda: engine.session.state != engine.session.IDLE)
     print(f'Listening for "{wake_words[0]}" on {opts["device"]} (speech-to-text: {engine.stt_label}).')
 
-    from .tray import TrayApp, tray_available
+    from atulya.shruti.tray import TrayApp, tray_available
 
     if args.no_tray or not tray_available():
         try:

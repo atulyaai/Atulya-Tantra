@@ -4,9 +4,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .orchestrator import MemoryEntry, MemoryOrchestrator, MemoryProvider
-from .session_search import SessionSearchProvider
-from .vector_store import VectorMemoryProvider
+from atulya.smriti.orchestrator import MemoryEntry, MemoryOrchestrator, MemoryProvider
+from atulya.smriti.session_search import SessionSearchProvider
+from atulya.smriti.vector_store import VectorMemoryProvider
 
 
 class MemoryManager(MemoryOrchestrator):

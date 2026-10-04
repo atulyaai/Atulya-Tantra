@@ -5,7 +5,7 @@ Adding a new skill = one @tool decorator + one function = ~5 minutes.
 """
 from __future__ import annotations
 
-from .core import AgentCore
-from . import tools as agent_tools
+from atulya.yantra.agent.core import AgentCore
+from atulya.yantra.agent import tools as agent_tools
 
 __all__ = ["AgentCore", "agent_tools"]

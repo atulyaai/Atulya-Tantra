@@ -20,7 +20,7 @@ __all__ = ["CognitiveKernel", "get_kernel"]
 
 def __getattr__(name: str) -> Any:
     if name in __all__:
-        from . import kernel
+        from atulya.buddhi import kernel
 
         return getattr(kernel, name)
     raise AttributeError(name)

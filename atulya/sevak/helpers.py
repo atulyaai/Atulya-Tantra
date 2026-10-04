@@ -11,7 +11,7 @@ import time
 
 from fastapi import Header, HTTPException
 
-from .state import ADMIN_TOKEN, JWT_SECRET
+from atulya.sevak.state import ADMIN_TOKEN, JWT_SECRET
 
 logger = logging.getLogger(__name__)
 

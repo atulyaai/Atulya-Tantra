@@ -262,7 +262,7 @@ async def route_and_execute(text: str) -> str | None:
     if routed is None:
         return None
     # Imported lazily to avoid a circular import (tools -> intent_router).
-    from .tools import execute_tool
+    from atulya.yantra.agent.tools import execute_tool
 
     return await execute_tool(routed.tool, **routed.arguments)
 
@@ -303,7 +303,7 @@ _POLITE = r"(?:(?:hey |ok |okay )?atulya[, ]*)?(?:(?:can|could|would) you |pleas
 
 
 def _website_intent(t: str) -> RoutedIntent | None:
-    from .tools import WEBSITES  # lazy: tools.py is heavier than this module
+    from atulya.yantra.agent.tools import WEBSITES  # lazy: tools.py is heavier than this module
 
     t = t.strip(" .!?")
     sites = "|".join(re.escape(name) for name in sorted(WEBSITES, key=len, reverse=True))
