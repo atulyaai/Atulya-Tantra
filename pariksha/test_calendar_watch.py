@@ -1,7 +1,7 @@
 import asyncio
 import time
 
-from atulya import sahayak as calendar_watch, kriya as tools
+from atulya import kriya as calendar_watch, kriya as tools
 
 
 class _Bus:

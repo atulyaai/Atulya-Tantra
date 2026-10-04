@@ -9,7 +9,7 @@ import pytest
 @pytest.fixture
 def users_module(tmp_path, monkeypatch):
     """Isolate users.py on a fresh users.json and sessions.json under tmp_path."""
-    import atulya.khata as users_mod
+    import atulya.dwar as users_mod
     users_file = tmp_path / "users.json"
     sessions_file = tmp_path / "sessions.json"
     monkeypatch.setattr(users_mod, "USERS_FILE", users_file)

@@ -1,4 +1,4 @@
-from atulya import kosh
+from atulya import adhar as kosh
 
 
 def test_old_data_folder_is_moved_once_with_its_files(tmp_path):

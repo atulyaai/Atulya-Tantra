@@ -127,8 +127,8 @@ def test_atulya_uses_the_remote_brain_through_its_own_provider(monkeypatch):
     """The same settings connect_remote writes are what the 'Your own' provider reads."""
     import asyncio
 
-    from atulya.vahak import OpenAICompatProvider
-    from atulya.suchi import BY_ID
+    from atulya.mastishk import OpenAICompatProvider
+    from atulya.mastishk import BY_ID
 
     chat = json.dumps({"choices": [{"message": {"content": "hello from the big model"}}]})
     with sims.Sim({("POST", "/v1/chat/completions"): (200, chat)}) as sim:
@@ -168,8 +168,8 @@ def test_notebook_protects_the_server_and_hardcodes_no_secret():
 
 def test_lean_request_drops_tool_text_for_plain_questions(monkeypatch):
     """A local CPU model reads ~1,800 fewer tokens when the question is not an action."""
-    from atulya.bhasha import POLICY_MARK
-    from atulya.sthaniya import lean_request
+    from atulya.mastishk import POLICY_MARK
+    from atulya.mastishk import lean_request
 
     system = f"Persona text.\n\n{POLICY_MARK}\n- use tools\nAvailable tools:\n- web_search"
     tools = [{"type": "function"}]

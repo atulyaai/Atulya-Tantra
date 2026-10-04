@@ -3,13 +3,13 @@ import json
 
 import pytest
 
-from atulya import upakaran_kriya as dt
-from atulya.abhipray import route_intent
-from atulya import maryada as safety
-from atulya import upakaran_hub as hubmod
-from atulya import upakaran_hub as learn
+from atulya import kriya as dt
+from atulya.kriya import route_intent
+from atulya import mastishk as safety
+from atulya import upakaran as hubmod
+from atulya import upakaran as learn
 from atulya.upakaran import DeviceError
-from atulya.upakaran_hub import DeviceHub
+from atulya.upakaran import DeviceHub
 from atulya.upakaran import load_profiles
 from pariksha import sims
 
@@ -58,7 +58,7 @@ def test_manual_add_scan_add_and_value_mapping(isolated):
 
 
 def test_scan_numbers_and_already_added_devices(isolated, monkeypatch):
-    from atulya import upakaran_hub as discovery
+    from atulya import upakaran as discovery
 
     with sims.tasmota() as sim:
         profiles = {"tasmota": {**load_profiles()["tasmota"], "port": sim.port}}
@@ -174,7 +174,7 @@ def test_http_routes(isolated):
     from fastapi.testclient import TestClient
 
     from atulya.sevak import app
-    from atulya.khata import ADMIN_TOKEN
+    from atulya.dwar import ADMIN_TOKEN
 
     c = TestClient(app)
     h = {"X-Atulya-Token": ADMIN_TOKEN}

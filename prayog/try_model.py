@@ -156,7 +156,7 @@ def append_results(key: str, result: dict[str, Any], path: Path = RESULTS) -> No
 def use_in_atulya(key: str, path: Path, env_file: Path | None = None) -> None:
     """Point Atulya's local brain at this file (kept in .env, so it survives restarts)."""
     sys.path.insert(0, str(HERE.parent))
-    from atulya.parivesh import set_env_value
+    from atulya.adhar import set_env_value
 
     env = env_file or HERE.parent / ".env"
     set_env_value("ATULYA_GGUF_PATH", str(path.resolve()), env)

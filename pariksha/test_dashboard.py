@@ -2,7 +2,7 @@ import time
 
 from fastapi.testclient import TestClient
 
-from atulya.dwar_ghar import build_dashboard
+from atulya.dwar import build_dashboard
 
 
 def make(is_admin=True, **over):
@@ -45,7 +45,7 @@ def test_idle_web_state_when_nothing_ran():
 
 def test_routes_need_login_and_guard_locks(monkeypatch):
     from atulya.sevak import app
-    from atulya.khata import ADMIN_TOKEN
+    from atulya.dwar import ADMIN_TOKEN
 
     c = TestClient(app)
     assert c.get("/api/dashboard").status_code in (401, 403)
@@ -58,9 +58,9 @@ def test_routes_need_login_and_guard_locks(monkeypatch):
 def test_brain_tool_calls_are_audited(tmp_path, monkeypatch):
     import asyncio
 
-    from atulya.lekha import recent
+    from atulya.kriya import recent
     from atulya.kriya import TOOL_REGISTRY
-    from atulya.aujar import AgentToolAdapter
+    from atulya.mastishk import AgentToolAdapter
 
     monkeypatch.setenv("ATULYA_AGENT_DATA_DIR", str(tmp_path))
     adapter = AgentToolAdapter("current_time", TOOL_REGISTRY["current_time"])
@@ -69,7 +69,7 @@ def test_brain_tool_calls_are_audited(tmp_path, monkeypatch):
 
 
 def test_no_brain_message_is_not_ranked_as_a_brain():
-    from atulya import vahak as ai
+    from atulya import mastishk as ai
 
     ai._SPEED.pop("No brain loaded", None)
     ai._record_speed("No brain loaded", 0.0)

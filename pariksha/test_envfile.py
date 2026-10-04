@@ -1,6 +1,6 @@
 import os
 
-from atulya.parivesh import load_env, parse_env
+from atulya.adhar import load_env, parse_env
 
 
 def test_parses_what_notepad_and_humans_write():
@@ -19,7 +19,7 @@ def test_load_env_sets_missing_keys_and_never_overrides(tmp_path, monkeypatch):
 
 
 def test_opencode_go_is_a_real_brain(monkeypatch):
-    from atulya.vahak import OpenCodeGoProvider, OpenRouterProvider, ProviderRouter
+    from atulya.mastishk import OpenCodeGoProvider, OpenRouterProvider, ProviderRouter
 
     monkeypatch.delenv("OPENCODE_API_KEY", raising=False)
     monkeypatch.delenv("OPENCODE_GO_API_KEY", raising=False)

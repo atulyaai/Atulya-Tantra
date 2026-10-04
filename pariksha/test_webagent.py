@@ -1,9 +1,9 @@
 import asyncio
 import json
 
-from atulya import sahayak as media, jaal as webagent
+from atulya import kriya as media, jaal as webagent
 from atulya.jaal import Element, Observation, hard_stop, parse_action, run_task
-from atulya import maryada as safety
+from atulya import mastishk as safety
 
 
 class FakePage:

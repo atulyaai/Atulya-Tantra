@@ -362,20 +362,20 @@ class TestWebSearch:
     """Tests for MultiProviderSearch (web search tool, safe/mocked)."""
 
     def test_basic_search(self):
-        from atulya.khoj import MultiProviderSearch
+        from atulya.jaal import MultiProviderSearch
         ws = MultiProviderSearch()
         results = ws.search("test query", max_results=3)
         assert isinstance(results, list)
         # Should always return a result list (may be empty if no network)
 
     def test_search_with_region(self):
-        from atulya.khoj import MultiProviderSearch
+        from atulya.jaal import MultiProviderSearch
         ws = MultiProviderSearch()
         results = ws.search("python programming", max_results=5, region="us-en")
         assert isinstance(results, list)
 
     def test_stats_property(self):
-        from atulya.khoj import MultiProviderSearch
+        from atulya.jaal import MultiProviderSearch
         ws = MultiProviderSearch()
         stats = ws.stats
         assert isinstance(stats, dict)

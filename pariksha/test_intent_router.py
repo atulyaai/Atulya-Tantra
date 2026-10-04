@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from atulya.abhipray import route_intent, route_and_execute
+from atulya.kriya import route_intent, route_and_execute
 from atulya import kriya as agent_tools
 
 

@@ -74,7 +74,7 @@ class FakeGoogle:
 @pytest.fixture
 def google(tmp_path, monkeypatch):
     """A fake Google behind every httpx client, and a clean token directory."""
-    from atulya import google as google_workspace
+    from atulya import jaal as google_workspace
 
     fake = FakeGoogle()
     transport = httpx.MockTransport(fake)
@@ -95,7 +95,7 @@ def google(tmp_path, monkeypatch):
 
 
 def connect(fake: FakeGoogle, user: str = "atul") -> str:
-    from atulya.google import begin_sign_in, finish_sign_in
+    from atulya.jaal import begin_sign_in, finish_sign_in
 
     url = begin_sign_in(user, "http://localhost:8000/api/google/callback")
     params = {k: v[0] for k, v in parse_qs(urlparse(url).query).items()}
@@ -108,7 +108,7 @@ def connect(fake: FakeGoogle, user: str = "atul") -> str:
 
 class TestSignIn:
     def test_consent_url(self, google):
-        from atulya.google import begin_sign_in
+        from atulya.jaal import begin_sign_in
 
         url = begin_sign_in("atul", "http://localhost:8000/api/google/callback")
         q = {k: v[0] for k, v in parse_qs(urlparse(url).query).items()}
@@ -118,7 +118,7 @@ class TestSignIn:
         assert "https://www.googleapis.com/auth/calendar.events" in q["scope"].split()
 
     def test_full_flow_stores_private_tokens(self, google, tmp_path):
-        from atulya.google import GoogleAccount
+        from atulya.jaal import GoogleAccount
 
         connect(google)
         account = GoogleAccount("atul")
@@ -128,7 +128,7 @@ class TestSignIn:
         assert not GoogleAccount("meera").connected  # per user
 
     def test_state_is_single_use_and_bound(self, google):
-        from atulya.google import GoogleError, finish_sign_in
+        from atulya.jaal import GoogleError, finish_sign_in
 
         state = connect(google)
         with pytest.raises(GoogleError, match="expired or was already used"):
@@ -137,8 +137,8 @@ class TestSignIn:
             asyncio.run(finish_sign_in("made-up", "good-code"))
 
     def test_expired_state(self, google, monkeypatch):
-        from atulya import google as google_workspace
-        from atulya.google import GoogleError, begin_sign_in, finish_sign_in
+        from atulya import jaal as google_workspace
+        from atulya.jaal import GoogleError, begin_sign_in, finish_sign_in
 
         url = begin_sign_in("atul", "http://x/cb")
         state = parse_qs(urlparse(url).query)["state"][0]
@@ -147,7 +147,7 @@ class TestSignIn:
             asyncio.run(finish_sign_in(state, "good-code"))
 
     def test_needs_a_client_first(self, tmp_path, monkeypatch):
-        from atulya.google import GoogleError, begin_sign_in, save_client_config, client_config
+        from atulya.jaal import GoogleError, begin_sign_in, save_client_config, client_config
 
         monkeypatch.setenv("ATULYA_GOOGLE_DIR", str(tmp_path))
         monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
@@ -166,7 +166,7 @@ class TestSignIn:
 
 class TestTokens:
     def test_refresh_when_expired(self, google):
-        from atulya.google import GoogleAccount
+        from atulya.jaal import GoogleAccount
 
         connect(google)
         account = GoogleAccount("atul")
@@ -179,7 +179,7 @@ class TestTokens:
         assert google.refreshes == 1  # reused until it expires
 
     def test_revoked_at_google_disconnects(self, google):
-        from atulya.google import GoogleAccount, GoogleNotConnected
+        from atulya.jaal import GoogleAccount, GoogleNotConnected
 
         connect(google)
         account = GoogleAccount("atul")
@@ -192,7 +192,7 @@ class TestTokens:
         assert not account.connected
 
     def test_disconnect_revokes(self, google):
-        from atulya.google import GoogleAccount
+        from atulya.jaal import GoogleAccount
 
         connect(google)
         assert asyncio.run(GoogleAccount("atul").disconnect())
@@ -254,9 +254,9 @@ class TestTools:
 
     def test_kernel_acts_for_the_requesting_user(self, google, tmp_path):
         from atulya.buddhi import CognitiveKernel
-        from atulya.yojana import Planner, RoutineStore
-        from atulya.parichay import ProfileStore
-        from atulya.ghatna import EventBus
+        from atulya.buddhi import Planner, RoutineStore
+        from atulya.buddhi import ProfileStore
+        from atulya.adhar import EventBus
 
         connect(google, user="atul")
         kernel = CognitiveKernel(llm=object(), events=EventBus(), planner=Planner(RoutineStore(tmp_path / "r.json")),
@@ -270,7 +270,7 @@ class TestTools:
 
 
 def test_schedule_intents():
-    from atulya.abhipray import route_intent
+    from atulya.kriya import route_intent
 
     r = route_intent("schedule lunch with Priya next monday at 1pm for 90 minutes")
     assert r.tool == "calendar_add"
@@ -293,7 +293,7 @@ class TestGoogleApi:
     @pytest.fixture
     def client(self, google, monkeypatch):
         from fastapi.testclient import TestClient
-        from atulya import khata as helpers
+        from atulya import dwar as helpers
         from atulya.sevak import app
 
         monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")

@@ -23,7 +23,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
-from atulya.parivesh import set_env_value  # noqa: E402
+from atulya.adhar import set_env_value  # noqa: E402
 
 
 def normalize_url(url: str) -> str:

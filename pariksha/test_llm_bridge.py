@@ -13,7 +13,7 @@ class FakeRouter:
 
 
 def test_llm_bridge_returns_text():
-    from atulya.bhasha import AtulyaLLM
+    from atulya.mastishk import AtulyaLLM
 
     async def run():
         llm = AtulyaLLM()
@@ -26,7 +26,7 @@ def test_llm_bridge_returns_text():
 
 
 def test_llm_bridge_executes_tool_loop():
-    from atulya.bhasha import AtulyaLLM
+    from atulya.mastishk import AtulyaLLM
     from atulya.kaushal import Tool, ToolRegistry, ToolResult
 
     class DemoTool(Tool):
@@ -50,7 +50,7 @@ def test_llm_bridge_executes_tool_loop():
 
 
 def test_llm_bridge_requires_approval_for_risky_tool():
-    from atulya.bhasha import AtulyaLLM
+    from atulya.mastishk import AtulyaLLM
     from atulya.kaushal import Tool, ToolRegistry
 
     class FileWriteTool(Tool):
@@ -77,7 +77,7 @@ def test_llm_bridge_requires_approval_for_risky_tool():
 
 
 def test_llm_bridge_executes_approved_risky_tool():
-    from atulya.bhasha import AtulyaLLM
+    from atulya.mastishk import AtulyaLLM
     from atulya.kaushal import Tool, ToolRegistry, ToolResult
 
     class FileWriteTool(Tool):
@@ -104,7 +104,7 @@ def test_llm_bridge_executes_approved_risky_tool():
 
 
 def test_llm_bridge_executes_parallel_safe_tools():
-    from atulya.bhasha import AtulyaLLM
+    from atulya.mastishk import AtulyaLLM
     from atulya.kaushal import Tool, ToolRegistry, ToolResult
 
     class DemoTool(Tool):
