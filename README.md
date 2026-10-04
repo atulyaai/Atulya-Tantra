@@ -115,6 +115,10 @@ Atulya never reads out emoji and answers "what can you do" with a real list.
 4. Add to the home screen: **iOS** Share, Add to Home Screen; **Android** menu, Install app.
 5. Away from home: install Tailscale on the PC and phone and use the private address (`http://100.x.y.z:8501`). Avoid exposing the port to the internet.
 
+## Devices
+
+TV, phone, lights, plugs, PCs: say "scan for devices", "add number 1 as living room TV", then "turn off the TV" or "volume up 5 on the TV". Works through HTTP profiles (Roku, Kodi, Tasmota, WLED, Shelly and more), Android over ADB, Wake-on-LAN, and Home Assistant (thousands of brands). Atulya can also draft a profile for a device it doesn't know. See [docs/DEVICES.md](docs/DEVICES.md) for what is and isn't covered.
+
 ## Money
 
 Say "I spent 500 on groceries", "how much did I spend this month", "set a budget for food of 5000", "add bill electricity 2300 due on 18", "what bills are due". Everything stays in `data/agent/money.json`; Atulya never connects to a bank and never pays anything.

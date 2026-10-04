@@ -83,11 +83,69 @@ def _money_intent(t: str) -> RoutedIntent | None:
     return None
 
 
+def _device_admin_intent(t: str) -> RoutedIntent | None:
+    if re.search(r"\b(?:scan|search|look|discover|find)\b.{0,25}\b(?:devices?|tvs?|smart home|network)\b", t) and not re.search(r"\b(?:file|wifi password)\b", t):
+        return RoutedIntent("device_discover", {})
+    if re.search(r"\b(?:what|which|list|show)\b.{0,25}\bdevices?\b.{0,20}\b(?:do i have|have i|you control|can you control|are there|added)\b|^(?:list|show) (?:my )?devices$", t):
+        return RoutedIntent("device_list", {})
+    m = re.match(r"add (?:number |device |#)?(\d{1,2}|[0-9a-f]{8})(?: as (.+))?$", t)
+    if m:
+        return RoutedIntent("device_add", {"which": m.group(1), **({"name": m.group(2).strip()} if m.group(2) else {})})
+    m = re.match(r"(?:forget|remove|delete) (?:the |my )?(.+?)(?: device)?$", t)
+    if m:
+        name = m.group(1).strip()
+        known = False
+        try:
+            from atulya.devices.hub import get_hub
+
+            known = get_hub().find(name) is not None
+        except Exception:  # noqa: BLE001
+            pass
+        if known or re.search(r"\bdevice\b", t):      # "forget the kitchen tv" only when that really is one of your devices
+            return RoutedIntent("device_remove", {"device": name})
+    m = re.match(r"approve (?:the )?(?:device )?proposal ([0-9a-f]{6})$", t)
+    if m:
+        return RoutedIntent("device_profile_approve", {"proposal": m.group(1)})
+    m = re.match(r"learn (?:this |the )?(?:device|tv|speaker|light|thing)(?: at| on)? (\d{1,3}(?:\.\d{1,3}){3}|[\w.-]+\.local)$", t)
+    if m:
+        return RoutedIntent("device_learn", {"host": m.group(1)})
+    return None
+
+
+def _device_intent(t: str) -> RoutedIntent | None:
+    try:
+        from atulya.devices.hub import get_hub
+
+        hit = get_hub().resolve(t)
+    except Exception:  # noqa: BLE001 - a broken device file must never break the assistant
+        return None
+    if hit is None:
+        return None
+    device, action, args = hit
+    cap = device.cap(action)
+    arguments: dict[str, Any] = {"device": device.name, "action": action}
+    if cap and cap.params:
+        pname = next(iter(cap.params))
+        if pname in args:
+            arguments["value"] = str(args[pname])
+    if "times" in args:
+        arguments["times"] = args["times"]
+    return RoutedIntent("device_do", arguments, confidence=0.9)
+
+
 def route_intent(text: str) -> RoutedIntent | None:
     """Return a concrete tool routing for a clear command, else None."""
     if not text or not text.strip():
         return None
     t = text.strip().lower()
+
+    # --- Your devices (anything added through the device fabric), understood from their own capabilities ---
+    device_hit = _device_intent(t)
+    if device_hit is not None:
+        return device_hit
+    admin = _device_admin_intent(t)
+    if admin is not None:
+        return admin
 
     # --- Senses: "is anyone at the door?" ----------------------------------
     if not re.search(r"\b(?:lock|unlock|open|close|turn|switch)\b", t) and (

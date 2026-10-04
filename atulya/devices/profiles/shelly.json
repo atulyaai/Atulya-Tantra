@@ -1,0 +1,8 @@
+{"id": "shelly", "label": "Shelly relay (gen 1)", "kind": "switch", "port": 80,
+ "detect": [{"path": "/shelly", "contains": "\"type\""}],
+ "state": {"path": "/status"},
+ "capabilities": {
+  "power_on": {"description": "Turn on", "phrases": ["turn on", "switch on"], "request": {"method": "GET", "path": "/relay/0?turn=on"}},
+  "power_off": {"description": "Turn off", "phrases": ["turn off", "switch off"], "request": {"method": "GET", "path": "/relay/0?turn=off"}},
+  "toggle": {"description": "Toggle", "phrases": ["toggle"], "request": {"method": "GET", "path": "/relay/0?turn=toggle"}}
+ }}

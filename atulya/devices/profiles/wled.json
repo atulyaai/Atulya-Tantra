@@ -1,0 +1,9 @@
+{"id": "wled", "label": "WLED light strip", "kind": "light", "port": 80,
+ "detect": [{"path": "/json/info", "contains": "\"brand\":\"WLED\""}],
+ "state": {"path": "/json/state"},
+ "capabilities": {
+  "power_on": {"description": "Turn on", "phrases": ["turn on", "switch on"], "request": {"method": "POST", "path": "/json/state", "json": {"on": true}}},
+  "power_off": {"description": "Turn off", "phrases": ["turn off", "switch off"], "request": {"method": "POST", "path": "/json/state", "json": {"on": false}}},
+  "set_brightness": {"description": "Set brightness 0-255", "phrases": ["brightness", "dim"], "params": {"value": {"type": "integer", "min": 0, "max": 255}}, "request": {"method": "POST", "path": "/json/state", "json": {"on": true, "bri": "{value}"}}},
+  "set_preset": {"description": "Run a saved preset", "params": {"value": {"type": "integer", "min": 1, "max": 250}}, "request": {"method": "POST", "path": "/json/state", "json": {"ps": "{value}"}}}
+ }}

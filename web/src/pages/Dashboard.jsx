@@ -48,6 +48,59 @@ function PhoneLink({ toast }) {
   );
 }
 
+const QUICK = ['power_on', 'power_off', 'toggle', 'volume_up', 'volume_down', 'mute', 'play_pause', 'home', 'lock', 'open', 'close'];
+
+function Fabric({ devices, admin, toast, reload, full }) {
+  const [found, setFound] = useState(null);
+  const [busy, setBusy] = useState('');
+
+  async function run(dev, action) {
+    let confirmed = false;
+    try {
+      await api.post(`/api/fabric/${dev.id}/do`, { action });
+    } catch (e) {
+      if (/confirmation/i.test(e.message)) {
+        if (!window.confirm(`${action.replace(/_/g, ' ')} on ${dev.name}?`)) return;
+        confirmed = true;
+        try { await api.post(`/api/fabric/${dev.id}/do`, { action, confirmed }); } catch (e2) { toast('error', e2.message); return; }
+      } else { toast('error', e.message); return; }
+    }
+    toast('success', `${action.replace(/_/g, ' ')}: ${dev.name}`);
+    reload();
+  }
+  async function scan() {
+    setBusy('scan');
+    try { setFound((await api.post('/api/fabric/discover', {})).found); } catch (e) { toast('error', e.message); } finally { setBusy(''); }
+  }
+  async function add(c) {
+    try { await api.post('/api/fabric/add', { candidate: c.id, name: c.label }); toast('success', `Added ${c.label}`); setFound((f) => f.filter((x) => x.id !== c.id)); reload(); }
+    catch (e) { toast('error', e.message); }
+  }
+  async function forget(dev) {
+    if (!window.confirm(`Forget ${dev.name}?`)) return;
+    try { await api.delete(`/api/fabric/${dev.id}`); reload(); } catch (e) { toast('error', e.message); }
+  }
+
+  return (
+    <div onClick={(e) => e.stopPropagation()}>
+      {devices.map((dev) => (
+        <div key={dev.id} className="db-fdev">
+          <b>{dev.name}</b> <small>{dev.kind}{dev.room ? ` · ${dev.room}` : ''} · {dev.driver}</small>
+          <div className="db-fbtns">
+            {QUICK.filter((a) => dev.can.includes(a)).slice(0, full ? 11 : 5).map((a) => <button key={a} type="button" onClick={() => run(dev, a)}>{a.replace(/_/g, ' ')}</button>)}
+            {full && <button type="button" className="danger" onClick={() => forget(dev)}>forget</button>}
+          </div>
+        </div>
+      ))}
+      {admin && <button type="button" className="db-scan" disabled={busy === 'scan'} onClick={scan}>{busy === 'scan' ? 'Scanning your network…' : 'Scan network for devices'}</button>}
+      {found && (found.length ? found.map((c) => (
+        <div key={c.id} className="db-fdev"><b>{c.label}</b> <small>{c.host} · {c.evidence}</small>
+          <div className="db-fbtns"><button type="button" disabled={c.driver === 'unknown'} onClick={() => add(c)}>{c.driver === 'unknown' ? 'say “learn this device”' : 'Add'}</button></div></div>
+      )) : <small>Nothing new found.</small>)}
+    </div>
+  );
+}
+
 export function Dashboard({ toast }) {
   const [d, setD] = useState(null);
   const [open, setOpen] = useState(null);
@@ -120,6 +173,9 @@ export function Dashboard({ toast }) {
           ))}
         </div>
         {d.home.simulated && <small>No Home Assistant connected, so these are practice devices.</small>}
+        <h4>Your devices</h4>
+        {!d.fabric.length && <small>None added yet. Scan, or say “scan for devices”.</small>}
+        <Fabric devices={d.fabric} admin={Boolean(d.system)} toast={toast} reload={load} full={full('home')} />
       </Tile>
     ),
     calendar: (
