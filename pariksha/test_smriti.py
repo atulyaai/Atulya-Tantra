@@ -30,17 +30,21 @@ def test_graph_has_a_branch_per_kind_and_a_leaf_per_source():
     ids = {n["id"] for n in g["nodes"]}
     assert {"root", "branch:personal", "branch:concepts", "branch:preference", "branch:episodic",
             "branch:skills", "branch:self", "branch:arch"} <= ids
-    assert "branch:world" not in ids                      # nothing there, so no empty branch
+    assert "branch:world" in ids                          # nothing there, but the branch is still drawn (as empty)
+    assert next(n for n in g["nodes"] if n["id"] == "branch:world")["count"] == 0
     assert g["relations"] == [{"a": "aj", "rel": "wife", "b": "Priya"}]
     assert g["callouts"]["preferences"] == ["likes: cricket"] and g["callouts"]["vectors"] == 7
     assert all(e["from"] in ids and e["to"] in ids for e in g["edges"])
-    assert {s["id"] for s in g["sections"]} == {n["group"] for n in g["nodes"] if n["kind"] == "branch"}
+    # only branches with something in them can be opened by voice; the empty ones are drawn but have no list
+    assert {s["id"] for s in g["sections"]} == {n["group"] for n in g["nodes"] if n["kind"] == "branch" and n["count"]}
 
 
 def test_bare_profile_still_shows_the_architecture_branch():
     g = build_memory_graph({"user": "aj", "facts": [], "habits": []})
-    assert [n["id"] for n in g["nodes"]] == ["root", "branch:arch"] + [n["id"] for n in g["nodes"][2:]]
-    assert g["relations"] == [] and g["total"] == len(g["nodes"]) - 2
+    branches = {n["group"]: n["count"] for n in g["nodes"] if n["kind"] == "branch"}
+    assert branches["arch"] > 0 and branches["personal"] == 0        # the architecture always has modules; nothing is known yet
+    leaves = [n for n in g["nodes"] if n["kind"] == "leaf"]
+    assert g["relations"] == [] and g["total"] == len(leaves) and sum(branches.values()) == len(leaves)
 
 
 def test_route_requires_login():

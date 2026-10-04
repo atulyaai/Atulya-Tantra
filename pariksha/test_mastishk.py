@@ -326,3 +326,33 @@ def test_speed_report_advises_a_fast_key_only_when_local_is_slow_and_no_cloud_is
     assert speed_report(fast, linked_cloud=0)["advice"] is None                        # local is fast enough
     assert speed_report({}, linked_cloud=0)["advice"]["kind"] == "unmeasured"
     assert speed_report({}, linked_cloud=2)["advice"] is None
+
+
+def test_loading_the_local_model_does_not_freeze_the_server(tmp_path, monkeypatch):
+    """The model takes seconds to load. It must load off the event loop, or the screen cannot even open meanwhile."""
+    import asyncio
+    import time
+
+    from atulya.mastishk import LocalGGUFProvider
+
+    provider = LocalGGUFProvider(tmp_path / "fake.gguf")
+    monkeypatch.setattr(provider, "_load", lambda: time.sleep(0.4))
+    monkeypatch.setattr(provider, "_complete", lambda kwargs: {"choices": [{"message": {"content": "hi"}}]})
+
+    async def scenario():
+        ticks = 0
+
+        async def ticker():
+            nonlocal ticks
+            while True:
+                await asyncio.sleep(0.02)
+                ticks += 1
+
+        task = asyncio.create_task(ticker())
+        answer = await provider.chat("hello", "system")
+        task.cancel()
+        return answer, ticks
+
+    answer, ticks = asyncio.run(scenario())
+    assert answer == "hi"
+    assert ticks >= 8   # the loop kept running while the 0.4 s load happened (blocked loop: 0-1 ticks)

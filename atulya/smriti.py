@@ -527,8 +527,8 @@ def build_memory_graph(
     nodes: list[dict[str, Any]] = [{"id": "root", "label": user, "group": "root", "kind": "root"}]
     edges: list[dict[str, str]] = []
     for bid, label, _ in BRANCHES:
-        if not leaves[bid]:
-            continue
+        # Every kind of memory gets its branch, even an empty one: the tree shows what Atulya can remember, and
+        # an empty branch says "0 items" instead of vanishing.
         branch_id = f"branch:{bid}"
         nodes.append({"id": branch_id, "label": label, "group": bid, "kind": "branch", "count": len(leaves[bid])})
         edges.append({"from": "root", "to": branch_id})

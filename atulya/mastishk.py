@@ -1256,7 +1256,7 @@ class LocalGGUFProvider:
     ) -> str:
         """Chat with optional native tool calling (llama-cpp chat template)."""
         try:
-            self._load()
+            await asyncio.to_thread(self._load)   # loading the model takes seconds: never on the event loop
             system_prompt, tools = lean_request(prompt, system_prompt, tools)
             messages = []
             if system_prompt:
@@ -1304,7 +1304,7 @@ class LocalGGUFProvider:
         Falls back to yielding the whole response if streaming is unsupported.
         """
         try:
-            self._load()
+            await asyncio.to_thread(self._load)
             messages = []
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})

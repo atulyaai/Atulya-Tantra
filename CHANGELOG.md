@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dead code: unused memory modules (`tree`, `obsidian`, `subconscious`, `prompt_cache`, `reflection`), ten unreferenced functions, `requirements.txt` (use `pyproject.toml`), `ROADMAP.md` (see `granth/STATUS.md`), four unused images.
 
 ### Fixed
+- **The screen could freeze while the local model loaded.** The model was loaded on the server's main loop, so nothing else could be answered (including opening the page) until it finished: 5.0 s to first page with the 4B model on the test machine, now 1.1 s (measured, fresh data folder). The load now happens in a background thread; a test fails without the change. (An earlier 17-44 s reading of mine was wrong: leftover server processes were skewing it.)
+- Memory tree: all eight kinds of memory always have a branch; an empty one is a short, faded limb labelled "0 items" (before, empty ones vanished). More boughs grow from branches with more memories.
 - Memory tree redrawn closer to the concept picture: thick twisting trunk, strand bundles per branch, and finer boughs that grow with the number of memories (gold nodes are still only real items).
 - Camera preview box stayed empty when the camera started by itself; the "ONLINE" label no longer sits on the camera button.
 - **Slow local answers:** plain questions no longer send the tool list to a local model (about 2,100 tokens down to 350; Qwen3-4B on a 4-core CPU went from 77 s to 14 s per answer). Action requests still get the tools. `ATULYA_LOCAL_LEAN=off` restores the old behaviour.
