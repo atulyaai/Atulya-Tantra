@@ -14,8 +14,21 @@ import os
 __all__ = ["main"]
 
 
+def _brain_report() -> None:
+    """Say which brains found a key, so a missing or misspelled key is obvious at startup."""
+    from atulya.intelligence import ProviderRouter
+
+    names = [p.name() for p in ProviderRouter().providers if p.is_available() and p.name() != "No brain loaded"]
+    print("  Brains ready: " + (", ".join(names) if names else "none. Add a key to .env (see .env.example)"))
+
+
 def main() -> None:
+    from atulya.envfile import load_env
     from atulya.lockdown import bind_host
+
+    found = load_env()
+    print("\n  Settings: " + (", ".join(str(p) for p in found) if found else "no .env file found next to start.bat"))
+    _brain_report()
 
     host = bind_host("127.0.0.1")
     port = int(os.environ.get("ATULYA_PORT", 8501))

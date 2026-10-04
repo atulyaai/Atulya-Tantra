@@ -9,6 +9,20 @@ const W = 80;
 const H = 60;
 const STEP_MS = 160;
 
+// Plain-language reason a camera could not start (the browser's error names are not helpful).
+export function explainCameraError(err) {
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+    return 'The browser only allows the camera on http://localhost or https. Open Atulya at http://localhost:8501 on this PC (a 192.168.x.x address will not work without https).';
+  }
+  switch (err?.name) {
+    case 'NotAllowedError': return 'Camera is blocked. Click the camera icon in the address bar and choose Allow, then try again. On Windows also check Settings > Privacy > Camera.';
+    case 'NotFoundError': return 'No camera was found on this computer.';
+    case 'NotReadableError': return 'The camera is busy. Close other apps or tabs using it (Teams, Zoom, Camera app) and try again.';
+    case 'OverconstrainedError': return 'This camera does not support the requested size.';
+    default: return `Could not start the camera (${err?.name || 'unknown error'}).`;
+  }
+}
+
 export function createWebcam({ onPresence, onGaze } = {}) {
   let stream = null;
   let video = null;
@@ -58,7 +72,12 @@ export function createWebcam({ onPresence, onGaze } = {}) {
     get video() { return video; },
     async start() {
       if (stream) return video;
-      stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, facingMode: 'user' }, audio: false });
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, facingMode: 'user' }, audio: false });
+      } catch (err) {
+        if (err?.name !== 'OverconstrainedError' && err?.name !== 'NotFoundError') throw err;
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false }); // any camera, any size
+      }
       video = document.createElement('video');
       video.srcObject = stream;
       video.muted = true;

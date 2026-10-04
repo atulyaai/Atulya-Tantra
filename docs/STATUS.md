@@ -66,6 +66,9 @@ Order matters: each step needs the one above it. Anything that spends money, boo
 | `test_ambient.py`, `test_senses.py` failed to import without numpy | Fixed: skipped when missing |
 | `camera_status` had no test | Fixed |
 | Docker image never built | Open |
+| Keys in `.env` were only read by `start.bat` (breaks on quotes, spaces, Notepad BOM) | Fixed: server and CLI read `.env` themselves (`atulya/envfile.py`, tested) and print `Brains ready: ...` at startup |
+| "OpenCode" was only the last-resort "No brain loaded" message, so an OpenCode Go key did nothing | Fixed: real `OpenCode Go` brain (`OPENCODE_API_KEY`, default URL `https://opencode.ai/zen/go/v1`). **Not tested against the live service**; model names are defaults you can change with `ATULYA_OPENCODE_MODEL` |
+| Webcam would not connect (reason hidden) | Error now says why (insecure address, blocked, busy, none found); falls back to any camera size. Needs your report of which one it is |
 | Old sidebar UI appeared when the server was down (offline cache served an old saved copy) | Fixed: cache bumped to v3 (purges old copies); `start.bat` rebuilds on content change and had a duplicate build block removed. Do a hard refresh (Ctrl+Shift+R) once |
 
 ## 5. Safety rules for every new action

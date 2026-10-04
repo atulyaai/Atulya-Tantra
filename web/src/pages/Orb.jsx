@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api, boostAudio, getBoost, setBoost } from '../api.js';
-import { createWebcam } from './webcam.js';
+import { createWebcam, explainCameraError } from './webcam.js';
 
 // The home screen: one glowing orb you talk to, Jarvis style. It wakes on
 // "Hey Atulya" (or "Hi / Hello / Listen Atulya", or just "Atulya"), ripples to
@@ -482,7 +482,7 @@ export function Orb({ onMenu, toast, onCommand }) {
       }
     } catch (err) {
       setCamOn(false);
-      setCamError(err?.name === 'NotAllowedError' ? 'Camera blocked: allow it in the address bar.' : 'No camera found.');
+      setCamError(explainCameraError(err));
     }
   }
   useEffect(() => () => webcamRef.current?.stop(), []);

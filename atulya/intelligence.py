@@ -225,12 +225,19 @@ class OpenRouterProvider(IntelligenceProvider):
     def name(self) -> str:
         return "OpenRouter"
 
+    KEY_VARS = ("OPENROUTER_API_KEY",)
+    MODEL_VAR = "ATULYA_OPENROUTER_MODEL"
+
+    @classmethod
+    def _key(cls) -> str:
+        return next((os.environ[v] for v in cls.KEY_VARS if os.environ.get(v)), "")
+
     def is_available(self) -> bool:
-        return bool(os.environ.get("OPENROUTER_API_KEY"))
+        return bool(self._key())
 
     @classmethod
     def models(cls) -> list[str]:
-        raw = os.environ.get("ATULYA_OPENROUTER_MODEL", "")
+        raw = os.environ.get(cls.MODEL_VAR, "")
         listed = [m.strip() for m in raw.split(",") if m.strip()]
         return listed or list(cls.DEFAULT_MODELS)
 
@@ -240,7 +247,7 @@ class OpenRouterProvider(IntelligenceProvider):
             self.URL, data=json.dumps(payload).encode("utf-8"), method="POST",
             headers={
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {os.environ.get('OPENROUTER_API_KEY', '')}",
+                "Authorization": f"Bearer {self._key()}",
                 "HTTP-Referer": "https://github.com/atulyaai/Atulya-Tantra",
                 "X-Title": "Atulya OS",
             },
@@ -254,8 +261,8 @@ class OpenRouterProvider(IntelligenceProvider):
         return re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
 
     async def chat(self, prompt: str, system_prompt: str = "") -> str:
-        if not os.environ.get("OPENROUTER_API_KEY"):
-            raise ValueError("OPENROUTER_API_KEY is not configured")
+        if not self._key():
+            raise ValueError(f"{self.KEY_VARS[0]} is not configured")
         messages = ([{"role": "system", "content": system_prompt}] if system_prompt else []) + [
             {"role": "user", "content": prompt}]
         failures: list[str] = []
@@ -268,8 +275,24 @@ class OpenRouterProvider(IntelligenceProvider):
             if text:
                 return text
             failures.append(f"{model}: empty reply")
-        logger.warning("OpenRouter: no free model answered (%s)", "; ".join(failures))
-        raise RuntimeError("No OpenRouter model answered: " + "; ".join(failures))
+        logger.warning("%s: no model answered (%s)", self.name(), "; ".join(failures))
+        raise RuntimeError(f"No {self.name()} model answered: " + "; ".join(failures))
+
+
+class OpenCodeGoProvider(OpenRouterProvider):
+    """OpenCode Go: an OpenAI-style endpoint (``OPENCODE_API_KEY``). Models and URL can be changed in .env."""
+
+    KEY_VARS = ("OPENCODE_API_KEY", "OPENCODE_GO_API_KEY")
+    MODEL_VAR = "ATULYA_OPENCODE_MODEL"
+    DEFAULT_MODELS = ("deepseek-v4-flash", "kimi-k2.5", "glm-5.2")
+
+    @property
+    def URL(self) -> str:  # noqa: N802 - mirrors the parent's class attribute
+        base = os.environ.get("ATULYA_OPENCODE_URL", "https://opencode.ai/zen/go/v1").rstrip("/")
+        return base + "/chat/completions"
+
+    def name(self) -> str:
+        return "OpenCode Go"
 
 
 class NvidiaNimProvider(IntelligenceProvider):
@@ -416,7 +439,7 @@ NO_BRAIN_MESSAGE = (
 )
 
 
-class OpenCodeProvider(IntelligenceProvider):
+class NoBrainProvider(IntelligenceProvider):
     """Last link in the chain: says plainly that no brain is loaded.
 
     It used to answer with canned persona lines ("At your service, sir…") that
@@ -431,6 +454,9 @@ class OpenCodeProvider(IntelligenceProvider):
 
     async def chat(self, prompt: str, system_prompt: str = "") -> str:
         return NO_BRAIN_MESSAGE
+
+
+OpenCodeProvider = NoBrainProvider  # old name, kept so existing imports keep working
 
 
 class LocalGGUFProvider(IntelligenceProvider):
@@ -513,6 +539,7 @@ class ProviderRouter(IntelligenceProvider):
             OllamaProvider(),      # Free local model via Ollama (2nd choice)
             GroqProvider(),        # Fast free developer-tier API (3rd choice)
             OpenRouterProvider(),  # Free model aggregator when configured (3rd choice)
+            OpenCodeGoProvider(),  # OpenCode Go key, when configured
             GeminiProvider(),      # Google free-tier key when configured (4th choice)
             OpenAIProvider(),      # Paid/optional fallback only (6th choice)
             NvidiaNimProvider(),   # Optional provider fallback (7th choice)
@@ -575,7 +602,7 @@ class ProviderRouter(IntelligenceProvider):
         # All providers failed, return a diagnostic error response
         errors_summary = ", ".join(attempted)
         logger.warning("No brain answered. Attempted: %s", errors_summary)
-        cloud_keys = ("ANTHROPIC_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY", "NVIDIA_API_KEY")
+        cloud_keys = ("ANTHROPIC_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "OPENCODE_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY", "NVIDIA_API_KEY")
         if any(os.environ.get(k) for k in cloud_keys):
             return CLOUD_BUSY_MESSAGE, "Diagnostics Fallback"
         return NO_BRAIN_MESSAGE, "Diagnostics Fallback"
