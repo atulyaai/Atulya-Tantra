@@ -1,4 +1,4 @@
-from atulya.memory.graph import build_memory_graph
+from atulya.smriti.graph import build_memory_graph
 
 
 def test_graph_has_a_branch_per_kind_and_a_leaf_per_source():
@@ -29,7 +29,7 @@ def test_bare_profile_still_shows_the_architecture_branch():
 def test_route_requires_login():
     from fastapi.testclient import TestClient
 
-    from atulya.server.app import app
+    from atulya.sevak.app import app
 
     assert TestClient(app).get("/api/memory/graph").status_code in (401, 403)
 
@@ -37,10 +37,10 @@ def test_route_requires_login():
 def test_mood_route_requires_login_and_reports_values(monkeypatch):
     from fastapi.testclient import TestClient
 
-    from atulya.server.app import app
+    from atulya.sevak.app import app
 
     client = TestClient(app)
     assert client.get("/api/mood").status_code in (401, 403)
-    from atulya.server.state import ADMIN_TOKEN as token
+    from atulya.sevak.state import ADMIN_TOKEN as token
     body = client.get("/api/mood", headers={"X-Atulya-Token": token}).json()
     assert set(body) == {"label", "valence", "energy"} and -1 <= body["valence"] <= 1

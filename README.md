@@ -27,10 +27,10 @@
  +--------------------------------------------------------------------------+
  |                         HOW ATULYA WORKS                                 |
  |                                                                          |
- |  Your voice or text --> hologram screen (web/) --> server (atulya/server)|
+ |  Your voice or text --> hologram screen (web/) --> server (atulya/sevak)|
  |                                  |                                       |
  |                                  v                                       |
- |                 thinking kernel (atulya/cognition)                       |
+ |                 thinking kernel (atulya/buddhi)                       |
  |            /              |                 \                            |
  |     brain: cloud       memory: what you     tools: music, email,         |
  |     or local model     told it, habits      calendar, PC, home           |
@@ -67,7 +67,7 @@ First start takes a minute. Manual start instead of `start.bat`:
 ```powershell
 python -m pip install -e ".[serve]"
 cd web; npm install; npm run build; cd ..
-python -m atulya.server
+python -m atulya.sevak
 ```
 
 Optional extras: `.[ambient]` (always-on listener: `atulya listen`), `.[control]` (PC control), `.[vision]` (camera, OCR), `.[brain]` (a local model), `.[wake]` (wake-word model, Piper voice), `.[docs]` (document tools), `.[browser]` (browser automation).
@@ -166,7 +166,7 @@ More detail: [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md). The cognitive pipelin
 ```mermaid
 flowchart LR
     You["You: voice or text"] --> Web["web/ (the orb)"]
-    Web --> Server["atulya.server"]
+    Web --> Server["atulya.sevak"]
     Server --> Kernel["cognition kernel"]
     Kernel --> Tools["tools: agent/, capabilities/"]
     Kernel --> Brain["brain: cloud or local"]
@@ -174,11 +174,11 @@ flowchart LR
     Tools --> Safety["safety: risky actions ask first"]
 ```
 
-Assistant tools live in `atulya/agent/` and register themselves with `@tool`. Risky ones (sending email, deleting events, PC control) ask first by default (`ATULYA_AUTO_APPROVE` can pre-approve specific ones), and every call is appended to `data/agent/audit.jsonl`.
+Assistant tools live in `atulya/yantra/agent/` and register themselves with `@tool`. Risky ones (sending email, deleting events, PC control) ask first by default (`ATULYA_AUTO_APPROVE` can pre-approve specific ones), and every call is appended to `data/agent/audit.jsonl`.
 
 ## Memory
 
-Atulya's memory is in `atulya/memory/`: a vector store and session search (what the brain uses), plus reflection, a hierarchical summary tree and Obsidian export. A small local model copies recalled answers back, so with it memory is only shown when you ask about the past. Your profile (facts it learned, habits, what you trust it to do without asking) is under the **About you** pop-up. Identity and prompt rules are in `atulya/persona.py`; an optional override goes in `data/identity.json`.
+Atulya's memory is in `atulya/smriti/`: a vector store and session search (what the brain uses), plus reflection, a hierarchical summary tree and Obsidian export. A small local model copies recalled answers back, so with it memory is only shown when you ask about the past. Your profile (facts it learned, habits, what you trust it to do without asking) is under the **About you** pop-up. Identity and prompt rules are in `atulya/bhava/persona.py`; an optional override goes in `data/identity.json`.
 
 ## Development
 

@@ -5,7 +5,7 @@ import asyncio
 
 import pytest
 
-from atulya.agent.tools import (
+from atulya.yantra.agent.tools import (
     TOOL_REGISTRY,
     get_tool_schemas,
     execute_tool,
@@ -19,7 +19,7 @@ from atulya.agent.tools import (
     configure_email,
     analyze_image,
 )
-from atulya.agent.core import AgentCore
+from atulya.yantra.agent.core import AgentCore
 
 
 class TestToolRegistry:
@@ -134,7 +134,7 @@ class TestAgentCore:
         class Router:
             async def chat(self, prompt, system_prompt="", *a, **k):
                 return ("kernel reply", "stub")
-        from atulya.llm import AtulyaLLM
+        from atulya.buddhi.llm import AtulyaLLM
         llm = AtulyaLLM(use_memory=False)
         llm.router = Router()
         assert await AgentCore(llm_provider=llm).process("tell me a joke") == "kernel reply"

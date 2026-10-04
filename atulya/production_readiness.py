@@ -51,7 +51,7 @@ def run_readiness_checks(root: str | Path = ".") -> dict[str, Any]:
 
 
 def _check_llm_bridge(root: Path) -> ReadinessCheck:
-    return _file_check(root / "atulya" / "llm.py", "LLM bridge", "atulya/llm.py is present")
+    return _file_check(root / "atulya" / "llm.py", "LLM bridge", "atulya/buddhi/llm.py is present")
 
 
 def _check_free_provider() -> ReadinessCheck:
@@ -83,7 +83,7 @@ def _check_telegram() -> ReadinessCheck:
 def _check_mcp_config(root: Path) -> ReadinessCheck:
     path = root / "atulya" / "mcp" / "servers.json"
     if not path.exists():
-        return ReadinessCheck("MCP config", "fail", "atulya/mcp/servers.json is missing")
+        return ReadinessCheck("MCP config", "fail", "atulya/yantra/mcp/servers.json is missing")
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except Exception as exc:

@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- **One English layout:** `yantra/` and `drishti/` are gone. All Python lives in `atulya/` (`capabilities/`, `senses/`, `mcp/`, `server/`, `channels.py` ...), the screen is `web/` (flat `src/`), and `assets/` + `config/` are one `data/` folder. `python -m atulya.server` starts the server; `atulya/core/` was flattened. Update imports (`yantra.x` -> `atulya.x`, `drishti.dashboard` -> `atulya.server`). The nginx container and the empty Docker volume were dropped; the Dockerfile now builds the web app.
+- **One English layout:** `yantra/` and `drishti/` are gone. All Python lives in `atulya/` (`capabilities/`, `senses/`, `mcp/`, `server/`, `channels.py` ...), the screen is `web/` (flat `src/`), and `assets/` + `config/` are one `data/` folder. `python -m atulya.sevak` starts the server; `atulya/core/` was flattened. Update imports (`yantra.x` -> `atulya.x`, `drishti.dashboard` -> `atulya.sevak`). The nginx container and the empty Docker volume were dropped; the Dockerfile now builds the web app.
 
 ### Added
 - `start.bat` builds the web app only when its source changed and installs the web tools only when missing, so `drishti/node_modules` can be deleted (project: 260 files in 59 folders).
@@ -76,7 +76,7 @@ Audit and hardening pass: 11 runtime bugs fixed, file consolidation, channel har
 - **bridge.py merged into unified.py**: `ingest_agent_output()` method added to `UnifiedSelfImprovement`; hardcoded `D:/Hermes/cron/output` paths removed; original `bridge.py` deleted.
 - **lint auto-fix**: Ruff fixed 107 issues (unused imports, unused variables); 24 cosmetic issues remain (E402/E702/E741).
 - **`tantra/__init__.py`**: Added `__version__ = "0.3.0"`.
-- **Compatibility wrappers preserved**: `cortex_autostore.py`, `plasticity_autoscale.py`, `yantra/tools/`, `atulya/memory/` kept as clean re-exports.
+- **Compatibility wrappers preserved**: `cortex_autostore.py`, `plasticity_autoscale.py`, `yantra/tools/`, `atulya/smriti/` kept as clean re-exports.
 
 ### Added
 - **ExecTool** (`yantra/capabilities/__init__.py`): `ApprovalSystem` gate with `RiskLevel.CRITICAL` for shell execution.
@@ -119,7 +119,7 @@ This release establishes the unified, multi-package autonomous framework, transf
 - **System Versioning**: Aligned package version to `0.3.0` across configurations.
 - **Safety Approvals**: Integrated manual validation workflows requiring superuser checks for critical shell-execution commands.
 - **Moved `tantra/core/npdna/` → `tantra/npdna/`**: The NP-DNA model is the system centrepiece, not an infrastructure utility.
-- **Moved `atulya/memory/` → shared top-level `memory/` with compatibility re-exports**: Memory is shared between atulya and yantra packages.
+- **Moved `atulya/smriti/` → shared top-level `memory/` with compatibility re-exports**: Memory is shared between atulya and yantra packages.
 
 ---
 

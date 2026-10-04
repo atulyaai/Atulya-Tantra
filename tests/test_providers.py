@@ -3,7 +3,7 @@ import os
 from fastapi.testclient import TestClient
 
 from atulya.envfile import set_env_value
-from atulya.providers_catalog import BY_ID, CATALOG
+from atulya.buddhi.providers_catalog import BY_ID, CATALOG
 
 
 def test_catalog_is_consistent():
@@ -31,7 +31,7 @@ def test_set_env_value_updates_adds_and_removes(tmp_path, monkeypatch):
 
 
 def test_generic_provider_follows_the_catalog(monkeypatch):
-    from atulya.intelligence import OpenAICompatProvider, ProviderRouter
+    from atulya.buddhi.intelligence import OpenAICompatProvider, ProviderRouter
 
     p = OpenAICompatProvider(BY_ID["mistral"])
     monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
@@ -45,11 +45,11 @@ def test_generic_provider_follows_the_catalog(monkeypatch):
 
 def test_routes_are_admin_only_and_never_return_keys(tmp_path, monkeypatch):
     import atulya.envfile as ef
-    from atulya.server.app import app
-    from atulya.server.state import ADMIN_TOKEN
+    from atulya.sevak.app import app
+    from atulya.sevak.state import ADMIN_TOKEN
 
     monkeypatch.setattr(ef, "env_path", lambda: tmp_path / ".env")
-    monkeypatch.setattr("atulya.server.routes.providers.set_env_value", lambda k, v: ef.set_env_value(k, v, tmp_path / ".env"))
+    monkeypatch.setattr("atulya.sevak.routes.providers.set_env_value", lambda k, v: ef.set_env_value(k, v, tmp_path / ".env"))
     monkeypatch.setenv("DEEPSEEK_API_KEY", "x")
     monkeypatch.delenv("DEEPSEEK_API_KEY")
     c = TestClient(app)

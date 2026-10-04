@@ -18,7 +18,7 @@
 - Update the owning module's tests when adding new features
 
 ### DON'T
-- ❌ Never hardcode identity, personality, or prompts — use `atulya/persona.py` (optional override: `data/identity.json`)
+- ❌ Never hardcode identity, personality, or prompts — use `atulya/bhava/persona.py` (optional override: `data/identity.json`)
 - ❌ Never add GPU-only dependencies to `pyproject.toml`
 - ❌ Never commit model weights to git (use GitHub Releases or HF Hub)
 - Never commit `__pycache__/`, `.egg-info/`, or generated `outputs/` artifacts
@@ -59,7 +59,7 @@ The repo root has three code-and-docs folders (`atulya/`, `web/`, `docs/`), plus
 - `capabilities/`: browser automation, documents, voice pipeline, Google Workspace, Home Assistant, web search and the creation tools.
 - `senses/`: camera and home-sensor adapters.
 - `mcp/`: MCP server, client, signed manifests and `servers.json` (all integrations ship disabled).
-- `server/`: the FastAPI server (`python -m atulya.server`): API routes, accounts, sessions, chat history.
+- `server/`: the FastAPI server (`python -m atulya.sevak`): API routes, accounts, sessions, chat history.
 - `channels.py`: Discord, Telegram, Slack, email, webhooks, WhatsApp, Signal, Matrix, Teams, IRC and more.
 - `llm.py`, `intelligence.py`, `local_provider.py`: the brain and the provider failover chain.
 - `persona.py`, `emotion.py`, `eyes.py`, `heartbeat.py`, `events.py`, `security.py`, `safe_eval.py`, `lockdown.py`, `textutil.py`, `cli.py`.
@@ -84,8 +84,8 @@ New code goes into the folder above that owns it. Do not add duplicate compatibi
 
 ### 1. New Tool or Capability
 ```
-1. Assistant tool: add a function with `@tool(...)` under `atulya/agent/` and import its module at the bottom of `agent/tools.py`; if it acts on the outside world, add it to `_CONFIRM_TOOLS` in `cognition/safety.py`.
-   Heavier capability: add it under `atulya/capabilities/`.
+1. Assistant tool: add a function with `@tool(...)` under `atulya/yantra/agent/` and import its module at the bottom of `agent/tools.py`; if it acts on the outside world, add it to `_CONFIRM_TOOLS` in `cognition/safety.py`.
+   Heavier capability: add it under `atulya/yantra/capabilities/`.
 2. Add tests under tests/
 3. Run: python -m pytest -q
 ```

@@ -13,7 +13,7 @@ class FakeRouter:
 
 
 def test_llm_bridge_returns_text():
-    from atulya.llm import AtulyaLLM
+    from atulya.buddhi.llm import AtulyaLLM
 
     async def run():
         llm = AtulyaLLM()
@@ -26,8 +26,8 @@ def test_llm_bridge_returns_text():
 
 
 def test_llm_bridge_executes_tool_loop():
-    from atulya.llm import AtulyaLLM
-    from atulya.capabilities import Tool, ToolRegistry, ToolResult
+    from atulya.buddhi.llm import AtulyaLLM
+    from atulya.yantra.capabilities import Tool, ToolRegistry, ToolResult
 
     class DemoTool(Tool):
         name = "todo_create"
@@ -50,8 +50,8 @@ def test_llm_bridge_executes_tool_loop():
 
 
 def test_llm_bridge_requires_approval_for_risky_tool():
-    from atulya.llm import AtulyaLLM
-    from atulya.capabilities import Tool, ToolRegistry
+    from atulya.buddhi.llm import AtulyaLLM
+    from atulya.yantra.capabilities import Tool, ToolRegistry
 
     class FileWriteTool(Tool):
         name = "file_write"
@@ -77,8 +77,8 @@ def test_llm_bridge_requires_approval_for_risky_tool():
 
 
 def test_llm_bridge_executes_approved_risky_tool():
-    from atulya.llm import AtulyaLLM
-    from atulya.capabilities import Tool, ToolRegistry, ToolResult
+    from atulya.buddhi.llm import AtulyaLLM
+    from atulya.yantra.capabilities import Tool, ToolRegistry, ToolResult
 
     class FileWriteTool(Tool):
         name = "file_write"
@@ -104,8 +104,8 @@ def test_llm_bridge_executes_approved_risky_tool():
 
 
 def test_llm_bridge_executes_parallel_safe_tools():
-    from atulya.llm import AtulyaLLM
-    from atulya.capabilities import Tool, ToolRegistry, ToolResult
+    from atulya.buddhi.llm import AtulyaLLM
+    from atulya.yantra.capabilities import Tool, ToolRegistry, ToolResult
 
     class DemoTool(Tool):
         def __init__(self, name):
@@ -129,7 +129,7 @@ def test_llm_bridge_executes_parallel_safe_tools():
 
 
 def test_telegram_allowlist_blocks_unknown_user():
-    from atulya.channels import ChannelMessage, TelegramChannel
+    from atulya.sandesh import ChannelMessage, TelegramChannel
 
     async def run():
         channel = TelegramChannel()
@@ -149,7 +149,7 @@ def test_telegram_allowlist_blocks_unknown_user():
 
 
 def test_telegram_ask_routes_to_llm():
-    from atulya.channels import ChannelMessage, TelegramChannel
+    from atulya.sandesh import ChannelMessage, TelegramChannel
 
     class FakeLLM:
         async def ask(self, prompt, history=None):
@@ -179,7 +179,7 @@ def test_telegram_ask_routes_to_llm():
 
 
 def test_telegram_preserves_sender_history():
-    from atulya.channels import ChannelMessage, TelegramChannel
+    from atulya.sandesh import ChannelMessage, TelegramChannel
 
     class FakeLLM:
         seen = []
@@ -212,7 +212,7 @@ def test_telegram_preserves_sender_history():
 
 
 def test_telegram_can_show_response_provider():
-    from atulya.channels import ChannelMessage, TelegramChannel
+    from atulya.sandesh import ChannelMessage, TelegramChannel
 
     class FakeLLM:
         async def ask(self, prompt, history=None):

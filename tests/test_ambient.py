@@ -12,7 +12,7 @@ import pytest
 
 np = pytest.importorskip("numpy")
 
-from atulya.ambient.listener import (
+from atulya.shruti.listener import (
     FRAME_SAMPLES,
     SAMPLE_RATE,
     AmbientEngine,
@@ -208,10 +208,10 @@ class TestEngine:
 class TestServerRoundTrip:
     @pytest.fixture
     def app(self, monkeypatch, tmp_path):
-        from atulya.server import helpers
-        from atulya.server.app import app
+        from atulya.sevak import helpers
+        from atulya.sevak.app import app
         from atulya.events import EventBus
-        from atulya.senses import Senses
+        from atulya.drishti import Senses
 
         monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")
         monkeypatch.delenv("HOME_ASSISTANT_URL", raising=False)
@@ -254,7 +254,7 @@ class TestServerRoundTrip:
 # ── audio helpers, CLI config and autostart ───────────────────────────────
 
 def test_wav_encoding():
-    from atulya.ambient.audio import to_wav
+    from atulya.shruti.audio import to_wav
 
     data = to_wav(tone(0.5))
     with wave.open(io.BytesIO(data)) as wav:
@@ -263,7 +263,7 @@ def test_wav_encoding():
 
 
 def test_print_speaker(capsys):
-    from atulya.ambient.audio import Speaker
+    from atulya.shruti.audio import Speaker
 
     Speaker(backend="print").say("Hello there.")
     assert "Atulya: Hello there." in capsys.readouterr().out
@@ -271,7 +271,7 @@ def test_print_speaker(capsys):
 
 class TestCli:
     def test_options_precedence_and_saved_token_is_private(self, tmp_path, monkeypatch):
-        from atulya.ambient import cli
+        from atulya.shruti import cli
 
         monkeypatch.setenv("ATULYA_AMBIENT_CONFIG", str(tmp_path / "ambient.json"))
         monkeypatch.setenv("ATULYA_URL", "http://env:8000")
@@ -284,7 +284,7 @@ class TestCli:
             assert oct(path.stat().st_mode & 0o777) == "0o600"
 
     def test_refuses_to_start_without_sign_in(self, tmp_path, monkeypatch, capsys):
-        from atulya.ambient import cli
+        from atulya.shruti import cli
 
         monkeypatch.setenv("ATULYA_AMBIENT_CONFIG", str(tmp_path / "none.json"))
         monkeypatch.delenv("ATULYA_TOKEN", raising=False)
@@ -294,25 +294,25 @@ class TestCli:
 
 class TestAutostart:
     def test_windows(self, tmp_path):
-        from atulya.ambient.autostart import autostart_entry
+        from atulya.shruti.autostart import autostart_entry
 
         path, content = autostart_entry("Windows", r"C:\Python312\python.exe", tmp_path)
         assert path.name == "Atulya Listener.bat" and "Startup" in str(path)
-        assert r'"C:\Python312\pythonw.exe" -m atulya.ambient' in content
+        assert r'"C:\Python312\pythonw.exe" -m atulya.shruti' in content
 
     def test_macos(self, tmp_path):
-        from atulya.ambient.autostart import autostart_entry
+        from atulya.shruti.autostart import autostart_entry
 
         path, content = autostart_entry("Darwin", "/usr/bin/python3", tmp_path, args=["--wake", "a&b"])
         assert path.name == "ai.atulya.listener.plist" and "<string>a&amp;b</string>" in content
         assert "<key>RunAtLoad</key>" in content
 
     def test_linux_desktop_and_systemd(self, tmp_path):
-        from atulya.ambient.autostart import install, uninstall
+        from atulya.shruti.autostart import install, uninstall
 
         path, _hint = install(system="Linux", python="/usr/bin/python3", home=tmp_path)
         assert path == tmp_path / ".config/autostart/atulya-listener.desktop"
-        assert "Exec=/usr/bin/python3 -m atulya.ambient" in path.read_text()
+        assert "Exec=/usr/bin/python3 -m atulya.shruti" in path.read_text()
         spath, hint = install(system="Linux", python="/usr/bin/python3", home=tmp_path, mode="systemd")
         assert "--no-tray" in spath.read_text() and "systemctl --user enable" in hint
         assert uninstall(system="Linux", python="/usr/bin/python3", home=tmp_path)
@@ -321,7 +321,7 @@ class TestAutostart:
 
 @pytest.mark.skipif(not __import__("importlib").util.find_spec("PIL"), reason="Pillow not installed")
 def test_tray_icon_colours():
-    from atulya.ambient.tray import icon_image
+    from atulya.shruti.tray import icon_image
 
     img = icon_image("muted", size=32)
     assert img.size == (32, 32) and img.getpixel((16, 10))[:3] == (120, 120, 130)
@@ -329,25 +329,25 @@ def test_tray_icon_colours():
 
 class TestHindiAndBargeIn:
     def test_hindi_wake_word_and_command(self):
-        from atulya.ambient.listener import WakeMatcher
+        from atulya.shruti.listener import WakeMatcher
 
         woke, rest = WakeMatcher().match("हे अतुल्य बत्ती जलाओ")
         assert woke and "बत्ती" in rest
 
     def test_hinglish_wake(self):
-        from atulya.ambient.listener import WakeMatcher
+        from atulya.shruti.listener import WakeMatcher
 
         assert WakeMatcher().match("suno atulya play music")[0]
 
     def test_normalize_keeps_devanagari_marks(self):
-        from atulya.ambient.listener import _normalize
+        from atulya.shruti.listener import _normalize
 
         assert _normalize("अतुल्य!") == "अतुल्य"
 
     def test_stop_word_interrupts_speech(self):
         import asyncio
 
-        from atulya.ambient.listener import AmbientEngine
+        from atulya.shruti.listener import AmbientEngine
 
         class Speaker(FakeSpeaker):
             stopped = False

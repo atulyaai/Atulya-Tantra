@@ -21,9 +21,9 @@ class StubRouter:
 
 
 def make_kernel(tmp_path, reply: str = "[brain reply]"):
-    from atulya.cognition.kernel import CognitiveKernel
-    from atulya.cognition.planner import Planner, RoutineStore
-    from atulya.llm import AtulyaLLM
+    from atulya.buddhi.kernel import CognitiveKernel
+    from atulya.buddhi.planner import Planner, RoutineStore
+    from atulya.buddhi.llm import AtulyaLLM
 
     llm = AtulyaLLM()
     llm.router = StubRouter(reply)
@@ -46,7 +46,7 @@ def _simulated_home(monkeypatch):
 class TestPlanning:
     @pytest.fixture
     def planner(self, tmp_path):
-        from atulya.cognition.planner import Planner, RoutineStore
+        from atulya.buddhi.planner import Planner, RoutineStore
 
         return Planner(RoutineStore(tmp_path / "routines.json"))
 
@@ -80,7 +80,7 @@ class TestPlanning:
         assert planner.plan("turn on the kitchen light") is None  # single commands stay single
 
     def test_brain_steps_are_validated(self):
-        from atulya.cognition.planner import parse_brain_steps
+        from atulya.buddhi.planner import parse_brain_steps
 
         steps = parse_brain_steps("1. Turn on the living room light\n- set the thermostat to 21\n"
                                   "3. summon a pizza\n- turn on the living room light\nNONE")
@@ -112,7 +112,7 @@ class TestKernelPlans:
         assert types.count("action.executed") == 3 and types.count("plan.step") == 3
 
     def test_failed_step_is_reported_and_others_still_run(self, tmp_path, monkeypatch):
-        from atulya.agent import tools
+        from atulya.yantra.agent import tools
 
         kernel, _ = make_kernel(tmp_path)
         monkeypatch.delitem(tools._HOME_DEVICES, "kitchen_light")
@@ -121,7 +121,7 @@ class TestKernelPlans:
         assert "Couldn't turn on the kitchen light" in r.text and "Living Room Light turned on." in r.text
 
     def test_check_catches_a_device_that_did_not_change(self, tmp_path, monkeypatch):
-        from atulya.agent import tools
+        from atulya.yantra.agent import tools
 
         kernel, _ = make_kernel(tmp_path)
         real = tools._simulate_home_control
@@ -138,7 +138,7 @@ class TestKernelPlans:
         assert any(s["title"] == "Check failed" for s in r.trace)
 
     def test_risky_plan_asks_once_then_runs(self, tmp_path):
-        from atulya.agent import tools
+        from atulya.yantra.agent import tools
 
         kernel, _ = make_kernel(tmp_path)
         tools._HOME_DEVICES["front_door"]["state"] = "locked"
@@ -150,7 +150,7 @@ class TestKernelPlans:
         assert "all 2 steps done" in done.text and tools._HOME_DEVICES["front_door"]["state"] == "unlocked"
 
     def test_risky_plan_cancelled(self, tmp_path):
-        from atulya.agent import tools
+        from atulya.yantra.agent import tools
 
         kernel, _ = make_kernel(tmp_path)
         tools._HOME_DEVICES["front_door"]["state"] = "locked"
@@ -159,7 +159,7 @@ class TestKernelPlans:
         assert r.text.startswith("Okay, I won't run") and tools._HOME_DEVICES["front_door"]["state"] == "locked"
 
     def test_ui_approve_runs_the_held_plan_not_a_client_edit(self, tmp_path):
-        from atulya.agent import tools
+        from atulya.yantra.agent import tools
 
         kernel, _ = make_kernel(tmp_path)
         tools._HOME_DEVICES["bedroom_light"]["state"] = "off"
@@ -171,7 +171,7 @@ class TestKernelPlans:
         assert tools._HOME_DEVICES["bedroom_light"]["state"] == "off"
 
     def test_guest_user_skips_risky_steps(self, tmp_path):
-        from atulya.agent import tools
+        from atulya.yantra.agent import tools
 
         kernel, _ = make_kernel(tmp_path)
         tools._HOME_DEVICES["front_door"]["state"] = "locked"
@@ -193,7 +193,7 @@ class TestKernelPlans:
         assert r.provider != "Atulya Kernel"
 
     def test_trigger_cannot_run_a_risky_step_hidden_in_a_routine(self, tmp_path):
-        from atulya.cognition.triggers import TriggerEngine
+        from atulya.buddhi.triggers import TriggerEngine
         from atulya.events import Event
 
         kernel, _ = make_kernel(tmp_path)
@@ -208,9 +208,9 @@ class TestKernelPlans:
 
 class TestVerifyWithHomeAssistant:
     def test_reads_back_real_state(self, monkeypatch):
-        from atulya.cognition import planner as planner_mod
-        from atulya.cognition.planner import PlanStep, verify_step
-        from atulya.capabilities import home_assistant
+        from atulya.buddhi import planner as planner_mod
+        from atulya.buddhi.planner import PlanStep, verify_step
+        from atulya.yantra.capabilities import home_assistant
 
         calls = []
 
@@ -237,9 +237,9 @@ class TestRoutinesApi:
     @pytest.fixture
     def client(self, tmp_path, monkeypatch):
         from fastapi.testclient import TestClient
-        from atulya.server import helpers
-        from atulya.server.app import app
-        from atulya.llm import AtulyaLLM
+        from atulya.sevak import helpers
+        from atulya.sevak.app import app
+        from atulya.buddhi.llm import AtulyaLLM
 
         monkeypatch.setenv("ATULYA_ROUTINES_FILE", str(tmp_path / "routines.json"))
         monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")
