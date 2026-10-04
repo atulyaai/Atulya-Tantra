@@ -5,6 +5,7 @@ what it is told or on a clock.
 
 Events available (wired by ``connect_sensors`` and the kernel):
   reminder.due                            a reminder's time arrived
+  calendar.soon                           an event starts in a few minutes (title, minutes)
   health.<status>                         a heartbeat check changed state
                                           (warning / error / ok / info)
   automation.completed / automation.failed
@@ -82,6 +83,14 @@ DEFAULT_RULES: list[dict[str, Any]] = [
         "name": "Habit nudges",
         "event": "habit.due",
         "notify": "You usually {label} {when} — just say the word.",
+        "enabled": True,
+        "cooldown_seconds": 0,
+    },
+    {
+        "id": "trg_calendar_soon",
+        "name": "Meeting heads-up",
+        "event": "calendar.soon",
+        "notify": "{title} starts in {minutes} minutes.",
         "enabled": True,
         "cooldown_seconds": 0,
     },

@@ -335,7 +335,7 @@ class TestTriggers:
         engine, _, _ = self.make(tmp_path)
         assert {r["id"] for r in engine.list_rules()} == {
             "trg_reminder_alert", "trg_health_alert", "trg_automation_failed", "trg_habit_nudge",
-            "trg_someone_at_door"}
+            "trg_someone_at_door", "trg_calendar_soon"}
 
     def test_new_defaults_top_up_old_rule_files_once(self, tmp_path):
         """An older rules file gets new built-ins, but a deleted built-in never returns."""
