@@ -30,18 +30,6 @@ class VoiceGender(Enum):
 
 
 @dataclass
-class VoiceProfile:
-    name: str
-    gender: VoiceGender = VoiceGender.NEUTRAL
-    language: str = "en"
-    accent: str = ""
-    speed: float = 1.0
-    pitch: float = 1.0
-    provider: str = ""
-    voice_id: str = ""
-
-
-@dataclass
 class TTSResult:
     id: str
     audio_base64: str | None = None

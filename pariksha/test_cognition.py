@@ -686,3 +686,17 @@ def test_router_prefers_the_fastest_working_brain(monkeypatch):
     assert asyncio.run(ask()) == "fast"      # measured faster, so it now leads
     monkeypatch.setenv("ATULYA_BRAIN", "tiny")
     assert [p.name() for p in router._ordered(router.providers)] == ["broken", "slow", "fast"]  # pinned: no reordering
+
+
+def test_slow_measured_brain_still_beats_the_no_brain_reply(monkeypatch):
+    """A real brain that took 28 s once must not be replaced by the 'no brain' message."""
+    import atulya.buddhi.intelligence as ai
+
+    monkeypatch.delenv("ATULYA_BRAIN", raising=False)
+    monkeypatch.setattr(ai, "_SPEED", {})
+    router = ai.ProviderRouter()
+    real = next(p for p in router.providers if not isinstance(p, ai.NoBrainProvider))
+    router.providers = [real, ai.NoBrainProvider()]
+    ai._SPEED[real.name()] = {"avg": 28.0}
+    order = router._ordered(router.providers)
+    assert order[0] is real and isinstance(order[-1], ai.NoBrainProvider)

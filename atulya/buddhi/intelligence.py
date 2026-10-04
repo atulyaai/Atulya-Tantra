@@ -595,8 +595,12 @@ class ProviderRouter(IntelligenceProvider):
         """Fastest working brain first, unless ATULYA_BRAIN pins an order."""
         if os.environ.get("ATULYA_BRAIN", "").strip():
             return providers
-        ranked = sorted(enumerate(providers), key=lambda ir: _speed_score(ir[1].name(), ir[0]))
-        return [p for _, p in ranked]
+        # The "no brain" reply is never ranked: unmeasured, it would look faster than a real
+        # brain that has been timed once, and would then answer in its place.
+        last = [p for p in providers if isinstance(p, NoBrainProvider)]
+        rest = [p for p in providers if not isinstance(p, NoBrainProvider)]
+        ranked = sorted(enumerate(rest), key=lambda ir: _speed_score(ir[1].name(), ir[0]))
+        return [p for _, p in ranked] + last
         
     def is_available(self) -> bool:
         return True

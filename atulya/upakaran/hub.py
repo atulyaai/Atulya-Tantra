@@ -19,6 +19,7 @@ from atulya.upakaran.base import Capability, DeviceError, DeviceRecord, Driver
 from atulya.upakaran.discovery import Candidate
 from atulya.upakaran.ha import HomeAssistantDriver
 from atulya.upakaran.profile_driver import ProfileDriver, load_profiles
+from atulya.upakaran.samsung import SamsungDriver
 from atulya.upakaran.wol import WolDriver
 
 _NUM = re.compile(r"\b(\d{1,3})\b")
@@ -43,7 +44,7 @@ class DeviceHub:
         self.profile_dir = self.path.parent / "profiles"
         self.profiles = profiles if profiles is not None else load_profiles([self.profile_dir])
         self.drivers: dict[str, Driver] = drivers or {
-            "profile": ProfileDriver(self.profiles), "adb": AdbDriver(), "wol": WolDriver(), "homeassistant": HomeAssistantDriver()}
+            "profile": ProfileDriver(self.profiles), "adb": AdbDriver(), "wol": WolDriver(), "samsung": SamsungDriver(), "homeassistant": HomeAssistantDriver()}
         self.devices: dict[str, DeviceRecord] = {}
         self.last_candidates: dict[str, Candidate] = {}
         self.last_order: list[str] = []
@@ -118,7 +119,11 @@ class DeviceHub:
         if dev.cap(capability) is None:
             options = ", ".join(c.name for c in dev.capabilities[:25])
             raise DeviceError(f"{dev.name} can't “{capability.replace('_', ' ')}”. It can: {options}.")
-        return await self.drivers[dev.driver].execute(dev, capability, args or {})
+        before = dict(dev.config)
+        result = await self.drivers[dev.driver].execute(dev, capability, args or {})
+        if dev.config != before:   # e.g. a TV handed back its pairing token
+            self._save()
+        return result
 
     def is_risky(self, ref: str, capability: str) -> bool:
         dev = self.find(ref)
@@ -209,7 +214,3 @@ def get_hub() -> DeviceHub:
         _HUB = DeviceHub()
     return _HUB
 
-
-def reset_hub() -> None:
-    global _HUB
-    _HUB = None

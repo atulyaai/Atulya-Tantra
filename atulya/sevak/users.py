@@ -196,29 +196,6 @@ def delete_user(username: str) -> bool:
     return True
 
 
-def update_role(username: str, new_role: str) -> bool:
-    """Update a user's role. Returns True if updated."""
-    username = username.strip().lower()
-    if new_role not in ("admin", "user"):
-        return False
-    with _lock:
-        store = _read_store()
-        if username not in store["users"]:
-            return False
-        store["users"][username]["role"] = new_role
-        _write_store(store)
-    logger.info("Updated role for %s to %s", username, new_role)
-    return True
-
-
-def user_exists(username: str) -> bool:
-    """Check if a user exists."""
-    with _lock:
-        store = _read_store()
-    return username.strip().lower() in store["users"]
-
-
-
 def create_session(username: str) -> str:
     """Create a session token for a user. Returns the token."""
     username = username.strip().lower()
@@ -320,17 +297,6 @@ def get_preferences(username: str) -> dict:
     if not user:
         return {}
     return user.get("preferences", {})
-
-
-def set_preferences(username: str, prefs: dict) -> bool:
-    username = username.strip().lower()
-    with _lock:
-        store = _read_store()
-        if username not in store["users"]:
-            return False
-        store["users"][username]["preferences"] = prefs
-        _write_store(store)
-    return True
 
 
 def update_preferences(username: str, updates: dict) -> dict:

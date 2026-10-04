@@ -50,7 +50,7 @@ A local-first personal AI assistant. You talk to a glowing hologram: it listens 
 
 <p align="center"><img src="granth/images/orb_live.jpg" alt="The floating orb" width="60%"/></p>
 
-**One screen.** There are no pages. Ask for something ("show users", "open my routines", "chat history") or tap the menu, and a pop-up slides in over the orb. Esc or a tap outside closes it. Replies appear in a caption card under the head. Admin-only details (models, health, users, audit log) are hidden from normal users.
+**One screen.** There are no pages. Ask for something ("show my routines", "open the dashboard", "chat history") or tap the menu, and a pop-up slides in over the orb. Esc or a tap outside closes it. Replies appear in a caption card under the head. Admin-only details (models, health, audit log) are hidden from normal users.
 
 ![Atulya Tantra architecture](granth/images/architecture.svg)
 
@@ -234,7 +234,7 @@ Contributions, bug reports, and ideas are welcome!
 3. **Commit** your changes: `git commit -m "feat: add your feature"`
 4. **Push** and open a **Pull Request**
 
-Please keep PRs focused and include tests where relevant. For major changes, open an issue first. See [granth/CONTRIBUTING.md](granth/CONTRIBUTING.md) for the project rules and where things go, and [ROADMAP.md](ROADMAP.md) for what is planned.
+Please keep PRs focused and include tests where relevant. For major changes, open an issue first. See [granth/CONTRIBUTING.md](granth/CONTRIBUTING.md) for the project rules and where things go, and [granth/STATUS.md](granth/STATUS.md) for what is done and planned.
 
 > All contributions are released under the [MIT License](LICENSE).
 

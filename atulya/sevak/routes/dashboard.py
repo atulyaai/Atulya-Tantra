@@ -94,7 +94,7 @@ def api_dashboard(user: dict = Depends(_require_auth)):
     return build_dashboard(
         audit=recent(200), speeds=_SPEED, ready=ready,
         calendar=list(tools._CALENDAR.values()), reminders=list(tools._reminders.values()),
-        devices=tools._HOME_DEVICES, simulated_home=not os.environ.get("HOME_ASSISTANT_URL"),
+        devices=tools._HOME_DEVICES if (os.environ.get("HOME_ASSISTANT_URL") or tools.simulated_home()) else {}, simulated_home=not os.environ.get("HOME_ASSISTANT_URL"),
         pc_on=pc_control.enabled(),
         is_admin=user.get("role") == "admin", money=money.snapshot(), vault=vault.status(),
         fabric=get_hub().describe(),

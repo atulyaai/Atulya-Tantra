@@ -1,7 +1,6 @@
 import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { api, boostAudio, clearToken, getToken, setToken, getUser, setUser } from './api.js';
-import { UserManagement } from './pages/UserManagement.jsx';
 import { Orb } from './pages/Orb.jsx';
 import { MenuPopover, Panel } from './Panel.jsx';
 import { selectSectionByText } from './sections.js';
@@ -351,13 +350,11 @@ const MENU_ITEMS = [
   { id: 'routines', label: 'Routines', icon: '↻', admin: true },
   { id: 'senses', label: 'Senses', icon: '◎', admin: true },
   { id: 'brains', label: 'Brains & keys', icon: '🔑', admin: true },
-  { id: 'reflexes', label: 'Brain & reflexes', icon: '⚡', admin: true },
-  { id: 'users', label: 'Users', icon: '👥', admin: true },
+  { id: 'reflexes', label: 'Reflexes', icon: '⚡', admin: true },
 ];
 
-// "show users", "open routines" … spoken or typed: open that pop-up instead of asking the brain.
+// "show routines", "open dashboard" … spoken or typed: open that pop-up instead of asking the brain.
 const PANEL_WORDS = [
-  ['users', /\b(users?|accounts?|people)\b/],
   ['routines', /\b(routines?|schedules?|automations?)\b/],
   ['senses', /\b(senses|sensors?|cameras?)\b/],
   ['brains', /\b(api keys?|brains?|providers?|models?)\b/],
@@ -495,7 +492,6 @@ function App() {
     if (panel === 'memory') return lazyPage(MemoryTree, 'memory tree');
     if (panel === 'dashboard') return lazyPage(Dashboard, 'action engine');
     if (!isAdmin) return <p className="lazy-loading">That area is for the admin.</p>;
-    if (panel === 'users') return <UserManagement toast={toast} />;
     if (panel === 'brains') return lazyPage(Providers, 'brains');
     if (panel === 'reflexes') return lazyPage(Reflexes, 'reflexes');
     if (panel === 'routines') return lazyPage(Routines, 'routines');

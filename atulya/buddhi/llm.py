@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 from atulya.buddhi.safety import RISKY_TOOLS, needs_confirmation  # noqa: F401  (RISKY_TOOLS re-exported)
 from atulya.buddhi.intelligence import ProviderRouter
-from atulya.bhava.persona import Persona, get_atulya_fallback_response
+from atulya.bhava.persona import Persona
 from atulya.bhava.emotion import MoodState, build_emotional_directive, detect_emotion
 from atulya.yantra.capabilities import ToolRegistry
 
@@ -96,6 +96,9 @@ def copies_memory(prompt: str, reply: str, memories: list[str]) -> bool:
             return True
     return False
 
+
+# Everything from this line on is tool plumbing; a local CPU model is sent only what is above it.
+POLICY_MARK = "Operating policy:"
 
 _PAST_CUES = re.compile(
     r"\b(remember|recall|remind me|earlier|before|last time|previous|yesterday|you said|i said|i told|"
@@ -428,7 +431,7 @@ class AtulyaLLM:
         return (
             f"{prompt}"
             f"{human_block}\n\n"
-            "Operating policy:\n"
+            f"{POLICY_MARK}\n"
             "- Use free/local providers first. Paid APIs are optional fallbacks only when configured.\n"
             "- Tantra must never block production behavior.\n"
             "- For tool use, emit exactly one JSON object like "
@@ -553,10 +556,6 @@ async def stream(
 ) -> AsyncIterator[LLMEvent]:
     async for event in get_default_llm().stream(prompt, history=history, approved_tool_call=approved_tool_call):
         yield event
-
-
-def fallback_answer(prompt: str) -> str:
-    return get_atulya_fallback_response(prompt, "en_female")
 
 
 @lru_cache(maxsize=1)

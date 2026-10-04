@@ -629,7 +629,7 @@ button.icon:hover { border-color: var(--line); }
 .orb-holo.none { display: none; }
 .with-holo { background: #000; }
 .with-holo .orb-hud {
-  position: absolute; top: 22px; right: 72px;
+  position: absolute; top: 68px; right: 18px;
   display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
   font: 10px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   letter-spacing: 0.18em; color: rgba(110, 200, 255, 0.75); pointer-events: none;

@@ -10,6 +10,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Samsung Smart TV control (`samsung` driver, discovery, pairing token) and a per-device setup table (Samsung, CloudWalker, Xiaomi phones) in `granth/DEVICES.md`.
+
+### Removed
+- **Pretend smart-home devices.** Without Home Assistant, "turn on the kitchen light" no longer says it worked; it says no hub is connected and points to "scan for devices". The dashboard no longer shows practice lights, a thermostat and a door. (Tests still use them behind `ATULYA_SIMULATED_HOME=on`.)
+- Dead code: unused memory modules (`tree`, `obsidian`, `subconscious`, `prompt_cache`, `reflection`), ten unreferenced functions, `requirements.txt` (use `pyproject.toml`), `ROADMAP.md` (see `granth/STATUS.md`), four unused images.
+
+### Fixed
+- Memory tree redrawn closer to the concept picture: thick twisting trunk, strand bundles per branch, and finer boughs that grow with the number of memories (gold nodes are still only real items).
+- Camera preview box stayed empty when the camera started by itself; the "ONLINE" label no longer sits on the camera button.
+- **Slow local answers:** plain questions no longer send the tool list to a local model (about 2,100 tokens down to 350; Qwen3-4B on a 4-core CPU went from 77 s to 14 s per answer). Action requests still get the tools. `ATULYA_LOCAL_LEAN=off` restores the old behaviour.
+- **"My brain isn't loaded" after one slow answer:** the speed ranking put the "no brain" reply ahead of a real brain that had been timed once. It is now always last.
+- The local brain's label shows the model actually loaded.
+- **Camera:** starts by itself when the browser already allows it (before, only if you had turned it on earlier), and asks once on your first tap.
+- Removed the read-only "Users" menu item; "Brain & reflexes" is now "Reflexes".
+
+### Added
 - `demo/`: download and benchmark bigger local models (`try_model.py`), and a Colab notebook plus `connect_remote.py` to use a remote GPU as the brain.
 
 ### Changed

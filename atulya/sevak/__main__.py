@@ -54,7 +54,7 @@ def main() -> None:
     from atulya.sevak import users
     users.seed_default_admin()
     
-    print("  Loading FastAPI/PyTorch modules. First start can take 30-60 seconds...\n", flush=True)
+    print("  Starting Atulya. The first start can take a little longer while the screen is built...\n", flush=True)
 
     from atulya.sevak.app import app as dashboard_app
     from uvicorn.config import Config

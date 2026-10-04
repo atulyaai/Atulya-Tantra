@@ -86,3 +86,16 @@ def test_calendar_survives_a_restart(tmp_path, monkeypatch):
     monkeypatch.setattr(tools, "_CALENDAR", {})
     tools._bootstrap()
     assert tools._CALENDAR["e1"]["title"] == "Client call"
+
+
+def test_no_pretend_devices_without_a_hub(monkeypatch):
+    """Real use (no Home Assistant, no test switch): the brain says no hub is connected instead of faking success."""
+    import asyncio
+
+    from atulya.yantra.agent import tools
+
+    monkeypatch.delenv("ATULYA_SIMULATED_HOME", raising=False)
+    monkeypatch.delenv("HOME_ASSISTANT_URL", raising=False)
+    said = asyncio.run(tools.home_control("kitchen_light", "on"))
+    assert "No smart-home hub" in said and "turned on" not in said
+    assert "No smart-home hub" in asyncio.run(tools.home_list_devices())
