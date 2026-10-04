@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { api } from '../api.js';
+import { api } from './api.js';
 
 // Link any brain: paste a key, pick a model, press Test. Keys are saved to .env on this computer and are
 // never shown again (only the last four characters).

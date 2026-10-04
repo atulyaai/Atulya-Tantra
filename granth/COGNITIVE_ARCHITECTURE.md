@@ -45,21 +45,21 @@ flowchart LR
 | Organ | Role | Module |
 |---|---|---|
 | Kernel | The one pipeline every request goes through | `atulya/buddhi/kernel.py` |
-| Understanding | Clear command → concrete tool + arguments, no model needed | `atulya/yantra/agent/intent_router.py` |
+| Understanding | Clear command → concrete tool + arguments, no model needed | `atulya/yantra/intent_router.py` |
 | Planning | Goals → checked multi-step plans (routines, groups, compound commands, the brain) | `atulya/buddhi/planner.py` |
 | Knowing you | Facts, habits, which confirmations to stop asking (opt-in) | `atulya/buddhi/profile.py` |
 | Brain | Open conversation, reasoning, native tool calls, provider failover | `atulya/buddhi/llm.py`, `atulya/buddhi/intelligence.py`, `atulya/buddhi/local_provider.py` |
 | Brain size | `ATULYA_BRAIN` tiers: tiny / balanced / power / cloud | `atulya/buddhi/brain.py` |
 | Conscience | Which actions run vs. wait for confirmation | `atulya/buddhi/safety.py` |
 | Hands | One tool surface: files, web, office, ERP + home, reminders, weather, email, calendar | `atulya/buddhi/toolbelt.py` |
-| Real-world reach | Home Assistant (Zigbee, Z-Wave, Wi-Fi, Matter…) | `atulya/yantra/capabilities/home_assistant.py` |
+| Real-world reach | Home Assistant (Zigbee, Z-Wave, Wi-Fi, Matter…) | `atulya/yantra/home_assistant.py` |
 | Memory | Remembers conversations and the actions it took | `atulya/smriti/` |
 | Nervous system | Publish/subscribe events | `atulya/events.py` |
 | Reflexes | Event → rule → notify and/or act | `atulya/buddhi/triggers.py` |
 | Interoception | Self-monitoring; publishes health *changes* | `atulya/heartbeat.py` |
 | Senses | Cameras (motion, people) and Home Assistant sensors → events | `atulya/indriya/` |
 | Ears everywhere | Always-listening app: wake word, tray icon, speaks notifications | `atulya/shruti/` |
-| Personal accounts | Google sign-in: Gmail and Calendar per user | `atulya/yantra/capabilities/google_workspace.py` |
+| Personal accounts | Google sign-in: Gmail and Calendar per user | `atulya/yantra/google_workspace.py` |
 
 ## A request's life
 

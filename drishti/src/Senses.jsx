@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { api, getToken } from '../api.js';
+import { api, getToken } from './api.js';
 
 function ago(seconds) {
   if (!seconds) return 'never';

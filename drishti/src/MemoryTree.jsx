@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { api } from '../api.js';
-import { registerSections } from '../sections.js';
+import { api } from './api.js';
+import { registerSections } from './sections.js';
 
 // The memory tree: a large living tree of what Atulya remembers. The trunk is you; every big branch is a kind
 // of memory; every golden node is a real item (a fact, a remembered exchange, a skill, a module). Tap a branch

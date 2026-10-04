@@ -11,7 +11,7 @@ from atulya import upakaran_hub as learn
 from atulya.upakaran import DeviceError
 from atulya.upakaran_hub import DeviceHub
 from atulya.upakaran import load_profiles
-from pariksha.upakaran import sims
+from pariksha import sims
 
 
 def run(c):

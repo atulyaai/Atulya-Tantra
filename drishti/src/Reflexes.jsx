@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { api } from '../api.js';
+import { api } from './api.js';
 
 // Events the backend publishes (see granth/COGNITIVE_ARCHITECTURE.md).
 const KNOWN_EVENTS = [

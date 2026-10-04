@@ -142,25 +142,25 @@ Every folder has a Sanskrit/Hindi name that says what it does. All Python is in 
 |---|---|---|---|
 | `drishti/` | दृष्टि | sight, what you see | The animated screen (React + Vite): the orb, the hologram, the windows, the phone shell |
 | `granth/` | ग्रंथ | book, text | Guides, architecture, security, features, status, images |
-| `pariksha/` | परीक्षा | examination, test | The test suite (one folder per big part, for example `pariksha/upakaran/`) |
+| `pariksha/` | परीक्षा | examination, test | The test suite (flat: one `test_*.py` file per part) |
 | `prayog/` | प्रयोग | experiment | Try a bigger brain: download and benchmark local models, or use a free Colab GPU |
 | `kosh/` | कोश | treasury | Everything Atulya stores on your computer (git-ignored). An old `data/` folder is moved here automatically the first time you start |
 | `atulya/buddhi/` | बुद्धि | intellect | The thinking: kernel, planner, safety rules, triggers, brain tiers, the language model and the provider failover router |
-| `atulya/yantra/` | यंत्र | machine, tool | Everything Atulya can *do*: `agent/` (reminders, email, calendar, music, money, web tasks, PC control, intent router), `capabilities/` (browser, documents, Google, Home Assistant, web search), `mcp/` (outside tools) |
-| `atulya/upakaran/` | उपकरण | devices | The device layer: TVs, phones, lights, PCs through profiles, ADB, Wake-on-LAN and Home Assistant |
-| `atulya/indriya/` | इन्द्रिय | the senses | Camera, motion, home sensors, reading pictures |
+| `atulya/yantra/` | यंत्र | machine, tool | Everything Atulya can *do*, one flat folder: tools (reminders, email, calendar, music, money, web tasks, PC control, intent router), capabilities (browser, documents, Google, Home Assistant, web search) and `mcp.py` (outside tools) |
+| `atulya/sevak/` | सेवक | servant, server | The web server: four `api_*.py` files for the routes, accounts, chat history |
 | `atulya/shruti/` | श्रुति | hearing | The always-on listener: microphone, wake word (English and Hindi), barge-in, tray |
-| `atulya/smriti/` | स्मृति | memory | Memory: the manager, vector store and session search |
-| `atulya/vani/` | वाणी | speech | The voice pipeline |
-| `atulya/sandesh/` | संदेश | message | Telegram, Discord, Slack, email and other messaging channels |
-| `atulya/sevak/` | सेवक | servant, server | The web server: API routes, accounts, chat history |
-| `atulya/raksha/` | रक्षा | protection | Encryption at rest (vault), HTTPS certificates, security helpers, lockdown |
-| `atulya/bhava/` | भाव | feeling, character | Mood, persona and identity |
+| `atulya/upakaran.py`, `upakaran_hub.py` | उपकरण | devices | TVs, phones, lights, PCs: profiles, ADB, Samsung, Wake-on-LAN, Home Assistant, discovery, the hub |
+| `atulya/indriya.py` | इन्द्रिय | the senses | Camera, motion, home sensors, reading pictures |
+| `atulya/smriti.py` | स्मृति | memory | The memory manager, vector store and session search |
+| `atulya/vani.py` | वाणी | speech | The voice pipeline |
+| `atulya/sandesh.py` | संदेश | message | Telegram, Discord, Slack, email and other messaging channels |
+| `atulya/raksha.py` | रक्षा | protection | Encryption at rest (vault), HTTPS certificates, security helpers, lockdown |
+| `atulya/bhava.py` | भाव | feeling, character | Mood, persona and identity |
 
 ```text
 Atulya-Tantra/
-|-- atulya/        # all the Python: buddhi, yantra, upakaran, indriya, shruti, smriti, vani, sandesh, sevak,
-|                  #   raksha, bhava, plus a few shared files (cli.py, config.py, envfile.py, events.py ...)
+|-- atulya/        # all the Python: four small folders (buddhi, yantra, sevak, shruti) and one file per other part
+|                  #   (upakaran.py, smriti.py, indriya.py, vani.py, sandesh.py, raksha.py, bhava.py ...)
 |-- drishti/       # the animated screen: src/, public/, android/
 |-- granth/        # guides and architecture
 |-- prayog/        # experiments: bigger local models, Colab GPU brain
@@ -185,7 +185,7 @@ flowchart LR
     Tools --> Safety["safety: risky actions ask first"]
 ```
 
-Assistant tools live in `atulya/yantra/agent/` and register themselves with `@tool`. Risky ones (sending email, deleting events, PC control) ask first by default (`ATULYA_AUTO_APPROVE` can pre-approve specific ones), and every call is appended to `kosh/agent/audit.jsonl`.
+Assistant tools live in `atulya/yantra/` and register themselves with `@tool`. Risky ones (sending email, deleting events, PC control) ask first by default (`ATULYA_AUTO_APPROVE` can pre-approve specific ones), and every call is appended to `kosh/agent/audit.jsonl`.
 
 ## Memory
 

@@ -42,29 +42,23 @@ Do not add new root directories unless they are documented here. New implementat
 
 ### Folders
 
-The repo root has `atulya/` (all the Python), `drishti/` (the screen, दृष्टि), `granth/` (guides, ग्रंथ), `pariksha/` (tests, परीक्षा) and one local-data folder, `kosh/`, which keeps its English name so existing installs keep their data.
+The repo root has `atulya/` (all the Python), `drishti/` (the screen, दृष्टि), `granth/` (guides, ग्रंथ), `pariksha/` (tests, परीक्षा) `prayog/` (experiments) and one local-data folder, `kosh/` (an old `data/` folder is moved there automatically).
 
 - `kosh/`: everything Atulya stores on your machine (memory, accounts, sessions, chat history, audit log, tokens). Git-ignored. Override the agent part with `ATULYA_AGENT_DATA_DIR`.
 - `granth/` (ग्रंथ, text): guides, architecture, security, features and images (the one place for documentation).
-- `drishti/` (दृष्टि, sight): the animated screen. `src/` is the React source (`pages/Orb.jsx` the orb, `pages/Hologram.js` the head, `Panel.jsx` the pop-up shell), `public/` holds static files, `android/` the phone shell. `build.py` builds only when the source changed. `dist/` is generated.
+- `drishti/` (दृष्टि, sight): the animated screen. `src/` is the React source (`Orb.jsx` the orb, `Hologram.js` the head, `Panel.jsx` the pop-up shell), `public/` holds static files, `android/` the phone shell. `build.py` builds only when the source changed. `dist/` is generated.
 - `atulya/`: all the Python.
 
 ### Inside `atulya/`
 
-Each folder has a Sanskrit/Hindi name that says what it does:
+Flat on purpose: one file per part where it fits, and a folder only where Python needs one to run it (`python -m atulya.sevak`, `python -m atulya.shruti`) or where a part is large. Every name is Sanskrit/Hindi:
 
-- `buddhi/` (बुद्धि, intellect): the single pipeline every request goes through: `kernel` (perceive, understand, decide, act, remember, react), `safety` (what needs confirmation), `planner`, `triggers` (event-driven proactivity), `brain` (`ATULYA_BRAIN` tiers), plus `llm`, `intelligence` (the provider failover router), `local_provider` and `providers_catalog`. See [COGNITIVE_ARCHITECTURE.md](COGNITIVE_ARCHITECTURE.md).
-- `yantra/` (यंत्र, machine): everything Atulya can do. `agent/`: assistant tools (reminders, email, calendar, weather, media, money, tracking, briefing, web tasks, PC control), the intent router and the audit log. `capabilities/`: browser automation, documents, Google Workspace, Home Assistant, web search and the creation tools. `mcp/`: MCP server, client, signed manifests and `servers.json` (all integrations ship disabled).
-- `upakaran/` (उपकरण, devices): the device layer (profiles, ADB, Wake-on-LAN, Home Assistant, discovery, the hub). See [DEVICES.md](DEVICES.md).
-- `indriya/` (इन्द्रिय, the senses): camera and home-sensor adapters, and `eyes` (reading pictures).
-- `shruti/` (श्रुति, hearing): the always-on listener: microphone, wake words (English and Hindi), barge-in, tray icon, autostart.
-- `smriti/` (स्मृति, memory): memory providers, session search, reflection, vectors, summary tree, Obsidian export.
-- `vani/` (वाणी, speech): the voice pipeline.
-- `sandesh/` (संदेश, message): Discord, Telegram, Slack, email, webhooks, WhatsApp, Signal, Matrix, Teams, IRC and more.
-- `sevak/` (सेवक, servant): the FastAPI server (`python -m atulya.sevak`): API routes, accounts, sessions, chat history.
-- `raksha/` (रक्षा, protection): `vault` (encryption at rest), `security`, `lockdown`.
-- `bhava/` (भाव, feeling): `emotion`, `persona`, `identity`.
-- Shared at the top: `cli`, `config`, `envfile`, `events`, `heartbeat`, `production_readiness`, `safe_eval`, `textutil`.
+- `buddhi/` (बुद्धि, intellect), a folder of flat files: the single pipeline every request goes through: `kernel` (perceive, understand, decide, act, remember, react), `safety` (what needs confirmation), `planner`, `triggers` (event-driven proactivity), `brain` (`ATULYA_BRAIN` tiers), plus `llm`, `intelligence` (the provider failover router), `local_provider` and `providers_catalog`. See [COGNITIVE_ARCHITECTURE.md](COGNITIVE_ARCHITECTURE.md).
+- `yantra/` (यंत्र, machine), a folder of flat files: everything Atulya can do. Assistant tools in `tools.py` (plus `media`, `money`, `tracking`, `briefing`, `pc_control`, `webagent`, `devices_tools`, `calendar_watch`), the intent router and `audit`; heavier capabilities in `capabilities.py`, `browser_automation`, `document_engine`, `google_workspace`, `home_assistant`, `web_search` and friends; `mcp.py` (MCP server, client, signed manifests) with `mcp_servers.json` (all integrations ship disabled).
+- `sevak/` (सेवक, servant), a folder: the FastAPI server (`python -m atulya.sevak`). The API is four files, `api_account.py` (sign-in, users, brains and keys, vault, system), `api_chat.py` (chat, voice, websocket, OpenAI-style endpoint), `api_agent.py` (automation, routines, triggers, uploads, creations) and `api_home.py` (dashboard, devices, senses, money, memory, mood, Google, notifications), plus `app.py`, `users.py`, `state.py`, `chat_history.py`.
+- `shruti/` (श्रुति, hearing), a folder: the always-on listener: microphone, wake words (English and Hindi), barge-in, tray icon, autostart.
+- Single files: `upakaran.py` (devices: base, ADB, Wake-on-LAN, Samsung, Home Assistant, profiles) with `upakaran_hub.py` (hub, discovery, learn-a-device) and `upakaran_profiles.json` (built-in device profiles; see [DEVICES.md](DEVICES.md)); `indriya.py` (senses: camera, home sensors, reading pictures); `smriti.py` (memory); `vani.py` (voice pipeline); `sandesh.py` (Discord, Telegram, Slack, email, webhooks and more); `raksha.py` (protection: vault, security, lockdown, https certificates); `bhava.py` (emotion, persona, identity).
+- Shared at the top: `cli`, `config`, `envfile`, `events`, `heartbeat`, `kosh`, `production_readiness`, `safe_eval`, `textutil`.
 
 The NP-DNA research model was removed. Custom model work belongs in a separate repository.
 
@@ -86,8 +80,8 @@ New code goes into the folder above that owns it. Do not add duplicate compatibi
 
 ### 1. New Tool or Capability
 ```
-1. Assistant tool: add a function with `@tool(...)` under `atulya/yantra/agent/` and import its module at the bottom of `yantra/agent/tools.py`; if it acts on the outside world, add it to `_CONFIRM_TOOLS` in `buddhi/safety.py`.
-   Heavier capability: add it under `atulya/yantra/capabilities/`.
+1. Assistant tool: add a function with `@tool(...)` under `atulya/yantra/` and import its module at the bottom of `yantra/tools.py`; if it acts on the outside world, add it to `_CONFIRM_TOOLS` in `buddhi/safety.py`.
+   Heavier capability: add it in `atulya/yantra/capabilities.py`.
 2. Add tests under pariksha/
 3. Run: python -m pytest -q
 ```

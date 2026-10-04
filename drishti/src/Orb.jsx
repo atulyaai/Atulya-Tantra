@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { api, boostAudio, getBoost, setBoost } from '../api.js';
+import { api, boostAudio, getBoost, setBoost } from './api.js';
 import { createWebcam, detectCameras, explainCameraError } from './webcam.js';
 
 // The home screen: one glowing orb you talk to, Jarvis style. It wakes on

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { api } from '../api.js';
-import { registerSections } from '../sections.js';
+import { api } from './api.js';
+import { registerSections } from './sections.js';
 
 // The action engine: one window for what Atulya is doing. Every tile reads real data (/api/dashboard).
 // Tap a tile, or say "open the calendar", to see it in full.

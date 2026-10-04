@@ -6,7 +6,7 @@ from pathlib import Path
 import nbformat
 import pytest
 
-from pariksha.upakaran import sims
+from pariksha import sims
 
 ROOT = Path(__file__).resolve().parents[1]
 

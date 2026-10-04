@@ -10,7 +10,7 @@ from atulya import upakaran_hub as discovery
 from atulya.upakaran import DeviceError, DeviceRecord
 from atulya.upakaran_hub import DeviceHub
 from atulya.upakaran import SamsungDriver
-from pariksha.upakaran import sims
+from pariksha import sims
 
 
 @pytest.fixture(autouse=True)

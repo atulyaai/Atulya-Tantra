@@ -11,16 +11,16 @@ Status is from the code and unit tests. Anything marked "untested live" has not 
 | Voice out | Edge neural voices (online), system voice (offline), Piper (offline, optional) | `atulya/shruti/audio.py`, `atulya/vani.py` |
 | Brain | Local Qwen3 0.6B / 1.7B / 4B, `ATULYA_BRAIN=auto`, cloud failover (Groq, OpenRouter, Gemini, OpenAI) | `atulya/buddhi/brain.py`, `atulya/buddhi/intelligence.py` |
 | Memory | Memory tree, reflection, vectors, Obsidian export; recalled only when you ask about the past (tiny brain) | `atulya/smriti/` |
-| Safety | Risky actions ask first; audit log of every tool call; lockdown profile | `atulya/buddhi/safety.py`, `atulya/yantra/agent/audit.py`, `atulya/raksha.py` |
-| Assistant tools | Reminders, calendar, email, weather, open websites, calculator, time | `atulya/yantra/agent/tools.py` |
-| Media | Play music (YouTube/Spotify search), media keys and volume (Windows) | `atulya/yantra/agent/media.py` |
-| Tracking | Price watchlist for public web pages | `atulya/yantra/agent/tracking.py` |
-| Briefing | Morning briefing, spoken daily at `ATULYA_BRIEFING_AT` | `atulya/yantra/agent/briefing.py`, `atulya/shruti/listener.py` |
-| PC control | Open apps, type, shortcuts, screenshot; off unless enabled, always asks | `atulya/yantra/agent/pc_control.py` |
+| Safety | Risky actions ask first; audit log of every tool call; lockdown profile | `atulya/buddhi/safety.py`, `atulya/yantra/audit.py`, `atulya/raksha.py` |
+| Assistant tools | Reminders, calendar, email, weather, open websites, calculator, time | `atulya/yantra/tools.py` |
+| Media | Play music (YouTube/Spotify search), media keys and volume (Windows) | `atulya/yantra/media.py` |
+| Tracking | Price watchlist for public web pages | `atulya/yantra/tracking.py` |
+| Briefing | Morning briefing, spoken daily at `ATULYA_BRIEFING_AT` | `atulya/yantra/briefing.py`, `atulya/shruti/listener.py` |
+| PC control | Open apps, type, shortcuts, screenshot; off unless enabled, always asks | `atulya/yantra/pc_control.py` |
 | Senses | Camera motion and person detection, OCR, scene description via Ollama (moondream) | `atulya/indriya/`, `atulya/indriya.py` |
-| Home | Home Assistant and MQTT bridges (untested live) | `atulya/yantra/capabilities/home_assistant.py` |
-| Channels | Telegram, Discord, Slack, email, webhooks and more (untested live) | `atulya/sandesh/__init__.py` |
-| Other | Google Workspace, browser automation, documents, MCP server and client | `atulya/yantra/capabilities/`, `atulya/yantra/mcp/` |
+| Home | Home Assistant and MQTT bridges (untested live) | `atulya/yantra/home_assistant.py` |
+| Channels | Telegram, Discord, Slack, email, webhooks and more (untested live) | `atulya/sandesh.py` |
+| Other | Google Workspace, browser automation, documents, MCP server and client | `atulya/yantra/capabilities.py`, `atulya/yantra/mcp.py` |
 | Local sign-in | No login on the computer Atulya runs on; other devices log in | `atulya/sevak/api_account.py` |
 
 ## Missing or incomplete

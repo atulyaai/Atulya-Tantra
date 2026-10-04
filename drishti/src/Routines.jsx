@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { api } from '../api.js';
+import { api } from './api.js';
 
 const EMPTY = { id: '', name: '', phrases: '', steps: '' };
 

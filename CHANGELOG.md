@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Samsung Smart TV control (`samsung` driver, discovery, pairing token) and a per-device setup table (Samsung, CloudWalker, Xiaomi phones) in `granth/DEVICES.md`.
 
 ### Changed
+- **Flat layout, fewer folders.** `yantra/agent`, `yantra/capabilities` and `yantra/mcp` are now plain files in `yantra/` (`mcp.py` holds the MCP server, client and manifests). The 24 route files in `sevak/routes/` became four: `api_account.py`, `api_chat.py`, `api_agent.py`, `api_home.py`. `bhava`, `raksha` (now also the https certificates), `vani`, `smriti`, `indriya`, `sandesh` and `upakaran` are single modules (`upakaran.py` + `upakaran_hub.py`; the five built-in device profiles are one `upakaran_profiles.json`). The screen's `src/pages/` and the tests' `pariksha/upakaran/` folders were flattened too. Imports changed (for example `atulya.yantra.agent.tools` -> `atulya.yantra.tools`, `atulya.upakaran.hub` -> `atulya.upakaran_hub`); all relative imports are now absolute. Removed a second, unused command line (`yantra/agent/__main__.py`) and an unused skill note.
 - `data/` is now `kosh/` and `demo/` is now `prayog/`. An existing `data/` folder is moved to `kosh/` automatically the first time Atulya starts (`atulya/kosh.py`); `.env` is untouched. If you mount `data/` in Docker, mount `kosh/` instead.
 
 ### Removed

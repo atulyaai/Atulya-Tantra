@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { api } from '../api.js';
+import { api } from './api.js';
 
 function GoogleCard({ toast }) {
   const [status, setStatus] = useState(null);

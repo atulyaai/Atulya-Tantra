@@ -4,7 +4,7 @@ import pytest
 
 from atulya.upakaran import DeviceError, DeviceRecord, is_lan_host
 from atulya.upakaran import ProfileDriver, load_profiles, validate_profile
-from pariksha.upakaran import sims
+from pariksha import sims
 
 
 @pytest.fixture(autouse=True)
