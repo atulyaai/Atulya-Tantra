@@ -8,11 +8,11 @@ import threading
 import httpx
 import pytest
 
-from atulya.upakaran import adb as adbmod
-from atulya.upakaran.adb import AdbDriver
-from atulya.upakaran.base import DeviceError, DeviceRecord
-from atulya.upakaran.ha import HomeAssistantDriver
-from atulya.upakaran.wol import WolDriver, magic_packet
+from atulya import upakaran as adbmod
+from atulya.upakaran import AdbDriver
+from atulya.upakaran import DeviceError, DeviceRecord
+from atulya.upakaran import HomeAssistantDriver
+from atulya.upakaran import WolDriver, magic_packet
 from pariksha.upakaran import sims
 
 

@@ -189,7 +189,7 @@ Assistant tools live in `atulya/yantra/agent/` and register themselves with `@to
 
 ## Memory
 
-Atulya's memory is in `atulya/smriti/`: a vector store and session search, which is what the brain uses. A small local model copies recalled answers back, so with it memory is only shown when you ask about the past. Your profile (facts it learned, habits, what you trust it to do without asking) is under the **About you** pop-up. Identity and prompt rules are in `atulya/bhava/persona.py`; an optional override goes in `kosh/identity.json`.
+Atulya's memory is in `atulya/smriti/`: a vector store and session search, which is what the brain uses. A small local model copies recalled answers back, so with it memory is only shown when you ask about the past. Your profile (facts it learned, habits, what you trust it to do without asking) is under the **About you** pop-up. Identity and prompt rules are in `atulya/bhava.py`; an optional override goes in `kosh/identity.json`.
 
 ## Development
 

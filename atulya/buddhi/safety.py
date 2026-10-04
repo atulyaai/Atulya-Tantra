@@ -78,7 +78,7 @@ def assess(tool: str, arguments: dict[str, Any] | None = None) -> Assessment:
     approved = _auto_approved()
 
     if tool == "device_do":  # the device's own profile says which actions need a yes (unlock, restart, typing …)
-        from atulya.upakaran.hub import get_hub
+        from atulya.upakaran_hub import get_hub
 
         if get_hub().is_risky(str((arguments or {}).get("device", "")), str((arguments or {}).get("action", ""))) and "device_do" not in approved:
             return Assessment(CONFIRM, "could change or restart a device")

@@ -10,7 +10,7 @@ from atulya.yantra.document_engine import DocumentEngine
 from atulya.yantra.image_engine import ImageEngine
 from atulya.yantra.output_classifier import OutputTypeClassifier
 from atulya.yantra.video_pipeline import VideoGenerator
-from atulya.vani.pipeline import AudioFormat, TextToSpeech
+from atulya.vani import AudioFormat, TextToSpeech
 
 
 @dataclass

@@ -204,7 +204,7 @@ class TestTokens:
 class TestTools:
     def test_email_and_calendar_use_the_users_google(self, google):
         from atulya.yantra import tools
-        from atulya.bhava.identity import acting_as
+        from atulya.bhava import acting_as
 
         connect(google)
 
@@ -230,7 +230,7 @@ class TestTools:
 
     def test_someone_else_does_not_get_your_mail(self, google):
         from atulya.yantra import tools
-        from atulya.bhava.identity import acting_as
+        from atulya.bhava import acting_as
 
         connect(google, user="atul")
 
@@ -242,7 +242,7 @@ class TestTools:
 
     def test_automations_use_the_only_connected_account(self, google):
         from atulya.yantra import tools
-        from atulya.bhava.identity import acting_as
+        from atulya.bhava import acting_as
 
         connect(google, user="atul")
 

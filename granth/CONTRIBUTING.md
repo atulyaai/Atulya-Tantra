@@ -18,7 +18,7 @@
 - Update the owning module's tests when adding new features
 
 ### DON'T
-- ❌ Never hardcode identity, personality, or prompts — use `atulya/bhava/persona.py` (optional override: `kosh/identity.json`)
+- ❌ Never hardcode identity, personality, or prompts — use `atulya/bhava.py` (optional override: `kosh/identity.json`)
 - ❌ Never add GPU-only dependencies to `pyproject.toml`
 - ❌ Never commit model weights to git (use GitHub Releases or HF Hub)
 - Never commit `__pycache__/`, `.egg-info/`, or generated `outputs/` artifacts

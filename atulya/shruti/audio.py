@@ -144,7 +144,7 @@ class LocalWhisper:
         if self._english_only:
             segments, _info = self._model.transcribe(audio, language="en", **opts)
         else:
-            from atulya.vani.pipeline import pick_language
+            from atulya.vani import pick_language
 
             segments, info = self._model.transcribe(audio, **opts)
             segments = list(segments)

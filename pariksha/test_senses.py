@@ -57,7 +57,7 @@ def recorder():
 
 class TestCamera:
     def test_motion_detector_ignores_still_scenes(self):
-        from atulya.indriya.camera import MotionDetector
+        from atulya.indriya import MotionDetector
 
         det = MotionDetector()
         assert det.update(blank()) == (False, 0.0)  # learns the background
@@ -66,7 +66,7 @@ class TestCamera:
         assert moving and level > 0.1
 
     def test_person_needs_consecutive_frames_then_cooldown(self, tmp_path):
-        from atulya.indriya.camera import CameraWatcher
+        from atulya.indriya import CameraWatcher
 
         bus, seen = recorder()
         frames = [blank(), with_block(), blank(), with_block(), blank(), with_block(), blank(), with_block()]
@@ -80,7 +80,7 @@ class TestCamera:
         assert watcher.status()["last_person"] == 7.0  # still seen, just not re-announced
 
     def test_no_detector_means_motion_only(self, tmp_path):
-        from atulya.indriya.camera import CameraWatcher
+        from atulya.indriya import CameraWatcher
 
         bus, seen = recorder()
         watcher = CameraWatcher("desk", ListSource([blank(), with_block()]), bus, detector=None, snapshot_dir=tmp_path)
@@ -89,7 +89,7 @@ class TestCamera:
         assert watcher.status()["detector"] == "motion only"
 
     def test_offline_camera_is_reported_not_fatal(self, tmp_path):
-        from atulya.indriya.camera import CameraWatcher
+        from atulya.indriya import CameraWatcher
 
         class Broken:
             def read(self):
@@ -106,12 +106,12 @@ class TestCamera:
         assert "offline" in watcher.status()["error"]
 
     def test_credentials_are_masked(self):
-        from atulya.indriya.camera import mask_source
+        from atulya.indriya import mask_source
 
         assert mask_source("rtsp://admin:secret@10.0.0.5/stream") == "rtsp://***@10.0.0.5/stream"
 
     def test_picks_the_right_source(self, monkeypatch):
-        from atulya.indriya.camera import SnapshotSource, open_source
+        from atulya.indriya import SnapshotSource, open_source
 
         monkeypatch.setenv("HOME_ASSISTANT_URL", "http://ha.local:8123")
         monkeypatch.setenv("HOME_ASSISTANT_TOKEN", "t")
@@ -122,7 +122,7 @@ class TestCamera:
 
     @pytest.mark.skipif(not HAS_CV2, reason="OpenCV not installed")
     def test_real_opencv_detector_and_snapshot(self, tmp_path):
-        from atulya.indriya.camera import CameraWatcher, PersonDetector
+        from atulya.indriya import CameraWatcher, PersonDetector
 
         det = PersonDetector()
         assert det.kind in ("hog", "haar") and det.detect(blank()) == 0
@@ -148,7 +148,7 @@ def entity(entity_id, state, **attrs):
 
 class TestHomeSensors:
     def test_changes_become_events(self):
-        from atulya.indriya.home_sensors import HomeSensorWatcher
+        from atulya.indriya import HomeSensorWatcher
 
         before = [entity("binary_sensor.front_door_person", "off", device_class="occupancy",
                          friendly_name="Front Door Person"),
@@ -170,7 +170,7 @@ class TestHomeSensors:
         assert watcher.watching == 3  # the temperature sensor isn't watched
 
     def test_explicit_watch_list(self):
-        from atulya.indriya.home_sensors import HomeSensorWatcher
+        from atulya.indriya import HomeSensorWatcher
 
         bus, seen = recorder()
         polls = [[entity("switch.kettle", "off")], [entity("switch.kettle", "on")]]
@@ -180,7 +180,7 @@ class TestHomeSensors:
         assert seen[0][0] == "home.sensor" and seen[0][1]["state"] == "on"
 
     def test_place_names(self):
-        from atulya.indriya.home_sensors import place_name
+        from atulya.indriya import place_name
 
         assert place_name("binary_sensor.front_door_person") == "front door"
         assert place_name("x", "Back Garden Motion Sensor") == "back garden"

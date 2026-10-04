@@ -2,8 +2,8 @@ import asyncio
 
 import pytest
 
-from atulya.upakaran.base import DeviceError, DeviceRecord, is_lan_host
-from atulya.upakaran.profile_driver import ProfileDriver, load_profiles, validate_profile
+from atulya.upakaran import DeviceError, DeviceRecord, is_lan_host
+from atulya.upakaran import ProfileDriver, load_profiles, validate_profile
 from pariksha.upakaran import sims
 
 

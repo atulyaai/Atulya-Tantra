@@ -1,4 +1,4 @@
-from atulya.smriti.graph import build_memory_graph
+from atulya.smriti import build_memory_graph
 
 
 def test_graph_has_a_branch_per_kind_and_a_leaf_per_source():

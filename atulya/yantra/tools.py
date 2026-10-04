@@ -92,7 +92,7 @@ async def execute_tool(name: str, **kwargs) -> str:
 # ── Internal State Helpers ─────────────────────────────────────────────────
 
 def _load_json(name: str) -> dict:
-    from atulya.raksha import vault
+    from atulya import raksha as vault
 
     p = _DATA_DIR / name
     if p.exists():
@@ -106,7 +106,7 @@ def _load_json(name: str) -> dict:
 
 
 def _save_json(name: str, data: dict | list):
-    from atulya.raksha import vault
+    from atulya import raksha as vault
 
     vault.write_text(_DATA_DIR / name, json.dumps(data, indent=2, default=str))
 
@@ -789,7 +789,7 @@ async def open_website(site: str, query: str = "") -> str:
 # ── Load persisted state on import ─────────────────────────────────────────
 
 def _bootstrap():
-    from atulya.raksha.vault import VaultLocked
+    from atulya.raksha import VaultLocked
 
     try:
         data = _load_json("reminders.json")

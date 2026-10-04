@@ -3,7 +3,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from atulya.raksha import vault
+from atulya import raksha as vault
 
 
 @pytest.fixture(autouse=True)

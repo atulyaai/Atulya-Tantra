@@ -3,7 +3,7 @@ import stat
 
 from cryptography import x509
 
-from atulya.sevak import https
+from atulya import raksha as https
 
 
 def load(d):
@@ -39,10 +39,10 @@ def test_reuses_a_good_pair_and_renews_when_the_address_changes_or_it_is_unreada
 
 def test_switch_and_local_names(monkeypatch):
     monkeypatch.delenv("ATULYA_HTTPS", raising=False)
-    assert not https.enabled()
+    assert not https.https_enabled()
     for v in ("on", "1", "TRUE"):
         monkeypatch.setenv("ATULYA_HTTPS", v)
-        assert https.enabled()
+        assert https.https_enabled()
     names, ips = https.local_names()
     assert "localhost" in names and "127.0.0.1" in ips
 

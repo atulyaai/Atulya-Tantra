@@ -165,8 +165,8 @@ class GoogleAccount:
 
     @classmethod
     def for_current_user(cls, transport: Any = None) -> "GoogleAccount":
-        """The account of whoever the current request is for (see atulya.bhava.identity)."""
-        from atulya.bhava.identity import current_user
+        """The account of whoever the current request is for (see atulya.bhava)."""
+        from atulya.bhava import current_user
 
         user = current_user.get()
         if user in AUTOMATION_USERS:

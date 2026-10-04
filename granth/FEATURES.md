@@ -8,16 +8,16 @@ Status is from the code and unit tests. Anything marked "untested live" has not 
 |---|---|---|
 | Face | One animated screen: hologram head (lip sync, blink, breathing), caption card, suggestion chips. Chat history, About you, Routines, Senses, Reflexes and Users open as pop-ups, by voice or the menu | `drishti/src/` |
 | Voice in | Always-on listener, wake words in English and Hindi, "stop" interrupts speech, optional wake-word model | `atulya/shruti/` |
-| Voice out | Edge neural voices (online), system voice (offline), Piper (offline, optional) | `atulya/shruti/audio.py`, `atulya/vani/pipeline.py` |
+| Voice out | Edge neural voices (online), system voice (offline), Piper (offline, optional) | `atulya/shruti/audio.py`, `atulya/vani.py` |
 | Brain | Local Qwen3 0.6B / 1.7B / 4B, `ATULYA_BRAIN=auto`, cloud failover (Groq, OpenRouter, Gemini, OpenAI) | `atulya/buddhi/brain.py`, `atulya/buddhi/intelligence.py` |
 | Memory | Memory tree, reflection, vectors, Obsidian export; recalled only when you ask about the past (tiny brain) | `atulya/smriti/` |
-| Safety | Risky actions ask first; audit log of every tool call; lockdown profile | `atulya/buddhi/safety.py`, `atulya/yantra/agent/audit.py`, `atulya/raksha/lockdown.py` |
+| Safety | Risky actions ask first; audit log of every tool call; lockdown profile | `atulya/buddhi/safety.py`, `atulya/yantra/agent/audit.py`, `atulya/raksha.py` |
 | Assistant tools | Reminders, calendar, email, weather, open websites, calculator, time | `atulya/yantra/agent/tools.py` |
 | Media | Play music (YouTube/Spotify search), media keys and volume (Windows) | `atulya/yantra/agent/media.py` |
 | Tracking | Price watchlist for public web pages | `atulya/yantra/agent/tracking.py` |
 | Briefing | Morning briefing, spoken daily at `ATULYA_BRIEFING_AT` | `atulya/yantra/agent/briefing.py`, `atulya/shruti/listener.py` |
 | PC control | Open apps, type, shortcuts, screenshot; off unless enabled, always asks | `atulya/yantra/agent/pc_control.py` |
-| Senses | Camera motion and person detection, OCR, scene description via Ollama (moondream) | `atulya/indriya/`, `atulya/indriya/eyes.py` |
+| Senses | Camera motion and person detection, OCR, scene description via Ollama (moondream) | `atulya/indriya/`, `atulya/indriya.py` |
 | Home | Home Assistant and MQTT bridges (untested live) | `atulya/yantra/capabilities/home_assistant.py` |
 | Channels | Telegram, Discord, Slack, email, webhooks and more (untested live) | `atulya/sandesh/__init__.py` |
 | Other | Google Workspace, browser automation, documents, MCP server and client | `atulya/yantra/capabilities/`, `atulya/yantra/mcp/` |
@@ -30,9 +30,9 @@ Status is from the code and unit tests. Anything marked "untested live" has not 
 | Voice and PC control on real hardware | Only unit-tested; try `atulya listen` and `ATULYA_PC_CONTROL=on` and report what breaks |
 | Microphone in the web app | Browsers block the mic until you click once and allow it; the Claude browser pane blocks it entirely, so use Chrome or Edge |
 | Trained "Atulya" wake-word model | openWakeWord ships none; the text-matched wake word is the default |
-| Encrypted memory at rest | Optional: set `ATULYA_VAULT_PASSPHRASE` (see `atulya/raksha/vault.py`). Not covered: vector memory, the audit log and `.env` |
+| Encrypted memory at rest | Optional: set `ATULYA_VAULT_PASSPHRASE` (see `atulya/raksha.py`). Not covered: vector memory, the audit log and `.env` |
 | Voice ID (who is speaking) | Not started |
-| Mood colours and eye contact on the hologram | Not started; mood detection exists in `atulya/bhava/emotion.py` |
+| Mood colours and eye contact on the hologram | Not started; mood detection exists in `atulya/bhava.py` |
 | Phone sync and push | PWA and a Capacitor shell exist; no cross-device sync |
 | Scene description by default | Needs `ollama pull moondream` or a Gemini key |
 | A smarter brain | The 0.6B model is weak at jokes and reasoning; use `balanced`, `power` or `cloud` |

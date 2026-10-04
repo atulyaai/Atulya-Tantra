@@ -28,7 +28,7 @@ from atulya.buddhi.profile import LEARN_AFTER, USER_SOURCES, ProfileStore, appro
 from atulya.buddhi.toolbelt import EXCLUDED_FROM_BRAIN
 from atulya.buddhi.llm import AtulyaLLM, LLMEvent, LLMResponse, _chunk_text, get_default_llm
 from atulya.events import EventBus, default_bus
-from atulya.bhava.identity import acting_as, current_user
+from atulya.bhava import acting_as, current_user
 
 logger = logging.getLogger(__name__)
 

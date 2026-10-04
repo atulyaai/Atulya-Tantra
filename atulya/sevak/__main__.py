@@ -24,7 +24,7 @@ def _brain_report() -> None:
 
 def main() -> None:
     from atulya.envfile import load_env
-    from atulya.raksha.lockdown import bind_host
+    from atulya.raksha import bind_host
 
     from atulya.kosh import migrate_all
 
@@ -45,9 +45,9 @@ def main() -> None:
             raise SystemExit(1)
 
     scheme, ssl_args = "http", {}
-    from atulya.sevak import https as https_mod
+    from atulya import raksha as https_mod
 
-    if https_mod.enabled():
+    if https_mod.https_enabled():
         cert_file, key_file = https_mod.ensure_certs()
         scheme, ssl_args = "https", {"ssl_certfile": cert_file, "ssl_keyfile": key_file}
     print("\n  Atulya")

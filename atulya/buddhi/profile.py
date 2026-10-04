@@ -32,7 +32,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from atulya.raksha import vault
+from atulya import raksha as vault
 
 logger = logging.getLogger(__name__)
 

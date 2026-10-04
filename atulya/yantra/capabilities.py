@@ -178,7 +178,7 @@ class ExecTool(Tool):
     async def execute(self, command: str, allow_exec: bool = False, allow_list: list[str] | None = None, **kwargs: Any) -> ToolResult:
         if not allow_exec:
             return ToolResult(success=False, error="Execution requires allow_exec=True and RiskLevel.CRITICAL approval")
-        from atulya.raksha.security import ApprovalSystem, RiskLevel
+        from atulya.raksha import ApprovalSystem, RiskLevel
         if ApprovalSystem().assess_risk(command) == RiskLevel.CRITICAL:
             return ToolResult(success=False, error="Command rejected by approval system (critical risk)")
         allowed = allow_list or os.environ.get("ATULYA_EXEC_ALLOWLIST", "").split(",")
@@ -233,7 +233,7 @@ class WebFetchTool(Tool):
     async def execute(self, url: str, **kwargs: Any) -> ToolResult:
         import httpx
 
-        from atulya.raksha.security import SSRFProtection, is_public_ip
+        from atulya.raksha import SSRFProtection, is_public_ip
 
         allow_private = os.environ.get("ATULYA_FETCH_ALLOW_PRIVATE", "").lower() in ("1", "true", "yes")
         guard = SSRFProtection(resolver=self._resolver)

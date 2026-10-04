@@ -16,10 +16,10 @@ from fastapi.responses import FileResponse, HTMLResponse
 from atulya.envfile import set_env_value
 from atulya.sevak.api_account import _key, _store
 from atulya.sevak.helpers import _jwt_encode, _require_admin, _require_auth
-from atulya.smriti.graph import build_memory_graph
-from atulya.upakaran.base import DeviceError
-from atulya.upakaran.discovery import discover
-from atulya.upakaran.hub import get_hub
+from atulya.smriti import build_memory_graph
+from atulya.upakaran import DeviceError
+from atulya.upakaran_hub import discover
+from atulya.upakaran_hub import get_hub
 from atulya.yantra import money
 
 # ── notifications ────────────────────────────────────────────────────────────
@@ -87,7 +87,7 @@ def _vector_count() -> int:
 
 @router.get("/api/memory/graph")
 def api_memory_graph(request: Request, user: dict = Depends(_require_auth)):
-    from atulya.bhava.emotion import MoodState
+    from atulya.bhava import MoodState
     from atulya.buddhi.intelligence import _SPEED
     from atulya.buddhi.llm import get_default_llm
     from atulya.sevak import chat_history
@@ -110,7 +110,7 @@ def api_memory_graph(request: Request, user: dict = Depends(_require_auth)):
 # ── mood ────────────────────────────────────────────────────────────
 @router.get("/api/mood")
 def api_mood(request: Request, user: dict = Depends(_require_auth)):
-    from atulya.bhava.emotion import MoodState
+    from atulya.bhava import MoodState
     from atulya.buddhi.llm import get_default_llm
 
     llm = getattr(request.app.state, "llm", None) or get_default_llm()
@@ -231,8 +231,8 @@ def build_dashboard(*, audit: list[dict[str, Any]], speeds: dict[str, dict[str, 
 @router.get("/api/dashboard")
 def api_dashboard(user: dict = Depends(_require_auth)):
     from atulya.buddhi.intelligence import _SPEED, ProviderRouter
-    from atulya.raksha import vault
-    from atulya.upakaran.hub import get_hub
+    from atulya import raksha as vault
+    from atulya.upakaran_hub import get_hub
     from atulya.yantra import money, pc_control, tools
     from atulya.yantra.audit import recent
 

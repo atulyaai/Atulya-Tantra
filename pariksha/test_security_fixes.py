@@ -27,7 +27,7 @@ def fake_dns(table):
 class TestSSRF:
     @pytest.fixture
     def guard(self):
-        from atulya.raksha.security import SSRFProtection
+        from atulya.raksha import SSRFProtection
 
         return SSRFProtection(resolver=fake_dns({
             "example.com": [PUBLIC], "localtest.me": ["127.0.0.1", "::1"], "mixed.test": [PUBLIC, "10.0.0.5"],
@@ -121,7 +121,7 @@ def _cryptography_works() -> bool:
 
 @pytest.mark.skipif(not _cryptography_works(), reason="cryptography is unusable in this environment")
 def test_https_generates_certificates(tmp_path, monkeypatch):
-    from atulya.sevak import https as run_https
+    from atulya import raksha as run_https
 
     monkeypatch.setenv("ATULYA_CERTS_DIR", str(tmp_path))
     cert, key = run_https.ensure_certs()

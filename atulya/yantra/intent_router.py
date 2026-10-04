@@ -96,7 +96,7 @@ def _device_admin_intent(t: str) -> RoutedIntent | None:
         name = m.group(1).strip()
         known = False
         try:
-            from atulya.upakaran.hub import get_hub
+            from atulya.upakaran_hub import get_hub
 
             known = get_hub().find(name) is not None
         except Exception:  # noqa: BLE001
@@ -114,7 +114,7 @@ def _device_admin_intent(t: str) -> RoutedIntent | None:
 
 def _device_intent(t: str) -> RoutedIntent | None:
     try:
-        from atulya.upakaran.hub import get_hub
+        from atulya.upakaran_hub import get_hub
 
         hit = get_hub().resolve(t)
     except Exception:  # noqa: BLE001 - a broken device file must never break the assistant

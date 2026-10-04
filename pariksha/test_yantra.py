@@ -286,14 +286,14 @@ class TestTextToSpeech:
     """Tests for TextToSpeech (no actual network calls)."""
 
     def test_initialization(self):
-        from atulya.vani.pipeline import TextToSpeech
+        from atulya.vani import TextToSpeech
         with tempfile.TemporaryDirectory() as tmp:
             tts = TextToSpeech(output_dir=tmp)
             assert tts.output_dir.exists()
             assert tts.get_history() == []
 
     def test_voices_defined(self):
-        from atulya.vani.pipeline import TextToSpeech
+        from atulya.vani import TextToSpeech
         assert "en_male" in TextToSpeech.VOICES
         assert "en_female" in TextToSpeech.VOICES
         assert "hi_male" in TextToSpeech.VOICES
@@ -301,12 +301,12 @@ class TestTextToSpeech:
         assert "sa_male" in TextToSpeech.VOICES
 
     def test_voice_config(self):
-        from atulya.vani.pipeline import TextToSpeech
+        from atulya.vani import TextToSpeech
         voice = TextToSpeech.VOICES["hi_male"]
         assert voice["language"] == "hi"
 
     def test_get_stats_empty(self):
-        from atulya.vani.pipeline import TextToSpeech
+        from atulya.vani import TextToSpeech
         with tempfile.TemporaryDirectory() as tmp:
             tts = TextToSpeech(output_dir=tmp)
             stats = tts.get_stats()
@@ -318,7 +318,7 @@ class TestSpeechToText:
     """Tests for SpeechToText (no actual network calls)."""
 
     def test_initialization(self):
-        from atulya.vani.pipeline import SpeechToText
+        from atulya.vani import SpeechToText
         with tempfile.TemporaryDirectory() as tmp:
             stt = SpeechToText(output_dir=tmp)
             assert stt.output_dir.exists()
@@ -326,7 +326,7 @@ class TestSpeechToText:
 
     def test_transcribe_no_input_returns_error(self):
         """transcribe() with no input returns a structured STT error result."""
-        from atulya.vani.pipeline import SpeechToText
+        from atulya.vani import SpeechToText
         with tempfile.TemporaryDirectory() as tmp:
             stt = SpeechToText(output_dir=tmp)
             result = asyncio.run(stt.transcribe())
@@ -338,14 +338,14 @@ class TestVoicePipeline:
     """Tests for combined VoicePipeline."""
 
     def test_initialization(self):
-        from atulya.vani.pipeline import VoicePipeline
+        from atulya.vani import VoicePipeline
         with tempfile.TemporaryDirectory() as tmp:
             pipeline = VoicePipeline(tts_dir=f"{tmp}/tts", stt_dir=f"{tmp}/stt")
             assert pipeline.tts is not None
             assert pipeline.stt is not None
 
     def test_get_stats_empty(self):
-        from atulya.vani.pipeline import VoicePipeline
+        from atulya.vani import VoicePipeline
         with tempfile.TemporaryDirectory() as tmp:
             pipeline = VoicePipeline(tts_dir=f"{tmp}/tts", stt_dir=f"{tmp}/stt")
             stats = pipeline.get_stats()

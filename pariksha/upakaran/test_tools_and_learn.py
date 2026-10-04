@@ -6,11 +6,11 @@ import pytest
 from atulya.yantra import devices_tools as dt
 from atulya.yantra.intent_router import route_intent
 from atulya.buddhi import safety
-from atulya.upakaran import hub as hubmod
-from atulya.upakaran import learn
-from atulya.upakaran.base import DeviceError
-from atulya.upakaran.hub import DeviceHub
-from atulya.upakaran.profile_driver import load_profiles
+from atulya import upakaran_hub as hubmod
+from atulya import upakaran_hub as learn
+from atulya.upakaran import DeviceError
+from atulya.upakaran_hub import DeviceHub
+from atulya.upakaran import load_profiles
 from pariksha.upakaran import sims
 
 
@@ -58,7 +58,7 @@ def test_manual_add_scan_add_and_value_mapping(isolated):
 
 
 def test_scan_numbers_and_already_added_devices(isolated, monkeypatch):
-    from atulya.upakaran import discovery
+    from atulya import upakaran_hub as discovery
 
     with sims.tasmota() as sim:
         profiles = {"tasmota": {**load_profiles()["tasmota"], "port": sim.port}}

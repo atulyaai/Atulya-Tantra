@@ -4,10 +4,10 @@ from __future__ import annotations
 from typing import Any
 
 from atulya.yantra.tools import tool
-from atulya.upakaran import learn
-from atulya.upakaran.base import DeviceError
-from atulya.upakaran.discovery import discover
-from atulya.upakaran.hub import get_hub
+from atulya import upakaran_hub as learn
+from atulya.upakaran import DeviceError
+from atulya.upakaran_hub import discover
+from atulya.upakaran_hub import get_hub
 
 
 def _first_param(device: Any, action: str) -> str | None:

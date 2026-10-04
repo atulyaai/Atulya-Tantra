@@ -4,10 +4,10 @@ import threading
 
 import pytest
 
-from atulya.upakaran import discovery
-from atulya.upakaran.base import DeviceError
-from atulya.upakaran.hub import DeviceHub
-from atulya.upakaran.profile_driver import load_profiles
+from atulya import upakaran_hub as discovery
+from atulya.upakaran import DeviceError
+from atulya.upakaran_hub import DeviceHub
+from atulya.upakaran import load_profiles
 from pariksha.upakaran import sims
 
 

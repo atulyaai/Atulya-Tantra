@@ -41,7 +41,7 @@ class _Resp:
 def test_local_vision_describes_through_ollama(monkeypatch):
     import urllib.request
 
-    from atulya.indriya import eyes
+    from atulya import indriya as eyes
 
     seen = {}
 
@@ -55,7 +55,7 @@ def test_local_vision_describes_through_ollama(monkeypatch):
 
 
 def test_describe_scene_prefers_local_then_cloud(monkeypatch):
-    from atulya.indriya import eyes
+    from atulya import indriya as eyes
 
     monkeypatch.setattr(eyes, "local_describe", lambda i, q: "")
     monkeypatch.setattr(eyes, "cloud_describe", lambda i, q: "cloud says hi")
@@ -67,7 +67,7 @@ def test_describe_scene_prefers_local_then_cloud(monkeypatch):
 # ── lockdown ─────────────────────────────────────────────────────────────
 
 def test_lockdown_forces_localhost_and_no_cors(monkeypatch):
-    from atulya.raksha import lockdown
+    from atulya import raksha as lockdown
 
     monkeypatch.setenv("ATULYA_HOST", "0.0.0.0")
     monkeypatch.delenv("ATULYA_CORS_ORIGINS", raising=False)
@@ -190,7 +190,7 @@ def test_microphone_holds_back_speech_without_wake_word():
 def test_pick_language_never_returns_arabic():
     from types import SimpleNamespace
 
-    from atulya.vani.pipeline import pick_language
+    from atulya.vani import pick_language
 
     noisy = SimpleNamespace(language="ar", all_language_probs=[("ar", 0.5), ("hi", 0.3), ("en", 0.1)])
     assert pick_language(noisy) == "hi"
@@ -340,7 +340,7 @@ def test_openrouter_skips_busy_and_empty_free_models(monkeypatch):
 def test_emoji_are_never_spoken():
     from atulya.shruti.listener import speakable
     from atulya.textutil import strip_emoji
-    from atulya.vani.pipeline import TextToSpeech
+    from atulya.vani import TextToSpeech
 
     assert strip_emoji("Hello! \U0001F60A How are you? \u2764\ufe0f") == "Hello! How are you?"
     assert strip_emoji("नमस्ते \U0001F44B") == "नमस्ते"

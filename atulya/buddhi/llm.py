@@ -16,12 +16,12 @@ from functools import lru_cache
 from typing import TYPE_CHECKING, Any, AsyncIterator
 
 if TYPE_CHECKING:
-    from atulya.smriti.manager import MemoryManager
+    from atulya.smriti import MemoryManager
 
 from atulya.buddhi.safety import RISKY_TOOLS, needs_confirmation  # noqa: F401  (RISKY_TOOLS re-exported)
 from atulya.buddhi.intelligence import ProviderRouter
-from atulya.bhava.persona import Persona
-from atulya.bhava.emotion import MoodState, build_emotional_directive, detect_emotion
+from atulya.bhava import Persona
+from atulya.bhava import MoodState, build_emotional_directive, detect_emotion
 from atulya.yantra.capabilities import ToolRegistry
 
 
@@ -199,7 +199,7 @@ class AtulyaLLM:
     def _ensure_memory(self):
         if self._memory is None and self.use_memory:
             try:
-                from atulya.smriti.manager import MemoryManager
+                from atulya.smriti import MemoryManager
 
                 self._memory = MemoryManager(self.memory_dir)
             except Exception:

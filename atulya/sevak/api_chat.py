@@ -15,7 +15,7 @@ from atulya.config import get_config
 from atulya.sevak import chat_history, helpers
 from atulya.sevak.helpers import _require_auth, redact_for
 from atulya.sevak.state import MAX_CHAT_TOKENS, MAX_PROMPT_CHARS
-from atulya.vani.pipeline import VoicePipeline
+from atulya.vani import VoicePipeline
 
 # ── chat ────────────────────────────────────────────────────────────
 router = APIRouter()
@@ -335,7 +335,7 @@ async def api_voice_chat(
         # the brain answer with what was seen.
         brain_prompt = prompt
         if body.get("image"):
-            from atulya.indriya.eyes import as_context, look
+            from atulya.indriya import as_context, look
 
             try:
                 seen = await look(str(body["image"]), prompt)

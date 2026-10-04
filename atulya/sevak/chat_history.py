@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from atulya.raksha import vault
+from atulya import raksha as vault
 
 _ROOT = Path(__file__).resolve().parents[2]
 HISTORY_FILE = _ROOT / "kosh" / "chat_history.json"

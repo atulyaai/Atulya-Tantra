@@ -1,8 +1,8 @@
-"""Voice Pipeline — TTS/STT for Hindi, English, Sanskrit. Free-first, CPU-based."""
+"""Vani (वाणी, speech): the voice pipeline."""
 from __future__ import annotations
 
-import base64
 import asyncio
+import base64
 import hashlib
 import logging
 import os
@@ -14,6 +14,11 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, AsyncIterator
 
+# ── vani ────────────────────────────────────────────────────────────
+
+
+
+# ── pipeline ────────────────────────────────────────────────────────────
 logger = logging.getLogger(__name__)
 
 
@@ -333,3 +338,4 @@ class VoicePipeline:
 
     def get_stats(self) -> dict[str, Any]:
         return {"tts": self.tts.get_stats(), "stt": self.stt.get_stats(), "turns": len(self._conversation)}
+

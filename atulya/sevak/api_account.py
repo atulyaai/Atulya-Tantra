@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
 from atulya.buddhi.providers_catalog import BY_ID, CATALOG
 from atulya.envfile import set_env_value
-from atulya.raksha import vault
+from atulya import raksha as vault
 from atulya.sevak import users
 from atulya.sevak.helpers import _jwt_encode, _require_admin, _require_auth
 from atulya.sevak.state import ADMIN_TOKEN_SOURCE, OUTPUTS_DIR

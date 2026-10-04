@@ -112,7 +112,7 @@ class TestIdentity:
 
     def test_default_config(self):
         """When no config file exists, Identity uses sensible defaults."""
-        from atulya.bhava.persona import Persona
+        from atulya.bhava import Persona
         with tempfile.TemporaryDirectory() as tmp:
             ident = Persona(os.path.join(tmp, "identity.json"))
             assert ident.name == "Atulya"
@@ -120,7 +120,7 @@ class TestIdentity:
             assert "what_i_am" in ident.self_knowledge
 
     def test_load_from_config(self):
-        from atulya.bhava.persona import Persona
+        from atulya.bhava import Persona
         cfg = {
             "name": "TestBot",
             "personality": {"tone": "cheerful"},
@@ -144,7 +144,7 @@ class TestIdentity:
             assert ident.self_knowledge["what_i_am"] == "A test bot."
 
     def test_get_profile_user(self):
-        from atulya.bhava.persona import Persona
+        from atulya.bhava import Persona
         with tempfile.TemporaryDirectory() as tmp:
             ident = Persona(os.path.join(tmp, "identity.json"))
             # get_system_prompt generates a role-appropriate identity string
@@ -153,7 +153,7 @@ class TestIdentity:
             assert "Atulya" in prompt or "You are" in prompt
 
     def test_get_profile_superuser(self):
-        from atulya.bhava.persona import Persona
+        from atulya.bhava import Persona
         with tempfile.TemporaryDirectory() as tmp:
             ident = Persona(os.path.join(tmp, "identity.json"))
             prompt = ident.get_system_prompt(role="superuser")
@@ -162,14 +162,14 @@ class TestIdentity:
             assert "Architecture" in prompt
 
     def test_privacy_rules_property(self):
-        from atulya.bhava.persona import Persona
+        from atulya.bhava import Persona
         with tempfile.TemporaryDirectory() as tmp:
             ident = Persona(os.path.join(tmp, "identity.json"))
             rules = ident.privacy_rules
             assert isinstance(rules, list)
 
     def test_format_for_training(self):
-        from atulya.bhava.persona import Persona
+        from atulya.bhava import Persona
         with tempfile.TemporaryDirectory() as tmp:
             ident = Persona(os.path.join(tmp, "identity.json"))
             samples = ident.format_for_training()
@@ -179,7 +179,7 @@ class TestIdentity:
             assert "output" in samples[0]
 
     def test_self_knowledge_languages(self):
-        from atulya.bhava.persona import Persona
+        from atulya.bhava import Persona
         with tempfile.TemporaryDirectory() as tmp:
             ident = Persona(os.path.join(tmp, "identity.json"))
             sk = ident.self_knowledge
@@ -187,7 +187,7 @@ class TestIdentity:
             assert "languages" in sk
 
     def test_name_from_config(self):
-        from atulya.bhava.persona import Persona
+        from atulya.bhava import Persona
         cfg = {"name": "CustomAI", "personality": {}, "self_knowledge": {}}
         with tempfile.TemporaryDirectory() as tmp:
             cfg_path = os.path.join(tmp, "identity.json")
@@ -196,7 +196,7 @@ class TestIdentity:
             assert ident.name == "CustomAI"
 
     def test_markdown_fallback(self):
-        from atulya.bhava.persona import Persona
+        from atulya.bhava import Persona
         with tempfile.TemporaryDirectory() as tmp:
             soul = os.path.join(tmp, "SOUL.md")
             with open(soul, "w") as f:
