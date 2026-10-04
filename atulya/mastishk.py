@@ -878,6 +878,34 @@ def _speed_score(name: str, rank: int) -> float:
     return entry.get("avg", 0.5 * rank)
 
 
+_LOCAL_NAMES = ("Atulya Local", "Local Brain", "Ollama")
+SLOW_SECONDS = 10.0          # a local answer slower than this is worth a fast cloud brain
+FAST_FREE = ("groq", "openrouter", "gemini")   # free keys that are usually quick, best first
+
+
+def speed_report(speeds: dict[str, dict[str, float]] | None = None, linked_cloud: int = 0) -> dict:
+    """What the screen shows about speed: each brain's measured seconds, and advice when answers are slow.
+
+    ``linked_cloud`` is how many cloud brains have a key. The advice only appears when there is none and
+    the local model is the one answering slowly (or nothing has been measured yet)."""
+    speeds = _SPEED if speeds is None else speeds
+    rows = sorted(
+        ({"name": n, "seconds": round(v["avg"], 1), "local": n.startswith(_LOCAL_NAMES)}
+         for n, v in speeds.items() if v.get("avg") and n != "No brain loaded"),
+        key=lambda r: r["seconds"],
+    )
+    advice = None
+    if not linked_cloud:
+        slow = next((r for r in rows if r["local"] and r["seconds"] > SLOW_SECONDS), None)
+        if slow:
+            advice = {"kind": "slow_local", "seconds": slow["seconds"],
+                      "message": f"Answers come from the model on this computer and take about {slow['seconds']:g} s. "
+                                 "A free cloud key usually answers in a few seconds (not measured on your connection yet)."}
+        elif not rows:
+            advice = {"kind": "unmeasured", "message": "No answers measured yet. Ask Atulya something, then look here again."}
+    return {"brains": rows, "advice": advice, "recommended": [i for i in FAST_FREE if i in BY_ID]}
+
+
 class ProviderRouter(IntelligenceProvider):
     """Atulya Intelligence Provider Fallback Chain Router."""
     

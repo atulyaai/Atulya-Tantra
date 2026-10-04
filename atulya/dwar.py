@@ -899,7 +899,10 @@ def _provider(spec):
 
 @router.get("/api/providers")
 def api_providers(user: dict = Depends(_require_admin)):
-    return {"providers": [_row(s) for s in CATALOG]}
+    from atulya.mastishk import speed_report
+
+    rows = [_row(s) for s in CATALOG]
+    return {"providers": rows, **speed_report(linked_cloud=sum(1 for r in rows if r["configured"] and r["id"] != "custom"))}
 
 
 @router.post("/api/providers/{provider_id}")
