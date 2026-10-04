@@ -86,6 +86,8 @@ Atulya asks the first brain that is set up and falls back to the next. Put keys 
 | 6 | Gemini | `GEMINI_API_KEY` | Free tier; also describes pictures |
 | 7 | OpenAI, NVIDIA NIM | `OPENAI_API_KEY`, `NVIDIA_API_KEY` | Optional |
 
+Want a bigger model? See `demo/README.md`: try one locally (`demo/try_model.py`) or use a free Colab GPU (`demo/connect_remote.py`).
+
 `ATULYA_BRAIN=cloud` puts the cloud brains first. With no local model installed (`ATULYA_AUTO_DOWNLOAD_MODEL=false`), if every cloud brain is busy Atulya says so and you try again. Every cloud brain sends your questions to that company; only the local model keeps them on your PC.
 
 ## What Atulya can do

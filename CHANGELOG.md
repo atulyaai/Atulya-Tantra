@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `demo/`: download and benchmark bigger local models (`try_model.py`), and a Colab notebook plus `connect_remote.py` to use a remote GPU as the brain.
+
 ### Changed
 - **Hindi names (see README, Layout):** the Python packages are now `buddhi` (thinking), `yantra` (actions and tools), `upakaran` (devices), `indriya` (senses), `shruti` (hearing), `smriti` (memory), `vani` (speech), `sandesh` (messaging), `sevak` (server, `python -m atulya.sevak`), `raksha` (protection) and `bhava` (mood and persona). At the top level `web/` is now `drishti/` (the screen), `docs/` is `granth/` and `tests/` is `pariksha/`. `data/` keeps its name so existing memory and settings stay in place. Old import paths (`atulya.cognition`, `atulya.server` ...) no longer exist.
 - Removed the unused `encrypted_storage` module (replaced by `atulya/raksha/vault.py`).
