@@ -90,7 +90,7 @@ Atulya asks the first brain that is set up and falls back to the next. Put keys 
 
 ## What Atulya can do
 
-Full list, with what is missing: [docs/FEATURES.md](docs/FEATURES.md).
+Full list, with what is missing: [docs/FEATURES.md](docs/FEATURES.md). What is done, tested and planned: [docs/STATUS.md](docs/STATUS.md).
 
 | Ability | Status |
 |---|---|
