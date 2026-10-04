@@ -41,9 +41,16 @@ def main() -> None:
             print(f"  Open http://127.0.0.1:{port}, close the other window first, or set ATULYA_PORT in .env.\n")
             raise SystemExit(1)
 
+    scheme, ssl_args = "http", {}
+    from atulya.sevak import https as https_mod
+
+    if https_mod.enabled():
+        cert_file, key_file = https_mod.ensure_certs()
+        scheme, ssl_args = "https", {"ssl_certfile": cert_file, "ssl_keyfile": key_file}
     print("\n  Atulya")
-    print(f"  Running on: http://{host}:{port}\n")
-    
+    print(f"  Running on: {scheme}://{host}:{port}\n")
+    if scheme == "https":
+        print("  Your browser will warn once about the certificate (it is your own): choose Advanced > Continue.\n")
     from atulya.sevak import users
     users.seed_default_admin()
     
@@ -53,7 +60,7 @@ def main() -> None:
     from uvicorn.config import Config
     from uvicorn.server import Server
 
-    Server(Config(dashboard_app, host=host, port=port, log_level="warning")).run()
+    Server(Config(dashboard_app, host=host, port=port, log_level="warning", **ssl_args)).run()
 
 
 if __name__ == "__main__":

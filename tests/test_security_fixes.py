@@ -120,12 +120,13 @@ def _cryptography_works() -> bool:
 
 
 @pytest.mark.skipif(not _cryptography_works(), reason="cryptography is unusable in this environment")
-def test_https_launcher_generates_certificates(tmp_path, monkeypatch):
+def test_https_generates_certificates(tmp_path, monkeypatch):
     from atulya.sevak import https as run_https
 
-    monkeypatch.setattr(run_https, "CERTS_DIR", tmp_path)
-    cert, key = run_https._ensure_certs()
+    monkeypatch.setenv("ATULYA_CERTS_DIR", str(tmp_path))
+    cert, key = run_https.ensure_certs()
     assert os.path.getsize(cert) > 0 and os.path.getsize(key) > 0
+    assert str(tmp_path) in cert and str(tmp_path) in key
 
 
 # ── sign-in secret ────────────────────────────────────────────────────────

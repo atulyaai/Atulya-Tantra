@@ -12,7 +12,7 @@ const STEP_MS = 160;
 // Plain-language reason a camera could not start (the browser's error names are not helpful).
 export function explainCameraError(err) {
   if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
-    return 'The browser only allows the camera on http://localhost or https. Open Atulya at http://localhost:8501 on this PC (a 192.168.x.x address will not work without https).';
+    return 'The browser only allows the camera on http://localhost or https. Open Atulya at http://localhost:8501 on this PC. From a phone or another computer, set ATULYA_HTTPS=on in .env, restart, and open the https:// address (accept the one-time certificate warning).';
   }
   switch (err?.name) {
     case 'NotAllowedError': return 'Camera is blocked. Click the camera icon in the address bar and choose Allow, then try again. On Windows also check Settings > Privacy > Camera.';
