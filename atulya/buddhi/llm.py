@@ -169,7 +169,7 @@ class AtulyaLLM:
         max_tool_iterations: int = 3,
         allow_exec: bool = False,
         use_memory: bool = False,
-        memory_dir: str = "data/memory",
+        memory_dir: str = "kosh/memory",
     ):
         if tools is None:
             # One tool surface: yantra tools + personal-assistant tools.

@@ -22,7 +22,7 @@ RENEW_BEFORE = datetime.timedelta(days=30)
 
 
 def certs_dir() -> Path:
-    return Path(os.environ.get("ATULYA_CERTS_DIR", "data/certs"))
+    return Path(os.environ.get("ATULYA_CERTS_DIR", "kosh/certs"))
 
 
 def enabled() -> bool:

@@ -205,7 +205,7 @@ class CameraWatcher:
         self.person_frames = max(1, person_frames)
         self.person_cooldown = person_cooldown
         self.motion_cooldown = motion_cooldown
-        self.snapshot_dir = Path(snapshot_dir or os.environ.get("ATULYA_SNAPSHOT_DIR", "data/agent/snapshots"))
+        self.snapshot_dir = Path(snapshot_dir or os.environ.get("ATULYA_SNAPSHOT_DIR", "kosh/agent/snapshots"))
         self._streak = 0
         self._last_emit: dict[str, float] = {}
         self._task: asyncio.Task | None = None

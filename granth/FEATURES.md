@@ -44,5 +44,5 @@ Status is from the code and unit tests. Anything marked "untested live" has not 
 - Keep route handlers thin: put logic in `atulya/` (cognition kernel and agent tools), not in `atulya/sevak/routes/`.
 - Stream event-bus updates from `atulya.events` to the frontend over WebSocket.
 - Add a compact system-health strip backed by heartbeat model, provider (circuit-breaker-aware), disk, and memory checks (provider check is done, need disk/memory in the web app).
-- Show the audit log (`data/agent/audit.jsonl`) and PC-control status in the UI.
+- Show the audit log (`kosh/agent/audit.jsonl`) and PC-control status in the UI.
 - Offer a one-click "lockdown" profile (localhost only, no wildcard CORS).

@@ -21,6 +21,6 @@ COPY . .
 COPY --from=screen /screen/dist ./drishti/dist
 RUN pip install -e ".[serve]"
 
-VOLUME /app/data
+VOLUME /app/kosh
 EXPOSE 8501
 CMD ["python", "-m", "atulya.sevak"]

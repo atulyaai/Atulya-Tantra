@@ -24,7 +24,7 @@ class CreationResult:
 
 
 class AtulyaTantraConnector:
-    def __init__(self, output_dir: str | Path = "data/creations"):
+    def __init__(self, output_dir: str | Path = "kosh/creations"):
         root = Path(output_dir)
         root.mkdir(parents=True, exist_ok=True)
         self.classifier = OutputTypeClassifier()

@@ -11,7 +11,7 @@ router = APIRouter()
 
 
 def _connector() -> AtulyaTantraConnector:
-    return AtulyaTantraConnector("data/creations")
+    return AtulyaTantraConnector("kosh/creations")
 
 
 def _payload(result: CreationResult) -> dict[str, Any]:

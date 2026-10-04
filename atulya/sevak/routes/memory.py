@@ -16,7 +16,7 @@ def _vector_count() -> int:
         from pathlib import Path
 
         total = 0
-        for f in Path("data/memory").glob("*.json"):
+        for f in Path("kosh/memory").glob("*.json"):
             data = json.loads(f.read_text(encoding="utf-8"))
             total += len(data) if isinstance(data, (list, dict)) else 0
         return total

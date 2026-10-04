@@ -11,7 +11,7 @@ from typing import Any
 from atulya.raksha import vault
 
 _ROOT = Path(__file__).resolve().parents[2]
-HISTORY_FILE = _ROOT / "data" / "chat_history.json"
+HISTORY_FILE = _ROOT / "kosh" / "chat_history.json"
 _lock = threading.Lock()
 _MAX_MESSAGES = 300
 

@@ -55,9 +55,11 @@ tmp/
 .claude/
 
 # Everything Atulya learns and stores on your machine (memory, accounts, logs, tokens)
+kosh/
+# the old name of kosh/ (moved automatically on first start)
 data/
 outputs/
 
-# demo: downloaded models and your own measurements
-demo/models/
-demo/results.md
+# prayog: downloaded models and your own measurements
+prayog/models/
+prayog/results.md

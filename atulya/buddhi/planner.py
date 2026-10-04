@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 PLAN_TOOL = "run_plan"
 MAX_STEPS = 12
-_DEFAULT_ROUTINES_FILE = "data/agent/routines.json"
+_DEFAULT_ROUTINES_FILE = "kosh/agent/routines.json"
 
 DEFAULT_ROUTINES: list[dict[str, Any]] = [
     {
@@ -201,7 +201,7 @@ def routine_steps(routine: dict[str, Any]) -> list[PlanStep]:
 
 # ── routines ──────────────────────────────────────────────────────────────
 class RoutineStore:
-    """Named step lists, kept in ATULYA_ROUTINES_FILE (default data/agent/routines.json)."""
+    """Named step lists, kept in ATULYA_ROUTINES_FILE (default kosh/agent/routines.json)."""
 
     def __init__(self, path: str | Path | None = None, seed_defaults: bool = True):
         self.path = Path(path or os.environ.get("ATULYA_ROUTINES_FILE", _DEFAULT_ROUTINES_FILE))

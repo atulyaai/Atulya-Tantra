@@ -35,7 +35,9 @@ FREE_DEFAULTS = {
 
 def main() -> None:
     from atulya.envfile import load_env
+    from atulya.kosh import migrate_all
 
+    migrate_all()  # an old `data` folder becomes `kosh`, once
     load_env()
     if len(sys.argv) > 1 and sys.argv[1] == "listen":  # the always-listening app has its own options
         from atulya.shruti.cli import main as listen

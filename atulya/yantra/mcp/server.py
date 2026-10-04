@@ -36,7 +36,7 @@ class MCPPrompt:
 class MCPServer:
     """Full MCP server bridging all tools to external agents."""
 
-    def __init__(self, data_dir: str | Path = "data/mcp"):
+    def __init__(self, data_dir: str | Path = "kosh/mcp"):
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self._tools: dict[str, MCPTool] = {}

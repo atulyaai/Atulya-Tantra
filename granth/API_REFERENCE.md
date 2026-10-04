@@ -163,11 +163,11 @@ Checks: disk space (<5GB = high, <20GB = medium), RAM (>90% = high, >80% = mediu
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/devices` | List devices |
-| POST | `/api/devices` | Register device |
-| POST | `/api/devices/{id}/command` | Send command |
-| GET | `/api/devices/stats` | Device stats |
-| DELETE | `/api/devices/{id}` | Remove device |
+| GET | `/api/fabric` | List devices (any brand) |
+| POST | `/api/fabric/discover` | Scan the network |
+| POST | `/api/fabric/add` | Add a device |
+| POST | `/api/fabric/{id}/do` | Run a device action |
+| DELETE | `/api/fabric/{id}` | Remove a device |
 
 ## Notifications
 

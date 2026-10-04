@@ -326,7 +326,7 @@ class CreateOutputTool(Tool):
     async def execute(self, prompt: str, format: str = "auto", **kwargs: Any) -> ToolResult:
         from atulya.yantra.capabilities.connector import AtulyaTantraConnector
 
-        root = Path(kwargs.pop("data_dir", "data")) / "creations"
+        root = Path(kwargs.pop("data_dir", "kosh")) / "creations"
         result = AtulyaTantraConnector(root).create(prompt, format, **kwargs)
         return ToolResult(
             success=result.ok,

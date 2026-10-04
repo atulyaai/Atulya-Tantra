@@ -68,7 +68,7 @@ def validate_profile(profile: Any) -> dict[str, Any]:
 
 
 def load_profiles(extra_dirs: list[Path] | None = None) -> dict[str, dict[str, Any]]:
-    """Built-in profiles plus any the user approved (data/devices/profiles). Bad files are skipped, never trusted."""
+    """Built-in profiles plus any the user approved (kosh/devices/profiles). Bad files are skipped, never trusted."""
     profiles: dict[str, dict[str, Any]] = {}
     for folder in [BUILTIN_DIR, *(extra_dirs or [])]:
         for file in sorted(Path(folder).glob("*.json")) if Path(folder).exists() else []:

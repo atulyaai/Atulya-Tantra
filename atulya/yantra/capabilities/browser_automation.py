@@ -26,7 +26,7 @@ class BrowserResult:
 class BrowserAutomation:
     """Browser automation using Playwright (free, CPU-based)."""
 
-    def __init__(self, headless: bool = True, output_dir: str = "data/browser"):
+    def __init__(self, headless: bool = True, output_dir: str = "kosh/browser"):
         self.headless = headless
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -148,7 +148,7 @@ class BrowserAutomationTool:
     name = "browser_navigate"
     description = "Open a URL in a headless browser and return page title, text, and links. Args: url, extract_text."
 
-    def __init__(self, output_dir: str = "data/browser"):
+    def __init__(self, output_dir: str = "kosh/browser"):
         self._automation = BrowserAutomation(headless=True, output_dir=output_dir)
 
     async def execute(self, url: str, extract_text: bool = True, **kwargs: Any) -> Any:

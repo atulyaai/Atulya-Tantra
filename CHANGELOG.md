@@ -12,7 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Samsung Smart TV control (`samsung` driver, discovery, pairing token) and a per-device setup table (Samsung, CloudWalker, Xiaomi phones) in `granth/DEVICES.md`.
 
+### Changed
+- `data/` is now `kosh/` and `demo/` is now `prayog/`. An existing `data/` folder is moved to `kosh/` automatically the first time Atulya starts (`atulya/kosh.py`); `.env` is untouched. If you mount `data/` in Docker, mount `kosh/` instead.
+
 ### Removed
+- The old device controller (`/api/devices`, its fake "simulated" IR success and Bluetooth stub); `/api/fabric` does all of it.
 - **Pretend smart-home devices.** Without Home Assistant, "turn on the kitchen light" no longer says it worked; it says no hub is connected and points to "scan for devices". The dashboard no longer shows practice lights, a thermostat and a door. (Tests still use them behind `ATULYA_SIMULATED_HOME=on`.)
 - Dead code: unused memory modules (`tree`, `obsidian`, `subconscious`, `prompt_cache`, `reflection`), ten unreferenced functions, `requirements.txt` (use `pyproject.toml`), `ROADMAP.md` (see `granth/STATUS.md`), four unused images.
 
@@ -26,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed the read-only "Users" menu item; "Brain & reflexes" is now "Reflexes".
 
 ### Added
-- `demo/`: download and benchmark bigger local models (`try_model.py`), and a Colab notebook plus `connect_remote.py` to use a remote GPU as the brain.
+- `prayog/`: download and benchmark bigger local models (`try_model.py`), and a Colab notebook plus `connect_remote.py` to use a remote GPU as the brain.
 
 ### Changed
 - **Hindi names (see README, Layout):** the Python packages are now `buddhi` (thinking), `yantra` (actions and tools), `upakaran` (devices), `indriya` (senses), `shruti` (hearing), `smriti` (memory), `vani` (speech), `sandesh` (messaging), `sevak` (server, `python -m atulya.sevak`), `raksha` (protection) and `bhava` (mood and persona). At the top level `web/` is now `drishti/` (the screen), `docs/` is `granth/` and `tests/` is `pariksha/`. `data/` keeps its name so existing memory and settings stay in place. Old import paths (`atulya.cognition`, `atulya.server` ...) no longer exist.

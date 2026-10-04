@@ -79,7 +79,7 @@ async def pc_hotkey(keys: str) -> str:
 async def pc_screenshot() -> str:
     if not enabled():
         return DISABLED
-    path = os.path.join(os.environ.get("ATULYA_AGENT_DATA_DIR", "data/agent"), "screenshot.png")
+    path = os.path.join(os.environ.get("ATULYA_AGENT_DATA_DIR", "kosh/agent"), "screenshot.png")
     audit("pc_screenshot", path=path)
     await asyncio.to_thread(_gui().screenshot, path)
     return f"Saved a screenshot to {path}."

@@ -2,7 +2,7 @@
 
 Stores users in a JSON file at {project_root}/data/users.json.
 Passwords are hashed with PBKDF2-HMAC-SHA256 + per-user salt.
-Sessions are persisted to data/sessions.json so they survive a server restart.
+Sessions are persisted to kosh/sessions.json so they survive a server restart.
 """
 
 from __future__ import annotations
@@ -21,8 +21,8 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 _ROOT = Path(__file__).resolve().parents[2]
-USERS_FILE = _ROOT / "data" / "users.json"
-SESSIONS_FILE = _ROOT / "data" / "sessions.json"
+USERS_FILE = _ROOT / "kosh" / "users.json"
+SESSIONS_FILE = _ROOT / "kosh" / "sessions.json"
 
 _lock = threading.Lock()
 
@@ -254,7 +254,7 @@ def seed_default_admin() -> None:
     """Create a default admin user if no users exist.
 
     Uses ATULYA_DASHBOARD_TOKEN env var as default admin password,
-    or generates a random one and writes it to data/admin_token.txt.
+    or generates a random one and writes it to kosh/admin_token.txt.
     """
     with _lock:
         store = _read_store()
@@ -267,7 +267,7 @@ def seed_default_admin() -> None:
     create_user("admin", password, role="admin", display_name="Admin")
 
     if not os.environ.get("ATULYA_DASHBOARD_TOKEN"):
-        token_file = _ROOT / "data" / "admin_token.txt"
+        token_file = _ROOT / "kosh" / "admin_token.txt"
         token_file.parent.mkdir(parents=True, exist_ok=True)
         token_file.write_text(password, encoding="utf-8")
         print("\n  +------------------------------------------+")

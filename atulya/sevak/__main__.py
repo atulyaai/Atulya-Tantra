@@ -26,6 +26,9 @@ def main() -> None:
     from atulya.envfile import load_env
     from atulya.raksha.lockdown import bind_host
 
+    from atulya.kosh import migrate_all
+
+    migrate_all()  # an old `data` folder becomes `kosh`, once
     found = load_env()
     print("\n  Settings: " + (", ".join(str(p) for p in found) if found else "no .env file found next to start.bat"))
     _brain_report()

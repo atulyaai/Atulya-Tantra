@@ -414,7 +414,7 @@ class IRCChannel(WebhookChannel):
 
 
 class ChannelRegistry:
-    def __init__(self, data_dir: str | Path = "data/channels"):
+    def __init__(self, data_dir: str | Path = "kosh/channels"):
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self._channels: dict[str, ChannelBase] = {}
@@ -465,7 +465,7 @@ class ChannelRegistry:
 class NotificationSystem:
     """Notification facade backed by the unified channel registry."""
 
-    def __init__(self, data_dir: str | Path = "data/channels"):
+    def __init__(self, data_dir: str | Path = "kosh/channels"):
         self.registry = create_default_registry(data_dir)
         self._notifications: list[Notification] = []
         self._notif_lock = threading.Lock()
@@ -502,7 +502,7 @@ class NotificationSystem:
             return {"total_sent": len(self._notifications), "by_channel": by_channel}
 
 
-def create_default_registry(data_dir: str | Path = "data/channels") -> ChannelRegistry:
+def create_default_registry(data_dir: str | Path = "kosh/channels") -> ChannelRegistry:
     registry = ChannelRegistry(data_dir)
     for channel in [
         ConsoleChannel(),

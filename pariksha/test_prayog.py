@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def load(name):
-    spec = importlib.util.spec_from_file_location(name, ROOT / "demo" / f"{name}.py")
+    spec = importlib.util.spec_from_file_location(name, ROOT / "prayog" / f"{name}.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -143,7 +143,7 @@ def test_atulya_uses_the_remote_brain_through_its_own_provider(monkeypatch):
 
 
 # ── the Colab notebook ──────────────────────────────────────────────────────────────────────────────
-NOTEBOOK = ROOT / "demo" / "colab" / "atulya_remote_brain.ipynb"
+NOTEBOOK = ROOT / "prayog" / "colab" / "atulya_remote_brain.ipynb"
 
 
 def test_notebook_is_valid_and_every_cell_parses():

@@ -1,14 +1,14 @@
-"""Try a bigger model on this computer: download it into demo/models/, measure it, and (optionally) make Atulya use it.
+"""Try a bigger model on this computer: download it into prayog/models/, measure it, and (optionally) make Atulya use it.
 
-    python demo/try_model.py --list              # what is available and what fits your free memory
-    python demo/try_model.py                     # try the biggest model that fits (asks before downloading)
-    python demo/try_model.py --model 4b          # download (once) and measure the 4B model
-    python demo/try_model.py --model 4b --chat   # then talk to it, to feel the speed and quality
-    python demo/try_model.py --model 4b --use    # make Atulya use it (writes ATULYA_GGUF_PATH to .env)
+    python prayog/try_model.py --list              # what is available and what fits your free memory
+    python prayog/try_model.py                     # try the biggest model that fits (asks before downloading)
+    python prayog/try_model.py --model 4b          # download (once) and measure the 4B model
+    python prayog/try_model.py --model 4b --chat   # then talk to it, to feel the speed and quality
+    python prayog/try_model.py --model 4b --use    # make Atulya use it (writes ATULYA_GGUF_PATH to .env)
 
 Needs:  pip install -e ".[brain]"   (llama-cpp-python)   and   pip install huggingface_hub
 Nothing here changes Atulya unless you pass --use. Models are public Qwen3 files from Hugging Face (about 0.4 to 9 GB).
-Results are appended to demo/results.md so you can compare models side by side.
+Results are appended to prayog/results.md so you can compare models side by side.
 """
 from __future__ import annotations
 
