@@ -270,3 +270,14 @@ class TestRoutinesApi:
         plan = client.post("/api/plan/preview", json={"text": "lock the door and turn off the lights"},
                            headers=h).json()["plan"]
         assert plan["source"] == "compound" and len(plan["steps"]) == 4
+
+
+def test_example_routines_are_only_offered_when_a_device_can_run_them(tmp_path, monkeypatch):
+    from atulya.buddhi import RoutineStore
+
+    monkeypatch.delenv("ATULYA_SIMULATED_HOME", raising=False)
+    monkeypatch.delenv("HOME_ASSISTANT_URL", raising=False)
+    monkeypatch.setenv("ATULYA_DEVICES_DIR", str(tmp_path / "devices"))   # no devices added
+    assert RoutineStore(tmp_path / "empty.json").list() == []
+    monkeypatch.setenv("ATULYA_SIMULATED_HOME", "on")                      # something can run them (the test switch)
+    assert len(RoutineStore(tmp_path / "seeded.json").list()) >= 3

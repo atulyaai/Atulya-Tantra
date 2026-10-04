@@ -189,12 +189,24 @@ def routine_steps(routine: dict[str, Any]) -> list[PlanStep]:
 
 
 # ── routines ──────────────────────────────────────────────────────────────
+def _has_devices_to_run_them() -> bool:
+    """The example routines turn lights on and lock doors. Only offer them when something real can do that
+    (Home Assistant, or a device you added); otherwise every step would just say "no hub is connected"."""
+    from atulya.kriya import simulated_home
+    from atulya.upakaran import HomeAssistantBridge, get_hub
+
+    try:
+        return simulated_home() or HomeAssistantBridge().configured or bool(get_hub().devices)
+    except Exception:  # noqa: BLE001 - a broken device file must not stop routines from loading
+        return False
+
+
 class RoutineStore:
     """Named step lists, kept in ATULYA_ROUTINES_FILE (default kosh/agent/routines.json)."""
 
     def __init__(self, path: str | Path | None = None, seed_defaults: bool = True):
         self.path = Path(path or os.environ.get("ATULYA_ROUTINES_FILE", _DEFAULT_ROUTINES_FILE))
-        if seed_defaults and not self.path.exists():
+        if seed_defaults and not self.path.exists() and _has_devices_to_run_them():
             self._save([dict(r) for r in DEFAULT_ROUTINES])
 
     def list(self) -> list[dict[str, Any]]:
