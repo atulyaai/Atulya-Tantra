@@ -175,7 +175,7 @@ async def api_voice_chat(
         # the brain answer with what was seen.
         brain_prompt = prompt
         if body.get("image"):
-            from atulya.drishti.eyes import as_context, look
+            from atulya.indriya.eyes import as_context, look
 
             try:
                 seen = await look(str(body["image"]), prompt)

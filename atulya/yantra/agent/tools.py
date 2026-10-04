@@ -692,7 +692,7 @@ def _simulate_home_control(device_id: str, action: str, value: str = "") -> str:
 
 @tool("camera_status", "What the cameras and door sensors have seen recently (is anyone at the door?)", {})
 async def camera_status() -> str:
-    from atulya.drishti import current_senses
+    from atulya.indriya import current_senses
 
     senses = current_senses()
     if senses is None:

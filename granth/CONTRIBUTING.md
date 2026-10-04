@@ -30,24 +30,23 @@
 
 This is the current ownership map after the package cleanup.
 
-The repo root intentionally has three product directories: `atulya/`,
-`atulya/`, and `web/`. Shared support files live inside the product folder
+The repo root intentionally has two product directories: `atulya/` (the Python) and `drishti/` (the screen). Shared support files live inside the product folder
 that owns them.
 
 Allowed root support directories:
 
 - `data/`: runtime-local app state such as generated voice audio, temp uploads, and scheduler state.
-- `docs/`: guides, architecture, security, features and images (the one place for documentation).
+- `granth/` (ग्रंथ, text): guides, architecture, security, features and images (the one place for documentation).
 
 Do not add new root directories unless they are documented here. New implementation should go into the owning product package.
 
 ### Folders
 
-The repo root has three code-and-docs folders (`atulya/`, `web/`, `docs/`), plus `tests/` and one local-data folder.
+The repo root has `atulya/` (all the Python), `drishti/` (the screen, दृष्टि), `granth/` (guides, ग्रंथ), `pariksha/` (tests, परीक्षा) and one local-data folder, `data/`, which keeps its English name so existing installs keep their data.
 
 - `data/`: everything Atulya stores on your machine (memory, accounts, sessions, chat history, audit log, tokens). Git-ignored. Override the agent part with `ATULYA_AGENT_DATA_DIR`.
-- `docs/`: guides, architecture, security, features and images (the one place for documentation).
-- `web/`: the animated screen. `src/` is the React source (`pages/Orb.jsx` the orb, `pages/Hologram.js` the head, `Panel.jsx` the pop-up shell), `public/` holds static files, `android/` the phone shell. `build.py` builds only when the source changed. `dist/` is generated.
+- `granth/` (ग्रंथ, text): guides, architecture, security, features and images (the one place for documentation).
+- `drishti/` (दृष्टि, sight): the animated screen. `src/` is the React source (`pages/Orb.jsx` the orb, `pages/Hologram.js` the head, `Panel.jsx` the pop-up shell), `public/` holds static files, `android/` the phone shell. `build.py` builds only when the source changed. `dist/` is generated.
 - `atulya/`: all the Python.
 
 ### Inside `atulya/`
@@ -57,7 +56,7 @@ Each folder has a Sanskrit/Hindi name that says what it does:
 - `buddhi/` (बुद्धि, intellect): the single pipeline every request goes through: `kernel` (perceive, understand, decide, act, remember, react), `safety` (what needs confirmation), `planner`, `triggers` (event-driven proactivity), `brain` (`ATULYA_BRAIN` tiers), plus `llm`, `intelligence` (the provider failover router), `local_provider` and `providers_catalog`. See [COGNITIVE_ARCHITECTURE.md](COGNITIVE_ARCHITECTURE.md).
 - `yantra/` (यंत्र, machine): everything Atulya can do. `agent/`: assistant tools (reminders, email, calendar, weather, media, money, tracking, briefing, web tasks, PC control), the intent router and the audit log. `capabilities/`: browser automation, documents, Google Workspace, Home Assistant, web search and the creation tools. `mcp/`: MCP server, client, signed manifests and `servers.json` (all integrations ship disabled).
 - `upakaran/` (उपकरण, devices): the device layer (profiles, ADB, Wake-on-LAN, Home Assistant, discovery, the hub). See [DEVICES.md](DEVICES.md).
-- `drishti/` (दृष्टि, sight): camera and home-sensor adapters, and `eyes` (reading pictures).
+- `indriya/` (इन्द्रिय, the senses): camera and home-sensor adapters, and `eyes` (reading pictures).
 - `shruti/` (श्रुति, hearing): the always-on listener: microphone, wake words (English and Hindi), barge-in, tray icon, autostart.
 - `smriti/` (स्मृति, memory): memory providers, session search, reflection, vectors, summary tree, Obsidian export.
 - `vani/` (वाणी, speech): the voice pipeline.
@@ -78,7 +77,7 @@ New code goes into the folder above that owns it. Do not add duplicate compatibi
 | Artifact | Location | Git? |
 |---|---|---|
 | Source code | `atulya/` | ✅ Yes |
-| Tests | `tests/` | ✅ Yes |
+| Tests | `pariksha/` | ✅ Yes |
 | Model weights | separate model repo / HF Hub | ❌ Never in git |
 
 ---
@@ -89,7 +88,7 @@ New code goes into the folder above that owns it. Do not add duplicate compatibi
 ```
 1. Assistant tool: add a function with `@tool(...)` under `atulya/yantra/agent/` and import its module at the bottom of `yantra/agent/tools.py`; if it acts on the outside world, add it to `_CONFIRM_TOOLS` in `buddhi/safety.py`.
    Heavier capability: add it under `atulya/yantra/capabilities/`.
-2. Add tests under tests/
+2. Add tests under pariksha/
 3. Run: python -m pytest -q
 ```
 
@@ -123,5 +122,5 @@ Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`
 ## Release Process
 
 1. Run all tests: `python -m pytest -q`
-2. Build the frontend: `cd web && npm run build`
+2. Build the frontend: `cd drishti && npm run build`
 3. Tag release: `git tag v0.3.1 && git push --tags`

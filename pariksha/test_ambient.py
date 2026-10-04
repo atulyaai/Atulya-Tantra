@@ -211,7 +211,7 @@ class TestServerRoundTrip:
         from atulya.sevak import helpers
         from atulya.sevak.app import app
         from atulya.events import EventBus
-        from atulya.drishti import Senses
+        from atulya.indriya import Senses
 
         monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")
         monkeypatch.delenv("HOME_ASSISTANT_URL", raising=False)

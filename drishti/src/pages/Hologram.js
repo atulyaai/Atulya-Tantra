@@ -45,7 +45,7 @@ function cometStart(s) {
 }
 
 const SKIN = [0.12, 0.3, 0.6];
-const HEAD_FILE_SCALE = 8000; // see web/bake_hologram_head.py
+const HEAD_FILE_SCALE = 8000; // see drishti/bake_hologram_head.py
 const MESH_SCALE = 3.2;
 const MESH_Y = 0.5; // eye level in the scene
 const MOUTH_Y = 0.27; // where the lips sit, for the lip glow

@@ -33,8 +33,8 @@ tantra/outputs/npdna/
 
 # Node / frontend
 node_modules/
-web/dist/
-web/.vite/
+drishti/dist/
+drishti/.vite/
 
 # OS / editor
 .DS_Store
@@ -50,7 +50,7 @@ runtime/
 
 # Runtime scratch / generated reports
 tmp/
-!web/public/hologram-head.bin
+!drishti/public/hologram-head.bin
 
 .claude/
 
