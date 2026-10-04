@@ -57,3 +57,7 @@ tmp/
 # Everything Atulya learns and stores on your machine (memory, accounts, logs, tokens)
 data/
 outputs/
+
+# demo: downloaded models and your own measurements
+demo/models/
+demo/results.md
