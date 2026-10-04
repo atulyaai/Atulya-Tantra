@@ -29,23 +29,41 @@ function fragments(text) {
 
 function layout(graph, w, h) {
   const base = { x: w / 2, y: h * 0.985 };
-  const fork = { x: w / 2, y: h * 0.66 };
+  const fork = { x: w / 2, y: h * 0.7 };
   const branches = ORDER.map((id) => graph.nodes.find((n) => n.id === `branch:${id}`)).filter(Boolean);
   const out = { base, fork, branches: [], leaves: [] };
-  const reach = Math.min(w * 0.42, h * 0.5);
+  const reach = Math.min(w * 0.46, h * 0.64);
   branches.forEach((b, i) => {
     const slots = branches.length;
     const frac = slots === 1 ? 0.5 : i / (slots - 1);
-    const angle = (frac - 0.5) * 2 * Math.min(1.1, 0.4 + slots * 0.12);
-    const len = reach * (i % 2 === 0 ? 1 : 0.68); // alternate long and short so neighbouring labels never collide
+    const angle = (frac - 0.5) * 2 * Math.min(1.2, 0.45 + slots * 0.13);
+    const len = reach * (i % 2 === 0 ? 1 : 0.74); // alternate long and short so neighbouring labels never collide
     const dir = { x: Math.sin(angle), y: -Math.cos(angle) };
     const tip = {
       x: Math.max(130, Math.min(w - 130, fork.x + dir.x * len)),
-      y: Math.max(150, fork.y + dir.y * len * 0.95),
+      y: Math.max(120, fork.y + dir.y * len * 0.95),
     };
     const bend = (hash(b.id + 'b') - 0.5) * len * 0.45;
     const ctrl = { x: fork.x + dir.x * len * 0.5 - dir.y * bend, y: fork.y + dir.y * len * 0.5 + dir.x * bend };
-    out.branches.push({ node: b, ctrl, tip, pts: Array.from({ length: SAMPLES + 1 }, (_, k) => bez(fork, ctrl, tip, k / SAMPLES)), order: i });
+    const kidCount = graph.nodes.filter((n) => n.kind === 'leaf' && n.group === b.group).length;
+    // Finer boughs that fork off the branch and fan outward. They are the structure of the canopy: more memories
+    // in a branch grow more of them. Only the golden nodes are real items; the pale buds are just ends of twigs.
+    const subs = Array.from({ length: 9 + Math.min(16, Math.round(Math.sqrt(kidCount) * 2.4)) }, (_, j) => {
+      const t0 = 0.22 + hash(`${b.id}s${j}`) * 0.68;
+      const from = bez(fork, ctrl, tip, t0);
+      const side = hash(`${b.id}d${j}`) < 0.5 ? -1 : 1;
+      const turn = angle + side * (0.45 + hash(`${b.id}a${j}`) * 0.75);
+      const sl = len * (0.2 + hash(`${b.id}l${j}`) * 0.26) * (1 - t0 * 0.3);
+      const end = { x: from.x + Math.sin(turn) * sl, y: from.y - Math.cos(turn) * sl * 0.9 };
+      const c = { x: (from.x + end.x) / 2 + side * sl * 0.18, y: (from.y + end.y) / 2 - sl * 0.2 };
+      const buds = Array.from({ length: 5 }, (_, q) => {
+        const a2 = turn + (q - 2) * 0.4 + (hash(`${b.id}q${j}${q}`) - 0.5) * 0.3;
+        const l2 = sl * (0.35 + hash(`${b.id}r${j}${q}`) * 0.3);
+        return { x: end.x + Math.sin(a2) * l2, y: end.y - Math.cos(a2) * l2 * 0.9 };
+      });
+      return { pts: Array.from({ length: 11 }, (_, k) => bez(from, c, end, k / 10)), end, buds };
+    });
+    out.branches.push({ node: b, ctrl, tip, subs, pts: Array.from({ length: SAMPLES + 1 }, (_, k) => bez(fork, ctrl, tip, k / SAMPLES)), order: i });
     const kids = graph.nodes.filter((n) => n.kind === 'leaf' && n.group === b.group);
     const spread = 26 + Math.min(70, Math.sqrt(kids.length) * 17);
     kids.forEach((leaf, k) => {
@@ -184,18 +202,18 @@ export function MemoryTree() {
 
       // Trunk: a twisting bundle of strands, as in the picture.
       const trunkP = ease((time - mounted.current) / 1200);
-      for (let s = 0; s < 9; s += 1) {
-        const off = (s - 4) * 3.2;
+      for (let s = 0; s < 17; s += 1) {
+        const off = (s - 8) * 2.7;
         const pts = Array.from({ length: 18 }, (_, k) => {
           const t = k / 17;
-          const wob = Math.sin(t * 5 + s) * 3.5 * (1 - t);
-          return sway({ x: g.base.x + off * (1 - t * 0.55) + wob, y: g.base.y + (g.fork.y - g.base.y) * t }, time);
+          const wob = Math.sin(t * 6 + s * 0.9) * 4 * (1 - t * 0.6);
+          return sway({ x: g.base.x + off * (1.5 - t * 1.0) + wob, y: g.base.y + (g.fork.y - g.base.y) * t }, time);
         });
-        strand(pts, trunkP, s === 4 ? 1.8 : 1.1, s === 4 ? 0.9 : 0.55, `rgb(${TEAL})`, 0);
+        strand(pts, trunkP, s === 8 ? 1.8 : 1.0, s === 8 ? 0.9 : 0.5, `rgb(${TEAL})`, 0);
       }
       ctx.shadowColor = 'rgb(60,200,190)';
       ctx.shadowBlur = 24;
-      strand([sway(g.base, time), sway(g.fork, time)], trunkP, 16, 0.07, 'rgb(60,200,190)', 0);
+      strand([sway(g.base, time), sway(g.fork, time)], trunkP, 34, 0.07, 'rgb(60,200,190)', 0);
       ctx.shadowBlur = 0;
 
       const tips = {};
@@ -209,7 +227,29 @@ export function MemoryTree() {
         ctx.shadowBlur = 14;
         strand(pts, p, 9, 0.1, 'rgb(60,200,190)', 0);
         ctx.shadowBlur = 0;
-        [-3.4, -1.7, 0, 1.7, 3.4].forEach((o) => strand(pts, p, 1, o === 0 ? 0.95 : 0.5, `rgb(${TEAL})`, o));
+        [-5, -3.4, -1.7, 0, 1.7, 3.4, 5].forEach((o) => strand(pts, p, 1, o === 0 ? 0.95 : 0.45, `rgb(${TEAL})`, o));
+        const sp = ease((time - (born.current[br.node.id] ?? mounted.current) - 900) / 1300);
+        if (sp > 0) {
+          br.subs.forEach((sub) => {
+            const sp2 = sub.pts.map((q) => sway(q, time));
+            strand(sp2, sp, 0.8, 0.4, `rgb(${TEAL})`, 0);
+            strand(sp2, sp, 0.6, 0.22, `rgb(${TEAL})`, 2.2);
+            const e = sp2[sp2.length - 1];
+            sub.buds.forEach((bd) => {
+              const q = sway(bd, time);
+              ctx.beginPath();
+              ctx.moveTo(e.x, e.y);
+              ctx.lineTo(e.x + (q.x - e.x) * sp, e.y + (q.y - e.y) * sp);
+              ctx.strokeStyle = `rgba(${TEAL},.25)`;
+              ctx.lineWidth = 0.5;
+              ctx.stroke();
+              ctx.beginPath();
+              ctx.arc(e.x + (q.x - e.x) * sp, e.y + (q.y - e.y) * sp, 1.3, 0, 7);
+              ctx.fillStyle = 'rgba(205,255,245,.55)';
+              ctx.fill();
+            });
+          });
+        }
         ctx.globalAlpha = 1;
         const end = pts[Math.max(1, Math.floor(pts.length * p)) - 1];
         tips[br.node.group] = { p: end, grown: p, dim };

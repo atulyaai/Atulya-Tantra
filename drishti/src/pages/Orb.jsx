@@ -497,6 +497,8 @@ export function Orb({ onMenu, toast, onCommand }) {
     };
   }, []);
 
+  const camVideoRef = useRef(null);
+
   async function toggleWebcam(on, deviceId) {
     setCamError('');
     if (!webcamRef.current) {
@@ -508,7 +510,7 @@ export function Orb({ onMenu, toast, onCommand }) {
         setCamOn(true);
         try { localStorage.setItem('atulya-cam', 'on'); } catch { /* private mode */ }
         detectCameras().then(setCams); // after permission the real names appear
-        requestAnimationFrame(() => { if (previewRef.current && video) previewRef.current.replaceChildren(video); });
+        camVideoRef.current = video; // the preview box mounts after this render; an effect below fills it
       } else {
         webcamRef.current.stop();
         setCamOn(false);
@@ -521,6 +523,9 @@ export function Orb({ onMenu, toast, onCommand }) {
     }
   }
   useEffect(() => () => webcamRef.current?.stop(), []);
+  useEffect(() => {
+    if (camOn && previewRef.current && camVideoRef.current) previewRef.current.replaceChildren(camVideoRef.current);
+  }, [camOn]);
 
   // Keep the newest line of a long answer in view inside the fixed caption box.
   useEffect(() => {

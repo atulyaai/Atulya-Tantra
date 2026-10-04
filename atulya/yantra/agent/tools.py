@@ -601,7 +601,7 @@ async def get_forecast(location: str, days: int = 3) -> str:
         return f"Could not get forecast for '{location}': {e}"
 
 
-# ── Tool: Home Automation Skills (simulated) ───────────────────────────────
+# ── Tool: Home Automation (Home Assistant only; no pretend devices) ─────────────────
 
 _HOME_DEVICES: dict[str, dict[str, Any]] = {
     "living_room_light": {"name": "Living Room Light", "type": "light", "state": "off", "brightness": 0},
@@ -612,12 +612,23 @@ _HOME_DEVICES: dict[str, dict[str, Any]] = {
 }
 
 
-@tool("home_list_devices", "List all home automation devices", {})
+def simulated_home() -> bool:
+    """Pretend lights/locks exist. Off in real use; only the test suite turns it on (ATULYA_SIMULATED_HOME=on)."""
+    return os.environ.get("ATULYA_SIMULATED_HOME", "").strip().lower() in ("1", "on", "true", "yes")
+
+
+_NO_HUB = ("No smart-home hub is connected, so I can't control lights, locks or heaters that way. "
+           "Add real devices with “scan for devices” (TVs, plugs, lights and more), or set HOME_ASSISTANT_URL and HOME_ASSISTANT_TOKEN.")
+
+
+@tool("home_list_devices", "List the devices in the connected Home Assistant hub", {})
 async def home_list_devices() -> str:
     from atulya.yantra.capabilities.home_assistant import HomeAssistantBridge
 
-    bridge = HomeAssistantBridge()
-    lines = ["Home Devices (connected to Home Assistant):" if bridge.configured else "Home Devices (simulated):"]
+    hub = HomeAssistantBridge().configured
+    if not hub and not simulated_home():
+        return _NO_HUB
+    lines = ["Home Devices (connected to Home Assistant):" if hub else "Home Devices (simulated):"]
     for did, dev in _HOME_DEVICES.items():
         extra = ""
         if dev["type"] == "light":
@@ -634,8 +645,7 @@ async def home_list_devices() -> str:
     "value": {"type": "string", "description": "Optional value (e.g. temperature or brightness)", "default": ""},
 })
 async def home_control(device_id: str, action: str, value: str = "") -> str:
-    # Real devices via Home Assistant when HOME_ASSISTANT_URL/TOKEN are set;
-    # otherwise the built-in simulation below.
+    # Real devices via Home Assistant only. Without a hub this says so, instead of pretending it worked.
     from atulya.yantra.capabilities.home_assistant import HomeAssistantBridge
 
     bridge = HomeAssistantBridge()
@@ -647,7 +657,7 @@ async def home_control(device_id: str, action: str, value: str = "") -> str:
         if device_id in _HOME_DEVICES:
             _simulate_home_control(device_id, action, value)  # mirror state for the dashboard
         return result
-    return _simulate_home_control(device_id, action, value)
+    return _simulate_home_control(device_id, action, value) if simulated_home() else _NO_HUB
 
 
 def _simulate_home_control(device_id: str, action: str, value: str = "") -> str:

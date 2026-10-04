@@ -162,7 +162,7 @@ export function Dashboard({ toast }) {
     ),
     home: (
       <Tile id="home" area="home" title="Smart home hub" open={full('home')} onOpen={pick}
-        badge={d.home.simulated ? <span className="db-chip">SIMULATED</span> : <span className="db-chip ok">LIVE</span>}>
+        badge={d.home.simulated && !d.home.devices.length ? null : <span className="db-chip ok">LIVE</span>}>
         <div className="db-devices">
           {d.home.devices.map((v) => (
             <div key={v.id} className={`db-dev ${v.state === 'on' ? 'on' : ''}`}>
@@ -172,7 +172,6 @@ export function Dashboard({ toast }) {
             </div>
           ))}
         </div>
-        {d.home.simulated && <small>No Home Assistant connected, so these are practice devices.</small>}
         <h4>Your devices</h4>
         {!d.fabric.length && <small>None added yet. Scan, or say “scan for devices”.</small>}
         <Fabric devices={d.fabric} admin={Boolean(d.system)} toast={toast} reload={load} full={full('home')} />
