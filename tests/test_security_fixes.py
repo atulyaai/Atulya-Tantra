@@ -27,7 +27,7 @@ def fake_dns(table):
 class TestSSRF:
     @pytest.fixture
     def guard(self):
-        from atulya.security import SSRFProtection
+        from atulya.raksha.security import SSRFProtection
 
         return SSRFProtection(resolver=fake_dns({
             "example.com": [PUBLIC], "localtest.me": ["127.0.0.1", "::1"], "mixed.test": [PUBLIC, "10.0.0.5"],
@@ -52,7 +52,7 @@ class TestSSRF:
 
 class TestWebFetch:
     def make(self, handler):
-        from atulya.capabilities import WebFetchTool
+        from atulya.yantra.capabilities import WebFetchTool
 
         return WebFetchTool(transport=httpx.MockTransport(handler),
                             resolver=fake_dns({"example.com": [PUBLIC], "evil.test": [PUBLIC], "inside.test": ["10.0.0.9"]}))
@@ -98,14 +98,14 @@ class TestWebFetch:
 
 class TestExec:
     def test_critical_command_is_rejected_not_a_crash(self):
-        from atulya.capabilities import ExecTool
+        from atulya.yantra.capabilities import ExecTool
 
         result = asyncio.run(ExecTool().execute("sudo rm -rf /", allow_exec=True, allow_list=["sudo"]))
         assert not result.success and "critical risk" in result.error
 
     @pytest.mark.skipif(sys.platform == "win32", reason="uses the POSIX echo")
     def test_allow_listed_command_runs(self):
-        from atulya.capabilities import ExecTool
+        from atulya.yantra.capabilities import ExecTool
 
         result = asyncio.run(ExecTool().execute("echo hello", allow_exec=True, allow_list=["echo"]))
         assert result.success and result.output.strip() == "hello"
@@ -121,7 +121,7 @@ def _cryptography_works() -> bool:
 
 @pytest.mark.skipif(not _cryptography_works(), reason="cryptography is unusable in this environment")
 def test_https_launcher_generates_certificates(tmp_path, monkeypatch):
-    from atulya.server import https as run_https
+    from atulya.sevak import https as run_https
 
     monkeypatch.setattr(run_https, "CERTS_DIR", tmp_path)
     cert, key = run_https._ensure_certs()
@@ -132,7 +132,7 @@ def test_https_launcher_generates_certificates(tmp_path, monkeypatch):
 
 class TestJwtSecret:
     def test_created_once_private_and_reused(self, tmp_path, monkeypatch):
-        from atulya.server import state
+        from atulya.sevak import state
 
         path = tmp_path / "data" / "jwt_secret.key"
         monkeypatch.delenv("ATULYA_JWT_SECRET", raising=False)
@@ -145,7 +145,7 @@ class TestJwtSecret:
         assert state._load_jwt_secret() == first  # a restart or another worker gets the same key
 
     def test_explicit_settings_win(self, tmp_path, monkeypatch):
-        from atulya.server import state
+        from atulya.sevak import state
 
         monkeypatch.setenv("ATULYA_JWT_SECRET_FILE", str(tmp_path / "k"))
         monkeypatch.setenv("ATULYA_JWT_SECRET", "from-env")
@@ -160,7 +160,7 @@ class TestJwtSecret:
 
 def test_cors_never_allows_credentials_for_any_origin():
     from fastapi.testclient import TestClient
-    from atulya.server.app import app
+    from atulya.sevak.app import app
 
     resp = TestClient(app).get("/api/health", headers={"Origin": "https://evil.example"})
     assert resp.headers.get("access-control-allow-origin") == "*"

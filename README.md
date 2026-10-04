@@ -27,10 +27,10 @@
  +--------------------------------------------------------------------------+
  |                         HOW ATULYA WORKS                                 |
  |                                                                          |
- |  Your voice or text --> hologram screen (web/) --> server (atulya/server)|
+ |  Your voice or text --> hologram screen (web/) --> server (atulya/sevak)|
  |                                  |                                       |
  |                                  v                                       |
- |                 thinking kernel (atulya/cognition)                       |
+ |                 thinking kernel (atulya/buddhi)                       |
  |            /              |                 \                            |
  |     brain: cloud       memory: what you     tools: music, email,         |
  |     or local model     told it, habits      calendar, PC, home           |
@@ -67,7 +67,7 @@ First start takes a minute. Manual start instead of `start.bat`:
 ```powershell
 python -m pip install -e ".[serve]"
 cd web; npm install; npm run build; cd ..
-python -m atulya.server
+python -m atulya.sevak
 ```
 
 Optional extras: `.[ambient]` (always-on listener: `atulya listen`), `.[control]` (PC control), `.[vision]` (camera, OCR), `.[brain]` (a local model), `.[wake]` (wake-word model, Piper voice), `.[docs]` (document tools), `.[browser]` (browser automation).
@@ -133,27 +133,29 @@ OTPs, offers and due reminders are ignored, and the same transaction arriving by
 
 ## Layout
 
-All Python is in `atulya/`, the screen is `web/`, and everything Atulya stores lives in one `data/` folder.
+All Python is in `atulya/`, the screen is `web/`, and everything Atulya stores lives in one `data/` folder. Each part of Atulya has a Sanskrit/Hindi name that says what it does.
+
+| Folder | Name | Meaning | What lives here |
+|---|---|---|---|
+| `atulya/buddhi/` | बुद्धि | intellect | The thinking: kernel, planner, safety rules, triggers, the brain tiers, the language model and the provider failover router |
+| `atulya/yantra/` | यंत्र | machine, tool | Everything Atulya can *do*: `agent/` (reminders, email, calendar, music, money, web tasks, PC control, intent router), `capabilities/` (browser, documents, Google, Home Assistant, web search), `mcp/` (outside tools) |
+| `atulya/upakaran/` | उपकरण | devices | The device layer: TVs, phones, lights, PCs through profiles, ADB, Wake-on-LAN and Home Assistant |
+| `atulya/drishti/` | दृष्टि | sight | Camera, motion, home sensors, reading pictures |
+| `atulya/shruti/` | श्रुति | hearing | The always-on listener: microphone, wake word (English and Hindi), barge-in, tray |
+| `atulya/smriti/` | स्मृति | memory | Memory: vectors, session search, reflection, summary tree, Obsidian export |
+| `atulya/vani/` | वाणी | speech | The voice pipeline |
+| `atulya/sandesh/` | संदेश | message | Telegram, Discord, Slack, email and other messaging channels |
+| `atulya/sevak/` | सेवक | servant, server | The web server: API routes, accounts, chat history |
+| `atulya/raksha/` | रक्षा | protection | Encryption at rest (vault), security helpers, lockdown |
+| `atulya/bhava/` | भाव | feeling, character | Mood, persona and identity |
 
 ```text
 Atulya-Tantra/
-|-- atulya/                     # all the Python
-|   |-- cognition/              # kernel, safety, planner, triggers, brain tiers
-|   |-- agent/                  # assistant tools: reminders, email, calendar, weather, music,
-|   |                           #   tracking, briefing, PC control, audit log; intent router
-|   |-- ambient/                # always-on listener: mic, wake word (EN/HI), barge-in, tray
-|   |-- memory/                 # memory providers, reflection, vectors, Obsidian export
-|   |-- capabilities/           # browser, documents, voice, Google, Home Assistant, web search
-|   |-- senses/                 # camera, motion, home sensors
-|   |-- mcp/                    # MCP server and client (+ servers.json)
-|   |-- server/                 # the web server: API routes, accounts, chat history
-|   |-- llm.py, intelligence.py # the brain and the provider failover router
-|   |-- local_provider.py       # local GGUF model
-|   |-- channels.py             # Telegram, Discord, Slack, email ... messaging
-|   `-- persona.py, emotion.py, eyes.py, heartbeat.py, events.py, security.py, cli.py ...
+|-- atulya/                     # all the Python (the folders above, plus a few shared files:
+|   |                           #   cli.py, config.py, envfile.py, events.py, heartbeat.py, textutil.py ...)
 |-- web/                        # the animated screen (React + Vite): src/, public/, android/
-|-- docs/                       # guides, architecture, security, features, images
-|-- tests/                      # test suite
+|-- docs/                       # guides, architecture, security, features, status, images
+|-- tests/                      # test suite (one folder per big part, for example tests/upakaran/)
 |-- data/                       # everything Atulya stores locally (git-ignored)
 |-- pyproject.toml, start.bat, Dockerfile, docker-compose.yml
 `-- .env                        # your keys (git-ignored)
@@ -166,7 +168,7 @@ More detail: [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md). The cognitive pipelin
 ```mermaid
 flowchart LR
     You["You: voice or text"] --> Web["web/ (the orb)"]
-    Web --> Server["atulya.server"]
+    Web --> Server["atulya.sevak"]
     Server --> Kernel["cognition kernel"]
     Kernel --> Tools["tools: agent/, capabilities/"]
     Kernel --> Brain["brain: cloud or local"]
@@ -174,11 +176,11 @@ flowchart LR
     Tools --> Safety["safety: risky actions ask first"]
 ```
 
-Assistant tools live in `atulya/agent/` and register themselves with `@tool`. Risky ones (sending email, deleting events, PC control) ask first by default (`ATULYA_AUTO_APPROVE` can pre-approve specific ones), and every call is appended to `data/agent/audit.jsonl`.
+Assistant tools live in `atulya/yantra/agent/` and register themselves with `@tool`. Risky ones (sending email, deleting events, PC control) ask first by default (`ATULYA_AUTO_APPROVE` can pre-approve specific ones), and every call is appended to `data/agent/audit.jsonl`.
 
 ## Memory
 
-Atulya's memory is in `atulya/memory/`: a vector store and session search (what the brain uses), plus reflection, a hierarchical summary tree and Obsidian export. A small local model copies recalled answers back, so with it memory is only shown when you ask about the past. Your profile (facts it learned, habits, what you trust it to do without asking) is under the **About you** pop-up. Identity and prompt rules are in `atulya/persona.py`; an optional override goes in `data/identity.json`.
+Atulya's memory is in `atulya/smriti/`: a vector store and session search (what the brain uses), plus reflection, a hierarchical summary tree and Obsidian export. A small local model copies recalled answers back, so with it memory is only shown when you ask about the past. Your profile (facts it learned, habits, what you trust it to do without asking) is under the **About you** pop-up. Identity and prompt rules are in `atulya/bhava/persona.py`; an optional override goes in `data/identity.json`.
 
 ## Development
 

@@ -3,9 +3,9 @@ from datetime import datetime
 
 import pytest
 
-from atulya.agent import money as m
-from atulya.agent import tools as t
-from atulya.agent.intent_router import route_intent
+from atulya.yantra.agent import money as m
+from atulya.yantra.agent import tools as t
+from atulya.yantra.agent.intent_router import route_intent
 
 NOW = datetime(2026, 10, 15, 10, 0)
 
@@ -124,7 +124,7 @@ def test_snapshot_and_bill_event_once(monkeypatch):
 
 
 def test_tools_with_a_parameter_called_name_run_through_the_registry():
-    from atulya.cognition.toolbelt import build_unified_registry
+    from atulya.buddhi.toolbelt import build_unified_registry
 
     registry = build_unified_registry()
     result = run(registry.execute("bill_add", name="rent", amount=15000, due_day=5))
@@ -210,8 +210,8 @@ def test_email_text_and_tool(monkeypatch):
 def test_sms_inbox_endpoint_is_locked_to_its_own_key(monkeypatch, tmp_path):
     from fastapi.testclient import TestClient
 
-    from atulya.server.app import app
-    from atulya.server.state import ADMIN_TOKEN
+    from atulya.sevak.app import app
+    from atulya.sevak.state import ADMIN_TOKEN
 
     monkeypatch.setenv("ATULYA_AGENT_DATA_DIR", str(tmp_path))
     c = TestClient(app)

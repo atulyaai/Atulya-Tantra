@@ -98,7 +98,7 @@ class HeartbeatSystem:
         try:
             # Reuse the live brain's router rather than building (and possibly
             # re-downloading a model for) a new one every interval.
-            from atulya.llm import get_default_llm
+            from atulya.buddhi.llm import get_default_llm
             router = get_default_llm().router
             available = [p.name() for p in router.providers if p.is_available()]
             if not available:

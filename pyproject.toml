@@ -93,13 +93,13 @@ dev = [
 
 [project.scripts]
 atulya = "atulya.cli:main"
-atulya-listen = "atulya.ambient.cli:main"
+atulya-listen = "atulya.shruti.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["atulya*"]
 
 [tool.setuptools.package-data]
-"atulya.devices" = ["profiles/*.json"]
+"atulya.upakaran" = ["profiles/*.json"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

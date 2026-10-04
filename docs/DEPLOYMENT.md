@@ -16,7 +16,7 @@ Open http://localhost:80
 python -m venv venv
 source venv/bin/activate  # or .\venv\Scripts\Activate.ps1
 pip install -e ".[serve,dev]"
-uvicorn atulya.server.app:app --host 0.0.0.0 --port 8000
+uvicorn atulya.sevak.app:app --host 0.0.0.0 --port 8000
 ```
 
 ## Environment Variables
@@ -34,7 +34,7 @@ uvicorn atulya.server.app:app --host 0.0.0.0 --port 8000
 
 ## MCP Servers
 
-Edit `atulya/mcp/servers.json` to enable integrations (filesystem, git, browser, Google Drive, Gmail, etc.). All start disabled by default.
+Edit `atulya/yantra/mcp/servers.json` to enable integrations (filesystem, git, browser, Google Drive, Gmail, etc.). All start disabled by default.
 
 ## Production
 
@@ -94,7 +94,7 @@ Drive uses the free service-account path, which is simpler than user OAuth for a
 GOOGLE_SERVICE_ACCOUNT_KEY={"type":"service_account","project_id":"..."}
 ```
 
-8. Set `google_drive.enabled` to `true` in `atulya/mcp/servers.json`.
+8. Set `google_drive.enabled` to `true` in `atulya/yantra/mcp/servers.json`.
 
 ### Gmail
 
@@ -127,7 +127,7 @@ node install/generate_gmail_refresh_token.mjs
 ```
 
 9. Copy only the printed `GMAIL_REFRESH_TOKEN=...` line into `.env`.
-10. Set `gmail.enabled` to `true` in `atulya/mcp/servers.json`.
+10. Set `gmail.enabled` to `true` in `atulya/yantra/mcp/servers.json`.
 
 ### Verify
 

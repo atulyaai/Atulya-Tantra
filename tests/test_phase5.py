@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from atulya.capabilities import create_default_registry
-from atulya.capabilities.business_automation import (
+from atulya.yantra.capabilities import create_default_registry
+from atulya.yantra.capabilities.business_automation import (
     HRAttendancePayrollTool,
     DataScrubberTool,
     GSTReconciliationTool,
@@ -202,7 +202,7 @@ def test_merge_env_defaults_preserves_existing_values(tmp_path):
 def test_ollama_provider_reads_env(monkeypatch):
     monkeypatch.setenv("ATULYA_OLLAMA_MODEL", "qwen3:8b")
     monkeypatch.setenv("ATULYA_OLLAMA_HOST", "http://localhost:11434")
-    from atulya.intelligence import OllamaProvider
+    from atulya.buddhi.intelligence import OllamaProvider
 
     p = OllamaProvider()
     assert p.model_name == "qwen3:8b"
@@ -213,14 +213,14 @@ def test_ollama_provider_reads_env(monkeypatch):
 def test_ollama_provider_unavailable_offline(monkeypatch):
     # Point Ollama at a port nothing listens on and confirm it reports unavailable.
     monkeypatch.setenv("ATULYA_OLLAMA_HOST", "http://127.0.0.1:1")
-    from atulya.intelligence import OllamaProvider
+    from atulya.buddhi.intelligence import OllamaProvider
 
     p = OllamaProvider()
     assert p.is_available() is False
 
 
 def test_ollama_provider_in_failover_chain():
-    from atulya.intelligence import ProviderRouter
+    from atulya.buddhi.intelligence import ProviderRouter
     router = ProviderRouter()
     names = [p.name() for p in router.providers]
     assert any("Ollama" in n for n in names)
@@ -231,7 +231,7 @@ import asyncio
 
 
 def test_automation_runner_executes_due_job(tmp_path):
-    from atulya.server.automation_runner import AutomationRunner
+    from atulya.sevak.automation_runner import AutomationRunner
 
     class FakeLLM:
         async def ask(self, command, tools_enabled=True):
@@ -256,7 +256,7 @@ def test_automation_runner_executes_due_job(tmp_path):
 
 
 def test_mcp_config_ships_disabled_by_default():
-    data = json.loads(open("atulya/mcp/servers.json", encoding="utf-8").read())
+    data = json.loads(open("atulya/yantra/mcp/servers.json", encoding="utf-8").read())
     assert len(data["servers"]) >= 8
     assert all("enabled" in server for server in data["servers"])
     assert all("timeout" in server for server in data["servers"])
@@ -268,7 +268,7 @@ def test_mcp_config_ships_disabled_by_default():
 
 
 def test_mcp_http_url_is_not_double_suffixed(monkeypatch):
-    from atulya.mcp.external_client import MCPClient, MCPClientConfig
+    from atulya.yantra.mcp.external_client import MCPClient, MCPClientConfig
 
     captured = {}
 
@@ -299,7 +299,7 @@ def test_mcp_http_url_is_not_double_suffixed(monkeypatch):
 
 
 def test_automation_runner_run_job_reports_missing_command(tmp_path):
-    from atulya.server.automation_runner import AutomationRunner
+    from atulya.sevak.automation_runner import AutomationRunner
 
     class FakeLLM:
         async def ask(self, command, tools_enabled=True):
@@ -315,7 +315,7 @@ def test_automation_runner_run_job_reports_missing_command(tmp_path):
 
 
 def test_provider_router_keeps_gemini_as_rare_fallback(monkeypatch):
-    from atulya.intelligence import ProviderRouter
+    from atulya.buddhi.intelligence import ProviderRouter
 
     providers = ProviderRouter().providers
     types_found = set(type(p).__name__ for p in providers)
@@ -324,7 +324,7 @@ def test_provider_router_keeps_gemini_as_rare_fallback(monkeypatch):
 
 
 def test_office_tools_are_registered(tmp_path):
-    from atulya.capabilities import create_default_registry
+    from atulya.yantra.capabilities import create_default_registry
 
     registry = create_default_registry()
     names = {tool["name"] for tool in registry.list_tools()}
@@ -333,7 +333,7 @@ def test_office_tools_are_registered(tmp_path):
 
 
 def test_csv_analyze_tool(tmp_path):
-    from atulya.capabilities import create_default_registry
+    from atulya.yantra.capabilities import create_default_registry
 
     async def run():
         csv_path = tmp_path / "data.csv"
@@ -351,8 +351,8 @@ def test_csv_analyze_tool(tmp_path):
 
 
 def test_mcp_server_jsonrpc_tool_call(tmp_path):
-    from atulya.capabilities import Tool, ToolRegistry, ToolResult
-    from atulya.mcp.server import MCPServer
+    from atulya.yantra.capabilities import Tool, ToolRegistry, ToolResult
+    from atulya.yantra.mcp.server import MCPServer
 
     class DemoTool(Tool):
         name = "demo"
@@ -379,7 +379,7 @@ def test_mcp_server_jsonrpc_tool_call(tmp_path):
 
 
 def test_telegram_webhook_routes_message():
-    from atulya.channels import TelegramChannel
+    from atulya.sandesh import TelegramChannel
 
     class FakeLLM:
         async def ask(self, prompt, history=None):

@@ -38,7 +38,7 @@ def main() -> None:
 
     load_env()
     if len(sys.argv) > 1 and sys.argv[1] == "listen":  # the always-listening app has its own options
-        from atulya.ambient.cli import main as listen
+        from atulya.shruti.cli import main as listen
 
         raise SystemExit(listen(sys.argv[2:]))
     if hasattr(sys.stdout, "reconfigure"):
@@ -231,7 +231,7 @@ def _merge_env_defaults(path: Path, defaults: dict[str, str]) -> dict[str, str]:
 
 
 async def _cmd_run(args: argparse.Namespace) -> None:
-    from atulya.llm import AtulyaLLM
+    from atulya.buddhi.llm import AtulyaLLM
 
     llm = AtulyaLLM(allow_exec=args.allow_exec)
     history = [] if args.no_session else _load_session(args.session)
@@ -253,7 +253,7 @@ async def _cmd_run(args: argparse.Namespace) -> None:
 
 
 async def _cmd_chat(args: argparse.Namespace) -> None:
-    from atulya.llm import AtulyaLLM
+    from atulya.buddhi.llm import AtulyaLLM
 
     llm = AtulyaLLM(allow_exec=args.allow_exec)
     history = [] if args.no_session else _load_session(args.session)
@@ -293,7 +293,7 @@ async def _cmd_chat(args: argparse.Namespace) -> None:
 
 
 def _cmd_providers() -> None:
-    from atulya.intelligence import ProviderRouter
+    from atulya.buddhi.intelligence import ProviderRouter
 
     router = ProviderRouter()
     rows = []
@@ -308,7 +308,7 @@ def _cmd_providers() -> None:
 
 
 def _cmd_tools() -> None:
-    from atulya.capabilities import create_default_registry
+    from atulya.yantra.capabilities import create_default_registry
 
     registry = create_default_registry()
     tools = registry.list_tools()
@@ -337,8 +337,8 @@ def _cmd_readiness() -> None:
 
 
 def _cmd_model(args: argparse.Namespace) -> None:
-    from atulya.cognition.brain import local_model_spec
-    from atulya.local_provider import _resolve_model_path, _DEFAULT_MODEL_DIR
+    from atulya.buddhi.brain import local_model_spec
+    from atulya.buddhi.local_provider import _resolve_model_path, _DEFAULT_MODEL_DIR
 
     subcmd = getattr(args, "model_command", None)
 

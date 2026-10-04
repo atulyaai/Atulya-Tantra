@@ -58,7 +58,7 @@ if errorlevel 1 (
 )
 if not defined ATULYA_AUTO_DOWNLOAD_MODEL set "ATULYA_AUTO_DOWNLOAD_MODEL=true"
 echo   Checking the brain model - the first run downloads about 400 MB...
-python -c "from atulya.local_provider import _ensure_model; p = _ensure_model(); print('   Brain model: ' + (p.name if p else 'not downloaded'))"
+python -c "from atulya.buddhi.local_provider import _ensure_model; p = _ensure_model(); print('   Brain model: ' + (p.name if p else 'not downloaded'))"
 
 :after_local_brain
 
@@ -96,6 +96,6 @@ echo.
 
 start "" cmd /c "timeout /t 2 >nul & start http://%ATULYA_HOST%:%ATULYA_PORT%"
 
-python -m atulya.server
+python -m atulya.sevak
 
 pause

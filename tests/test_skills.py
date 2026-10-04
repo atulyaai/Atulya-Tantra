@@ -4,9 +4,9 @@ import json
 
 import pytest
 
-from atulya.agent import audit as audit_mod
-from atulya.agent import pc_control, tools, tracking
-from atulya.cognition.safety import assess
+from atulya.yantra.agent import audit as audit_mod
+from atulya.yantra.agent import pc_control, tools, tracking
+from atulya.buddhi.safety import assess
 
 
 @pytest.fixture(autouse=True)

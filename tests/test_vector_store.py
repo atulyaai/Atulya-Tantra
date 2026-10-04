@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from atulya.memory.vector_store import VectorMemoryProvider, _cosine_similarity, _hash_embed
-from atulya.memory.orchestrator import MemoryEntry
+from atulya.smriti.vector_store import VectorMemoryProvider, _cosine_similarity, _hash_embed
+from atulya.smriti.orchestrator import MemoryEntry
 
 
 class TestHashEmbed:

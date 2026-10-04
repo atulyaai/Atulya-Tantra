@@ -20,10 +20,10 @@ class RecordingRouter:
 
 
 def make_kernel(tmp_path):
-    from atulya.cognition.kernel import CognitiveKernel
-    from atulya.cognition.planner import Planner, RoutineStore
-    from atulya.cognition.profile import ProfileStore
-    from atulya.llm import AtulyaLLM
+    from atulya.buddhi.kernel import CognitiveKernel
+    from atulya.buddhi.planner import Planner, RoutineStore
+    from atulya.buddhi.profile import ProfileStore
+    from atulya.buddhi.llm import AtulyaLLM
 
     llm = AtulyaLLM()
     llm.router = RecordingRouter()
@@ -60,7 +60,7 @@ def _simulated_home(monkeypatch):
     ("remember that I take my medicine at 9", ("note", "note", "you take your medicine at 9")),
 ])
 def test_extracts_facts(text, expected):
-    from atulya.cognition.profile import extract_facts
+    from atulya.buddhi.profile import extract_facts
 
     facts = extract_facts(text)
     assert (facts[0]["kind"], facts[0]["key"], facts[0]["value"]) == expected
@@ -69,7 +69,7 @@ def test_extracts_facts(text, expected):
 @pytest.mark.parametrize("text", ["my wife is angry", "what's my wife's name?", "I'd like a coffee", "I like it",
                                   "turn on the kitchen light", "how do I like this"])
 def test_ignores_non_facts(text):
-    from atulya.cognition.profile import extract_facts
+    from atulya.buddhi.profile import extract_facts
 
     assert extract_facts(text) == []
 
@@ -176,7 +176,7 @@ class TestApprovals:
         assert say(kernel, "unlock the front door", user=other_admin).needs_approval
 
     def test_code_execution_is_never_learnable(self, tmp_path):
-        from atulya.cognition.profile import ProfileStore
+        from atulya.buddhi.profile import ProfileStore
 
         store = ProfileStore(tmp_path)
         for _ in range(10):
@@ -205,7 +205,7 @@ def _at(day: int, hour: int, minute: int = 0) -> float:
 
 class TestHabits:
     def test_habit_needs_three_days_around_the_same_hour(self, tmp_path):
-        from atulya.cognition.profile import ProfileStore
+        from atulya.buddhi.profile import ProfileStore
 
         store = ProfileStore(tmp_path)
         args = {"device_id": "kitchen_light", "action": "on"}
@@ -217,7 +217,7 @@ class TestHabits:
         assert habit["label"] == "turn on the kitchen light" and habit["when"] == "around 7 AM"
 
     def test_scattered_times_are_not_a_habit(self, tmp_path):
-        from atulya.cognition.profile import ProfileStore
+        from atulya.buddhi.profile import ProfileStore
 
         store = ProfileStore(tmp_path)
         for day, hour in ((1, 7), (2, 13), (3, 19), (4, 23)):
@@ -226,7 +226,7 @@ class TestHabits:
         assert store.habits("atul") == []
 
     def test_due_once_per_day_and_not_if_already_done(self, tmp_path):
-        from atulya.cognition.profile import ProfileStore
+        from atulya.buddhi.profile import ProfileStore
 
         store = ProfileStore(tmp_path)
         args = {"device_id": "kitchen_light", "action": "on"}
@@ -246,8 +246,8 @@ class TestHabits:
         assert kernel.profiles.load("automation")["habits"] == {}
 
     def test_watcher_publishes_due_habits(self, tmp_path, monkeypatch):
-        from atulya.cognition import profile as profile_mod
-        from atulya.cognition.profile import ProfileStore, watch_habits
+        from atulya.buddhi import profile as profile_mod
+        from atulya.buddhi.profile import ProfileStore, watch_habits
 
         store = ProfileStore(tmp_path)
         monkeypatch.setattr(store, "users", lambda: ["atul"])
@@ -273,9 +273,9 @@ class TestProfileApi:
     @pytest.fixture
     def client(self, tmp_path, monkeypatch):
         from fastapi.testclient import TestClient
-        from atulya.server import helpers
-        from atulya.server.app import app
-        from atulya.llm import AtulyaLLM
+        from atulya.sevak import helpers
+        from atulya.sevak.app import app
+        from atulya.buddhi.llm import AtulyaLLM
 
         monkeypatch.setenv("ATULYA_PROFILE_DIR", str(tmp_path / "profiles"))
         monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")

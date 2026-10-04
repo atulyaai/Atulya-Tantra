@@ -23,4 +23,4 @@ RUN pip install -e ".[serve]"
 
 VOLUME /app/data
 EXPOSE 8501
-CMD ["python", "-m", "atulya.server"]
+CMD ["python", "-m", "atulya.sevak"]

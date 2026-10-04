@@ -3,7 +3,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from atulya import vault
+from atulya.raksha import vault
 
 
 @pytest.fixture(autouse=True)
@@ -71,10 +71,10 @@ def test_plain_files_are_encrypted_on_demand_and_only_private_ones(tmp_path, mon
 
 
 def test_money_and_chat_history_and_profiles_use_the_vault(tmp_path, monkeypatch):
-    from atulya.agent import money as m
-    from atulya.agent import tools as t
-    from atulya.cognition.profile import ProfileStore
-    from atulya.server import chat_history
+    from atulya.yantra.agent import money as m
+    from atulya.yantra.agent import tools as t
+    from atulya.buddhi.profile import ProfileStore
+    from atulya.sevak import chat_history
 
     monkeypatch.setenv("ATULYA_VAULT_PASSPHRASE", "p")
     monkeypatch.setattr(t, "_DATA_DIR", tmp_path)
@@ -101,8 +101,8 @@ def test_money_and_chat_history_and_profiles_use_the_vault(tmp_path, monkeypatch
 
 
 def test_routes_report_status_and_a_locked_vault_is_423(tmp_path, monkeypatch):
-    from atulya.server.app import app
-    from atulya.server.state import ADMIN_TOKEN
+    from atulya.sevak.app import app
+    from atulya.sevak.state import ADMIN_TOKEN
 
     c = TestClient(app)
     assert c.get("/api/vault").status_code in (401, 403)
