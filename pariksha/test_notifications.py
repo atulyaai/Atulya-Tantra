@@ -10,19 +10,19 @@ import pytest
 class TestNotifications:
     @pytest.fixture
     def mock_auth(self):
-        with patch("atulya.sevak.api_home._require_auth") as m:
+        with patch("atulya.dwar_ghar._require_auth") as m:
             m.return_value = {"username": "testuser"}
             yield m
 
     @pytest.fixture
     def mock_admin(self):
-        with patch("atulya.sevak.helpers._require_admin") as m:
+        with patch("atulya.khata._require_admin") as m:
             m.return_value = {"username": "admin", "role": "admin"}
             yield m
 
     def test_subscribe(self, tmp_path, mock_auth):
-        from atulya.sevak.api_home import subscribe
-        import atulya.sevak.api_home as notif_mod
+        from atulya.dwar_ghar import subscribe
+        import atulya.dwar_ghar as notif_mod
         notif_mod.SUBS_FILE = tmp_path / "subs.json"
 
         result = subscribe({"subscription": {"endpoint": "https://push.test"}}, token="t")
@@ -32,8 +32,8 @@ class TestNotifications:
         assert data["testuser"] == [{"endpoint": "https://push.test"}]
 
     def test_subscribe_no_subscription(self, tmp_path, mock_auth):
-        from atulya.sevak.api_home import subscribe
-        import atulya.sevak.api_home as notif_mod
+        from atulya.dwar_ghar import subscribe
+        import atulya.dwar_ghar as notif_mod
         notif_mod.SUBS_FILE = tmp_path / "subs.json"
 
         from fastapi import HTTPException
@@ -41,8 +41,8 @@ class TestNotifications:
             subscribe({}, token="t")
 
     def test_unsubscribe(self, tmp_path, mock_auth):
-        from atulya.sevak.api_home import unsubscribe
-        import atulya.sevak.api_home as notif_mod
+        from atulya.dwar_ghar import unsubscribe
+        import atulya.dwar_ghar as notif_mod
         subs_file = tmp_path / "subs.json"
         notif_mod.SUBS_FILE = subs_file
         subs_file.write_text(json.dumps({"testuser": [{"endpoint": "https://push.test"}]}))
@@ -53,16 +53,16 @@ class TestNotifications:
         assert data["testuser"] == []
 
     def test_unsubscribe_no_file(self, tmp_path, mock_auth):
-        from atulya.sevak.api_home import unsubscribe
-        import atulya.sevak.api_home as notif_mod
+        from atulya.dwar_ghar import unsubscribe
+        import atulya.dwar_ghar as notif_mod
         notif_mod.SUBS_FILE = tmp_path / "subs.json"
 
         result = unsubscribe({"subscription": {"endpoint": "x"}}, token="t")
         assert result == {"ok": True}
 
     def test_test_notification(self, tmp_path, mock_auth, mock_admin):
-        from atulya.sevak.api_home import test_notification
-        import atulya.sevak.api_home as notif_mod
+        from atulya.dwar_ghar import test_notification
+        import atulya.dwar_ghar as notif_mod
         notif_mod.SUBS_FILE = tmp_path / "subs.json"
 
         result = test_notification({"title": "Hi", "message": "Test"}, token="t")

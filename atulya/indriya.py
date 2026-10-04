@@ -616,7 +616,7 @@ class Senses:
                 self._start_camera(str(cam["name"]), str(cam["source"]))
         bridge = self._home_bridge
         if bridge is None:
-            from atulya.yantra.home_assistant import HomeAssistantBridge
+            from atulya.upakaran import HomeAssistantBridge
 
             bridge = HomeAssistantBridge()
         if bridge.configured and os.environ.get("ATULYA_WATCH_HOME", "true").lower() not in ("0", "false", "no"):

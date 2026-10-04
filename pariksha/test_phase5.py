@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from atulya.yantra.capabilities import create_default_registry
-from atulya.yantra.business_automation import HRAttendancePayrollTool, DataScrubberTool, GSTReconciliationTool, AccountingERPTool, SAPAutomationTool
+from atulya.kaushal import create_default_registry
+from atulya.vyapar import HRAttendancePayrollTool, DataScrubberTool, GSTReconciliationTool, AccountingERPTool, SAPAutomationTool
 
 
 @pytest.mark.anyio
@@ -147,7 +147,7 @@ def test_registry_integration():
 
 
 def test_session_round_trip_uses_safe_name(tmp_path, monkeypatch):
-    from atulya import cli
+    from atulya import adesh as cli
 
     monkeypatch.setenv("ATULYA_CLI_SESSION_DIR", str(tmp_path))
     history = [
@@ -163,7 +163,7 @@ def test_session_round_trip_uses_safe_name(tmp_path, monkeypatch):
 
 
 def test_load_session_ignores_invalid_payload(tmp_path, monkeypatch):
-    from atulya import cli
+    from atulya import adesh as cli
 
     monkeypatch.setenv("ATULYA_CLI_SESSION_DIR", str(tmp_path))
     path = tmp_path / "sessions" / "bad.json"
@@ -174,7 +174,7 @@ def test_load_session_ignores_invalid_payload(tmp_path, monkeypatch):
 
 
 def test_merge_env_defaults_preserves_existing_values(tmp_path):
-    from atulya import cli
+    from atulya import adesh as cli
 
     env_path = Path(tmp_path) / ".env"
     env_path.write_text("ATULYA_OLLAMA_MODEL=custom\n", encoding="utf-8")
@@ -196,7 +196,7 @@ def test_merge_env_defaults_preserves_existing_values(tmp_path):
 def test_ollama_provider_reads_env(monkeypatch):
     monkeypatch.setenv("ATULYA_OLLAMA_MODEL", "qwen3:8b")
     monkeypatch.setenv("ATULYA_OLLAMA_HOST", "http://localhost:11434")
-    from atulya.buddhi.intelligence import OllamaProvider
+    from atulya.vahak import OllamaProvider
 
     p = OllamaProvider()
     assert p.model_name == "qwen3:8b"
@@ -207,14 +207,14 @@ def test_ollama_provider_reads_env(monkeypatch):
 def test_ollama_provider_unavailable_offline(monkeypatch):
     # Point Ollama at a port nothing listens on and confirm it reports unavailable.
     monkeypatch.setenv("ATULYA_OLLAMA_HOST", "http://127.0.0.1:1")
-    from atulya.buddhi.intelligence import OllamaProvider
+    from atulya.vahak import OllamaProvider
 
     p = OllamaProvider()
     assert p.is_available() is False
 
 
 def test_ollama_provider_in_failover_chain():
-    from atulya.buddhi.intelligence import ProviderRouter
+    from atulya.vahak import ProviderRouter
     router = ProviderRouter()
     names = [p.name() for p in router.providers]
     assert any("Ollama" in n for n in names)
@@ -225,7 +225,7 @@ import asyncio
 
 
 def test_automation_runner_executes_due_job(tmp_path):
-    from atulya.sevak.automation_runner import AutomationRunner
+    from atulya.dwar_karya import AutomationRunner
 
     class FakeLLM:
         async def ask(self, command, tools_enabled=True):
@@ -250,7 +250,7 @@ def test_automation_runner_executes_due_job(tmp_path):
 
 
 def test_mcp_config_ships_disabled_by_default():
-    data = json.loads(open("atulya/yantra/mcp_servers.json", encoding="utf-8").read())
+    data = json.loads(open("atulya/setu_servers.json", encoding="utf-8").read())
     assert len(data["servers"]) >= 8
     assert all("enabled" in server for server in data["servers"])
     assert all("timeout" in server for server in data["servers"])
@@ -262,7 +262,7 @@ def test_mcp_config_ships_disabled_by_default():
 
 
 def test_mcp_http_url_is_not_double_suffixed(monkeypatch):
-    from atulya.yantra.mcp import MCPClient, MCPClientConfig
+    from atulya.setu import MCPClient, MCPClientConfig
 
     captured = {}
 
@@ -293,7 +293,7 @@ def test_mcp_http_url_is_not_double_suffixed(monkeypatch):
 
 
 def test_automation_runner_run_job_reports_missing_command(tmp_path):
-    from atulya.sevak.automation_runner import AutomationRunner
+    from atulya.dwar_karya import AutomationRunner
 
     class FakeLLM:
         async def ask(self, command, tools_enabled=True):
@@ -309,7 +309,7 @@ def test_automation_runner_run_job_reports_missing_command(tmp_path):
 
 
 def test_provider_router_keeps_gemini_as_rare_fallback(monkeypatch):
-    from atulya.buddhi.intelligence import ProviderRouter
+    from atulya.vahak import ProviderRouter
 
     providers = ProviderRouter().providers
     types_found = set(type(p).__name__ for p in providers)
@@ -318,7 +318,7 @@ def test_provider_router_keeps_gemini_as_rare_fallback(monkeypatch):
 
 
 def test_office_tools_are_registered(tmp_path):
-    from atulya.yantra.capabilities import create_default_registry
+    from atulya.kaushal import create_default_registry
 
     registry = create_default_registry()
     names = {tool["name"] for tool in registry.list_tools()}
@@ -327,7 +327,7 @@ def test_office_tools_are_registered(tmp_path):
 
 
 def test_csv_analyze_tool(tmp_path):
-    from atulya.yantra.capabilities import create_default_registry
+    from atulya.kaushal import create_default_registry
 
     async def run():
         csv_path = tmp_path / "data.csv"
@@ -345,8 +345,8 @@ def test_csv_analyze_tool(tmp_path):
 
 
 def test_mcp_server_jsonrpc_tool_call(tmp_path):
-    from atulya.yantra.capabilities import Tool, ToolRegistry, ToolResult
-    from atulya.yantra.mcp import MCPServer
+    from atulya.kaushal import Tool, ToolRegistry, ToolResult
+    from atulya.setu import MCPServer
 
     class DemoTool(Tool):
         name = "demo"

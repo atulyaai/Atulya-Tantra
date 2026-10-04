@@ -79,7 +79,7 @@ def _prompt(host: str, prints: list[dict[str, Any]], notes: str) -> str:
 
 
 async def _brain(prompt: str) -> str:
-    from atulya.buddhi.llm import get_default_llm
+    from atulya.bhasha import get_default_llm
 
     return (await get_default_llm().ask(prompt, tools_enabled=False)).text
 

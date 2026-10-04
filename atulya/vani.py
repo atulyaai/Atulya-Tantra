@@ -104,7 +104,7 @@ class TextToSpeech:
 
     @staticmethod
     def strip_ssml(text: str) -> str:
-        from atulya.textutil import strip_emoji
+        from atulya.shabd import strip_emoji
 
         text = re.sub(r"<break[^>]*/>", " ... ", text)
         return strip_emoji(re.sub(r"<[^>]+>", "", text))

@@ -1,9 +1,9 @@
 import asyncio
 import json
 
-from atulya.yantra import media, webagent
-from atulya.yantra.webagent import Element, Observation, hard_stop, parse_action, run_task
-from atulya.buddhi import safety
+from atulya import sahayak as media, jaal as webagent
+from atulya.jaal import Element, Observation, hard_stop, parse_action, run_task
+from atulya import maryada as safety
 
 
 class FakePage:
@@ -104,7 +104,7 @@ def test_play_music_falls_back_to_search(monkeypatch):
 
 
 def test_camera_status_without_senses(monkeypatch):
-    from atulya.yantra.tools import camera_status
+    from atulya.kriya import camera_status
 
     monkeypatch.setattr("atulya.indriya.current_senses", lambda: None)
     assert "No cameras" in asyncio.run(camera_status())

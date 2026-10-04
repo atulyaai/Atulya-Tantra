@@ -9,7 +9,7 @@ import pytest
 
 np = pytest.importorskip("numpy")
 
-from atulya.events import EventBus
+from atulya.ghatna import EventBus
 
 HAS_CV2 = importlib.util.find_spec("cv2") is not None
 
@@ -189,7 +189,7 @@ class TestHomeSensors:
 # ── the reflex ────────────────────────────────────────────────────────────
 
 def test_someone_at_the_door_rule(tmp_path):
-    from atulya.buddhi.triggers import TriggerEngine
+    from atulya.prerak import TriggerEngine
 
     bus, seen = recorder()
     engine = TriggerEngine(rules_file=tmp_path / "t.json", events=bus)
@@ -250,9 +250,9 @@ class TestSensesHub:
         assert "isn't running" in senses.describe()
 
     def test_kernel_answers_is_anyone_at_the_door(self, tmp_path):
-        from atulya.buddhi.kernel import CognitiveKernel
-        from atulya.buddhi.planner import Planner, RoutineStore
-        from atulya.buddhi.profile import ProfileStore
+        from atulya.buddhi import CognitiveKernel
+        from atulya.yojana import Planner, RoutineStore
+        from atulya.parichay import ProfileStore
         from atulya import indriya as senses_mod
 
         senses, _ = self.make(tmp_path)
@@ -274,8 +274,8 @@ class TestSensesApi:
     @pytest.fixture
     def client(self, tmp_path, monkeypatch):
         from fastapi.testclient import TestClient
-        from atulya.sevak import helpers
-        from atulya.sevak.app import app
+        from atulya import khata as helpers
+        from atulya.sevak import app
         from atulya.indriya import Senses
 
         monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")

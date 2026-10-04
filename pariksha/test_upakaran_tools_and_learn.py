@@ -3,9 +3,9 @@ import json
 
 import pytest
 
-from atulya.yantra import devices_tools as dt
-from atulya.yantra.intent_router import route_intent
-from atulya.buddhi import safety
+from atulya import upakaran_kriya as dt
+from atulya.abhipray import route_intent
+from atulya import maryada as safety
 from atulya import upakaran_hub as hubmod
 from atulya import upakaran_hub as learn
 from atulya.upakaran import DeviceError
@@ -173,8 +173,8 @@ def test_device_management_phrases(isolated):
 def test_http_routes(isolated):
     from fastapi.testclient import TestClient
 
-    from atulya.sevak.app import app
-    from atulya.sevak.state import ADMIN_TOKEN
+    from atulya.sevak import app
+    from atulya.khata import ADMIN_TOKEN
 
     c = TestClient(app)
     h = {"X-Atulya-Token": ADMIN_TOKEN}

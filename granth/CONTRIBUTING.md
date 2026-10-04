@@ -51,14 +51,12 @@ The repo root has `atulya/` (all the Python), `drishti/` (the screen, दृष�
 
 ### Inside `atulya/`
 
-Flat on purpose: one file per part where it fits, and a folder only where Python needs one to run it (`python -m atulya.sevak`, `python -m atulya.shruti`) or where a part is large. Every name is Sanskrit/Hindi:
+One flat folder, one Hindi-named file per part. The full table (file, Devanagari, meaning, what it does) is in the [README](../README.md#layout). Rules of thumb:
 
-- `buddhi/` (बुद्धि, intellect), a folder of flat files: the single pipeline every request goes through: `kernel` (perceive, understand, decide, act, remember, react), `safety` (what needs confirmation), `planner`, `triggers` (event-driven proactivity), `brain` (`ATULYA_BRAIN` tiers), plus `llm`, `intelligence` (the provider failover router), `local_provider` and `providers_catalog`. See [COGNITIVE_ARCHITECTURE.md](COGNITIVE_ARCHITECTURE.md).
-- `yantra/` (यंत्र, machine), a folder of flat files: everything Atulya can do. Assistant tools in `tools.py` (plus `media`, `money`, `tracking`, `briefing`, `pc_control`, `webagent`, `devices_tools`, `calendar_watch`), the intent router and `audit`; heavier capabilities in `capabilities.py`, `browser_automation`, `document_engine`, `google_workspace`, `home_assistant`, `web_search` and friends; `mcp.py` (MCP server, client, signed manifests) with `mcp_servers.json` (all integrations ship disabled).
-- `sevak/` (सेवक, servant), a folder: the FastAPI server (`python -m atulya.sevak`). The API is four files, `api_account.py` (sign-in, users, brains and keys, vault, system), `api_chat.py` (chat, voice, websocket, OpenAI-style endpoint), `api_agent.py` (automation, routines, triggers, uploads, creations) and `api_home.py` (dashboard, devices, senses, money, memory, mood, Google, notifications), plus `app.py`, `users.py`, `state.py`, `chat_history.py`.
-- `shruti/` (श्रुति, hearing), a folder: the always-on listener: microphone, wake words (English and Hindi), barge-in, tray icon, autostart.
-- Single files: `upakaran.py` (devices: base, ADB, Wake-on-LAN, Samsung, Home Assistant, profiles) with `upakaran_hub.py` (hub, discovery, learn-a-device) and `upakaran_profiles.json` (built-in device profiles; see [DEVICES.md](DEVICES.md)); `indriya.py` (senses: camera, home sensors, reading pictures); `smriti.py` (memory); `vani.py` (voice pipeline); `sandesh.py` (Discord, Telegram, Slack, email, webhooks and more); `raksha.py` (protection: vault, security, lockdown, https certificates); `bhava.py` (emotion, persona, identity).
-- Shared at the top: `cli`, `config`, `envfile`, `events`, `heartbeat`, `kosh`, `production_readiness`, `safe_eval`, `textutil`.
+- New assistant tool: a function with `@tool(...)` in `kriya.py` (or a themed file such as `sahayak.py`, `dhan.py`) and, for a new file, import it at the bottom of `kriya.py`.
+- New device brand: a JSON profile in `upakaran_profiles.json` (or learn it with the brain); a new connection method goes in `upakaran.py`.
+- New API route: in the `dwar_*.py` file that matches (accounts, chat, automation, home).
+- Name a new file in Sanskrit/Hindi, written in Latin letters, and add it to the README table.
 
 The NP-DNA research model was removed. Custom model work belongs in a separate repository.
 
@@ -80,8 +78,8 @@ New code goes into the folder above that owns it. Do not add duplicate compatibi
 
 ### 1. New Tool or Capability
 ```
-1. Assistant tool: add a function with `@tool(...)` under `atulya/yantra/` and import its module at the bottom of `yantra/tools.py`; if it acts on the outside world, add it to `_CONFIRM_TOOLS` in `buddhi/safety.py`.
-   Heavier capability: add it in `atulya/yantra/capabilities.py`.
+1. Assistant tool: add a function with `@tool(...)` in `atulya/kriya.py` (or a themed file) and import its module at the bottom of `atulya/kriya.py`; if it acts on the outside world, add it to `_CONFIRM_TOOLS` in `buddhi/safety.py`.
+   Heavier capability: add it in `atulya/kaushal.py`.
 2. Add tests under pariksha/
 3. Run: python -m pytest -q
 ```
@@ -95,7 +93,7 @@ New code goes into the folder above that owns it. Do not add duplicate compatibi
 python -m pytest -q
 
 # Quick smoke test
-python -m atulya.cli doctor
+python -m atulya.adesh doctor
 ```
 
 ---

@@ -13,26 +13,26 @@ class TestBrowserAutomation:
     """Tests for BrowserAutomation (non-network, structural tests)."""
 
     def test_initialization_defaults(self):
-        from atulya.yantra.browser_automation import BrowserAutomation
+        from atulya.jaal import BrowserAutomation
         ba = BrowserAutomation()
         assert ba.headless is True
         assert len(ba._history) == 0
 
     def test_initialization_custom(self):
-        from atulya.yantra.browser_automation import BrowserAutomation
+        from atulya.jaal import BrowserAutomation
         ba = BrowserAutomation(headless=False)
         assert ba.headless is False
 
     def test_get_stats_empty(self):
-        from atulya.yantra.browser_automation import BrowserAutomation
+        from atulya.jaal import BrowserAutomation
         ba = BrowserAutomation()
         stats = ba.get_stats()
         assert stats["pages_visited"] == 0
         assert stats["last_url"] == ""
 
     def test_get_stats_after_history(self):
-        from atulya.yantra.browser_automation import BrowserAutomation
-        from atulya.yantra.browser_automation import BrowserResult
+        from atulya.jaal import BrowserAutomation
+        from atulya.jaal import BrowserResult
         ba = BrowserAutomation()
         ba._history.append(BrowserResult(success=True, url="https://example.com",
                                           title="Example", content="...", links=[]))
@@ -41,7 +41,7 @@ class TestBrowserAutomation:
         assert stats["last_url"] == "https://example.com"
 
     def test_browser_result_dataclass(self):
-        from atulya.yantra.browser_automation import BrowserResult
+        from atulya.jaal import BrowserResult
         result = BrowserResult(
             success=True, url="http://test.com", title="Test",
             content="Hello", links=[{"text": "link", "href": "http://test.com/page"}],
@@ -51,7 +51,7 @@ class TestBrowserAutomation:
         assert len(result.links) == 1
 
     def test_browser_result_error(self):
-        from atulya.yantra.browser_automation import BrowserResult
+        from atulya.jaal import BrowserResult
         result = BrowserResult(success=False, url="http://bad.com",
                                metadata={"error": "Connection refused"})
         assert result.success is False
@@ -66,7 +66,7 @@ class TestMCPManifestSigner:
     """Tests for signing, verifying, saving, and loading MCP manifests."""
 
     def test_sign_adds_signature(self):
-        from atulya.yantra.mcp import MCPManifest, MCPManifestSigner
+        from atulya.setu import MCPManifest, MCPManifestSigner
         manifest = MCPManifest(name="test-tool", version="1.0.0", tools=[{"name": "echo", "args": ["text"]}])
         signer = MCPManifestSigner(secret="test-secret")
         sig = signer.sign(manifest)
@@ -74,14 +74,14 @@ class TestMCPManifestSigner:
         assert len(sig) == 64  # SHA-256 is 64 hex chars
 
     def test_verify_valid(self):
-        from atulya.yantra.mcp import MCPManifest, MCPManifestSigner
+        from atulya.setu import MCPManifest, MCPManifestSigner
         manifest = MCPManifest(name="valid-tool", version="0.2.0", tools=[{"name": "greet"}])
         signer = MCPManifestSigner(secret="test-secret")
         signer.sign(manifest)
         assert signer.verify(manifest) is True
 
     def test_verify_invalid_signature(self):
-        from atulya.yantra.mcp import MCPManifest, MCPManifestSigner
+        from atulya.setu import MCPManifest, MCPManifestSigner
         manifest = MCPManifest(name="tool", version="1.0", tools=[])
         signer = MCPManifestSigner(secret="secret-a")
         signer.sign(manifest)
@@ -90,13 +90,13 @@ class TestMCPManifestSigner:
         assert another_signer.verify(manifest) is False
 
     def test_verify_no_signature(self):
-        from atulya.yantra.mcp import MCPManifest, MCPManifestSigner
+        from atulya.setu import MCPManifest, MCPManifestSigner
         manifest = MCPManifest(name="tool", version="1.0", tools=[])
         signer = MCPManifestSigner(secret="test")
         assert signer.verify(manifest) is False
 
     def test_verify_tampered_data(self):
-        from atulya.yantra.mcp import MCPManifest, MCPManifestSigner
+        from atulya.setu import MCPManifest, MCPManifestSigner
         manifest = MCPManifest(name="tool", version="1.0", tools=[{"name": "ok"}])
         signer = MCPManifestSigner(secret="test")
         signer.sign(manifest)
@@ -105,7 +105,7 @@ class TestMCPManifestSigner:
         assert signer.verify(manifest) is False
 
     def test_save_and_load(self):
-        from atulya.yantra.mcp import MCPManifest, MCPManifestSigner
+        from atulya.setu import MCPManifest, MCPManifestSigner
         with tempfile.TemporaryDirectory() as tmp:
             manifest = MCPManifest(name="saved-tool", version="2.0", tools=[{"name": "test"}])
             signer = MCPManifestSigner(secret="test-secret")
@@ -119,13 +119,13 @@ class TestMCPManifestSigner:
             assert loaded.version == "2.0"
 
     def test_load_nonexistent(self):
-        from atulya.yantra.mcp import MCPManifestSigner
+        from atulya.setu import MCPManifestSigner
         signer = MCPManifestSigner(secret="test")
         result = signer.load_manifest("/nonexistent/path.json")
         assert result is None
 
     def test_load_tampered_file(self):
-        from atulya.yantra.mcp import MCPManifestSigner, MCPManifest
+        from atulya.setu import MCPManifestSigner, MCPManifest
         import json
         with tempfile.TemporaryDirectory() as tmp:
             manifest = MCPManifest(name="good", version="1.0", tools=[])
@@ -143,7 +143,7 @@ class TestMCPManifestSigner:
                 signer.load_manifest(path)
 
     def test_manifest_dataclass_defaults(self):
-        from atulya.yantra.mcp import MCPManifest
+        from atulya.setu import MCPManifest
         m = MCPManifest(name="test", version="1.0", tools=[{"name": "x"}])
         assert m.author == ""
         assert m.description == ""
@@ -159,7 +159,7 @@ class TestMCPServer:
     """Tests for MCPServer core functionality."""
 
     def test_register_tool(self):
-        from atulya.yantra.mcp import MCPServer
+        from atulya.setu import MCPServer
         with tempfile.TemporaryDirectory() as tmp:
             server = MCPServer(data_dir=tmp)
             server.register_tool("my_tool", "A test tool", {"type": "object", "properties": {}})
@@ -167,7 +167,7 @@ class TestMCPServer:
             assert any(t["name"] == "my_tool" for t in tools)
 
     def test_register_tool_no_schema(self):
-        from atulya.yantra.mcp import MCPServer
+        from atulya.setu import MCPServer
         with tempfile.TemporaryDirectory() as tmp:
             server = MCPServer(data_dir=tmp)
             server.register_tool("simple_tool", "Simple tool", {"type": "object", "properties": {}})
@@ -175,7 +175,7 @@ class TestMCPServer:
             assert len(tools) == 1
 
     def test_register_resource(self):
-        from atulya.yantra.mcp import MCPServer
+        from atulya.setu import MCPServer
         with tempfile.TemporaryDirectory() as tmp:
             server = MCPServer(data_dir=tmp)
             server.register_resource(uri="config://model", name="Model Config",
@@ -184,7 +184,7 @@ class TestMCPServer:
             assert any("config://model" in str(r) for r in resources)
 
     def test_register_prompt(self):
-        from atulya.yantra.mcp import MCPServer
+        from atulya.setu import MCPServer
         with tempfile.TemporaryDirectory() as tmp:
             server = MCPServer(data_dir=tmp)
             server.register_prompt("greet", "A greeting prompt", "Hello {{name}}!")
@@ -193,7 +193,7 @@ class TestMCPServer:
 
     @pytest.mark.asyncio
     async def test_call_tool_with_handler(self):
-        from atulya.yantra.mcp import MCPServer
+        from atulya.setu import MCPServer
         with tempfile.TemporaryDirectory() as tmp:
             server = MCPServer(data_dir=tmp)
             results = []
@@ -209,7 +209,7 @@ class TestMCPServer:
 
     @pytest.mark.asyncio
     async def test_call_tool_not_found(self):
-        from atulya.yantra.mcp import MCPServer
+        from atulya.setu import MCPServer
         with tempfile.TemporaryDirectory() as tmp:
             server = MCPServer(data_dir=tmp)
             result = await server.call_tool("nonexistent", {})
@@ -217,25 +217,25 @@ class TestMCPServer:
             assert "not found" in result.get("error", "")
 
     def test_list_tools_empty(self):
-        from atulya.yantra.mcp import MCPServer
+        from atulya.setu import MCPServer
         with tempfile.TemporaryDirectory() as tmp:
             server = MCPServer(data_dir=tmp)
             assert server.list_tools() == []
 
     def test_list_resources_empty(self):
-        from atulya.yantra.mcp import MCPServer
+        from atulya.setu import MCPServer
         with tempfile.TemporaryDirectory() as tmp:
             server = MCPServer(data_dir=tmp)
             assert server.list_resources() == []
 
     def test_list_prompts_empty(self):
-        from atulya.yantra.mcp import MCPServer
+        from atulya.setu import MCPServer
         with tempfile.TemporaryDirectory() as tmp:
             server = MCPServer(data_dir=tmp)
             assert server.list_prompts() == []
 
     def test_bridge_tool_registry(self):
-        from atulya.yantra.mcp import MCPServer
+        from atulya.setu import MCPServer
         with tempfile.TemporaryDirectory() as tmp:
             server = MCPServer(data_dir=tmp)
             # Mock a tool registry
@@ -247,7 +247,7 @@ class TestMCPServer:
             assert any("tool_a" in str(t) for t in tools)
 
     def test_get_server_info(self):
-        from atulya.yantra.mcp import MCPServer
+        from atulya.setu import MCPServer
         with tempfile.TemporaryDirectory() as tmp:
             server = MCPServer(data_dir=tmp)
             info = server.get_server_info()
@@ -255,7 +255,7 @@ class TestMCPServer:
             assert "name" in info or "version" in info
 
     def test_register_and_list_tools(self):
-        from atulya.yantra.mcp import MCPServer
+        from atulya.setu import MCPServer
         with tempfile.TemporaryDirectory() as tmp:
             server = MCPServer(data_dir=tmp)
             server.register_tool("t1", "First", {"type": "object"})
@@ -362,20 +362,20 @@ class TestWebSearch:
     """Tests for MultiProviderSearch (web search tool, safe/mocked)."""
 
     def test_basic_search(self):
-        from atulya.yantra.web_search import MultiProviderSearch
+        from atulya.khoj import MultiProviderSearch
         ws = MultiProviderSearch()
         results = ws.search("test query", max_results=3)
         assert isinstance(results, list)
         # Should always return a result list (may be empty if no network)
 
     def test_search_with_region(self):
-        from atulya.yantra.web_search import MultiProviderSearch
+        from atulya.khoj import MultiProviderSearch
         ws = MultiProviderSearch()
         results = ws.search("python programming", max_results=5, region="us-en")
         assert isinstance(results, list)
 
     def test_stats_property(self):
-        from atulya.yantra.web_search import MultiProviderSearch
+        from atulya.khoj import MultiProviderSearch
         ws = MultiProviderSearch()
         stats = ws.stats
         assert isinstance(stats, dict)

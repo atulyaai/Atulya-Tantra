@@ -247,7 +247,7 @@ class TelegramChannel(ChannelBase):
             await self.send("Send /ask followed by a question.", chat_id)
             return "empty"
         if llm is None:
-            from atulya.buddhi.llm import AtulyaLLM
+            from atulya.bhasha import AtulyaLLM
             llm = AtulyaLLM()
         history = self._histories.setdefault(str(message.sender), [])
         response = await llm.ask(prompt, history=history)

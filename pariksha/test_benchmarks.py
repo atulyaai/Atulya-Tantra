@@ -32,7 +32,7 @@ def mock_provider():
 
 @pytest.mark.asyncio
 async def test_tool_execution_latency():
-    from atulya.yantra.tools import calculate
+    from atulya.kriya import calculate
 
     n = 100
     times = []
@@ -47,7 +47,7 @@ async def test_tool_execution_latency():
 
 @pytest.mark.asyncio
 async def test_mcp_http_latency():
-    from atulya.yantra.mcp import MCPClientManager
+    from atulya.setu import MCPClientManager
 
     mgr = MCPClientManager()
     t0 = time.perf_counter()
@@ -63,7 +63,7 @@ async def test_mcp_http_latency():
 
 @pytest.mark.asyncio
 async def test_jwt_encode_decode_latency():
-    from atulya.sevak.helpers import _jwt_encode, _jwt_decode
+    from atulya.khata import _jwt_encode, _jwt_decode
 
     n = 500
     encode_times = []
@@ -85,7 +85,7 @@ async def test_jwt_encode_decode_latency():
 
 @pytest.mark.asyncio
 async def test_rate_limiter_overhead():
-    from atulya.sevak.app import _RATE_STORE, _rate_limiter
+    from atulya.sevak import _RATE_STORE, _rate_limiter
     from unittest.mock import Mock
 
     _RATE_STORE.clear()
