@@ -1,4 +1,45 @@
-# Atulya Tantra
+<!-- Hero Banner -->
+<div align="center">
+  <img src="docs/images/banner_animated.gif" alt="Atulya Tantra - JARVIS-Class Personal AI" width="100%"/>
+</div>
+
+<div align="center">
+  <h1>
+    <img src="https://readme-typing-svg.herokuapp.com?font=Cinzel&weight=700&size=42&duration=4000&pause=1000&color=F7931A&center=true&vCenter=true&width=700&height=80&lines=ATULYA+TANTRA;JARVIS-CLASS+PERSONAL+AI;VOICE+%2B+MEMORY+%2B+TOOLS;अतुल्य+तन्त्र" alt="Atulya Tantra — JARVIS-Class Personal AI" />
+  </h1>
+</div>
+
+<p align="center">
+  <em><strong>अतुल्य</strong> (Atulya) — Peerless, without equal &nbsp;·&nbsp; <strong>तन्त्र</strong> (Tantra) — System, loom of intelligence</em><br/>
+  <strong>A personal AI assistant you talk to: a 3D hologram that listens in Hindi and English, remembers you, and acts for you.</strong>
+</p>
+
+<p align="center">
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.10%2B-F7931A.svg?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-F7931A.svg?style=flat-square" alt="MIT License"/></a>
+  <a href="#"><img src="https://img.shields.io/badge/Privacy-Local_First_Option-success.svg?style=flat-square" alt="Local First"/></a>
+  <a href="#"><img src="https://img.shields.io/badge/Voice-Hindi_%7C_English-orange.svg?style=flat-square" alt="Voice Hindi & English"/></a>
+  <a href="#"><img src="https://img.shields.io/badge/Platform-Windows_%7C_Linux_%7C_macOS-blue.svg?style=flat-square" alt="Cross Platform"/></a>
+  <a href="#"><img src="https://img.shields.io/badge/Made_in-India_🇮🇳-FF9933.svg?style=flat-square" alt="Made in India"/></a>
+</p>
+
+```
+ +--------------------------------------------------------------------------+
+ |                         HOW ATULYA WORKS                                 |
+ |                                                                          |
+ |  Your voice or text --> hologram screen (web/) --> server (atulya/server)|
+ |                                  |                                       |
+ |                                  v                                       |
+ |                 thinking kernel (atulya/cognition)                       |
+ |            /              |                 \                            |
+ |     brain: cloud       memory: what you     tools: music, email,         |
+ |     or local model     told it, habits      calendar, PC, home           |
+ |            \              |                 /                            |
+ |                  safety: risky actions ask first                         |
+ +--------------------------------------------------------------------------+
+```
+
+---
 
 A local-first personal AI assistant. You talk to a glowing hologram: it listens in English or Hindi, thinks with a cloud or local brain, remembers you, and does things for you: music, reminders, email, calendar, price tracking, a morning briefing, smart home, and (if you turn it on) your PC.
 
@@ -6,6 +47,8 @@ A local-first personal AI assistant. You talk to a glowing hologram: it listens 
   <img src="docs/images/orb-home.png" alt="Atulya: one animated screen" width="420">
   <img src="docs/images/orb-popup.jpg" alt="A pop-up opens over the orb" width="420">
 </p>
+
+<p align="center"><img src="docs/images/orb_live.jpg" alt="The floating orb" width="60%"/></p>
 
 **One screen.** There are no pages. Ask for something ("show users", "open my routines", "chat history") or tap the menu, and a pop-up slides in over the orb. Esc or a tap outside closes it. Replies appear in a caption card under the head. Admin-only details (models, health, users, audit log) are hidden from normal users.
 
@@ -104,6 +147,8 @@ More detail: [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md). The cognitive pipelin
 
 ## How a request flows
 
+<p align="center"><img src="docs/images/automation_hud.jpg" alt="Tools and automation" width="80%"/></p>
+
 ```mermaid
 flowchart LR
     You["You: voice or text"] --> Web["web/ (the orb)"]
@@ -118,6 +163,8 @@ flowchart LR
 Assistant tools live in `atulya/agent/` and register themselves with `@tool`. Risky ones (sending email, deleting events, PC control) ask first by default (`ATULYA_AUTO_APPROVE` can pre-approve specific ones), and every call is appended to `data/agent/audit.jsonl`.
 
 ## Memory
+
+<p align="center"><img src="docs/images/memory_tree.jpg" alt="Memory tree" width="80%"/></p>
 
 Atulya's memory is in `atulya/memory/`: a vector store and session search (what the brain uses), plus reflection, a hierarchical summary tree and Obsidian export. A small local model copies recalled answers back, so with it memory is only shown when you ask about the past. Your profile (facts it learned, habits, what you trust it to do without asking) is under the **About you** pop-up. Identity and prompt rules are in `atulya/persona.py`; an optional override goes in `data/identity.json`.
 
@@ -154,3 +201,22 @@ Token-protected routes expect `X-Atulya-Token`. Full list: [docs/API_REFERENCE.m
 - `web/dist` is built by `start.bat`; `web/node_modules` is only needed while building and can be deleted any time.
 - Custom model training does not belong here; keep it in a separate repository and connect it as a provider.
 - Before exposing Atulya beyond your own network, read the hardening checklist in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) and [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md).
+
+---
+
+## Contributing
+
+Contributions, bug reports, and ideas are welcome!
+
+1. **Fork** the repository
+2. **Create** a feature branch: `git checkout -b feat/your-feature`
+3. **Commit** your changes: `git commit -m "feat: add your feature"`
+4. **Push** and open a **Pull Request**
+
+Please keep PRs focused and include tests where relevant. For major changes, open an issue first. See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for the project rules and where things go, and [ROADMAP.md](ROADMAP.md) for what is planned.
+
+> All contributions are released under the [MIT License](LICENSE).
+
+## License
+
+MIT License. Copyright (c) 2026 Atulya AI (atulyaai). See [LICENSE](LICENSE).
