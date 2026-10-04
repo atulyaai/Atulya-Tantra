@@ -235,3 +235,50 @@ def test_email_phrases_route_but_plain_email_checks_do_not():
     assert route_intent("check my email for bank transactions").tool == "expenses_from_email"
     assert route_intent("update my expenses from email").tool == "expenses_from_email"
     assert route_intent("check my email").tool == "fetch_emails"
+
+
+# ── "if not sure, check with AI" ─────────────────────────────────────────────────────────────
+ODD = "Hi! Your wallet ZipPay: Rs 340.00 moved to FreshMart on 03-10-26. Thanks for using ZipPay."
+
+
+def fake_ai(reply):
+    async def ask(prompt):
+        ask.prompts.append(prompt)
+        return reply
+    ask.prompts = []
+    return ask
+
+
+def test_rules_first_ai_only_when_unsure():
+    assert m.parse_alert(ODD, NOW) is None                                   # the rules cannot read this wording
+    ask = fake_ai('{"needed": true, "kind": "debit", "amount": 340, "merchant": "FreshMart", "category": "groceries"}')
+    r = run(m.record_alert_async(ODD, "sms", NOW, ask))
+    assert r["status"] == "added" and r["ai"] is True and r["category"] == "groceries" and "please check" in m._alert_reply(r)
+    assert m._load()["expenses"][0]["ai"] is True
+    clear = "Rs 500.00 debited from A/c XX1234 on 03-10-26 to VPA swiggy@icici"
+    ask2 = fake_ai("{}")
+    assert run(m.record_alert_async(clear, "sms", NOW, ask2))["status"] == "added" and ask2.prompts == []   # rules were enough
+
+
+def test_the_ai_is_never_asked_about_otps_or_offers_and_cannot_invent_numbers():
+    ask = fake_ai('{"needed": true, "kind": "debit", "amount": 500, "merchant": "x", "category": "other"}')
+    for text in ("123456 is your OTP. Rs 500 will be debited. Do not share.", "Pre-approved offer: borrow Rs 500000 now!", "see you at 5"):
+        assert run(m.record_alert_async(text, "sms", NOW, ask))["status"] == "ignored"
+    assert ask.prompts == []
+    liar = fake_ai('{"needed": true, "kind": "debit", "amount": 9999, "merchant": "x", "category": "other"}')
+    assert run(m.record_alert_async(ODD, "sms", NOW, liar))["status"] == "ignored"            # 9999 is not in the message
+    for bad in ('{"needed": false, "kind": "other", "amount": null}', "not json", '{"needed": true, "kind": "debit", "amount": -5}',
+                '{"needed": true, "kind": "transfer", "amount": 340}'):
+        assert run(m.record_alert_async(ODD, "sms", NOW, fake_ai(bad)))["status"] == "ignored"
+    assert m._load()["expenses"] == []
+
+
+def test_ai_privacy_and_off_switch(monkeypatch):
+    assert m.redact_for_ai("Rs 1,299.00 sent to 9876543210 ref 123456789012 mail a@b.com see https://x.io/y") == \
+        "Rs 1,299.00 sent to ########## ref ############ mail [email] see [link]"
+    ask = fake_ai('{"needed": true, "kind": "debit", "amount": 340, "merchant": "FreshMart", "category": "groceries"}')
+    run(m.record_alert_async("ZipPay: Rs 340.00 moved to 9876543210 FreshMart on 03-10-26", "sms", NOW, ask))
+    assert "9876543210" not in ask.prompts[0] and "<<<MESSAGE" in ask.prompts[0]              # redacted, and fenced as data
+    monkeypatch.setenv("ATULYA_MONEY_AI", "off")
+    off = fake_ai("{}")
+    assert run(m.record_alert_async("Wallet: Rs 77.00 moved to Shop on 04-10-26", "sms", NOW, off))["status"] == "ignored" and off.prompts == []

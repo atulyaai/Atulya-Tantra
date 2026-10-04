@@ -79,6 +79,7 @@ export function Dashboard({ toast }) {
           ))}
           {!sys.brains.length && <small>Speeds appear after the first answers.</small>}
         </div>
+        <p>Private data: <b>{sys.vault?.on ? 'encrypted' : 'not encrypted'}</b>{!sys.vault?.on && full('system') && <small> · set ATULYA_VAULT_PASSPHRASE in .env, restart, then it protects money, chats, calendar, reminders and your profile</small>}</p>
         {full('system') && <p className="db-note">Linked: {sys.ready.join(', ') || 'none'}. Add more under Menu → Brains &amp; keys.</p>}
       </Tile>
     ),
