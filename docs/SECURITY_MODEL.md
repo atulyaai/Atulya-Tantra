@@ -28,3 +28,8 @@ What is enforced today, and what is not.
 - Treat `data/` (memory, audit log, tokens), `.env` and `data/chat_history.json` as sensitive; they are git-ignored.
 - Do not expose the dashboard to an untrusted network without TLS, a reverse proxy and login.
 - See `docs/DEPLOYMENT.md` for the hardening checklist.
+
+
+## Encryption at rest (`ATULYA_VAULT_PASSPHRASE`)
+
+Off by default. When a passphrase is set, private files (money, calendar, reminders, email settings, chat history, profiles) are stored encrypted with a key derived from the passphrase (scrypt) and a random salt in `data/vault.salt`. The passphrase is never written to disk. A file that cannot be opened is never overwritten. There is no recovery if the passphrase is lost. It does not protect against someone who can read the running process or your `.env`.

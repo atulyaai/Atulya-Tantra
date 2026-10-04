@@ -488,7 +488,7 @@ export function Orb({ onMenu, toast, onCommand }) {
   async function toggleWebcam(on, deviceId) {
     setCamError('');
     if (!webcamRef.current) {
-      webcamRef.current = createWebcam({ onGaze: (x, y) => holoRef.current?.setGaze(x, y) });
+      webcamRef.current = createWebcam({ onGaze: (x, y) => holoRef.current?.setGaze(x, y), onLight: (l) => holoRef.current?.setAmbient(l) });
     }
     try {
       if (on) {

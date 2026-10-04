@@ -36,7 +36,7 @@ export async function detectCameras() {
   return { state, devices: devices.map((d, i) => ({ id: d.deviceId, label: d.label || `Camera ${i + 1}` })) };
 }
 
-export function createWebcam({ onPresence, onGaze } = {}) {
+export function createWebcam({ onPresence, onGaze, onLight } = {}) {
   let stream = null;
   let video = null;
   let timer = 0;
@@ -49,6 +49,7 @@ export function createWebcam({ onPresence, onGaze } = {}) {
   const ctx = small.getContext('2d', { willReadFrequently: true });
   let gx = 0;
   let gy = 0;
+  let light = 0.5;
 
   function step() {
     if (!video || video.readyState < 2) return;
@@ -76,6 +77,11 @@ export function createWebcam({ onPresence, onGaze } = {}) {
       const nowPresent = now - lastMotion < 12000;
       if (nowPresent !== present) { present = nowPresent; onPresence?.(present); if (!present) onGaze?.(0, 0); }
     }
+    // How bright the room is (0 dark .. 1 bright), smoothed so a passing hand does not flicker it.
+    let sum = 0;
+    for (let i = 0; i < grey.length; i += 1) sum += grey[i];
+    light += (sum / grey.length / 255 - light) * 0.1;
+    onLight?.(light);
     prev = grey;
   }
 

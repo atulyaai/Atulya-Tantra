@@ -92,18 +92,23 @@ async def execute_tool(name: str, **kwargs) -> str:
 # ── Internal State Helpers ─────────────────────────────────────────────────
 
 def _load_json(name: str) -> dict:
+    from atulya import vault
+
     p = _DATA_DIR / name
     if p.exists():
         try:
-            return json.loads(p.read_text())
+            return json.loads(vault.read_text(p))
+        except vault.VaultLocked:
+            raise  # never pretend an encrypted file is empty: the next save would overwrite it
         except Exception:
             return {}
     return {}
 
 
 def _save_json(name: str, data: dict | list):
-    p = _DATA_DIR / name
-    p.write_text(json.dumps(data, indent=2, default=str))
+    from atulya import vault
+
+    vault.write_text(_DATA_DIR / name, json.dumps(data, indent=2, default=str))
 
 
 # ── Tool: Reminder / Scheduling Skills ────────────────────────────────────
@@ -774,16 +779,21 @@ async def open_website(site: str, query: str = "") -> str:
 # ── Load persisted state on import ─────────────────────────────────────────
 
 def _bootstrap():
-    data = _load_json("reminders.json")
-    if data:
-        _reminders.clear()
-        for item in data if isinstance(data, list) else []:
-            _reminders[item["id"]] = item
-    events = _load_json("calendar.json")  # saved on every change; without this a restart forgot the calendar
-    for item in events if isinstance(events, list) else []:
-        if isinstance(item, dict) and "id" in item and "time" in item:
-            _CALENDAR[item["id"]] = item
-    _load_email_config()
+    from atulya.vault import VaultLocked
+
+    try:
+        data = _load_json("reminders.json")
+        if data:
+            _reminders.clear()
+            for item in data if isinstance(data, list) else []:
+                _reminders[item["id"]] = item
+        events = _load_json("calendar.json")  # saved on every change; without this a restart forgot the calendar
+        for item in events if isinstance(events, list) else []:
+            if isinstance(item, dict) and "id" in item and "time" in item:
+                _CALENDAR[item["id"]] = item
+        _load_email_config()
+    except VaultLocked as exc:  # start anyway; the encrypted files stay untouched until the passphrase is right
+        logger.error("Private data is locked: %s", exc)
 
 
 _bootstrap()

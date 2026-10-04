@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from atulya import vault
+
 _ROOT = Path(__file__).resolve().parents[2]
 HISTORY_FILE = _ROOT / "data" / "chat_history.json"
 _lock = threading.Lock()
@@ -22,7 +24,9 @@ def _read_store() -> dict[str, Any]:
     if not HISTORY_FILE.exists():
         return {"users": {}}
     try:
-        data = json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
+        data = json.loads(vault.read_text(HISTORY_FILE))
+    except vault.VaultLocked:
+        raise  # locked is not empty: callers must not overwrite it
     except Exception:
         return {"users": {}}
     if not isinstance(data, dict):
@@ -32,8 +36,7 @@ def _read_store() -> dict[str, Any]:
 
 
 def _write_store(data: dict[str, Any]) -> None:
-    HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
-    HISTORY_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    vault.write_text(HISTORY_FILE, json.dumps(data, indent=2, ensure_ascii=False))
 
 
 def _user_key(user: dict[str, Any] | None) -> str:
@@ -75,12 +78,15 @@ def append_exchange(
             "provider": provider,
         })
 
-    with _lock:
-        store = _read_store()
-        user_store = store["users"].setdefault(key, {"messages": []})
-        user_store["messages"] = (list(user_store.get("messages") or []) + new_messages)[-_MAX_MESSAGES:]
-        user_store["updated_at"] = _now()
-        _write_store(store)
+    try:
+        with _lock:
+            store = _read_store()
+            user_store = store["users"].setdefault(key, {"messages": []})
+            user_store["messages"] = (list(user_store.get("messages") or []) + new_messages)[-_MAX_MESSAGES:]
+            user_store["updated_at"] = _now()
+            _write_store(store)
+    except vault.VaultLocked:
+        pass  # history is locked (wrong passphrase): skip saving rather than break the chat or overwrite it
 
 
 def clear_messages(user: dict[str, Any] | None) -> None:

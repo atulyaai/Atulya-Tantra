@@ -369,7 +369,7 @@ export async function createHologram(container, getSignal) {
   let raf = 0;
   // Mood tints the whole figure (warm when upbeat, cool when low) and sets how lively it breathes;
   // gaze (from the webcam) turns the head a little toward you.
-  const feel = { valence: 0.2, energy: 0.5, gx: 0, gy: 0, rx: 0, ry: 0 };
+  const feel = { valence: 0.2, energy: 0.5, gx: 0, gy: 0, rx: 0, ry: 0, room: 0.5, glow: 1 };
   const moodTint = new THREE.Color(1, 1, 1);
   const goalTint = new THREE.Color();
 
@@ -395,7 +395,9 @@ export async function createHologram(container, getSignal) {
     u.uScatter.value = scatter * morph;
     const v = feel.valence;
     moodTint.setRGB(1 + 0.12 * Math.max(0, v) - 0.1 * Math.max(0, -v), 1 + 0.02 * v, 1 - 0.1 * Math.max(0, v) + 0.12 * Math.max(0, -v));
-    goalTint.copy(TINTS[sig.state] || TINTS.idle).multiply(moodTint);
+    // Dark room: ease the glow off so it is not glaring; bright room: lift it a little so it stays visible.
+    feel.glow += ((0.7 + 0.5 * Math.min(1, feel.room * 1.6)) - feel.glow) * 0.03;
+    goalTint.copy(TINTS[sig.state] || TINTS.idle).multiply(moodTint).multiplyScalar(feel.glow);
     u.uTint.value.lerp(goalTint, 0.08);
     feel.ry += (feel.gx * 0.22 - feel.ry) * 0.06;
     feel.rx += (feel.gy * 0.1 - feel.rx) * 0.06;
@@ -417,6 +419,7 @@ export async function createHologram(container, getSignal) {
 
   return {
     setMood(m) { if (m) { feel.valence = Number(m.valence) || 0; feel.energy = Number(m.energy) || 0.5; } },
+    setAmbient(level) { feel.room = Math.max(0, Math.min(1, Number(level) || 0)); },
     setGaze(x, y) { feel.gx = Math.max(-1, Math.min(1, x || 0)); feel.gy = Math.max(-1, Math.min(1, y || 0)); },
     isOpening() { return (performance.now() - opened) / 1000 < 4.8; },
     dispose() {

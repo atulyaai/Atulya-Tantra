@@ -32,6 +32,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from atulya import vault
+
 logger = logging.getLogger(__name__)
 
 LEARN_AFTER = 5  # consecutive approvals before offering to stop asking
@@ -200,7 +202,7 @@ class ProfileStore:
     def load(self, user: str) -> dict[str, Any]:
         with self._lock:
             try:
-                data = json.loads(self._path(user).read_text(encoding="utf-8"))
+                data = json.loads(vault.read_text(self._path(user)))
             except (OSError, json.JSONDecodeError):
                 data = {}
         data.setdefault("user", user)
@@ -211,10 +213,7 @@ class ProfileStore:
 
     def _save(self, user: str, data: dict[str, Any]) -> None:
         self.dir.mkdir(parents=True, exist_ok=True)
-        path = self._path(user)
-        tmp = path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-        tmp.replace(path)
+        vault.write_text(self._path(user), json.dumps(data, indent=2, ensure_ascii=False))
 
     def users(self) -> list[str]:
         if not self.dir.exists():

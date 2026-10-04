@@ -42,7 +42,7 @@ async def api_money_sms(request: Request):
     text = await _alert_text(request)
     if not text:
         raise HTTPException(status_code=400, detail="No message text")
-    result = money.record_alert(text, "sms")
+    result = await money.record_alert_async(text, "sms")
     return {"status": result["status"], "message": money._alert_reply(result)}
 
 
