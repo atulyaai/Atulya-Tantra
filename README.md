@@ -136,41 +136,70 @@ OTPs, offers and due reminders are ignored, and the same transaction arriving by
 
 ## Layout
 
-Every folder has a Sanskrit/Hindi name that says what it does. All Python is in `atulya/`; the screen is `drishti/`; everything Atulya stores lives in one `kosh/` folder.
+Every file has a Sanskrit/Hindi name that says what it does, in plain letters so editors and Windows handle them (the Devanagari is beside each name). Everything is flat: `atulya/` holds one file per part and no sub-folders.
 
 | Folder | Name | Meaning | What lives here |
 |---|---|---|---|
-| `drishti/` | दृष्टि | sight, what you see | The animated screen (React + Vite): the orb, the hologram, the windows, the phone shell |
+| `atulya/` | | | All the Python, one file per part (table below) |
+| `drishti/` | दृष्टि | sight, what you see | The animated screen (React + Vite): `src/` is flat (the orb, the hologram, the windows) |
 | `granth/` | ग्रंथ | book, text | Guides, architecture, security, features, status, images |
-| `pariksha/` | परीक्षा | examination, test | The test suite (one folder per big part, for example `pariksha/upakaran/`) |
+| `pariksha/` | परीक्षा | examination, test | The test suite (flat: one `test_*.py` per part) |
 | `prayog/` | प्रयोग | experiment | Try a bigger brain: download and benchmark local models, or use a free Colab GPU |
 | `kosh/` | कोश | treasury | Everything Atulya stores on your computer (git-ignored). An old `data/` folder is moved here automatically the first time you start |
-| `atulya/buddhi/` | बुद्धि | intellect | The thinking: kernel, planner, safety rules, triggers, brain tiers, the language model and the provider failover router |
-| `atulya/yantra/` | यंत्र | machine, tool | Everything Atulya can *do*: `agent/` (reminders, email, calendar, music, money, web tasks, PC control, intent router), `capabilities/` (browser, documents, Google, Home Assistant, web search), `mcp/` (outside tools) |
-| `atulya/upakaran/` | उपकरण | devices | The device layer: TVs, phones, lights, PCs through profiles, ADB, Wake-on-LAN and Home Assistant |
-| `atulya/indriya/` | इन्द्रिय | the senses | Camera, motion, home sensors, reading pictures |
-| `atulya/shruti/` | श्रुति | hearing | The always-on listener: microphone, wake word (English and Hindi), barge-in, tray |
-| `atulya/smriti/` | स्मृति | memory | Memory: the manager, vector store and session search |
-| `atulya/vani/` | वाणी | speech | The voice pipeline |
-| `atulya/sandesh/` | संदेश | message | Telegram, Discord, Slack, email and other messaging channels |
-| `atulya/sevak/` | सेवक | servant, server | The web server: API routes, accounts, chat history |
-| `atulya/raksha/` | रक्षा | protection | Encryption at rest (vault), HTTPS certificates, security helpers, lockdown |
-| `atulya/bhava/` | भाव | feeling, character | Mood, persona and identity |
+
+Files in `atulya/`:
+
+| File | Name | Meaning | What it does |
+|---|---|---|---|
+| `buddhi.py` | बुद्धि | intellect | The pipeline every request goes through (perceive, understand, decide, act, remember, react) |
+| `mastishk.py` | मस्तिष्क | brain | Brain tiers (`ATULYA_BRAIN`) |
+| `bhasha.py` | भाषा | language | The language-model layer: prompts, tool calls, memory |
+| `vahak.py` | वाहक | carrier | The provider failover router (fastest working brain first) |
+| `sthaniya.py` | स्थानीय | local | The local model (GGUF) |
+| `suchi.py` | सूची | list | The catalogue of 22 brain providers |
+| `maryada.py` | मर्यादा | limits | What may run and what must ask first |
+| `yojana.py` | योजना | plan | Routines and multi-step plans |
+| `prerak.py` | प्रेरक | trigger | Reflexes: event-driven proactivity |
+| `parichay.py` | परिचय | introduction | What Atulya learns about you |
+| `aujar.py` | औज़ार | tools | One tool surface for every entry point |
+| `kriya.py` | क्रिया | action | The assistant tools: reminders, calendar, email, weather, websites |
+| `abhipray.py` | अभिप्राय | intent | Understands plain commands without a model |
+| `dhan.py` | धन | money | Expenses, budgets, bills, bank messages |
+| `sahayak.py` | सहायक | helper | Music and media keys, price tracking, morning briefing, calendar watch, PC control |
+| `jaal.py` | जाल | web | Browser automation and web tasks |
+| `kaushal.py` | कौशल | skill | The heavier capabilities and the creation tools |
+| `dastavez.py` | दस्तावेज़ | documents | Documents, spreadsheets, PDFs, charts |
+| `vyapar.py` | व्यापार | business | Accounting and HR automation |
+| `google.py` | | | Gmail and Google Calendar (per user) |
+| `khoj.py` | खोज | search | Web search |
+| `setu.py` | सेतु | bridge | MCP server and client for outside tools (`setu_servers.json`) |
+| `karta.py` | कर्ता | doer | The agent loop |
+| `lekha.py` | लेखा | ledger | The audit log |
+| `upakaran.py`, `upakaran_hub.py`, `upakaran_kriya.py` | उपकरण | devices | TVs, phones, lights, PCs: profiles (`upakaran_profiles.json`), ADB, Samsung, Wake-on-LAN, Home Assistant, discovery, the hub, the brain tools |
+| `indriya.py` | इन्द्रिय | the senses | Camera, motion, home sensors, reading pictures |
+| `shruti.py` | श्रुति | hearing | The always-on listener: microphone, wake word (English and Hindi), barge-in, tray |
+| `smriti.py` | स्मृति | memory | The memory manager, vector store and session search |
+| `vani.py` | वाणी | speech | The voice pipeline |
+| `sandesh.py` | संदेश | message | Telegram, Discord, Slack, email and other messaging channels |
+| `sevak.py` | सेवक | servant | The web server (`python -m atulya.sevak`) |
+| `dwar_khata.py`, `dwar_vartalap.py`, `dwar_karya.py`, `dwar_ghar.py` | द्वार | gate | The API: accounts and keys, chat and voice, automation, home and dashboard |
+| `khata.py` | खाता | account book | Users, sessions, chat history |
+| `raksha.py` | रक्षा | protection | Encryption at rest (vault), HTTPS certificates, security helpers, lockdown |
+| `bhava.py` | भाव | feeling | Mood, persona and identity |
+| `adesh.py` | आदेश | command | The command line (`python -m atulya.adesh doctor`) |
+| `vinyas.py`, `parivesh.py`, `ghatna.py`, `dhadkan.py`, `taiyari.py`, `ganana.py`, `shabd.py`, `kosh.py` | | | Settings, `.env` reading, the event bus, heartbeat, readiness checks, safe maths, text helpers, the `data` -> `kosh` move |
 
 ```text
 Atulya-Tantra/
-|-- atulya/        # all the Python: buddhi, yantra, upakaran, indriya, shruti, smriti, vani, sandesh, sevak,
-|                  #   raksha, bhava, plus a few shared files (cli.py, config.py, envfile.py, events.py ...)
-|-- drishti/       # the animated screen: src/, public/, android/
+|-- atulya/        # all the Python, flat: one Hindi-named file per part (table above)
+|-- drishti/       # the animated screen: src/ (flat), public/, android/
 |-- granth/        # guides and architecture
-|-- prayog/        # experiments: bigger local models, Colab GPU brain
 |-- pariksha/      # tests
+|-- prayog/        # experiments: bigger local models, Colab GPU brain
 |-- kosh/          # everything Atulya stores locally (git-ignored)
 |-- pyproject.toml, start.bat, Dockerfile, docker-compose.yml
 `-- .env           # your keys (git-ignored)
 ```
-
-More detail: [granth/CONTRIBUTING.md](granth/CONTRIBUTING.md). The cognitive pipeline is explained in [granth/COGNITIVE_ARCHITECTURE.md](granth/COGNITIVE_ARCHITECTURE.md).
 
 ## How a request flows
 
@@ -185,11 +214,11 @@ flowchart LR
     Tools --> Safety["safety: risky actions ask first"]
 ```
 
-Assistant tools live in `atulya/yantra/agent/` and register themselves with `@tool`. Risky ones (sending email, deleting events, PC control) ask first by default (`ATULYA_AUTO_APPROVE` can pre-approve specific ones), and every call is appended to `kosh/agent/audit.jsonl`.
+Assistant tools live in `atulya/kriya.py` and the files next to it, and register themselves with `@tool`. Risky ones (sending email, deleting events, PC control) ask first by default (`ATULYA_AUTO_APPROVE` can pre-approve specific ones), and every call is appended to `kosh/agent/audit.jsonl`.
 
 ## Memory
 
-Atulya's memory is in `atulya/smriti/`: a vector store and session search, which is what the brain uses. A small local model copies recalled answers back, so with it memory is only shown when you ask about the past. Your profile (facts it learned, habits, what you trust it to do without asking) is under the **About you** pop-up. Identity and prompt rules are in `atulya/bhava/persona.py`; an optional override goes in `kosh/identity.json`.
+Atulya's memory is in `atulya/smriti/`: a vector store and session search, which is what the brain uses. A small local model copies recalled answers back, so with it memory is only shown when you ask about the past. Your profile (facts it learned, habits, what you trust it to do without asking) is under the **About you** pop-up. Identity and prompt rules are in `atulya/bhava.py`; an optional override goes in `kosh/identity.json`.
 
 ## Development
 
@@ -197,7 +226,7 @@ Atulya's memory is in `atulya/smriti/`: a vector store and session search, which
 python -m pytest -q       # tests
 ruff check .              # lint (unused imports are errors)
 cd drishti; npm run dev       # web dev server, proxies /api and /ws to :8501
-python -m atulya.cli doctor
+python -m atulya.adesh doctor
 ```
 
 Docker: `docker compose up --build` (builds the web app, serves on port 8501, keeps `kosh/` on your disk). Not yet tried on a real server.

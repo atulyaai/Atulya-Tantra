@@ -1,7 +1,7 @@
 import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { api, boostAudio, clearToken, getToken, setToken, getUser, setUser } from './api.js';
-import { Orb } from './pages/Orb.jsx';
+import { Orb } from './Orb.jsx';
 import { MenuPopover, Panel } from './Panel.jsx';
 import { selectSectionByText } from './sections.js';
 import './styles.css';
@@ -9,13 +9,13 @@ import './styles.css';
 // Lazy-load the heavy Spirit view so it is fetched only when opened, keeping
 // the initial bundle (and first paint) small.
 // Admin-only: trigger rules, brain tier, and live event feed.
-const Reflexes = lazy(() => import('./pages/Reflexes.jsx').then((m) => ({ default: m.Reflexes })));
-const Routines = lazy(() => import('./pages/Routines.jsx').then((m) => ({ default: m.Routines })));
-const MemoryTree = lazy(() => import('./pages/MemoryTree.jsx').then((m) => ({ default: m.MemoryTree })));
-const Providers = lazy(() => import('./pages/Providers.jsx').then((m) => ({ default: m.Providers })));
-const Dashboard = lazy(() => import('./pages/Dashboard.jsx').then((m) => ({ default: m.Dashboard })));
-const AboutYou = lazy(() => import('./pages/AboutYou.jsx').then((m) => ({ default: m.AboutYou })));
-const Senses = lazy(() => import('./pages/Senses.jsx').then((m) => ({ default: m.Senses })));
+const Reflexes = lazy(() => import('./Reflexes.jsx').then((m) => ({ default: m.Reflexes })));
+const Routines = lazy(() => import('./Routines.jsx').then((m) => ({ default: m.Routines })));
+const MemoryTree = lazy(() => import('./MemoryTree.jsx').then((m) => ({ default: m.MemoryTree })));
+const Providers = lazy(() => import('./Providers.jsx').then((m) => ({ default: m.Providers })));
+const Dashboard = lazy(() => import('./Dashboard.jsx').then((m) => ({ default: m.Dashboard })));
+const AboutYou = lazy(() => import('./AboutYou.jsx').then((m) => ({ default: m.AboutYou })));
+const Senses = lazy(() => import('./Senses.jsx').then((m) => ({ default: m.Senses })));
 
 function renderMarkdown(text) {
   const parts = String(text || '').split(/(`[^`]+`|\*\*[^*]+\*\*)/g);

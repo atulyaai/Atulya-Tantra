@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Samsung Smart TV control (`samsung` driver, discovery, pairing token) and a per-device setup table (Samsung, CloudWalker, Xiaomi phones) in `granth/DEVICES.md`.
 
 ### Changed
+- **Everything flat, with Hindi file names.** `atulya/` has no sub-folders now: one file per part, named in Sanskrit/Hindi (see the README table). For example `buddhi/kernel.py` -> `buddhi.py`, `yantra/tools.py` -> `kriya.py`, `sevak/app.py` -> `sevak.py`, the 24 route files -> `dwar_khata.py`, `dwar_vartalap.py`, `dwar_karya.py`, `dwar_ghar.py`, `upakaran/hub.py` -> `upakaran_hub.py`, `cli.py` -> `adesh.py` (`python -m atulya.adesh doctor`). The five device profiles are one `upakaran_profiles.json`, MCP settings are `setu_servers.json`. The screen's `src/pages/` and the tests' `pariksha/upakaran/` folders are flat too. All relative imports are absolute. Removed a second, unused command line and an unused skill note, and merged the two Home Assistant clients into `upakaran.py`. **Old import paths (`atulya.yantra.agent.tools`, `atulya.upakaran.hub` ...) no longer exist.**
 - `data/` is now `kosh/` and `demo/` is now `prayog/`. An existing `data/` folder is moved to `kosh/` automatically the first time Atulya starts (`atulya/kosh.py`); `.env` is untouched. If you mount `data/` in Docker, mount `kosh/` instead.
 
 ### Removed

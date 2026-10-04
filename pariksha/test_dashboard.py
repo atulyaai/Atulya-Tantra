@@ -2,7 +2,7 @@ import time
 
 from fastapi.testclient import TestClient
 
-from atulya.sevak.routes.dashboard import build_dashboard
+from atulya.dwar_ghar import build_dashboard
 
 
 def make(is_admin=True, **over):
@@ -44,8 +44,8 @@ def test_idle_web_state_when_nothing_ran():
 
 
 def test_routes_need_login_and_guard_locks(monkeypatch):
-    from atulya.sevak.app import app
-    from atulya.sevak.state import ADMIN_TOKEN
+    from atulya.sevak import app
+    from atulya.khata import ADMIN_TOKEN
 
     c = TestClient(app)
     assert c.get("/api/dashboard").status_code in (401, 403)
@@ -58,9 +58,9 @@ def test_routes_need_login_and_guard_locks(monkeypatch):
 def test_brain_tool_calls_are_audited(tmp_path, monkeypatch):
     import asyncio
 
-    from atulya.yantra.agent.audit import recent
-    from atulya.yantra.agent.tools import TOOL_REGISTRY
-    from atulya.buddhi.toolbelt import AgentToolAdapter
+    from atulya.lekha import recent
+    from atulya.kriya import TOOL_REGISTRY
+    from atulya.aujar import AgentToolAdapter
 
     monkeypatch.setenv("ATULYA_AGENT_DATA_DIR", str(tmp_path))
     adapter = AgentToolAdapter("current_time", TOOL_REGISTRY["current_time"])
@@ -69,7 +69,7 @@ def test_brain_tool_calls_are_audited(tmp_path, monkeypatch):
 
 
 def test_no_brain_message_is_not_ranked_as_a_brain():
-    from atulya.buddhi import intelligence as ai
+    from atulya import vahak as ai
 
     ai._SPEED.pop("No brain loaded", None)
     ai._record_speed("No brain loaded", 0.0)
@@ -79,7 +79,7 @@ def test_no_brain_message_is_not_ranked_as_a_brain():
 def test_calendar_survives_a_restart(tmp_path, monkeypatch):
     import json
 
-    from atulya.yantra.agent import tools
+    from atulya import kriya as tools
 
     (tmp_path / "calendar.json").write_text(json.dumps([{"id": "e1", "title": "Client call", "time": 4e9, "duration": 30}]))
     monkeypatch.setattr(tools, "_DATA_DIR", tmp_path)
@@ -92,7 +92,7 @@ def test_no_pretend_devices_without_a_hub(monkeypatch):
     """Real use (no Home Assistant, no test switch): the brain says no hub is connected instead of faking success."""
     import asyncio
 
-    from atulya.yantra.agent import tools
+    from atulya import kriya as tools
 
     monkeypatch.delenv("ATULYA_SIMULATED_HOME", raising=False)
     monkeypatch.delenv("HOME_ASSISTANT_URL", raising=False)

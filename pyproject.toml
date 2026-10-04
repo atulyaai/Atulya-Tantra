@@ -92,14 +92,14 @@ dev = [
 ]
 
 [project.scripts]
-atulya = "atulya.cli:main"
-atulya-listen = "atulya.shruti.cli:main"
+atulya = "atulya.adesh:main"
+atulya-listen = "atulya.shruti:main"
 
 [tool.setuptools.packages.find]
 include = ["atulya*"]
 
 [tool.setuptools.package-data]
-"atulya.upakaran" = ["profiles/*.json"]
+"atulya" = ["upakaran_profiles.json", "setu_servers.json"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

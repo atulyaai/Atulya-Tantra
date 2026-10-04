@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from atulya.smriti.manager import MemoryManager
+from atulya.smriti import MemoryManager
 
 
 class TestMemoryManagerIntegration:

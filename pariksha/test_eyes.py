@@ -5,7 +5,7 @@ import base64
 
 import pytest
 
-from atulya.indriya import eyes
+from atulya import indriya as eyes
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 

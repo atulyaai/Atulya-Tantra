@@ -6,7 +6,7 @@ from pathlib import Path
 import nbformat
 import pytest
 
-from pariksha.upakaran import sims
+from pariksha import sims
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -39,7 +39,7 @@ def test_recommendation_keeps_a_memory_margin(tm):
 
 
 def test_model_table_matches_the_files_atulya_already_uses(tm):
-    from atulya.buddhi.brain import BRAIN_TIERS
+    from atulya.mastishk import BRAIN_TIERS
 
     for tier, key in (("tiny", "0.6b"), ("balanced", "1.7b"), ("power", "4b")):
         assert tm.MODELS[key][:2] == (BRAIN_TIERS[tier]["repo"], BRAIN_TIERS[tier]["file"])
@@ -127,8 +127,8 @@ def test_atulya_uses_the_remote_brain_through_its_own_provider(monkeypatch):
     """The same settings connect_remote writes are what the 'Your own' provider reads."""
     import asyncio
 
-    from atulya.buddhi.intelligence import OpenAICompatProvider
-    from atulya.buddhi.providers_catalog import BY_ID
+    from atulya.vahak import OpenAICompatProvider
+    from atulya.suchi import BY_ID
 
     chat = json.dumps({"choices": [{"message": {"content": "hello from the big model"}}]})
     with sims.Sim({("POST", "/v1/chat/completions"): (200, chat)}) as sim:
@@ -168,8 +168,8 @@ def test_notebook_protects_the_server_and_hardcodes_no_secret():
 
 def test_lean_request_drops_tool_text_for_plain_questions(monkeypatch):
     """A local CPU model reads ~1,800 fewer tokens when the question is not an action."""
-    from atulya.buddhi.llm import POLICY_MARK
-    from atulya.buddhi.local_provider import lean_request
+    from atulya.bhasha import POLICY_MARK
+    from atulya.sthaniya import lean_request
 
     system = f"Persona text.\n\n{POLICY_MARK}\n- use tools\nAvailable tools:\n- web_search"
     tools = [{"type": "function"}]

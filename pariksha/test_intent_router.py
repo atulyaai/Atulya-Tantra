@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import pytest
 
-from atulya.yantra.agent.intent_router import route_intent, route_and_execute
-from atulya.yantra.agent import tools as agent_tools
+from atulya.abhipray import route_intent, route_and_execute
+from atulya import kriya as agent_tools
 
 
 class TestIntentRouting:

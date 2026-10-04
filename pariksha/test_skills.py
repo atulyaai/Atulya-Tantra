@@ -4,9 +4,9 @@ import json
 
 import pytest
 
-from atulya.yantra.agent import audit as audit_mod
-from atulya.yantra.agent import pc_control, tools, tracking
-from atulya.buddhi.safety import assess
+from atulya import lekha as audit_mod
+from atulya import sahayak as pc_control, kriya as tools, sahayak as tracking
+from atulya.maryada import assess
 
 
 @pytest.fixture(autouse=True)

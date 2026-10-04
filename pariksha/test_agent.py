@@ -5,21 +5,8 @@ import asyncio
 
 import pytest
 
-from atulya.yantra.agent.tools import (
-    TOOL_REGISTRY,
-    get_tool_schemas,
-    execute_tool,
-    set_reminder,
-    list_reminders,
-    cancel_reminder,
-    get_system_status,
-    get_proactive_suggestions,
-    send_email,
-    fetch_emails,
-    configure_email,
-    analyze_image,
-)
-from atulya.yantra.agent.core import AgentCore
+from atulya.kriya import TOOL_REGISTRY, get_tool_schemas, execute_tool, set_reminder, list_reminders, cancel_reminder, get_system_status, get_proactive_suggestions, send_email, fetch_emails, configure_email, analyze_image
+from atulya.karta import AgentCore
 
 
 class TestToolRegistry:
@@ -134,7 +121,7 @@ class TestAgentCore:
         class Router:
             async def chat(self, prompt, system_prompt="", *a, **k):
                 return ("kernel reply", "stub")
-        from atulya.buddhi.llm import AtulyaLLM
+        from atulya.bhasha import AtulyaLLM
         llm = AtulyaLLM(use_memory=False)
         llm.router = Router()
         assert await AgentCore(llm_provider=llm).process("tell me a joke") == "kernel reply"

@@ -16,7 +16,7 @@ Open http://localhost:80
 python -m venv venv
 source venv/bin/activate  # or .\venv\Scripts\Activate.ps1
 pip install -e ".[serve,dev]"
-uvicorn atulya.sevak.app:app --host 0.0.0.0 --port 8000
+uvicorn atulya.sevak:app --host 0.0.0.0 --port 8000
 ```
 
 ## Environment Variables
@@ -34,7 +34,7 @@ uvicorn atulya.sevak.app:app --host 0.0.0.0 --port 8000
 
 ## MCP Servers
 
-Edit `atulya/yantra/mcp/servers.json` to enable integrations (filesystem, git, browser, Google Drive, Gmail, etc.). All start disabled by default.
+Edit `atulya/setu_servers.json` to enable integrations (filesystem, git, browser, Google Drive, Gmail, etc.). All start disabled by default.
 
 ## Production
 
@@ -95,7 +95,7 @@ Drive uses the free service-account path, which is simpler than user OAuth for a
 GOOGLE_SERVICE_ACCOUNT_KEY={"type":"service_account","project_id":"..."}
 ```
 
-8. Set `google_drive.enabled` to `true` in `atulya/yantra/mcp/servers.json`.
+8. Set `google_drive.enabled` to `true` in `atulya/setu_servers.json`.
 
 ### Gmail
 
@@ -128,14 +128,14 @@ node install/generate_gmail_refresh_token.mjs
 ```
 
 9. Copy only the printed `GMAIL_REFRESH_TOKEN=...` line into `.env`.
-10. Set `gmail.enabled` to `true` in `atulya/yantra/mcp/servers.json`.
+10. Set `gmail.enabled` to `true` in `atulya/setu_servers.json`.
 
 ### Verify
 
 Run:
 
 ```powershell
-python -m atulya.cli readiness
+python -m atulya.adesh readiness
 ```
 
 If either Google server is enabled without credentials, readiness reports `production-candidate` and shows the missing env var. When both enabled servers have their credentials, the dashboard startup can connect them through the MCP client manager.

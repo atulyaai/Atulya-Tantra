@@ -1,0 +1,500 @@
+[
+ {
+  "id": "kodi",
+  "label": "Kodi media center",
+  "kind": "tv",
+  "port": 8080,
+  "detect": [
+   {
+    "path": "/jsonrpc?request=%7B%22jsonrpc%22%3A%222.0%22%2C%22method%22%3A%22JSONRPC.Version%22%2C%22id%22%3A1%7D",
+    "contains": "\"version\""
+   }
+  ],
+  "capabilities": {
+   "play_pause": {
+    "description": "Play or pause",
+    "phrases": [
+     "play",
+     "pause",
+     "resume"
+    ],
+    "request": {
+     "method": "POST",
+     "path": "/jsonrpc",
+     "json": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "Player.PlayPause",
+      "params": {
+       "playerid": 1
+      }
+     }
+    }
+   },
+   "stop": {
+    "description": "Stop playback",
+    "phrases": [
+     "stop"
+    ],
+    "request": {
+     "method": "POST",
+     "path": "/jsonrpc",
+     "json": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "Player.Stop",
+      "params": {
+       "playerid": 1
+      }
+     }
+    }
+   },
+   "mute": {
+    "description": "Mute or unmute",
+    "phrases": [
+     "mute",
+     "unmute"
+    ],
+    "request": {
+     "method": "POST",
+     "path": "/jsonrpc",
+     "json": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "Application.SetMute",
+      "params": {
+       "mute": "toggle"
+      }
+     }
+    }
+   },
+   "set_volume": {
+    "description": "Set volume 0-100",
+    "phrases": [
+     "volume"
+    ],
+    "params": {
+     "value": {
+      "type": "integer",
+      "min": 0,
+      "max": 100
+     }
+    },
+    "request": {
+     "method": "POST",
+     "path": "/jsonrpc",
+     "json": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "Application.SetVolume",
+      "params": {
+       "volume": "{value}"
+      }
+     }
+    }
+   },
+   "home": {
+    "description": "Go to the home screen",
+    "phrases": [
+     "go home"
+    ],
+    "request": {
+     "method": "POST",
+     "path": "/jsonrpc",
+     "json": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "Input.Home"
+     }
+    }
+   }
+  }
+ },
+ {
+  "id": "roku",
+  "label": "Roku TV or player",
+  "kind": "tv",
+  "port": 8060,
+  "detect": [
+   {
+    "path": "/query/device-info",
+    "contains": "<device-info>"
+   }
+  ],
+  "ssdp": {
+   "contains": "roku"
+  },
+  "state": {
+   "path": "/query/device-info"
+  },
+  "capabilities": {
+   "power_off": {
+    "description": "Turn the TV off",
+    "phrases": [
+     "turn off",
+     "switch off",
+     "power off"
+    ],
+    "request": {
+     "method": "POST",
+     "path": "/keypress/PowerOff"
+    }
+   },
+   "power_on": {
+    "description": "Turn the TV on",
+    "phrases": [
+     "turn on",
+     "switch on",
+     "power on"
+    ],
+    "request": {
+     "method": "POST",
+     "path": "/keypress/PowerOn"
+    }
+   },
+   "volume_up": {
+    "description": "Louder",
+    "phrases": [
+     "volume up",
+     "louder",
+     "turn it up"
+    ],
+    "repeat": true,
+    "request": {
+     "method": "POST",
+     "path": "/keypress/VolumeUp"
+    }
+   },
+   "volume_down": {
+    "description": "Quieter",
+    "phrases": [
+     "volume down",
+     "quieter",
+     "turn it down"
+    ],
+    "repeat": true,
+    "request": {
+     "method": "POST",
+     "path": "/keypress/VolumeDown"
+    }
+   },
+   "mute": {
+    "description": "Mute or unmute",
+    "phrases": [
+     "mute",
+     "unmute"
+    ],
+    "request": {
+     "method": "POST",
+     "path": "/keypress/VolumeMute"
+    }
+   },
+   "home": {
+    "description": "Go to the home screen",
+    "phrases": [
+     "go home",
+     "home screen"
+    ],
+    "request": {
+     "method": "POST",
+     "path": "/keypress/Home"
+    }
+   },
+   "back": {
+    "description": "Go back",
+    "phrases": [
+     "go back"
+    ],
+    "request": {
+     "method": "POST",
+     "path": "/keypress/Back"
+    }
+   },
+   "select": {
+    "description": "Press OK",
+    "phrases": [
+     "select",
+     "press ok",
+     "press enter"
+    ],
+    "request": {
+     "method": "POST",
+     "path": "/keypress/Select"
+    }
+   },
+   "up": {
+    "phrases": [
+     "move up"
+    ],
+    "request": {
+     "method": "POST",
+     "path": "/keypress/Up"
+    }
+   },
+   "down": {
+    "phrases": [
+     "move down"
+    ],
+    "request": {
+     "method": "POST",
+     "path": "/keypress/Down"
+    }
+   },
+   "left": {
+    "phrases": [
+     "move left"
+    ],
+    "request": {
+     "method": "POST",
+     "path": "/keypress/Left"
+    }
+   },
+   "right": {
+    "phrases": [
+     "move right"
+    ],
+    "request": {
+     "method": "POST",
+     "path": "/keypress/Right"
+    }
+   },
+   "play_pause": {
+    "description": "Play or pause",
+    "phrases": [
+     "play",
+     "pause",
+     "resume"
+    ],
+    "request": {
+     "method": "POST",
+     "path": "/keypress/Play"
+    }
+   },
+   "launch_app_id": {
+    "description": "Open an app by its Roku id (12 is Netflix)",
+    "params": {
+     "app_id": {
+      "type": "integer",
+      "min": 1
+     }
+    },
+    "request": {
+     "method": "POST",
+     "path": "/launch/{app_id}"
+    }
+   }
+  }
+ },
+ {
+  "id": "shelly",
+  "label": "Shelly relay (gen 1)",
+  "kind": "switch",
+  "port": 80,
+  "detect": [
+   {
+    "path": "/shelly",
+    "contains": "\"type\""
+   }
+  ],
+  "state": {
+   "path": "/status"
+  },
+  "capabilities": {
+   "power_on": {
+    "description": "Turn on",
+    "phrases": [
+     "turn on",
+     "switch on"
+    ],
+    "request": {
+     "method": "GET",
+     "path": "/relay/0?turn=on"
+    }
+   },
+   "power_off": {
+    "description": "Turn off",
+    "phrases": [
+     "turn off",
+     "switch off"
+    ],
+    "request": {
+     "method": "GET",
+     "path": "/relay/0?turn=off"
+    }
+   },
+   "toggle": {
+    "description": "Toggle",
+    "phrases": [
+     "toggle"
+    ],
+    "request": {
+     "method": "GET",
+     "path": "/relay/0?turn=toggle"
+    }
+   }
+  }
+ },
+ {
+  "id": "tasmota",
+  "label": "Tasmota plug or light",
+  "kind": "switch",
+  "port": 80,
+  "detect": [
+   {
+    "path": "/cm?cmnd=Status",
+    "contains": "\"Status\""
+   }
+  ],
+  "state": {
+   "path": "/cm?cmnd=Power"
+  },
+  "capabilities": {
+   "power_on": {
+    "description": "Turn on",
+    "phrases": [
+     "turn on",
+     "switch on"
+    ],
+    "request": {
+     "method": "GET",
+     "path": "/cm?cmnd=Power%20On"
+    }
+   },
+   "power_off": {
+    "description": "Turn off",
+    "phrases": [
+     "turn off",
+     "switch off"
+    ],
+    "request": {
+     "method": "GET",
+     "path": "/cm?cmnd=Power%20Off"
+    }
+   },
+   "toggle": {
+    "description": "Toggle",
+    "phrases": [
+     "toggle"
+    ],
+    "request": {
+     "method": "GET",
+     "path": "/cm?cmnd=Power%20Toggle"
+    }
+   },
+   "set_brightness": {
+    "description": "Set brightness 0-100",
+    "phrases": [
+     "brightness",
+     "dim"
+    ],
+    "params": {
+     "value": {
+      "type": "integer",
+      "min": 0,
+      "max": 100
+     }
+    },
+    "request": {
+     "method": "GET",
+     "path": "/cm?cmnd=Dimmer%20{value}"
+    }
+   },
+   "restart": {
+    "description": "Restart the device",
+    "risky": true,
+    "phrases": [
+     "restart",
+     "reboot"
+    ],
+    "request": {
+     "method": "GET",
+     "path": "/cm?cmnd=Restart%201"
+    }
+   }
+  }
+ },
+ {
+  "id": "wled",
+  "label": "WLED light strip",
+  "kind": "light",
+  "port": 80,
+  "detect": [
+   {
+    "path": "/json/info",
+    "contains": "\"brand\":\"WLED\""
+   }
+  ],
+  "state": {
+   "path": "/json/state"
+  },
+  "capabilities": {
+   "power_on": {
+    "description": "Turn on",
+    "phrases": [
+     "turn on",
+     "switch on"
+    ],
+    "request": {
+     "method": "POST",
+     "path": "/json/state",
+     "json": {
+      "on": true
+     }
+    }
+   },
+   "power_off": {
+    "description": "Turn off",
+    "phrases": [
+     "turn off",
+     "switch off"
+    ],
+    "request": {
+     "method": "POST",
+     "path": "/json/state",
+     "json": {
+      "on": false
+     }
+    }
+   },
+   "set_brightness": {
+    "description": "Set brightness 0-255",
+    "phrases": [
+     "brightness",
+     "dim"
+    ],
+    "params": {
+     "value": {
+      "type": "integer",
+      "min": 0,
+      "max": 255
+     }
+    },
+    "request": {
+     "method": "POST",
+     "path": "/json/state",
+     "json": {
+      "on": true,
+      "bri": "{value}"
+     }
+    }
+   },
+   "set_preset": {
+    "description": "Run a saved preset",
+    "params": {
+     "value": {
+      "type": "integer",
+      "min": 1,
+      "max": 250
+     }
+    },
+    "request": {
+     "method": "POST",
+     "path": "/json/state",
+     "json": {
+      "ps": "{value}"
+     }
+    }
+   }
+  }
+ }
+]
