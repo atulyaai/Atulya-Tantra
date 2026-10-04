@@ -37,7 +37,8 @@ function layout(graph, w, h) {
     const slots = branches.length;
     const frac = slots === 1 ? 0.5 : i / (slots - 1);
     const angle = (frac - 0.5) * 2 * Math.min(1.2, 0.45 + slots * 0.13);
-    const len = reach * (i % 2 === 0 ? 1 : 0.74); // alternate long and short so neighbouring labels never collide
+    const emptyBranch = !graph.nodes.some((n) => n.kind === 'leaf' && n.group === b.group);
+    const len = reach * (i % 2 === 0 ? 1 : 0.74) * (emptyBranch ? 0.62 : 1);   // an empty branch is a short bare limb // alternate long and short so neighbouring labels never collide
     const dir = { x: Math.sin(angle), y: -Math.cos(angle) };
     const tip = {
       x: Math.max(130, Math.min(w - 130, fork.x + dir.x * len)),
@@ -48,7 +49,7 @@ function layout(graph, w, h) {
     const kidCount = graph.nodes.filter((n) => n.kind === 'leaf' && n.group === b.group).length;
     // Finer boughs that fork off the branch and fan outward. They are the structure of the canopy: more memories
     // in a branch grow more of them. Only the golden nodes are real items; the pale buds are just ends of twigs.
-    const subs = Array.from({ length: 9 + Math.min(16, Math.round(Math.sqrt(kidCount) * 2.4)) }, (_, j) => {
+    const subs = Array.from({ length: kidCount ? 9 + Math.min(16, Math.round(Math.sqrt(kidCount) * 2.4)) : 3 }, (_, j) => {
       const t0 = 0.22 + hash(`${b.id}s${j}`) * 0.68;
       const from = bez(fork, ctrl, tip, t0);
       const side = hash(`${b.id}d${j}`) < 0.5 ? -1 : 1;
@@ -220,7 +221,7 @@ export function MemoryTree() {
       g.branches.forEach((br) => {
         const p = ease((time - (born.current[br.node.id] ?? mounted.current)) / 1500);
         if (p <= 0) return;
-        const dim = focusId && focusId !== br.node.group ? 0.25 : 1;
+        const dim = (focusId && focusId !== br.node.group ? 0.25 : 1) * (br.node.count ? 1 : 0.4);
         const pts = br.pts.map((q) => sway(q, time));
         ctx.globalAlpha = dim;
         ctx.shadowColor = 'rgb(60,200,190)';
