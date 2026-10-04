@@ -30,7 +30,7 @@ Status is from the code and unit tests. Anything marked "untested live" has not 
 | Voice and PC control on real hardware | Only unit-tested; try `atulya listen` and `ATULYA_PC_CONTROL=on` and report what breaks |
 | Microphone in the web app | Browsers block the mic until you click once and allow it; the Claude browser pane blocks it entirely, so use Chrome or Edge |
 | Trained "Atulya" wake-word model | openWakeWord ships none; the text-matched wake word is the default |
-| Encrypted memory at rest | `atulya/yantra/capabilities/encrypted_storage.py` exists but nothing uses it yet |
+| Encrypted memory at rest | Optional: set `ATULYA_VAULT_PASSPHRASE` (see `atulya/raksha/vault.py`). Not covered: vector memory, the audit log and `.env` |
 | Voice ID (who is speaking) | Not started |
 | Mood colours and eye contact on the hologram | Not started; mood detection exists in `atulya/bhava/emotion.py` |
 | Phone sync and push | PWA and a Capacitor shell exist; no cross-device sync |

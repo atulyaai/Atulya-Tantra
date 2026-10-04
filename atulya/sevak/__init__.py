@@ -1,3 +1,3 @@
-"""Dashboard backend package for the Drishti."""
+"""Sevak (सेवक): the web server package."""
 
 

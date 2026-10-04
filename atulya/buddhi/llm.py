@@ -1,6 +1,6 @@
 """Free-first Atulya LLM bridge.
 
-This module is the single brain entrypoint used by CLI, Drishti, and channels.
+This module is the single brain entrypoint used by the CLI, the server (sevak) and the messaging channels (sandesh).
 Tantra remains optional research/local inference; production behavior never
 depends on it being available.
 """

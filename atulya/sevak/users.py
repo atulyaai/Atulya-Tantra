@@ -1,4 +1,4 @@
-"""User store and session management for Atulya Drishti.
+"""User store and session management for Atulya.
 
 Stores users in a JSON file at {project_root}/data/users.json.
 Passwords are hashed with PBKDF2-HMAC-SHA256 + per-user salt.

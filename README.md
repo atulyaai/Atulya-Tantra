@@ -133,27 +133,29 @@ OTPs, offers and due reminders are ignored, and the same transaction arriving by
 
 ## Layout
 
-All Python is in `atulya/`, the screen is `web/`, and everything Atulya stores lives in one `data/` folder.
+All Python is in `atulya/`, the screen is `web/`, and everything Atulya stores lives in one `data/` folder. Each part of Atulya has a Sanskrit/Hindi name that says what it does.
+
+| Folder | Name | Meaning | What lives here |
+|---|---|---|---|
+| `atulya/buddhi/` | बुद्धि | intellect | The thinking: kernel, planner, safety rules, triggers, the brain tiers, the language model and the provider failover router |
+| `atulya/yantra/` | यंत्र | machine, tool | Everything Atulya can *do*: `agent/` (reminders, email, calendar, music, money, web tasks, PC control, intent router), `capabilities/` (browser, documents, Google, Home Assistant, web search), `mcp/` (outside tools) |
+| `atulya/upakaran/` | उपकरण | devices | The device layer: TVs, phones, lights, PCs through profiles, ADB, Wake-on-LAN and Home Assistant |
+| `atulya/drishti/` | दृष्टि | sight | Camera, motion, home sensors, reading pictures |
+| `atulya/shruti/` | श्रुति | hearing | The always-on listener: microphone, wake word (English and Hindi), barge-in, tray |
+| `atulya/smriti/` | स्मृति | memory | Memory: vectors, session search, reflection, summary tree, Obsidian export |
+| `atulya/vani/` | वाणी | speech | The voice pipeline |
+| `atulya/sandesh/` | संदेश | message | Telegram, Discord, Slack, email and other messaging channels |
+| `atulya/sevak/` | सेवक | servant, server | The web server: API routes, accounts, chat history |
+| `atulya/raksha/` | रक्षा | protection | Encryption at rest (vault), security helpers, lockdown |
+| `atulya/bhava/` | भाव | feeling, character | Mood, persona and identity |
 
 ```text
 Atulya-Tantra/
-|-- atulya/                     # all the Python
-|   |-- cognition/              # kernel, safety, planner, triggers, brain tiers
-|   |-- agent/                  # assistant tools: reminders, email, calendar, weather, music,
-|   |                           #   tracking, briefing, PC control, audit log; intent router
-|   |-- ambient/                # always-on listener: mic, wake word (EN/HI), barge-in, tray
-|   |-- memory/                 # memory providers, reflection, vectors, Obsidian export
-|   |-- capabilities/           # browser, documents, voice, Google, Home Assistant, web search
-|   |-- senses/                 # camera, motion, home sensors
-|   |-- mcp/                    # MCP server and client (+ servers.json)
-|   |-- server/                 # the web server: API routes, accounts, chat history
-|   |-- llm.py, intelligence.py # the brain and the provider failover router
-|   |-- local_provider.py       # local GGUF model
-|   |-- channels.py             # Telegram, Discord, Slack, email ... messaging
-|   `-- persona.py, emotion.py, eyes.py, heartbeat.py, events.py, security.py, cli.py ...
+|-- atulya/                     # all the Python (the folders above, plus a few shared files:
+|   |                           #   cli.py, config.py, envfile.py, events.py, heartbeat.py, textutil.py ...)
 |-- web/                        # the animated screen (React + Vite): src/, public/, android/
-|-- docs/                       # guides, architecture, security, features, images
-|-- tests/                      # test suite
+|-- docs/                       # guides, architecture, security, features, status, images
+|-- tests/                      # test suite (one folder per big part, for example tests/upakaran/)
 |-- data/                       # everything Atulya stores locally (git-ignored)
 |-- pyproject.toml, start.bat, Dockerfile, docker-compose.yml
 `-- .env                        # your keys (git-ignored)

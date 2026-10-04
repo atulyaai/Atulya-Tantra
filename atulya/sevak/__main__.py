@@ -1,4 +1,4 @@
-"""Drishti backend entrypoint.
+"""Sevak (server) entrypoint.
 
 The implementation lives in `atulya.sevak` so package users can keep using
 the stable `atulya` namespace, while dashboard-owned launchers can run:

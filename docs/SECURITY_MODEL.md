@@ -19,7 +19,7 @@ What is enforced today, and what is not.
 
 - No OS-level sandbox for tools; protection is the confirmation prompt and allowlists.
 - The audit log is a plain file, not tamper-evident.
-- Memory, chat history and credentials are stored unencrypted (`atulya/yantra/capabilities/encrypted_storage.py` exists but is not wired in).
+- Private data is stored as plain text unless you set `ATULYA_VAULT_PASSPHRASE` (see Encryption at rest below). Vector memory, the audit log and `.env` are never encrypted.
 - By default the server listens on all interfaces with open CORS so the phone app can connect. Use lockdown, or set `ATULYA_HOST` and `ATULYA_CORS_ORIGINS`, to tighten this.
 - No rate limiting.
 

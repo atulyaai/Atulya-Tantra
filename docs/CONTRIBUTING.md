@@ -52,17 +52,20 @@ The repo root has three code-and-docs folders (`atulya/`, `web/`, `docs/`), plus
 
 ### Inside `atulya/`
 
-- `cognition/`: the single pipeline every request goes through: `kernel` (perceive, understand, decide, act, remember, react), `safety` (what needs confirmation), `planner`, `triggers` (event-driven proactivity), `brain` (`ATULYA_BRAIN` tiers). See [COGNITIVE_ARCHITECTURE.md](COGNITIVE_ARCHITECTURE.md).
-- `agent/`: assistant tools (reminders, email, calendar, weather, media, tracking, briefing, PC control), the intent router and the audit log.
-- `ambient/`: the always-on listener: microphone, wake words (English and Hindi), barge-in, tray icon, autostart.
-- `memory/`: memory providers, session search, reflection, vectors, Obsidian export.
-- `capabilities/`: browser automation, documents, voice pipeline, Google Workspace, Home Assistant, web search and the creation tools.
-- `senses/`: camera and home-sensor adapters.
-- `mcp/`: MCP server, client, signed manifests and `servers.json` (all integrations ship disabled).
-- `server/`: the FastAPI server (`python -m atulya.sevak`): API routes, accounts, sessions, chat history.
-- `channels.py`: Discord, Telegram, Slack, email, webhooks, WhatsApp, Signal, Matrix, Teams, IRC and more.
-- `llm.py`, `intelligence.py`, `local_provider.py`: the brain and the provider failover chain.
-- `persona.py`, `emotion.py`, `eyes.py`, `heartbeat.py`, `events.py`, `security.py`, `safe_eval.py`, `lockdown.py`, `textutil.py`, `cli.py`.
+Each folder has a Sanskrit/Hindi name that says what it does:
+
+- `buddhi/` (बुद्धि, intellect): the single pipeline every request goes through: `kernel` (perceive, understand, decide, act, remember, react), `safety` (what needs confirmation), `planner`, `triggers` (event-driven proactivity), `brain` (`ATULYA_BRAIN` tiers), plus `llm`, `intelligence` (the provider failover router), `local_provider` and `providers_catalog`. See [COGNITIVE_ARCHITECTURE.md](COGNITIVE_ARCHITECTURE.md).
+- `yantra/` (यंत्र, machine): everything Atulya can do. `agent/`: assistant tools (reminders, email, calendar, weather, media, money, tracking, briefing, web tasks, PC control), the intent router and the audit log. `capabilities/`: browser automation, documents, Google Workspace, Home Assistant, web search and the creation tools. `mcp/`: MCP server, client, signed manifests and `servers.json` (all integrations ship disabled).
+- `upakaran/` (उपकरण, devices): the device layer (profiles, ADB, Wake-on-LAN, Home Assistant, discovery, the hub). See [DEVICES.md](DEVICES.md).
+- `drishti/` (दृष्टि, sight): camera and home-sensor adapters, and `eyes` (reading pictures).
+- `shruti/` (श्रुति, hearing): the always-on listener: microphone, wake words (English and Hindi), barge-in, tray icon, autostart.
+- `smriti/` (स्मृति, memory): memory providers, session search, reflection, vectors, summary tree, Obsidian export.
+- `vani/` (वाणी, speech): the voice pipeline.
+- `sandesh/` (संदेश, message): Discord, Telegram, Slack, email, webhooks, WhatsApp, Signal, Matrix, Teams, IRC and more.
+- `sevak/` (सेवक, servant): the FastAPI server (`python -m atulya.sevak`): API routes, accounts, sessions, chat history.
+- `raksha/` (रक्षा, protection): `vault` (encryption at rest), `security`, `lockdown`.
+- `bhava/` (भाव, feeling): `emotion`, `persona`, `identity`.
+- Shared at the top: `cli`, `config`, `envfile`, `events`, `heartbeat`, `production_readiness`, `safe_eval`, `textutil`.
 
 The NP-DNA research model was removed. Custom model work belongs in a separate repository.
 
@@ -84,7 +87,7 @@ New code goes into the folder above that owns it. Do not add duplicate compatibi
 
 ### 1. New Tool or Capability
 ```
-1. Assistant tool: add a function with `@tool(...)` under `atulya/yantra/agent/` and import its module at the bottom of `agent/tools.py`; if it acts on the outside world, add it to `_CONFIRM_TOOLS` in `cognition/safety.py`.
+1. Assistant tool: add a function with `@tool(...)` under `atulya/yantra/agent/` and import its module at the bottom of `yantra/agent/tools.py`; if it acts on the outside world, add it to `_CONFIRM_TOOLS` in `buddhi/safety.py`.
    Heavier capability: add it under `atulya/yantra/capabilities/`.
 2. Add tests under tests/
 3. Run: python -m pytest -q

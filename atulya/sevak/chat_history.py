@@ -1,4 +1,4 @@
-"""Persistent chat history for Drishti users."""
+"""Persistent chat history for Atulya users."""
 
 from __future__ import annotations
 
