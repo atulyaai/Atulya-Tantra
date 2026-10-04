@@ -1,15 +1,52 @@
-"""Senses: camera motion/person events, Home Assistant sensors, the "someone at
-the door" reflex, and the senses API."""
+"""Tests for atulya/indriya.py."""
 from __future__ import annotations
 
 import asyncio
+import base64
 import importlib.util
 
 import pytest
 
+from atulya import indriya as eyes
+from atulya.adhar import EventBus
+
+# ── test_eyes ────────────────────────────────────────────────────────────
+PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
+
+
+def test_accepts_data_urls_and_bare_base64():
+    b64 = base64.b64encode(PNG).decode()
+    assert eyes.decode_image(f"data:image/png;base64,{b64}") == PNG
+    assert eyes.decode_image(b64) == PNG
+
+
+@pytest.mark.parametrize("bad", ["", "not base64!!", base64.b64encode(b"hello").decode()])
+def test_rejects_non_images(bad):
+    with pytest.raises(ValueError):
+        eyes.decode_image(bad)
+
+
+def test_rejects_huge_images(monkeypatch):
+    monkeypatch.setattr(eyes, "MAX_IMAGE_BYTES", 10)
+    with pytest.raises(ValueError):
+        eyes.decode_image(base64.b64encode(PNG).decode())
+
+
+def test_no_cloud_vision_without_a_key(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    assert eyes.cloud_describe(PNG, "what is this?") == ""
+
+
+def test_context_is_honest_when_nothing_was_seen():
+    ctx = eyes.as_context({"text": "", "description": "", "can_describe": False})
+    assert "no text was readable" in ctx and "GEMINI_API_KEY" in ctx
+    ctx = eyes.as_context({"text": "Milk expires 12 Oct", "description": "", "can_describe": False})
+    assert "Milk expires 12 Oct" in ctx
+
+
+# ── test_senses ────────────────────────────────────────────────────────────
 np = pytest.importorskip("numpy")
 
-from atulya.adhar import EventBus
 
 HAS_CV2 = importlib.util.find_spec("cv2") is not None
 
@@ -250,10 +287,8 @@ class TestSensesHub:
         assert "isn't running" in senses.describe()
 
     def test_kernel_answers_is_anyone_at_the_door(self, tmp_path):
-        from atulya.buddhi import CognitiveKernel
-        from atulya.buddhi import Planner, RoutineStore
-        from atulya.buddhi import ProfileStore
         from atulya import indriya as senses_mod
+        from atulya.buddhi import CognitiveKernel, Planner, ProfileStore, RoutineStore
 
         senses, _ = self.make(tmp_path)
         previous = senses_mod._CURRENT
@@ -274,9 +309,10 @@ class TestSensesApi:
     @pytest.fixture
     def client(self, tmp_path, monkeypatch):
         from fastapi.testclient import TestClient
+
         from atulya import dwar as helpers
-        from atulya.sevak import app
         from atulya.indriya import Senses
+        from atulya.sevak import app
 
         monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")
         app.state.senses = Senses(EventBus(), config_file=tmp_path / "senses.json", detector_factory=lambda: None,
@@ -301,3 +337,4 @@ class TestSensesApi:
         assert listeners[0]["device"] == "kitchen-pi" and listeners[0]["online"]
         assert client.delete("/api/senses/cameras/garage", headers=h).json()["ok"]
         assert client.delete("/api/senses/cameras/garage", headers=h).status_code == 404
+

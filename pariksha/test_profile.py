@@ -20,9 +20,7 @@ class RecordingRouter:
 
 
 def make_kernel(tmp_path):
-    from atulya.buddhi import CognitiveKernel
-    from atulya.buddhi import Planner, RoutineStore
-    from atulya.buddhi import ProfileStore
+    from atulya.buddhi import CognitiveKernel, Planner, ProfileStore, RoutineStore
     from atulya.mastishk import AtulyaLLM
 
     llm = AtulyaLLM()
@@ -273,9 +271,10 @@ class TestProfileApi:
     @pytest.fixture
     def client(self, tmp_path, monkeypatch):
         from fastapi.testclient import TestClient
+
         from atulya import dwar as helpers
-        from atulya.sevak import app
         from atulya.mastishk import AtulyaLLM
+        from atulya.sevak import app
 
         monkeypatch.setenv("ATULYA_PROFILE_DIR", str(tmp_path / "profiles"))
         monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")

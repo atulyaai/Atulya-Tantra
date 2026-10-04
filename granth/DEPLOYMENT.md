@@ -139,3 +139,37 @@ python -m atulya.adesh readiness
 ```
 
 If either Google server is enabled without credentials, readiness reports `production-candidate` and shows the missing env var. When both enabled servers have their credentials, the dashboard startup can connect them through the MCP client manager.
+
+## Security model: what is enforced today, and what is not
+
+### Enforced today
+
+- **Login:** API routes need a session token or the admin token (`X-Atulya-Token`), compared in constant time. On the computer Atulya runs on, `/api/auth/local` signs you in without a password; it refuses proxied and remote requests, and `ATULYA_REQUIRE_LOGIN=on` turns it off.
+- **Admin-only details:** normal users never see which model or provider answers, tool traces, server health, telemetry, the audit log, the model list, or the Brains & keys, Reflexes, Routines and Senses pop-ups. The server enforces this (403), and replies to normal users carry no model details. Normal users can chat, talk, see their own history and the About you pop-up.
+- **Risky actions ask first:** sending email, deleting events or reminders, unlocking doors, running code, and all PC control need your confirmation (`atulya/mastishk.py`). `ATULYA_AUTO_APPROVE` can pre-approve specific ones.
+- **PC control is off by default:** `ATULYA_PC_CONTROL=on` enables it; it only opens apps from a fixed list and blocks dangerous shortcuts.
+- **Audit log:** every tool call is appended to `kosh/agent/audit.jsonl` with passwords and tokens masked; admins can read it at `GET /api/audit`.
+- **Triggers cannot be hijacked:** event data never becomes a command, and risky trigger commands are refused unless the rule allows them.
+- **Network guard:** the price tracker and web fetch tools only reach public addresses (`SSRFProtection`).
+- **No `eval`:** math goes through an AST allowlist (`atulya/adhar.py`).
+- **Bounded inputs:** request payloads and query parameters are size-limited; chat rejects model paths and empty prompts.
+- **Lockdown profile:** `ATULYA_LOCKDOWN=on` listens on localhost only and allows no cross-site callers.
+
+### Not done yet
+
+- No OS-level sandbox for tools; protection is the confirmation prompt and allowlists.
+- The audit log is a plain file, not tamper-evident.
+- Private data is stored as plain text unless you set `ATULYA_VAULT_PASSPHRASE` (see Encryption at rest below). Vector memory, the audit log and `.env` are never encrypted.
+- By default the server listens on all interfaces with open CORS so the phone app can connect. Use lockdown, or set `ATULYA_HOST` and `ATULYA_CORS_ORIGINS`, to tighten this.
+- Rate limiting is basic: a per-address request cap in `atulya/sevak.py`, nothing per user or per route.
+
+### Guidance
+
+- Treat `kosh/` (memory, audit log, tokens), `.env` and `kosh/chat_history.json` as sensitive; they are git-ignored.
+- Do not expose the dashboard to an untrusted network without TLS, a reverse proxy and login.
+- The hardening checklist is above.
+
+
+### Encryption at rest (`ATULYA_VAULT_PASSPHRASE`)
+
+Off by default. When a passphrase is set, private files (money, calendar, reminders, email settings, chat history, profiles) are stored encrypted with a key derived from the passphrase (scrypt) and a random salt in `kosh/vault.salt`. The passphrase is never written to disk. A file that cannot be opened is never overwritten. There is no recovery if the passphrase is lost. It does not protect against someone who can read the running process or your `.env`.

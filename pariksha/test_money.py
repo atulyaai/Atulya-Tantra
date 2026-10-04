@@ -210,8 +210,8 @@ def test_email_text_and_tool(monkeypatch):
 def test_sms_inbox_endpoint_is_locked_to_its_own_key(monkeypatch, tmp_path):
     from fastapi.testclient import TestClient
 
-    from atulya.sevak import app
     from atulya.dwar import ADMIN_TOKEN
+    from atulya.sevak import app
 
     monkeypatch.setenv("ATULYA_AGENT_DATA_DIR", str(tmp_path))
     c = TestClient(app)

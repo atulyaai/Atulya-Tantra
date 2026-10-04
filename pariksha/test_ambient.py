@@ -12,7 +12,17 @@ import pytest
 
 np = pytest.importorskip("numpy")
 
-from atulya.shruti import FRAME_SAMPLES, SAMPLE_RATE, AmbientEngine, AmbientSession, AtulyaClient, AuthError, Segmenter, WakeMatcher, speakable
+from atulya.shruti import (
+    FRAME_SAMPLES,
+    SAMPLE_RATE,
+    AmbientEngine,
+    AmbientSession,
+    AtulyaClient,
+    AuthError,
+    Segmenter,
+    WakeMatcher,
+    speakable,
+)
 
 
 def frames(signal: np.ndarray):
@@ -199,9 +209,9 @@ class TestServerRoundTrip:
     @pytest.fixture
     def app(self, monkeypatch, tmp_path):
         from atulya import dwar as helpers
-        from atulya.sevak import app
         from atulya.adhar import EventBus
         from atulya.indriya import Senses
+        from atulya.sevak import app
 
         monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")
         monkeypatch.delenv("HOME_ASSISTANT_URL", raising=False)

@@ -2,13 +2,12 @@
 email/calendar tools acting for the right user — against a fake Google."""
 from __future__ import annotations
 
-import os
-
 import asyncio
 import base64
 import email
 import hashlib
 import json
+import os
 from urllib.parse import parse_qs, urlparse
 
 import httpx
@@ -147,7 +146,7 @@ class TestSignIn:
             asyncio.run(finish_sign_in(state, "good-code"))
 
     def test_needs_a_client_first(self, tmp_path, monkeypatch):
-        from atulya.jaal import GoogleError, begin_sign_in, save_client_config, client_config
+        from atulya.jaal import GoogleError, begin_sign_in, client_config, save_client_config
 
         monkeypatch.setenv("ATULYA_GOOGLE_DIR", str(tmp_path))
         monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
@@ -253,10 +252,8 @@ class TestTools:
         assert "Rahul Sharma" in asyncio.run(run())
 
     def test_kernel_acts_for_the_requesting_user(self, google, tmp_path):
-        from atulya.buddhi import CognitiveKernel
-        from atulya.buddhi import Planner, RoutineStore
-        from atulya.buddhi import ProfileStore
         from atulya.adhar import EventBus
+        from atulya.buddhi import CognitiveKernel, Planner, ProfileStore, RoutineStore
 
         connect(google, user="atul")
         kernel = CognitiveKernel(llm=object(), events=EventBus(), planner=Planner(RoutineStore(tmp_path / "r.json")),
@@ -293,6 +290,7 @@ class TestGoogleApi:
     @pytest.fixture
     def client(self, google, monkeypatch):
         from fastapi.testclient import TestClient
+
         from atulya import dwar as helpers
         from atulya.sevak import app
 

@@ -92,7 +92,7 @@ Want a bigger model? See `prayog/README.md`: try one locally (`prayog/try_model.
 
 ## What Atulya can do
 
-Full list, with what is missing: [granth/FEATURES.md](granth/FEATURES.md). What is done, tested and planned: [granth/STATUS.md](granth/STATUS.md).
+What is done, tested, planned and still missing: [granth/STATUS.md](granth/STATUS.md).
 
 | Ability | Status |
 |---|---|
@@ -233,7 +233,7 @@ Token-protected routes expect `X-Atulya-Token`. Full list: [granth/API_REFERENCE
 - Do not commit `.env` or `kosh/`; they hold your keys, accounts and memory.
 - `drishti/dist` is built by `start.bat`; `drishti/node_modules` is only needed while building and can be deleted any time.
 - Custom model training does not belong here; keep it in a separate repository and connect it as a provider.
-- Before exposing Atulya beyond your own network, read the hardening checklist in [granth/DEPLOYMENT.md](granth/DEPLOYMENT.md) and [granth/SECURITY_MODEL.md](granth/SECURITY_MODEL.md).
+- Before exposing Atulya beyond your own network, read the hardening checklist and the security model in [granth/DEPLOYMENT.md](granth/DEPLOYMENT.md).
 
 ---
 

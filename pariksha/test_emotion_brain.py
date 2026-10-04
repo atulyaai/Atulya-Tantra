@@ -5,7 +5,6 @@ import pytest
 
 from atulya.bhava import EmotionReading, MoodState, build_emotional_directive, detect_emotion, emotion_to_tts
 
-
 # --- emotion detection ---------------------------------------------------
 
 def test_detect_neutral_on_empty():

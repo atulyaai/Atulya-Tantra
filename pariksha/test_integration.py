@@ -36,6 +36,7 @@ def mock_llm():
 @pytest.mark.asyncio
 async def test_dashboard_health_endpoint():
     from fastapi.testclient import TestClient
+
     from atulya.dwar import ADMIN_TOKEN
     from atulya.sevak import app
     client = TestClient(app)
@@ -50,6 +51,7 @@ async def test_dashboard_health_endpoint():
 @pytest.mark.asyncio
 async def test_dashboard_health_no_auth():
     from fastapi.testclient import TestClient
+
     from atulya.sevak import app
     client = TestClient(app)
     resp = client.get("/api/health")
@@ -58,7 +60,7 @@ async def test_dashboard_health_no_auth():
 
 @pytest.mark.asyncio
 async def test_jwt_token_flow():
-    from atulya.dwar import _jwt_encode, _jwt_decode
+    from atulya.dwar import _jwt_decode, _jwt_encode
     token = _jwt_encode({"sub": "testuser", "role": "user", "name": "Test"})
     assert token.count(".") == 2
     payload = _jwt_decode(token)
@@ -69,7 +71,7 @@ async def test_jwt_token_flow():
 
 @pytest.mark.asyncio
 async def test_jwt_expired_token():
-    from atulya.dwar import _jwt_encode, _jwt_decode
+    from atulya.dwar import _jwt_decode, _jwt_encode
     token = _jwt_encode({"sub": "test"}, expires_in=-1)
     payload = _jwt_decode(token)
     assert payload is None
@@ -99,6 +101,7 @@ async def test_rate_limiter_exceeded():
 @pytest.mark.asyncio
 async def test_dashboard_telemetry_endpoint():
     from fastapi.testclient import TestClient
+
     from atulya.dwar import ADMIN_TOKEN
     from atulya.sevak import app
     client = TestClient(app)

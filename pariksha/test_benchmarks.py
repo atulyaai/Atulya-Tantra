@@ -63,7 +63,7 @@ async def test_mcp_http_latency():
 
 @pytest.mark.asyncio
 async def test_jwt_encode_decode_latency():
-    from atulya.dwar import _jwt_encode, _jwt_decode
+    from atulya.dwar import _jwt_decode, _jwt_encode
 
     n = 500
     encode_times = []
@@ -85,8 +85,9 @@ async def test_jwt_encode_decode_latency():
 
 @pytest.mark.asyncio
 async def test_rate_limiter_overhead():
-    from atulya.sevak import _RATE_STORE, _rate_limiter
     from unittest.mock import Mock
+
+    from atulya.sevak import _RATE_STORE, _rate_limiter
 
     _RATE_STORE.clear()
     request = Mock()

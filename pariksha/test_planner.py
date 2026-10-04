@@ -21,8 +21,7 @@ class StubRouter:
 
 
 def make_kernel(tmp_path, reply: str = "[brain reply]"):
-    from atulya.buddhi import CognitiveKernel
-    from atulya.buddhi import Planner, RoutineStore
+    from atulya.buddhi import CognitiveKernel, Planner, RoutineStore
     from atulya.mastishk import AtulyaLLM
 
     llm = AtulyaLLM()
@@ -193,8 +192,8 @@ class TestKernelPlans:
         assert r.provider != "Atulya Kernel"
 
     def test_trigger_cannot_run_a_risky_step_hidden_in_a_routine(self, tmp_path):
-        from atulya.buddhi import TriggerEngine
         from atulya.adhar import Event
+        from atulya.buddhi import TriggerEngine
 
         kernel, _ = make_kernel(tmp_path)
         kernel.planner.routines.save({"name": "Open up", "phrases": ["open up"],
@@ -209,8 +208,8 @@ class TestKernelPlans:
 class TestVerifyWithHomeAssistant:
     def test_reads_back_real_state(self, monkeypatch):
         from atulya import buddhi as planner_mod
-        from atulya.buddhi import PlanStep, verify_step
         from atulya import upakaran as home_assistant
+        from atulya.buddhi import PlanStep, verify_step
 
         calls = []
 
@@ -237,9 +236,10 @@ class TestRoutinesApi:
     @pytest.fixture
     def client(self, tmp_path, monkeypatch):
         from fastapi.testclient import TestClient
+
         from atulya import dwar as helpers
-        from atulya.sevak import app
         from atulya.mastishk import AtulyaLLM
+        from atulya.sevak import app
 
         monkeypatch.setenv("ATULYA_ROUTINES_FILE", str(tmp_path / "routines.json"))
         monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")

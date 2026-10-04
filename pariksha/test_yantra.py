@@ -1,12 +1,8 @@
 """Tests for BrowserAutomation — headless browser control via Playwright."""
 
 import asyncio
+
 import pytest
-
-
-
-
-
 
 
 class TestBrowserAutomation:
@@ -31,8 +27,7 @@ class TestBrowserAutomation:
         assert stats["last_url"] == ""
 
     def test_get_stats_after_history(self):
-        from atulya.jaal import BrowserAutomation
-        from atulya.jaal import BrowserResult
+        from atulya.jaal import BrowserAutomation, BrowserResult
         ba = BrowserAutomation()
         ba._history.append(BrowserResult(success=True, url="https://example.com",
                                           title="Example", content="...", links=[]))
@@ -125,8 +120,9 @@ class TestMCPManifestSigner:
         assert result is None
 
     def test_load_tampered_file(self):
-        from atulya.setu import MCPManifestSigner, MCPManifest
         import json
+
+        from atulya.setu import MCPManifest, MCPManifestSigner
         with tempfile.TemporaryDirectory() as tmp:
             manifest = MCPManifest(name="good", version="1.0", tools=[])
             signer = MCPManifestSigner(secret="test")
