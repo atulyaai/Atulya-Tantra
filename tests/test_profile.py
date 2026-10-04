@@ -7,7 +7,7 @@ import time
 
 import pytest
 
-from yantra.events import EventBus
+from atulya.events import EventBus
 
 
 class RecordingRouter:
@@ -273,8 +273,8 @@ class TestProfileApi:
     @pytest.fixture
     def client(self, tmp_path, monkeypatch):
         from fastapi.testclient import TestClient
-        from drishti.dashboard import helpers
-        from drishti.dashboard.app import app
+        from atulya.server import helpers
+        from atulya.server.app import app
         from atulya.llm import AtulyaLLM
 
         monkeypatch.setenv("ATULYA_PROFILE_DIR", str(tmp_path / "profiles"))

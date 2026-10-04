@@ -7,7 +7,7 @@ import asyncio
 import httpx
 import pytest
 
-from yantra.events import EventBus
+from atulya.events import EventBus
 
 
 class StubRouter:
@@ -194,7 +194,7 @@ class TestKernelPlans:
 
     def test_trigger_cannot_run_a_risky_step_hidden_in_a_routine(self, tmp_path):
         from atulya.cognition.triggers import TriggerEngine
-        from yantra.events import Event
+        from atulya.events import Event
 
         kernel, _ = make_kernel(tmp_path)
         kernel.planner.routines.save({"name": "Open up", "phrases": ["open up"],
@@ -210,7 +210,7 @@ class TestVerifyWithHomeAssistant:
     def test_reads_back_real_state(self, monkeypatch):
         from atulya.cognition import planner as planner_mod
         from atulya.cognition.planner import PlanStep, verify_step
-        from yantra.capabilities import home_assistant
+        from atulya.capabilities import home_assistant
 
         calls = []
 
@@ -237,8 +237,8 @@ class TestRoutinesApi:
     @pytest.fixture
     def client(self, tmp_path, monkeypatch):
         from fastapi.testclient import TestClient
-        from drishti.dashboard import helpers
-        from drishti.dashboard.app import app
+        from atulya.server import helpers
+        from atulya.server.app import app
         from atulya.llm import AtulyaLLM
 
         monkeypatch.setenv("ATULYA_ROUTINES_FILE", str(tmp_path / "routines.json"))

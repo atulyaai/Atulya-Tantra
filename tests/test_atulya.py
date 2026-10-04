@@ -15,10 +15,13 @@ class TestHeartbeatSystem:
             assert hb._checks == []
             assert hb._running is False
 
-    def test_memory_check_import_fallback(self):
-        """_memory_check should handle missing psutil gracefully."""
+    def test_memory_check_import_fallback(self, monkeypatch):
+        """_memory_check reports ok for normal memory use, whatever this machine is doing right now."""
         from atulya.heartbeat import HeartbeatSystem
         import asyncio
+        import psutil
+        from types import SimpleNamespace
+        monkeypatch.setattr(psutil, "virtual_memory", lambda: SimpleNamespace(percent=40.0))
         with tempfile.TemporaryDirectory() as tmp:
             hb = HeartbeatSystem(data_dir=tmp)
             result = asyncio.run(hb._memory_check())

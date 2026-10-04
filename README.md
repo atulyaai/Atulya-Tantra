@@ -1,6 +1,6 @@
 <!-- Hero Banner -->
 <div align="center">
-  <img src="atulya/docs/images/banner_animated.gif" alt="Atulya Tantra - JARVIS-Class Personal AI" width="100%"/>
+  <img src="docs/images/banner_animated.gif" alt="Atulya Tantra - JARVIS-Class Personal AI" width="100%"/>
 </div>
 
 <div align="center">
@@ -11,371 +11,200 @@
 
 <p align="center">
   <em><strong>अतुल्य</strong> (Atulya) — Peerless, without equal &nbsp;·&nbsp; <strong>तन्त्र</strong> (Tantra) — System, loom of intelligence</em><br/>
-  <strong>A local-first, always-listening personal AI: talking 3D hologram avatar, ambient Hindi/English voice mode, neural memory tree, and autonomous computer action.</strong>
+  <strong>A personal AI assistant you talk to: a 3D hologram that listens in Hindi and English, remembers you, and acts for you.</strong>
 </p>
 
 <p align="center">
-  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.11%2B-F7931A.svg?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+"/></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.10%2B-F7931A.svg?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-F7931A.svg?style=flat-square" alt="MIT License"/></a>
-  <a href="#"><img src="https://img.shields.io/badge/Privacy-100%25_Local_First-success.svg?style=flat-square" alt="Local First"/></a>
+  <a href="#"><img src="https://img.shields.io/badge/Privacy-Local_First_Option-success.svg?style=flat-square" alt="Local First"/></a>
   <a href="#"><img src="https://img.shields.io/badge/Voice-Hindi_%7C_English-orange.svg?style=flat-square" alt="Voice Hindi & English"/></a>
   <a href="#"><img src="https://img.shields.io/badge/Platform-Windows_%7C_Linux_%7C_macOS-blue.svg?style=flat-square" alt="Cross Platform"/></a>
   <a href="#"><img src="https://img.shields.io/badge/Made_in-India_🇮🇳-FF9933.svg?style=flat-square" alt="Made in India"/></a>
 </p>
 
 ```
- ┌─────────────────────────────────────────────────────────────────────────────┐
- │                             ATULYA TANTRA PIPELINE                          │
- ├─────────────────────────────────────────────────────────────────────────────┤
- │   🎙️ Ambient Audio (Mic) ──► Wake Word Detect ("Hey Atulya" / "सुनो अतुल्य")│
- │                                      │                                      │
- │                                      ▼                                      │
- │   🧠 Cognition Router     ──► Local GGUF / Tantra-LLM / Cloud Fallback      │
- │                                      │                                      │
- │            ┌─────────────────────────┴─────────────────────────┐            │
- │            ▼                                                   ▼            │
- │   🌲 Neural Memory Tree                               🛠️ Yantra Action Engine│
- │   (Vector recall · Reflection)                        (Browser, Media, PC)  │
- │            │                                                   │            │
- │            └─────────────────────────┬─────────────────────────┘            │
- │                                      ▼                                      │
- │   🎭 Drishti Hologram Engine ──► Lip-sync · Expressive Eyes · Audio Out     │
- └─────────────────────────────────────────────────────────────────────────────┘
+ +--------------------------------------------------------------------------+
+ |                         HOW ATULYA WORKS                                 |
+ |                                                                          |
+ |  Your voice or text --> hologram screen (web/) --> server (atulya/server)|
+ |                                  |                                       |
+ |                                  v                                       |
+ |                 thinking kernel (atulya/cognition)                       |
+ |            /              |                 \                            |
+ |     brain: cloud       memory: what you     tools: music, email,         |
+ |     or local model     told it, habits      calendar, PC, home           |
+ |            \              |                 /                            |
+ |                  safety: risky actions ask first                         |
+ +--------------------------------------------------------------------------+
 ```
 
 ---
 
-<div align="center">
-  <img src="atulya/docs/images/architecture.svg" alt="Atulya Tantra architecture" width="85%"/>
-</div>
+A local-first personal AI assistant. You talk to a glowing hologram: it listens in English or Hindi, thinks with a cloud or local brain, remembers you, and does things for you: music, reminders, email, calendar, price tracking, a morning briefing, smart home, and (if you turn it on) your PC.
 
-> [!NOTE]
-> Custom language model training lives in [Tantra-LLM](https://github.com/atulyaai/Tantra-LLM). This repository provides the assistant runtime, Drishti hologram frontend, long-term memory, and Yantra automation engine.
+<p align="center">
+  <img src="docs/images/orb-home.png" alt="Atulya: one animated screen" width="420">
+  <img src="docs/images/orb-popup.jpg" alt="A pop-up opens over the orb" width="420">
+</p>
 
----
+<p align="center"><img src="docs/images/orb_live.jpg" alt="The floating orb" width="60%"/></p>
 
-## What This Is
+**One screen.** There are no pages. Ask for something ("show users", "open my routines", "chat history") or tap the menu, and a pop-up slides in over the orb. Esc or a tap outside closes it. Replies appear in a caption card under the head. Admin-only details (models, health, users, audit log) are hidden from normal users.
 
-| Area | Folder | Purpose |
-|---|---|---|
-| Atulya | `atulya/` | Personality, memory, identity, assistant brain, provider routing, local model glue, security core (`atulya/core/`) |
-| Yantra | `yantra/` | Actions, tools, automation, browser/device/camera/voice systems, action tests |
-| Drishti | `drishti/` | Mobile/desktop experience: Live Mode, chat, dashboard, backend APIs, frontend build |
+![Atulya Tantra architecture](docs/images/architecture.svg)
 
-The goal is a local AI system that can remember, inspect itself, route work to the right model/provider, automate tasks, and expose controls through a dashboard.
+## Quick start (Windows)
 
-## Current Layout
+You need Python 3.10+ and Node.js 18+.
 
-```text
-Atulya-Tantra/
-|-- atulya/                     # the brain
-|   |-- cognition/              # kernel, safety, toolbelt, triggers, brain tiers
-|   |-- agent/                  # tools: reminders, email, calendar, weather, media, tracking,
-|   |                           #   briefing, PC control, audit log; intent router
-|   |-- ambient/                # always-on listener: mic, wake word (EN/HI), barge-in, tray
-|   |-- memory/                 # providers, tree, reflection, vectors, Obsidian export
-|   |-- core/                   # security, task classification, safe expression eval
-|   |-- llm.py, intelligence.py # AtulyaLLM and the provider failover router
-|   |-- local_provider.py       # local GGUF chat / streaming / tool calls
-|   |-- eyes.py, emotion.py     # seeing images, mood detection
-|   `-- persona.py, heartbeat.py, cli.py
-|-- yantra/                     # hands: capabilities, channels, MCP, senses, device control
-|-- drishti/                    # face: React/Vite frontend + FastAPI dashboard and routes
-|-- config/  install/          # static config, install helpers
-|-- docs/                       # guides, architecture, security, features, images
-|-- assets/  outputs/  runtime/ # local state, generated files, downloaded models (git-ignored)
-|-- tests/                      # test suite (run by CI on Linux and Windows)
-|-- pyproject.toml
-`-- start.bat
+1. Copy `.env.example` to `.env` and add a brain (see [Brains](#brains)). A free OpenRouter key is enough.
+2. Double-click **`start.bat`**. It installs what is missing, builds the web app only when it changed, and starts the server.
+3. Open http://localhost:8501 in **Chrome or Edge**, click once, and allow the microphone. On the computer Atulya runs on there is no login.
+
+First start takes a minute. Manual start instead of `start.bat`:
+
+```powershell
+python -m pip install -e ".[serve]"
+cd web; npm install; npm run build; cd ..
+python -m atulya.server
 ```
 
-More ownership detail lives in [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md).
+Optional extras: `.[ambient]` (always-on listener: `atulya listen`), `.[control]` (PC control), `.[vision]` (camera, OCR), `.[brain]` (a local model), `.[wake]` (wake-word model, Piper voice), `.[docs]` (document tools), `.[browser]` (browser automation).
 
-## What Atulya Can Do
+## Brains
+
+Atulya asks the first brain that is set up and falls back to the next. Put keys in `.env`:
+
+| # | Brain | Setting | Notes |
+|---|---|---|---|
+| 1 | Claude | `ANTHROPIC_API_KEY` | Fastest and smartest; answers first when set |
+| 2 | Local model | `.[brain]` + `ATULYA_AUTO_DOWNLOAD_MODEL=true` | Works offline; downloads about 400 MB. Choose a size with `ATULYA_BRAIN=tiny/balanced/power/auto` |
+| 3 | Ollama | `ATULYA_OLLAMA_MODEL` | Local models you already run |
+| 4 | Groq | `GROQ_API_KEY` | Free tier, very fast |
+| 5 | OpenRouter | `OPENROUTER_API_KEY` | Free `:free` models, tried in turn when one is busy (`ATULYA_OPENROUTER_MODEL`) |
+| 6 | Gemini | `GEMINI_API_KEY` | Free tier; also describes pictures |
+| 7 | OpenAI, NVIDIA NIM | `OPENAI_API_KEY`, `NVIDIA_API_KEY` | Optional |
+
+`ATULYA_BRAIN=cloud` puts the cloud brains first. With no local model installed (`ATULYA_AUTO_DOWNLOAD_MODEL=false`), if every cloud brain is busy Atulya says so and you try again. Every cloud brain sends your questions to that company; only the local model keeps them on your PC.
+
+## What Atulya can do
 
 Full list, with what is missing: [docs/FEATURES.md](docs/FEATURES.md).
 
 | Ability | Status |
 |---|---|
-| Talk back with a hologram head (lip sync, blink, breathing) | Working |
-| Always-on listening, wake words in English and Hindi, "stop" to interrupt | Working; optional wake-word model (`ATULYA_WAKE_MODEL`) |
-| Natural offline voice | Optional: Piper (`ATULYA_PIPER_MODEL`) |
-| Daily spoken morning briefing | Set `ATULYA_BRIEFING_AT=08:00` (and `ATULYA_BRIEFING_LOCATION`) |
-| Local brain (Qwen3 0.6B / 1.7B / 4B) with Groq, OpenRouter, Gemini failover | Working |
-| Memory, reflection, knowledge galaxy map | Working |
-| Reminders, calendar, email, weather, open websites | Working |
-| Play music (YouTube/Spotify), media keys and volume (Windows) | Working |
-| Track prices and things, morning briefing | Working |
-| See: camera motion/person detection, read text, describe scenes | Scene description needs `ollama pull moondream` (or a Gemini key) |
-| Smart home (Home Assistant, MQTT) | Needs your hardware to verify |
-| Control the PC (open apps, type, shortcuts) | Opt-in: `ATULYA_PC_CONTROL=on`; asks before each action by default (unless you pre-approve it with `ATULYA_AUTO_APPROVE`); audited |
-| Phone app and remote access | PWA + Tailscale; no cross-device sync yet |
+| Hologram head with lip sync, blink and breathing; volume boost up to 300% | Working |
+| Listening in English and Hindi; "stop" interrupts; works without a wake word in the web app | Working. The always-on listener (`atulya listen`) uses "Hey Atulya" / "हे अतुल्य" |
+| Reminders, calendar, email, weather, open websites, time | Working |
+| Play music (YouTube, Spotify), media keys and volume (Windows) | Working |
+| Price watchlist, morning briefing (`ATULYA_BRIEFING_AT=08:00`) | Working |
+| Memory that learns facts about you; recalled when you ask about the past | Working |
+| Camera motion and person detection, reading text in pictures | Working; scene description needs `ollama pull moondream` or a Gemini key |
+| Smart home (Home Assistant, MQTT), messaging channels | Needs your hardware or accounts to verify |
+| Control the PC (open apps, type, shortcuts) | Off until `ATULYA_PC_CONTROL=on`; asks before each action; audited |
+| Offline natural voice | Optional: Piper (`ATULYA_PIPER_MODEL`) |
 
-## Quick Start
+Atulya never reads out emoji and answers "what can you do" with a real list.
 
-Use Python 3.10+.
+## Phone and other devices
 
-```powershell
-python -m pip install -e ".[dev,serve,brain]"
-```
+1. In `.env` set `ATULYA_HOST=0.0.0.0`, then restart. (`ATULYA_LOCKDOWN=on` does the opposite: this computer only.)
+2. Find your PC's address (for example `192.168.1.15`) and open `http://192.168.1.15:8501` on the phone.
+3. Log in with username `admin` and the password you set in `ATULYA_DASHBOARD_TOKEN` (or the one written to `data/admin_token.txt` the first time). Other devices always need a login; only this computer skips it (`ATULYA_REQUIRE_LOGIN=on` turns that off).
+4. Add to the home screen: **iOS** Share, Add to Home Screen; **Android** menu, Install app.
+5. Away from home: install Tailscale on the PC and phone and use the private address (`http://100.x.y.z:8501`). Avoid exposing the port to the internet.
 
-Build the dashboard frontend:
+## Layout
 
-```powershell
-cd drishti
-npm install
-npm run build
-cd ..
-```
-
-Start the dashboard:
-
-```powershell
-start.bat
-```
-
-Or run the backend directly:
-
-```powershell
-python -u -m drishti.app
-```
-
-Open:
+All Python is in `atulya/`, the screen is `web/`, and everything Atulya stores lives in one `data/` folder.
 
 ```text
-http://localhost:8501
+Atulya-Tantra/
+|-- atulya/                     # all the Python
+|   |-- cognition/              # kernel, safety, planner, triggers, brain tiers
+|   |-- agent/                  # assistant tools: reminders, email, calendar, weather, music,
+|   |                           #   tracking, briefing, PC control, audit log; intent router
+|   |-- ambient/                # always-on listener: mic, wake word (EN/HI), barge-in, tray
+|   |-- memory/                 # memory providers, reflection, vectors, Obsidian export
+|   |-- capabilities/           # browser, documents, voice, Google, Home Assistant, web search
+|   |-- senses/                 # camera, motion, home sensors
+|   |-- mcp/                    # MCP server and client (+ servers.json)
+|   |-- server/                 # the web server: API routes, accounts, chat history
+|   |-- llm.py, intelligence.py # the brain and the provider failover router
+|   |-- local_provider.py       # local GGUF model
+|   |-- channels.py             # Telegram, Discord, Slack, email ... messaging
+|   `-- persona.py, emotion.py, eyes.py, heartbeat.py, events.py, security.py, cli.py ...
+|-- web/                        # the animated screen (React + Vite): src/, public/, android/
+|-- docs/                       # guides, architecture, security, features, images
+|-- tests/                      # test suite
+|-- data/                       # everything Atulya stores locally (git-ignored)
+|-- pyproject.toml, start.bat, Dockerfile, docker-compose.yml
+`-- .env                        # your keys (git-ignored)
 ```
 
-First startup can take 30-60 seconds while the local model loads.
+More detail: [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md). The cognitive pipeline is explained in [docs/COGNITIVE_ARCHITECTURE.md](docs/COGNITIVE_ARCHITECTURE.md).
 
-### Always-listening voice mode
+## How a request flows
 
-```powershell
-python -m pip install -e ".[ambient]"
-atulya listen
-```
-
-Say "Hey Atulya" or "हे अतुल्य", then your request. Say "stop" while it is talking to interrupt. Optional extras: `.[control]` (PC control), `.[vision]` (camera and OCR), `.[brain]` (local model runtime), `.[wake]` (wake-word model and Piper voice).
-
-Set `ATULYA_BRAIN=auto` to let Atulya pick the biggest local model that fits your free RAM.
-
-## Environment & Pluggable Brains
-
-Create a `.env` file in the root directory (based on `.env.example`). The dashboard reads these configurations on startup to configure path execution, binding configurations, and local/cloud intelligence fallback providers.
-
-```text
-# Host and port binding (Set host to 0.0.0.0 for mobile/local network access)
-ATULYA_HOST=127.0.0.1
-ATULYA_PORT=8501
-
-# Free-first brain provider chain
-ATULYA_OLLAMA_HOST=http://localhost:11434
-ATULYA_OLLAMA_MODEL=llama3
-ANTHROPIC_API_KEY=sk-ant-...   # Claude: fast and smart, answers first when set
-GROQ_API_KEY=gsk_...      # free key from https://console.groq.com/keys
-ATULYA_BRAIN=cloud        # Groq leads; local 0.6B model is the offline backup
-ATULYA_GROQ_MODEL=llama-3.3-70b-versatile
-OPENROUTER_API_KEY=sk-or-v1-...
-GEMINI_API_KEY=AIzaSy...
-OPENAI_API_KEY=sk-proj-...
-NVIDIA_API_KEY=nvapi-...
-
-# Dashboard API authentication
-ATULYA_DASHBOARD_TOKEN=my_secure_session_token
-```
-
-### Fallback Failover Order
-When you submit a request, the `ProviderRouter` scans the list of configured keys and automatically failovers in this order:
-1. **Claude**: only when `ANTHROPIC_API_KEY` is set (fastest and smartest).
-2. **Local GGUF**: Built-in Qwen3-0.6B model, no key required.
-3. **Ollama**: Local LLMs (free/offline).
-4. **Groq**: Free developer tier.
-5. **OpenRouter**: Cloud-based aggregator free models.
-6. **Gemini**: Free tier, rare fallback when configured.
-7. **OpenAI**: Optional paid fallback.
-8. **NVIDIA NIM**: Pluggable microservice containers.
-9. **OpenCode Zen**: Offline rule-based persona fallback if all endpoints are offline or keys are missing.
-
-
----
-
-## Mobile Access (Like Siri or Gemini)
-
-Atulya Tantra is built mobile-first. You can access the voice cockpit, real-time cameras, memory, and planning modules on your smartphone or tablet with the feeling of a native OS assistant (like Siri or Gemini).
-
-### Step 1: Bind Server to Local Network
-Configure your `.env` file to expose the server to the local network:
-```text
-ATULYA_HOST=0.0.0.0
-ATULYA_PORT=8501
-```
-Start the dashboard using `start.bat`.
-
-### Step 2: Open on Mobile
-1. Find your computer's local IP address (e.g., `192.168.1.15`).
-2. Open Safari (iOS) or Chrome (Android) on your mobile device.
-3. Navigate to: `http://192.168.1.15:8501`.
-4. Enter your session token (`ATULYA_DASHBOARD_TOKEN`) to authenticate.
-
-### Step 3: Add to Home Screen (PWA Mode)
-- **iOS (Safari)**: Tap the **Share** button at the bottom, scroll down, and select **Add to Home Screen**.
-- **Android (Chrome)**: Tap the **three-dot menu** at the top right and select **Add to Home screen** or **Install App**.
-
-This places a native launcher icon on your smartphone home screen. Opening it hides browser navigation controls and launches Atulya in full-screen immersion mode.
-
-### Step 4: Engage Hands-Free Voice Cycle
-1. Click **ENGAGE ORACLE** to grant microphone permission.
-2. Check the **HANDS-FREE** checkbox.
-3. The interface will open the microphone, listen for voice input, process thoughts across the digital nervous system, vocalize responses via edge-tts, and automatically re-open the mic for continuous conversation.
-
-### Step 5: Remote Mobile Access (Anywhere in the World)
-To talk to Atulya outside your home WiFi network:
-- **Tailscale (Recommended)**: Install Tailscale on your host computer and your phone. You can access Atulya from anywhere using the private Tailscale IP (e.g., `http://100.x.y.z:8501`) securely, without opening public ports.
-- **ngrok**: Expose local port 8501 securely to a public ngrok domain: `ngrok http 8501`.
-
----
-
-## Model Repo Boundary
-
-Do not add new custom LLM training flows to this repository. Model architecture work, tokenizer changes, training jobs, checkpoints, evaluations, and model release artifacts belong in the separate LLM/model repo.
-
-Use this repo to connect models to the product:
-
-- Add provider keys and endpoint URLs in `.env`.
-- Route chat through `atulya/llm.py` and provider/router adapters.
-- Surface status, links, and diagnostics in Drishti.
-
-## Drishti Development
-
-<div align="center">
-  <img src="https://raw.githubusercontent.com/atulyaai/Atulya-Tantra/main/atulya/docs/images/drishti_ui.jpg" alt="Drishti Hologram UI & Live Mode" width="100%"/>
-  <br/><br/>
-  <img src="https://raw.githubusercontent.com/atulyaai/Atulya-Tantra/main/atulya/docs/images/orb_live.jpg" alt="Drishti Floating Orb Interface" width="60%"/>
-  <p><em>Live Drishti floating desktop orb and conversational HUD interface</em></p>
-</div>
-
-
-Run the Vite dev server:
-
-```powershell
-cd drishti
-npm run dev
-```
-
-The dev server proxies `/api` and `/ws` to `http://127.0.0.1:8501`.
-
-Build production assets:
-
-```powershell
-cd drishti
-npm run build
-```
-
-Backend entrypoint:
-
-```powershell
-python -u -m drishti.app
-```
-
-## Dashboard And Automation
-
-<div align="center">
-  <img src="atulya/docs/images/yantra_engine.jpg" alt="Yantra Action Engine Automation HUD" width="100%"/>
-</div>
-
+<p align="center"><img src="docs/images/automation_hud.jpg" alt="Tools and automation" width="80%"/></p>
 
 ```mermaid
 flowchart LR
-    Browser["Browser / Drishti"] --> Backend["drishti.app"]
-    Backend --> App["FastAPI dashboard"]
-    App --> Chat["chat/provider APIs"]
-    App --> Models["model status/adapters"]
-    App --> Yantra["Yantra MCP + tools"]
-    Models --> External["external or local model repo endpoint"]
+    You["You: voice or text"] --> Web["web/ (the orb)"]
+    Web --> Server["atulya.server"]
+    Server --> Kernel["cognition kernel"]
+    Kernel --> Tools["tools: agent/, capabilities/"]
+    Kernel --> Brain["brain: cloud or local"]
+    Kernel --> Memory["memory"]
+    Tools --> Safety["safety: risky actions ask first"]
 ```
 
-Important Yantra locations:
+Assistant tools live in `atulya/agent/` and register themselves with `@tool`. Risky ones (sending email, deleting events, PC control) ask first by default (`ATULYA_AUTO_APPROVE` can pre-approve specific ones), and every call is appended to `data/agent/audit.jsonl`.
 
-- `yantra/capabilities/`: file tools, gated shell execution, web search, browser, voice, Google Workspace, Home Assistant, documents
-- `yantra/channels.py`: unified multi-channel system (Discord, Telegram, Slack, Email, Webhook, WhatsApp, Signal, Matrix, Teams, IRC, WebChat, Console, Log, Twitter)
-- `yantra/mcp/`: MCP server, transport, manifest signing, external client, dashboard bridge
-- `yantra/senses/`: camera and home sensors
+## Memory
 
-Assistant tools the brain can call live in `atulya/agent/` and register themselves with `@tool`. Risky ones (sending email, deleting events, PC control) ask first by default (`ATULYA_AUTO_APPROVE` can pre-approve specific ones) — see `atulya/cognition/safety.py` — and every call is appended to `assets/agent/audit.jsonl`.
+<p align="center"><img src="docs/images/memory_tree.jpg" alt="Memory tree" width="80%"/></p>
 
-## Memory And Identity
+Atulya's memory is in `atulya/memory/`: a vector store and session search (what the brain uses), plus reflection, a hierarchical summary tree and Obsidian export. A small local model copies recalled answers back, so with it memory is only shown when you ask about the past. Your profile (facts it learned, habits, what you trust it to do without asking) is under the **About you** pop-up. Identity and prompt rules are in `atulya/persona.py`; an optional override goes in `data/identity.json`.
 
-<div align="center">
-  <img src="atulya/docs/images/memory_tree.jpg" alt="Neural Memory Tree & Knowledge Graph" width="100%"/>
-</div>
-
-
-Atulya application memory lives in `atulya/memory/`. Memory is part of the assistant brain, not a fifth top-level product folder.
-
-| Module | Purpose |
-|---|---|
-| `orchestrator.py` | provider registry and context assembly |
-| `session_search.py` | session text search |
-| `prompt_cache.py` | prompt/result cache |
-| `subconscious.py` | decision/event log |
-| `reflection.py` | insights and reflective notes |
-| `tree.py` | hierarchical memory summaries |
-| `obsidian.py` | markdown vault export |
-| `vector_store.py` | dependency-free feature-hashed vector memory |
-
-Identity and prompt behavior are controlled by `atulya/persona.py` and the Atulya memory modules. An optional identity override can be placed at `data/identity.json` (or pointed to with `ATULYA_IDENTITY_PATH`).
-
-## API Example
-
-Token-protected dashboard routes expect `X-Atulya-Token`.
+## Development
 
 ```powershell
-$token = $env:ATULYA_DASHBOARD_TOKEN
-Invoke-RestMethod http://127.0.0.1:8501/api/system -Headers @{"X-Atulya-Token"=$token}
-```
-
-Routes implemented by the current backend:
-
-| Route | Method | Real source |
-|---|---|---|
-| `/api/dashboard/bootstrap` | GET | current user, providers, and (for admins) system stats |
-| `/api/system` | GET | `psutil` CPU/RAM/disk plus Python version |
-| `/api/health` | GET | health check |
-| `/api/chat` | POST | blocking chat routed through provider/model adapters |
-| `/api/chat/stream` | POST | Server-Sent Events token stream |
-| `/api/chat/history` | GET/DELETE | persisted conversation history |
-| `/api/agent/status`, `/api/agent/process`, `/api/agent/tools` | GET/POST | agent tools and process control |
-| `/api/auth/login` | POST | validates the dashboard token |
-| `/api/users` | GET/POST/DELETE | user management |
-| `/api/cron/jobs` | GET/POST/DELETE | automation job scheduler |
-| `/api/upload`, `/api/files` | POST/GET/DELETE | file upload and serving |
-| `/api/voice/voices`, `/api/voice/tts`, `/api/voice/stt`, `/api/voice/chat` | GET/POST | voice pipeline |
-| `/api/notifications/subscribe` | POST | notification subscriptions |
-| `/v1/models` | GET | OpenAI-compatible model list |
-
-## Verification
-
-```powershell
-python -m pytest -q
-ruff check .
+python -m pytest -q       # tests
+ruff check .              # lint (unused imports are errors)
+cd web; npm run dev       # web dev server, proxies /api and /ws to :8501
 python -m atulya.cli doctor
 ```
 
+Docker: `docker compose up --build` (builds the web app, serves on port 8501, keeps `data/` on your disk). Not yet tried on a real server.
+
+## API
+
+Token-protected routes expect `X-Atulya-Token`. Full list: [docs/API_REFERENCE.md](docs/API_REFERENCE.md).
+
+| Route | Who | What |
+|---|---|---|
+| `GET /api/auth/local` | this computer only | sign in without a password |
+| `POST /api/auth/login` | everyone | username and password |
+| `POST /api/chat`, `/api/chat/stream`, `/api/voice/chat` | signed in | talk to Atulya |
+| `GET/DELETE /api/chat/history` | signed in | your conversation |
+| `POST /api/voice/stt`, `/api/voice/tts` | signed in | speech to text and back |
+| `GET /api/profile` and friends | signed in | what Atulya knows about you |
+| `GET /api/brain`, `/api/health`, `/api/telemetry`, `/api/system`, `/api/audit` | admin | models, server health, audit log |
+| `/api/users`, `/api/routines`, `/api/senses`, `/api/triggers`, `/api/devices`, `/api/agent/tools` | admin | management |
+| `GET /v1/models` | admin | OpenAI-style model list |
+
 ## Notes
 
-- Do not commit `.env`; it can contain secrets.
-- Do not commit generated outputs, `__pycache__`, or large local datasets unless intentionally publishing data elsewhere.
-- `drishti/node_modules` can exist locally for development, but should not be treated as source.
-- `drishti/dist` is built by `start.bat` or CI; do not commit generated build output.
-- `assets/` holds runtime-local app state; runtime artifacts such as scheduler state, memory databases, and email config are gitignored.
-- Active LLM training data, checkpoints, and tokenizer artifacts belong in the separate model repo.
-- Before exposing Atulya beyond this machine, read the hardening checklist in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+- Do not commit `.env` or `data/`; they hold your keys, accounts and memory.
+- `web/dist` is built by `start.bat`; `web/node_modules` is only needed while building and can be deleted any time.
+- Custom model training does not belong here; keep it in a separate repository and connect it as a provider.
+- Before exposing Atulya beyond your own network, read the hardening checklist in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) and [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md).
 
 ---
 
----
-
-## 🤝 Contributing
+## Contributing
 
 Contributions, bug reports, and ideas are welcome!
 
@@ -384,11 +213,10 @@ Contributions, bug reports, and ideas are welcome!
 3. **Commit** your changes: `git commit -m "feat: add your feature"`
 4. **Push** and open a **Pull Request**
 
-Please keep PRs focused and include tests where relevant.  
-For major changes, open an issue first to discuss what you'd like to change.
+Please keep PRs focused and include tests where relevant. For major changes, open an issue first. See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for the project rules and where things go, and [ROADMAP.md](ROADMAP.md) for what is planned.
 
 > All contributions are released under the [MIT License](LICENSE).
 
-## 📜 License
+## License
 
 MIT License. Copyright (c) 2026 Atulya AI (atulyaai). See [LICENSE](LICENSE).

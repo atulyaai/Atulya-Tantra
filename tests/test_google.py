@@ -74,7 +74,7 @@ class FakeGoogle:
 @pytest.fixture
 def google(tmp_path, monkeypatch):
     """A fake Google behind every httpx client, and a clean token directory."""
-    from yantra.capabilities import google_workspace
+    from atulya.capabilities import google_workspace
 
     fake = FakeGoogle()
     transport = httpx.MockTransport(fake)
@@ -95,7 +95,7 @@ def google(tmp_path, monkeypatch):
 
 
 def connect(fake: FakeGoogle, user: str = "atul") -> str:
-    from yantra.capabilities.google_workspace import begin_sign_in, finish_sign_in
+    from atulya.capabilities.google_workspace import begin_sign_in, finish_sign_in
 
     url = begin_sign_in(user, "http://localhost:8000/api/google/callback")
     params = {k: v[0] for k, v in parse_qs(urlparse(url).query).items()}
@@ -108,7 +108,7 @@ def connect(fake: FakeGoogle, user: str = "atul") -> str:
 
 class TestSignIn:
     def test_consent_url(self, google):
-        from yantra.capabilities.google_workspace import begin_sign_in
+        from atulya.capabilities.google_workspace import begin_sign_in
 
         url = begin_sign_in("atul", "http://localhost:8000/api/google/callback")
         q = {k: v[0] for k, v in parse_qs(urlparse(url).query).items()}
@@ -118,7 +118,7 @@ class TestSignIn:
         assert "https://www.googleapis.com/auth/calendar.events" in q["scope"].split()
 
     def test_full_flow_stores_private_tokens(self, google, tmp_path):
-        from yantra.capabilities.google_workspace import GoogleAccount
+        from atulya.capabilities.google_workspace import GoogleAccount
 
         connect(google)
         account = GoogleAccount("atul")
@@ -128,7 +128,7 @@ class TestSignIn:
         assert not GoogleAccount("meera").connected  # per user
 
     def test_state_is_single_use_and_bound(self, google):
-        from yantra.capabilities.google_workspace import GoogleError, finish_sign_in
+        from atulya.capabilities.google_workspace import GoogleError, finish_sign_in
 
         state = connect(google)
         with pytest.raises(GoogleError, match="expired or was already used"):
@@ -137,8 +137,8 @@ class TestSignIn:
             asyncio.run(finish_sign_in("made-up", "good-code"))
 
     def test_expired_state(self, google, monkeypatch):
-        from yantra.capabilities import google_workspace
-        from yantra.capabilities.google_workspace import GoogleError, begin_sign_in, finish_sign_in
+        from atulya.capabilities import google_workspace
+        from atulya.capabilities.google_workspace import GoogleError, begin_sign_in, finish_sign_in
 
         url = begin_sign_in("atul", "http://x/cb")
         state = parse_qs(urlparse(url).query)["state"][0]
@@ -147,7 +147,7 @@ class TestSignIn:
             asyncio.run(finish_sign_in(state, "good-code"))
 
     def test_needs_a_client_first(self, tmp_path, monkeypatch):
-        from yantra.capabilities.google_workspace import GoogleError, begin_sign_in, save_client_config, client_config
+        from atulya.capabilities.google_workspace import GoogleError, begin_sign_in, save_client_config, client_config
 
         monkeypatch.setenv("ATULYA_GOOGLE_DIR", str(tmp_path))
         monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
@@ -166,7 +166,7 @@ class TestSignIn:
 
 class TestTokens:
     def test_refresh_when_expired(self, google):
-        from yantra.capabilities.google_workspace import GoogleAccount
+        from atulya.capabilities.google_workspace import GoogleAccount
 
         connect(google)
         account = GoogleAccount("atul")
@@ -179,7 +179,7 @@ class TestTokens:
         assert google.refreshes == 1  # reused until it expires
 
     def test_revoked_at_google_disconnects(self, google):
-        from yantra.capabilities.google_workspace import GoogleAccount, GoogleNotConnected
+        from atulya.capabilities.google_workspace import GoogleAccount, GoogleNotConnected
 
         connect(google)
         account = GoogleAccount("atul")
@@ -192,7 +192,7 @@ class TestTokens:
         assert not account.connected
 
     def test_disconnect_revokes(self, google):
-        from yantra.capabilities.google_workspace import GoogleAccount
+        from atulya.capabilities.google_workspace import GoogleAccount
 
         connect(google)
         assert asyncio.run(GoogleAccount("atul").disconnect())
@@ -204,7 +204,7 @@ class TestTokens:
 class TestTools:
     def test_email_and_calendar_use_the_users_google(self, google):
         from atulya.agent import tools
-        from yantra.identity import acting_as
+        from atulya.identity import acting_as
 
         connect(google)
 
@@ -230,7 +230,7 @@ class TestTools:
 
     def test_someone_else_does_not_get_your_mail(self, google):
         from atulya.agent import tools
-        from yantra.identity import acting_as
+        from atulya.identity import acting_as
 
         connect(google, user="atul")
 
@@ -242,7 +242,7 @@ class TestTools:
 
     def test_automations_use_the_only_connected_account(self, google):
         from atulya.agent import tools
-        from yantra.identity import acting_as
+        from atulya.identity import acting_as
 
         connect(google, user="atul")
 
@@ -256,7 +256,7 @@ class TestTools:
         from atulya.cognition.kernel import CognitiveKernel
         from atulya.cognition.planner import Planner, RoutineStore
         from atulya.cognition.profile import ProfileStore
-        from yantra.events import EventBus
+        from atulya.events import EventBus
 
         connect(google, user="atul")
         kernel = CognitiveKernel(llm=object(), events=EventBus(), planner=Planner(RoutineStore(tmp_path / "r.json")),
@@ -293,8 +293,8 @@ class TestGoogleApi:
     @pytest.fixture
     def client(self, google, monkeypatch):
         from fastapi.testclient import TestClient
-        from drishti.dashboard import helpers
-        from drishti.dashboard.app import app
+        from atulya.server import helpers
+        from atulya.server.app import app
 
         monkeypatch.setattr(helpers, "ADMIN_TOKEN", "test_token")
         monkeypatch.delenv("ATULYA_PUBLIC_URL", raising=False)

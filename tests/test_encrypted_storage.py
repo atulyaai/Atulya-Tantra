@@ -16,7 +16,7 @@ except Exception:
 class TestEncryptedStorage:
     @pytest.mark.skipif(not _HAS_CRYPTO, reason="cryptography not available")
     def test_encrypt_and_decrypt(self, tmp_path):
-        from yantra.capabilities.encrypted_storage import EncryptedStorage
+        from atulya.capabilities.encrypted_storage import EncryptedStorage
 
         store = EncryptedStorage(tmp_path, key=_KEY)
         path = store.encrypt({"secret": "value"}, "mysecret")
@@ -28,14 +28,14 @@ class TestEncryptedStorage:
 
     @pytest.mark.skipif(not _HAS_CRYPTO, reason="cryptography not available")
     def test_decrypt_missing(self, tmp_path):
-        from yantra.capabilities.encrypted_storage import EncryptedStorage
+        from atulya.capabilities.encrypted_storage import EncryptedStorage
 
         store = EncryptedStorage(tmp_path, key=_KEY)
         assert store.decrypt("nonexistent") is None
 
     @pytest.mark.skipif(not _HAS_CRYPTO, reason="cryptography not available")
     def test_delete(self, tmp_path):
-        from yantra.capabilities.encrypted_storage import EncryptedStorage
+        from atulya.capabilities.encrypted_storage import EncryptedStorage
 
         store = EncryptedStorage(tmp_path, key=_KEY)
         store.encrypt({"data": "x"}, "todelete")
@@ -44,14 +44,14 @@ class TestEncryptedStorage:
 
     @pytest.mark.skipif(not _HAS_CRYPTO, reason="cryptography not available")
     def test_delete_nonexistent(self, tmp_path):
-        from yantra.capabilities.encrypted_storage import EncryptedStorage
+        from atulya.capabilities.encrypted_storage import EncryptedStorage
 
         store = EncryptedStorage(tmp_path, key=_KEY)
         assert store.delete("nothing") is False
 
     @pytest.mark.skipif(not _HAS_CRYPTO, reason="cryptography not available")
     def test_list_keys(self, tmp_path):
-        from yantra.capabilities.encrypted_storage import EncryptedStorage
+        from atulya.capabilities.encrypted_storage import EncryptedStorage
 
         store = EncryptedStorage(tmp_path, key=_KEY)
         store.encrypt({"a": 1}, "key_a")
@@ -62,14 +62,14 @@ class TestEncryptedStorage:
 
     @pytest.mark.skipif(not _HAS_CRYPTO, reason="cryptography not available")
     def test_list_keys_empty(self, tmp_path):
-        from yantra.capabilities.encrypted_storage import EncryptedStorage
+        from atulya.capabilities.encrypted_storage import EncryptedStorage
 
         store = EncryptedStorage(tmp_path, key=_KEY)
         assert store.list_keys() == []
 
     @pytest.mark.skipif(not _HAS_CRYPTO, reason="cryptography not available")
     def test_key_from_env_var(self, tmp_path):
-        from yantra.capabilities.encrypted_storage import EncryptedStorage
+        from atulya.capabilities.encrypted_storage import EncryptedStorage
 
         with patch("os.environ.get") as env:
             env.return_value = _KEY
@@ -79,7 +79,7 @@ class TestEncryptedStorage:
 
     @pytest.mark.skipif(not _HAS_CRYPTO, reason="cryptography not available")
     def test_key_file_persistence(self, tmp_path):
-        from yantra.capabilities.encrypted_storage import EncryptedStorage
+        from atulya.capabilities.encrypted_storage import EncryptedStorage
 
         s1 = EncryptedStorage(tmp_path, key=_KEY)
         s1.encrypt({"persist": "me"}, "p")

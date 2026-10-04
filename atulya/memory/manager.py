@@ -10,7 +10,7 @@ from .vector_store import VectorMemoryProvider
 
 
 class MemoryManager(MemoryOrchestrator):
-    def __init__(self, data_dir: str | Path = "assets/memory"):
+    def __init__(self, data_dir: str | Path = "data/memory"):
         super().__init__(data_dir)
         self.session_search = SessionSearchProvider(data_dir)
         self.vector_store = VectorMemoryProvider(data_dir)

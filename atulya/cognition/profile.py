@@ -190,7 +190,7 @@ class ProfileStore:
     """Per-user profiles as JSON files; thread-safe read-modify-write."""
 
     def __init__(self, directory: str | Path | None = None):
-        self.dir = Path(directory or os.environ.get("ATULYA_PROFILE_DIR", "assets/agent/profiles"))
+        self.dir = Path(directory or os.environ.get("ATULYA_PROFILE_DIR", "data/agent/profiles"))
         self._lock = threading.RLock()
 
     # ── storage ────────────────────────────────────────────────────────────

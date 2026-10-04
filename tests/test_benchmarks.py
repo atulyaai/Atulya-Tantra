@@ -47,7 +47,7 @@ async def test_tool_execution_latency():
 
 @pytest.mark.asyncio
 async def test_mcp_http_latency():
-    from yantra.mcp.external_client import MCPClientManager
+    from atulya.mcp.external_client import MCPClientManager
 
     mgr = MCPClientManager()
     t0 = time.perf_counter()
@@ -63,7 +63,7 @@ async def test_mcp_http_latency():
 
 @pytest.mark.asyncio
 async def test_jwt_encode_decode_latency():
-    from drishti.dashboard.helpers import _jwt_encode, _jwt_decode
+    from atulya.server.helpers import _jwt_encode, _jwt_decode
 
     n = 500
     encode_times = []
@@ -85,7 +85,7 @@ async def test_jwt_encode_decode_latency():
 
 @pytest.mark.asyncio
 async def test_rate_limiter_overhead():
-    from drishti.dashboard.app import _RATE_STORE, _rate_limiter
+    from atulya.server.app import _RATE_STORE, _rate_limiter
     from unittest.mock import Mock
 
     _RATE_STORE.clear()

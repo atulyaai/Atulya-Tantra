@@ -21,7 +21,6 @@ htmlcov/
 *.crt
 
 # Data / outputs
-data/
 *.model
 *.bin
 *.gguf
@@ -30,26 +29,12 @@ checkpoints/
 outputs/npdna/benchmark.json
 
 # Runtime-local app state
-assets/agent/*.json
-assets/agent/profiles/
-assets/agent/google/
-assets/agent/snapshots/
-assets/memory/
-assets/audio/
-assets/admin_token.txt
-assets/heartbeat_status.json
 tantra/outputs/npdna/
-config/chat_history.json
-config/sessions.json
-config/push_subs.json
-config/admin_token.json
-config/jwt_secret.key
-config/users.json
 
 # Node / frontend
 node_modules/
-drishti/dist/
-drishti/.vite/
+web/dist/
+web/.vite/
 
 # OS / editor
 .DS_Store
@@ -62,16 +47,13 @@ Thumbs.db
 
 # Portable runtime (models, binaries, venv) — downloaded by install/setup
 runtime/
-assets/state/
 
 # Runtime scratch / generated reports
 tmp/
-!drishti/public/hologram-head.bin
+!web/public/hologram-head.bin
 
-# Audit log, memory backups and local tool config
-assets/agent/*.jsonl
-assets/_old_backup_*/
 .claude/
 
-# Generated reports and runtime job state
+# Everything Atulya learns and stores on your machine (memory, accounts, logs, tokens)
+data/
 outputs/

@@ -36,8 +36,8 @@ from atulya.cognition.profile import (
 )
 from atulya.cognition.toolbelt import EXCLUDED_FROM_BRAIN
 from atulya.llm import AtulyaLLM, LLMEvent, LLMResponse, _chunk_text, get_default_llm
-from yantra.events import EventBus, default_bus
-from yantra.identity import acting_as, current_user
+from atulya.events import EventBus, default_bus
+from atulya.identity import acting_as, current_user
 
 logger = logging.getLogger(__name__)
 

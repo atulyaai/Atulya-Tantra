@@ -3,7 +3,7 @@
 ## ✅ Completed
 - [x] Wake-word listener (ambient, always-on)
 - [x] Hindi + English voice mode (Whisper + gTTS)
-- [x] 3D holographic avatar — Drishti UI (React + Three.js)
+- [x] 3D holographic avatar (React + Three.js)
 - [x] Neural memory tree (long-term + episodic)
 - [x] 23+ automation tools (browser, files, system, calendar)
 - [x] 9 LLM provider backends with automatic failover
@@ -14,7 +14,7 @@
 ## 🔄 In Progress
 - [ ] Tantra-LLM native integration (replace cloud fallback)
 - [ ] Smriti memory search with vector embeddings
-- [ ] Yantra automation workflow builder (drag-drop UI)
+- [ ] Automation workflow builder (drag-drop UI)
 
 ## 🔮 Planned
 - [ ] Android companion app (voice + push notifications)

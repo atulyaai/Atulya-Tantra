@@ -16,7 +16,7 @@ Open http://localhost:80
 python -m venv venv
 source venv/bin/activate  # or .\venv\Scripts\Activate.ps1
 pip install -e ".[serve,dev]"
-uvicorn drishti.dashboard.app:app --host 0.0.0.0 --port 8000
+uvicorn atulya.server.app:app --host 0.0.0.0 --port 8000
 ```
 
 ## Environment Variables
@@ -34,7 +34,7 @@ uvicorn drishti.dashboard.app:app --host 0.0.0.0 --port 8000
 
 ## MCP Servers
 
-Edit `config/mcp_servers.json` to enable integrations (filesystem, git, browser, Google Drive, Gmail, etc.). All start disabled by default.
+Edit `atulya/mcp/servers.json` to enable integrations (filesystem, git, browser, Google Drive, Gmail, etc.). All start disabled by default.
 
 ## Production
 
@@ -43,7 +43,7 @@ docker compose -f docker-compose.yml up -d
 ```
 
 The nginx reverse proxy handles:
-- Static file serving from `drishti/dist/`
+- Static file serving from `web/dist/`
 - API proxy to uvicorn on port 8000
 - WebSocket upgrade headers
 - 100MB upload limit
@@ -62,7 +62,7 @@ Atulya listens on all interfaces and accepts any CORS origin by default so the p
 - `ATULYA_HOST=127.0.0.1` — only this computer can connect.
 - `ATULYA_CORS_ORIGINS=https://your-site` — only listed web origins may call the API.
 - `ATULYA_PC_CONTROL` stays unset unless you want Atulya to open apps and type; every such action asks first.
-- Every tool call is written to `assets/agent/audit.jsonl` (secrets masked).
+- Every tool call is written to `data/agent/audit.jsonl` (secrets masked).
 
 - `ATULYA_LOCKDOWN=on` — one switch for the above: listen on localhost only and allow no cross-site (CORS) callers unless `ATULYA_CORS_ORIGINS` lists them. The phone app will not reach it while this is on.
 - `GET /api/audit` (admin token) returns the latest audit-log entries.
@@ -94,7 +94,7 @@ Drive uses the free service-account path, which is simpler than user OAuth for a
 GOOGLE_SERVICE_ACCOUNT_KEY={"type":"service_account","project_id":"..."}
 ```
 
-8. Set `google_drive.enabled` to `true` in `config/mcp_servers.json`.
+8. Set `google_drive.enabled` to `true` in `atulya/mcp/servers.json`.
 
 ### Gmail
 
@@ -127,7 +127,7 @@ node install/generate_gmail_refresh_token.mjs
 ```
 
 9. Copy only the printed `GMAIL_REFRESH_TOKEN=...` line into `.env`.
-10. Set `gmail.enabled` to `true` in `config/mcp_servers.json`.
+10. Set `gmail.enabled` to `true` in `atulya/mcp/servers.json`.
 
 ### Verify
 
