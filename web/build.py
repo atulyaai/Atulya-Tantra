@@ -37,7 +37,7 @@ def source_hash() -> str:
         files = sorted(p for p in path.rglob("*") if p.is_file() and "node_modules" not in p.parts) if path.is_dir() else [path]
         for file in files:
             if file.exists():
-                digest.update(str(file.relative_to(WEB)).encode())
+                digest.update(file.name.encode())
                 digest.update(file.read_bytes())
     return digest.hexdigest()
 

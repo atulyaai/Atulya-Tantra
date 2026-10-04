@@ -423,11 +423,10 @@ def test_models_list_is_admin_only(two_users):
 
 # ── build helper ─────────────────────────────────────────────────────────
 
-def test_ensure_build_only_builds_when_source_is_newer(tmp_path, monkeypatch):
+def test_ensure_build_rebuilds_when_source_content_changes(tmp_path, monkeypatch):
+    import importlib.util
     import os
     import time
-
-    import importlib.util
     from pathlib import Path
 
     spec = importlib.util.spec_from_file_location("web_build", Path(__file__).resolve().parents[1] / "web" / "build.py")
@@ -441,15 +440,18 @@ def test_ensure_build_only_builds_when_source_is_newer(tmp_path, monkeypatch):
     dist.parent.mkdir()
     dist.write_text("built")
     monkeypatch.setattr(eb, "DIST", dist)
+    monkeypatch.setattr(eb, "STAMP", tmp_path / "dist" / ".source-hash")
     monkeypatch.setattr(eb, "SOURCES", [tmp_path / "frontend"])
-    old = time.time() - 100
-    os.utime(src, (old, old))
-    assert not eb.needs_build()          # dist is newer than the source
-    os.utime(src, None)
-    os.utime(dist, (old, old))
-    assert eb.needs_build()              # source changed after the build
+    assert eb.needs_build()                      # built, but never stamped: treat as stale
+    eb.STAMP.write_text(eb.source_hash())
+    assert not eb.needs_build()                  # up to date
+    later = time.time() + 100
+    os.utime(src, (later, later))
+    assert not eb.needs_build()                  # a newer file time alone changes nothing
+    src.write_text("y")
+    assert eb.needs_build()                      # the content changed
     dist.unlink()
-    assert eb.needs_build()              # no build yet
+    assert eb.needs_build()                      # no build yet
 
 
 def test_busy_cloud_message_when_no_brain_answers(monkeypatch):
