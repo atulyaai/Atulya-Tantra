@@ -23,7 +23,7 @@ sends a long instruction and tool prompt. On CPU, bigger local models make that
 worse. A GPU (route 3) or a cloud key avoids it.
 
 ## 3. Free GPU on Google Colab
-1. Open `prayog/colab/atulya_remote_brain.ipynb` in Colab, choose a GPU runtime, run all cells.
+1. Open `prayog/atulya_remote_brain.ipynb` in Colab, choose a GPU runtime, run all cells.
 2. It prints a command. Run it on your PC:
 ```
 python prayog/connect_remote.py --url https://xxxx.trycloudflare.com/v1 --key KEY --model NAME

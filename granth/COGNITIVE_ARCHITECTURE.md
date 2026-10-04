@@ -48,16 +48,16 @@ flowchart LR
 | Understanding | Clear command → concrete tool + arguments, no model needed | `atulya/kriya.py` |
 | Planning | Goals → checked multi-step plans (routines, groups, compound commands, the brain) | `atulya/buddhi.py` |
 | Knowing you | Facts, habits, which confirmations to stop asking (opt-in) | `atulya/buddhi.py` |
-| Brain | Open conversation, reasoning, native tool calls, provider failover | `atulya/mastishk.py`, `atulya/mastishk.py`, `atulya/mastishk.py` |
+| Brain | Open conversation, reasoning, native tool calls, provider failover | `atulya/mastishk.py` |
 | Brain size | `ATULYA_BRAIN` tiers: tiny / balanced / power / cloud | `atulya/mastishk.py` |
 | Conscience | Which actions run vs. wait for confirmation | `atulya/mastishk.py` |
 | Hands | One tool surface: files, web, office, ERP + home, reminders, weather, email, calendar | `atulya/mastishk.py` |
 | Real-world reach | Home Assistant (Zigbee, Z-Wave, Wi-Fi, Matter…) | `atulya/upakaran.py` |
-| Memory | Remembers conversations and the actions it took | `atulya/smriti/` |
+| Memory | Remembers conversations and the actions it took | `atulya/smriti.py` |
 | Nervous system | Publish/subscribe events | `atulya/adhar.py` |
 | Reflexes | Event → rule → notify and/or act | `atulya/buddhi.py` |
 | Interoception | Self-monitoring; publishes health *changes* | `atulya/adhar.py` |
-| Senses | Cameras (motion, people) and Home Assistant sensors → events | `atulya/indriya/` |
+| Senses | Cameras (motion, people) and Home Assistant sensors → events | `atulya/indriya.py` |
 | Ears everywhere | Always-listening app: wake word, tray icon, speaks notifications | `atulya/shruti.py` |
 | Personal accounts | Google sign-in: Gmail and Calendar per user | `atulya/jaal.py` |
 
