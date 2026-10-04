@@ -115,6 +115,18 @@ Atulya never reads out emoji and answers "what can you do" with a real list.
 4. Add to the home screen: **iOS** Share, Add to Home Screen; **Android** menu, Install app.
 5. Away from home: install Tailscale on the PC and phone and use the private address (`http://100.x.y.z:8501`). Avoid exposing the port to the internet.
 
+## Money
+
+Say "I spent 500 on groceries", "how much did I spend this month", "set a budget for food of 5000", "add bill electricity 2300 due on 18", "what bills are due". Everything stays in `data/agent/money.json`; Atulya never connects to a bank and never pays anything.
+
+Automatic recording of bank alerts (open **Action engine → Money** to set this up):
+
+- **Email:** say "check my email for bank transactions" (needs Google connected, or `configure_email`).
+- **SMS from your phone:** an SMS-forwarding app on the phone posts each bank SMS to your PC. Atulya gives you the address and a key that can only add bank alerts. The phone must reach the PC (see [Phone and other devices](#phone-and-other-devices)).
+- **Bank statement:** put the CSV in `data/` and say "import statement.csv".
+
+OTPs, offers and due reminders are ignored, and the same transaction arriving by SMS and email is counted once. Bank messages vary, so check the totals the first week.
+
 ## Layout
 
 All Python is in `atulya/`, the screen is `web/`, and everything Atulya stores lives in one `data/` folder.

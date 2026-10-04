@@ -7,9 +7,12 @@ from __future__ import annotations
 
 import asyncio
 import csv
+import hashlib
+import hmac
 import io
 import os
 import re
+import secrets
 import time
 import uuid
 from datetime import datetime, timedelta
@@ -63,6 +66,8 @@ def _load() -> dict[str, Any]:
     data.setdefault("expenses", [])
     data.setdefault("budgets", {})
     data.setdefault("bills", [])
+    data.setdefault("income", [])
+    data.setdefault("seen", [])
     return data
 
 
@@ -309,6 +314,197 @@ async def statement_import(path: str) -> str:
             + (f". Biggest: {top}." if top else ".") + " Say “undo the import” if that isn't right.")
 
 
+# ── bank alerts: SMS from your phone, emails from your bank ───────────────────────────────────
+_AMT_RE = re.compile(r"(?:rs\.?|inr|₹)\s*([\d,]+(?:\.\d{1,2})?)", re.I)
+_SKIP_RE = re.compile(r"\botp\b|one.time password|verification code|do not share|\bwill be (?:debited|charged)\b|is due\b|"
+                      r"payment due|overdue|\bfailed\b|declined|reversed|\brefund|insufficient|\bnot (?:successful|processed)\b|"
+                      r"\bapply (?:now|for)\b|\bpre.?approved\b|\boffer\b", re.I)
+_DEBIT_RE = re.compile(r"\b(?:debited|spent|paid|sent|withdrawn|purchase|payment of|txn of|transaction of|used for)\b", re.I)
+_CREDIT_RE = re.compile(r"\b(?:credited|received|deposited)\b", re.I)
+_MERCHANT_RES = [
+    re.compile(r"\bvpa\s+([\w.\-]+)@", re.I),
+    re.compile(r"\bat\s+([A-Za-z0-9 &'._-]{2,30}?)(?=\s+(?:on|using|via|ref|upi|txn|avl|bal|with)\b|[.,;]|$)", re.I),
+    re.compile(r"\bpaid to\s+([A-Za-z0-9 &'._-]{2,30}?)(?=\s+(?:on|using|via|ref|upi|txn|avl|bal|with)\b|[.,;]|$)", re.I),
+    re.compile(r"\b(?:to|towards)\s+([A-Za-z0-9 &'._@-]{2,30}?)(?=\s+(?:on|using|via|ref|upi|txn|avl|bal|with|\()|[.,;]|$)", re.I),
+]
+_ACCT_RE = re.compile(r"(?:a/c|acct?|account|card)(?:\s*(?:no\.?|ending))?\s*[x*]*\s*(\d{3,4})\b", re.I)
+_DATE_RES = [(re.compile(r"\b(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})\b"), "dmy"), (re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b"), "ymd"),
+             (re.compile(r"\b(\d{1,2})[- ]([A-Za-z]{3})[a-z]*[- ,]+(\d{2,4})\b"), "dMy")]
+
+
+def _alert_date(text: str, now: datetime) -> float:
+    for rx, kind in _DATE_RES:
+        m = rx.search(text)
+        if not m:
+            continue
+        try:
+            a, b, c = m.groups()
+            if kind == "ymd":
+                y, mo, d = int(a), int(b), int(c)
+            elif kind == "dmy":
+                d, mo, y = int(a), int(b), int(c)
+            else:
+                d, y = int(a), int(c)
+                mo = datetime.strptime(b[:3].title(), "%b").month
+            y = y + 2000 if y < 100 else y
+            return datetime(y, mo, d, 12).timestamp()
+        except ValueError:
+            continue
+    return now.timestamp()
+
+
+def parse_alert(text: str, now: datetime | None = None) -> dict[str, Any] | None:
+    """Read a bank SMS / email alert. Returns None for OTPs, offers, dues and anything unclear.
+
+    ``kind`` is "debit" (money out) or "credit" (money in). Best effort: banks word these differently.
+    """
+    now = now or datetime.now()
+    text = " ".join(str(text or "").split())[:1200]
+    if not text or _SKIP_RE.search(text):
+        return None
+    debit, credit = bool(_DEBIT_RE.search(text)), bool(_CREDIT_RE.search(text))
+    if not debit and not credit:
+        return None
+    m = _AMT_RE.search(text)
+    amount = parse_amount(m.group(1)) if m else None
+    if not amount:
+        return None
+    if re.search(r"\bavl\.?\s*bal|available balance", text[: m.start()], re.I):
+        return None  # the first amount is a balance, not a transaction
+    kind = "credit" if credit and not debit else "debit"
+    if credit and debit:  # "debited from X ... credited to Y" is still money out for you
+        kind = "debit"
+    merchant = ""
+    for rx in _MERCHANT_RES:
+        mm = rx.search(text)
+        if mm:
+            merchant = mm.group(1).strip(" .-_")
+            break
+    acct = (_ACCT_RE.search(text) or [None, ""])[1]
+    return {"kind": kind, "amount": amount, "merchant": merchant[:40], "account": acct, "ts": _alert_date(text, now)}
+
+
+def _sigs(text: str, alert: dict[str, Any]) -> tuple[str, str]:
+    day = datetime.fromtimestamp(alert["ts"]).strftime("%Y-%m-%d")
+    return (hashlib.sha1(" ".join(text.lower().split()).encode()).hexdigest()[:12],
+            f"{alert['amount']:.2f}|{day}|{alert['account']}|{alert['kind']}")
+
+
+def record_alert(text: str, source: str, now: datetime | None = None) -> dict[str, Any]:
+    """Save one alert. Returns {"status": added|duplicate|ignored, "kind", "amount", "category", "merchant"}."""
+    now = now or datetime.now()
+    alert = parse_alert(text, now)
+    if alert is None:
+        return {"status": "ignored"}
+    sig, key = _sigs(text, alert)
+    data = _load()
+    seen = data.setdefault("seen", [])
+    for old in seen:
+        if old["sig"] == sig or (old["key"] == key and old["source"] != source):  # same text, or same transaction via another route
+            return {"status": "duplicate", **alert}
+    category = categorize(f"{alert['merchant']} {text}") or "other"
+    entry = {"id": uuid.uuid4().hex[:8], "ts": alert["ts"], "amount": alert["amount"], "category": category,
+             "note": (alert["merchant"] or text[:60])[:120], "source": source}
+    data["income" if alert["kind"] == "credit" else "expenses"].append(entry)
+    seen.append({"sig": sig, "key": key, "source": source})
+    del seen[:-2000]
+    _save(data)
+    return {"status": "added", **alert, "category": category}
+
+
+def _alert_reply(r: dict[str, Any]) -> str:
+    if r["status"] == "ignored":
+        return "That doesn't look like a bank transaction alert."
+    if r["status"] == "duplicate":
+        return f"Already saved: {money(r['amount'])}."
+    what = "Received" if r["kind"] == "credit" else "Saved"
+    where = f" at {r['merchant']}" if r.get("merchant") else ""
+    return f"{what} {money(r['amount'])}{where}" + ("" if r["kind"] == "credit" else f" under {r['category']}") + "."
+
+
+@tool("expense_from_message", "Record the spending in a bank SMS or alert you paste in", {
+    "text": {"type": "string", "description": "The full text of the bank message"},
+})
+async def expense_from_message(text: str) -> str:
+    return _alert_reply(record_alert(text, "pasted"))
+
+
+def message_text(msg: Any) -> str:
+    """Subject plus the plain-text body of an email.message.Message."""
+    parts = [str(msg.get("Subject") or "")]
+    walk = msg.walk() if msg.is_multipart() else [msg]
+    for part in walk:
+        if part.get_content_type() == "text/plain":
+            payload = part.get_payload(decode=True)
+            if payload:
+                parts.append(payload.decode(part.get_content_charset() or "utf-8", "ignore"))
+    return " ".join(parts)
+
+
+@tool("expenses_from_email", "Read bank alert emails from the last few days and record the spending", {
+    "days": {"type": "integer", "description": "How many days back (default 7)", "default": 7},
+})
+async def expenses_from_email(days: int = 7) -> str:
+    days = max(1, min(int(days or 7), 60))
+    texts: list[str] = []
+    google = _t._google()
+    try:
+        if google is not None:
+            for msg in await google.list_messages(f"newer_than:{days}d (debited OR spent OR paid OR UPI OR credited)", 20):
+                texts.append(f"{msg['subject']} {msg['snippet']}")
+        elif _t._EMAIL_CFG.get("imap_server"):
+            import email as _email
+
+            import aioimaplib
+
+            client = aioimaplib.IMAP4_SSL(_t._EMAIL_CFG["imap_server"], _t._EMAIL_CFG["imap_port"])
+            await client.wait_hello_from_server()
+            await client.login(_t._EMAIL_CFG["username"], _t._EMAIL_CFG["password"])
+            await client.select("INBOX")
+            since = (datetime.now() - timedelta(days=days)).strftime("%d-%b-%Y")
+            _, found = await client.search(f"SINCE {since}")
+            for mid in found[0].split()[-40:]:
+                _, parts = await client.fetch(mid, "(RFC822)")
+                for part in parts:
+                    if isinstance(part, tuple):
+                        texts.append(message_text(_email.message_from_bytes(part[1])))
+            await client.logout()
+        else:
+            return "Email isn't set up yet. Connect Google in Settings, or use configure_email."
+    except ImportError:
+        return "aioimaplib isn't installed. Install it with: pip install aioimaplib"
+    except Exception as exc:  # noqa: BLE001 - say what really went wrong
+        return f"I couldn't read your email: {exc}"
+    results = [record_alert(t, "email") for t in texts]
+    added = [r for r in results if r["status"] == "added"]
+    out = sum(r["amount"] for r in added if r["kind"] == "debit")
+    dup = sum(1 for r in results if r["status"] == "duplicate")
+    if not added:
+        return f"I checked {len(texts)} emails and found no new bank transactions" + (f" ({dup} already saved)." if dup else ".")
+    return f"Added {len(added)} transactions from email, {money(out)} spent" + (f" ({dup} already saved)." if dup else ".")
+
+
+# The phone posts each bank SMS here with this secret. It can add alerts and do nothing else.
+def _token_file() -> Path:
+    return Path(os.environ.get("ATULYA_AGENT_DATA_DIR", "data/agent")) / "money_inbox.token"
+
+
+def inbox_token(rotate: bool = False) -> str:
+    f = _token_file()
+    if rotate or not f.exists():
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(secrets.token_urlsafe(24), encoding="utf-8")
+        try:
+            f.chmod(0o600)
+        except OSError:
+            pass
+    return f.read_text(encoding="utf-8").strip()
+
+
+def inbox_token_ok(candidate: str | None) -> bool:
+    return bool(candidate) and hmac.compare_digest(str(candidate), inbox_token())
+
+
 def snapshot(now: datetime | None = None) -> dict[str, Any]:
     """What the dashboard tile shows."""
     now = now or datetime.now()
@@ -317,7 +513,8 @@ def snapshot(now: datetime | None = None) -> dict[str, Any]:
     last = summarize(data["expenses"], "last_month", now=now)
     budgets = [{"category": c, "limit": v, "spent": summarize(data["expenses"], "month", c, now)["total"]}
                for c, v in sorted(data["budgets"].items())]
-    return {"currency": CURRENCY, "month": month, "last_month_total": last["total"], "budgets": budgets,
+    income = sum(e["amount"] for e in data.get("income", []) if _period("month", now)[0].timestamp() <= e["ts"] < _period("month", now)[1].timestamp())
+    return {"currency": CURRENCY, "month": month, "last_month_total": last["total"], "budgets": budgets, "income_month": income,
             "bills": bills_due_soon(data, 10, now), "entries": len(data["expenses"])}
 
 

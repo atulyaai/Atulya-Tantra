@@ -849,3 +849,5 @@ button.icon:hover { border-color: var(--line); }
 .db-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .db-now { font-size: 15px; } .db-controls { display: flex; gap: 8px; margin-top: auto; } .db-controls button { flex: 1; font-size: 18px; padding: 8px; border-radius: 10px; border: 1px solid rgba(255, 184, 77, 0.4); background: rgba(255, 184, 77, 0.08); color: #ffd36b; cursor: pointer; } .db-controls button:hover { background: rgba(255, 184, 77, 0.2); }
 .db-big { font-size: 26px; font-weight: 700; color: #fff; margin: 0; } .db-big small { font-size: 12px; font-weight: 400; margin-left: 6px; }
+.db-phone { margin-top: 8px; padding: 10px 12px; border-radius: 10px; border: 1px dashed rgba(255, 184, 77, 0.4); } .db-phone code { display: block; word-break: break-all; padding: 6px 8px; margin: 6px 0; border-radius: 6px; background: rgba(0, 0, 0, 0.35); color: #ffd36b; font-size: 12px; }
+.db-phone button { background: rgba(255, 184, 77, 0.12); color: #ffd36b; border: 1px solid rgba(255, 184, 77, 0.5); border-radius: 8px; padding: 6px 12px; cursor: pointer; }

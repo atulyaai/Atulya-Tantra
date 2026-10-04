@@ -75,6 +75,9 @@ def _money_intent(t: str) -> RoutedIntent | None:
     m = re.search(r"\b(?:i )?paid (?:the |my )?([a-z ]+?) bill\b", t)
     if m:
         return RoutedIntent("bill_paid", {"name": m.group(1).strip()})
+    if re.search(r"\b(?:check|read|scan|import|update|add|pull|get)\b.{0,30}\b(?:email|emails|mail|inbox)\b.{0,30}\b(?:spend|spending|expenses?|bank|transactions?|alerts?)\b"
+                 r"|\b(?:spend|spending|expenses?|transactions?|bank alerts?)\b.{0,30}\bfrom (?:my )?(?:email|emails|mail|inbox)\b", t):
+        return RoutedIntent("expenses_from_email", {})
     if re.search(r"\bundo (?:the |that |my )?(?:last )?(?:expense|import|entry)\b", t):
         return RoutedIntent("expense_undo", {})
     return None

@@ -24,6 +24,30 @@ function Toggle({ on, onChange, label, disabled }) {
   );
 }
 
+function PhoneLink({ toast }) {
+  const [inbox, setInbox] = useState(null);
+  const url = inbox ? `${inbox.origin}${inbox.path}?key=${inbox.key}` : '';
+  async function show() { try { setInbox(await api.get('/api/money/inbox')); } catch (e) { toast('error', e.message); } }
+  async function rotate() {
+    if (!window.confirm('Make a new key? Your phone stops working until you paste the new one.')) return;
+    try { setInbox({ ...inbox, ...(await api.post('/api/money/inbox/rotate', {})) }); } catch (e) { toast('error', e.message); }
+  }
+  return (
+    <div className="db-phone" onClick={(e) => e.stopPropagation()}>
+      <h4>Record bank SMS from your phone</h4>
+      {!inbox ? <button type="button" onClick={show}>Link my phone</button> : (
+        <>
+          <p>In an SMS-forwarding app (Android: SMS Forwarder, MacroDroid or Tasker; iPhone: a Shortcuts “When I get a message” automation), filter on your bank’s sender and POST the message text to:</p>
+          <code>{url}</code>
+          <p><small>Use this computer’s address instead of “localhost” (see README: Phone and other devices). The key can only add bank alerts; it opens nothing else.</small></p>
+          <button type="button" onClick={() => navigator.clipboard?.writeText(url).then(() => toast('success', 'Copied'))}>Copy</button>{' '}
+          <button type="button" onClick={rotate}>New key</button>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function Dashboard({ toast }) {
   const [d, setD] = useState(null);
   const [open, setOpen] = useState(null);
@@ -125,6 +149,8 @@ export function Dashboard({ toast }) {
             {b.category}: {Math.round(b.spent).toLocaleString()} / {Math.round(b.limit).toLocaleString()}{b.spent > b.limit ? ' (over)' : ''}</p>
         ))}
         {d.money.bills.length > 0 && <h4>Bills due</h4>}
+        {d.money.income_month > 0 && <p className="db-item">Money in this month: <b>{d.money.currency}{Math.round(d.money.income_month).toLocaleString()}</b></p>}
+        {full('money') && <PhoneLink toast={toast} />}
         {d.money.bills.slice(0, full('money') ? 10 : 2).map((b) => <p key={b.id} className="db-item">{b.name} <small>{d.money.currency}{Math.round(b.amount).toLocaleString()} · {b.days === 0 ? 'today' : `in ${b.days}d`}</small></p>)}
       </Tile>
     ),
