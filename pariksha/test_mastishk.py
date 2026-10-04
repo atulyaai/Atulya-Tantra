@@ -63,7 +63,10 @@ def test_routes_are_admin_only_and_never_return_keys(tmp_path, monkeypatch):
     h = {"X-Atulya-Token": ADMIN_TOKEN}
     r = c.post("/api/providers/deepseek", json={"key": "sk-secret-12345678"}, headers=h)
     assert r.status_code == 200 and r.json()["configured"] and "secret" not in r.text and r.json()["key_hint"] == "…5678"
-    assert "sk-secret" not in c.get("/api/providers", headers=h).text
+    listing = c.get("/api/providers", headers=h)
+    assert "sk-secret" not in listing.text
+    body = listing.json()
+    assert body["advice"] is None and "groq" in body["recommended"] and isinstance(body["brains"], list)   # a key is linked: no nagging
     assert c.post("/api/providers/nope", json={}, headers=h).status_code == 404
     assert c.post("/api/providers/deepseek/test", headers=h).status_code == 200
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
@@ -308,3 +311,18 @@ def test_telegram_can_show_response_provider():
 
     asyncio.run(run())
 
+
+
+def test_speed_report_advises_a_fast_key_only_when_local_is_slow_and_no_cloud_is_linked():
+    from atulya.mastishk import BY_ID, SLOW_SECONDS, speed_report
+
+    speeds = {"Atulya Local (Qwen3-4B)": {"avg": 28.0}, "Groq": {"avg": 1.2}, "No brain loaded": {"avg": 0.0}}
+    report = speed_report(speeds, linked_cloud=0)
+    assert [r["name"] for r in report["brains"]] == ["Groq", "Atulya Local (Qwen3-4B)"]   # fastest first, no fake brain
+    assert report["advice"]["kind"] == "slow_local" and report["advice"]["seconds"] == 28.0
+    assert all(i in BY_ID for i in report["recommended"]) and report["recommended"][0] == "groq"
+    assert speed_report(speeds, linked_cloud=1)["advice"] is None                      # a cloud key is linked: stay quiet
+    fast = {"Atulya Local (Qwen3-0.6B)": {"avg": SLOW_SECONDS - 1}}
+    assert speed_report(fast, linked_cloud=0)["advice"] is None                        # local is fast enough
+    assert speed_report({}, linked_cloud=0)["advice"]["kind"] == "unmeasured"
+    assert speed_report({}, linked_cloud=2)["advice"] is None

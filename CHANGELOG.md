@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Speed panel in Brains & keys.** Shows how long each brain really took to answer (bars, local ones in gold). When no cloud key is linked and the local model is slower than 10 s, it says so and walks you to a free key: Groq, OpenRouter and Gemini cards are marked "Fast and free" and listed first. `GET /api/providers` now also returns `brains`, `advice` and `recommended` (`speed_report` in `mastishk.py`).
 - Samsung Smart TV control (`samsung` driver, discovery, pairing token) and a per-device setup table (Samsung, CloudWalker, Xiaomi phones) in `granth/DEVICES.md`.
 
 ### Changed
