@@ -147,8 +147,6 @@ More detail: [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md). The cognitive pipelin
 
 ## How a request flows
 
-<p align="center"><img src="docs/images/automation_hud.jpg" alt="Tools and automation" width="80%"/></p>
-
 ```mermaid
 flowchart LR
     You["You: voice or text"] --> Web["web/ (the orb)"]
@@ -163,8 +161,6 @@ flowchart LR
 Assistant tools live in `atulya/agent/` and register themselves with `@tool`. Risky ones (sending email, deleting events, PC control) ask first by default (`ATULYA_AUTO_APPROVE` can pre-approve specific ones), and every call is appended to `data/agent/audit.jsonl`.
 
 ## Memory
-
-<p align="center"><img src="docs/images/memory_tree.jpg" alt="Memory tree" width="80%"/></p>
 
 Atulya's memory is in `atulya/memory/`: a vector store and session search (what the brain uses), plus reflection, a hierarchical summary tree and Obsidian export. A small local model copies recalled answers back, so with it memory is only shown when you ask about the past. Your profile (facts it learned, habits, what you trust it to do without asking) is under the **About you** pop-up. Identity and prompt rules are in `atulya/persona.py`; an optional override goes in `data/identity.json`.
 

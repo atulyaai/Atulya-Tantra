@@ -3,14 +3,13 @@
 Legend: **Done** = implemented and has unit tests. **Unverified** = implemented, but never run on real hardware or accounts
 (a unit test with mocks does not count). **Planned** = not written yet. Update this file in every PR.
 
-Last full test run: 530 passed, 6 skipped. Two email tests fail when `data/` holds a stale email config
-(they pass on a clean checkout). `tests/test_ambient.py` and `tests/test_senses.py` need optional extras to import.
+Last full test run: 542 passed, 8 skipped (`test_ambient.py` and `test_senses.py` skip without numpy).
 
 ## 1. Everyday actions (tools in `atulya/agent/`)
 
 | Ability | Tool | State |
 |---|---|---|
-| Play a song / video | `play_music` (opens a YouTube or Spotify search) | Unverified. Opens a search only; does not start playback |
+| Play a song / video | `play_music` (starts the top YouTube result; Spotify opens a search) | Unit-tested with mocks; **never run against live YouTube**, which can change its page at any time (falls back to the search page) |
 | Pause, next, volume | `media_control` (Windows media keys) | Unverified |
 | Open a website | `open_website` | Unverified on real browsers |
 | Reminders | `set_reminder`, `list_reminders`, `cancel_reminder` | Done; spoken when due |
@@ -29,8 +28,8 @@ Order matters: each step needs the one above it. Anything that spends money, boo
 
 | # | Feature | Plan | State |
 |---|---|---|---|
-| A1 | **Web agent**: "add the blue running shoes to my cart", "book a table" | Playwright session driven step by step by the brain (look at page, pick one action, repeat). Hard stops: payment, final "place order", login, CAPTCHA. At those, Atulya pauses and asks. Every step is written to the audit log | Planned. `capabilities/browser_automation.py` has the Playwright basics only |
-| A2 | Real playback: play a named song | YouTube search, pick the first result, play it in a controlled browser tab (pause, next, volume work on that tab). Spotify through its API when a token is set | Planned |
+| A1 | **Web agent**: "add the blue running shoes to my cart", "book a table" (`web_task`, `agent/webagent.py`) | Playwright session driven step by step by the brain. Hard stops in code: payment / place order / confirm booking clicks, password and card fields, CAPTCHA, non-http links. Asks before starting; every step is audited | Logic **done and tested** with a fake page (hard stops, page-text injection, step limit). **Not run on a real browser or real shop yet**; needs `pip install "atulya[browser]" && playwright install chromium` |
+| A2 | Real playback: play a named song | Done for YouTube (top result, autoplay). Still planned: a controlled tab so pause/next work on it, and Spotify through its API | Partly done |
 | A3 | Shopping helper | Built on A1: search several sites, compare price, add to cart, never pay | Planned |
 | A4 | Appointments | Google Calendar invite and booking-site forms through A1; confirm the slot before submitting | Planned |
 | A5 | Messaging by voice: "tell Mum I'm late" | `channels.py` has Telegram, Discord, Slack. Needs a contact book and a confirm-before-send | Planned |
@@ -58,11 +57,11 @@ Order matters: each step needs the one above it. Anything that spends money, boo
 
 | Fix | State |
 |---|---|
-| README images in "How a request flows" and "Memory" are concept art, and the first says "Yantra" | Open |
-| `docs/images/banner.jpg`, `hologram_ui.jpg` unused | Open |
-| Email tests depend on leftover `data/` config | Open: make the tests use a temp data dir |
-| `tests/test_ambient.py`, `tests/test_senses.py` fail to import without extras | Open: skip when the extra is missing |
-| `camera_status` has no test | Open |
+| README concept images in "How a request flows" and "Memory" (one said "Yantra") | Removed from the README. Files kept in `docs/images/` until real screenshots replace them |
+| `docs/images/banner.jpg`, `hologram_ui.jpg` unused | Open: your call whether to delete |
+| Email tests depended on leftover `data/` config | Fixed: tests use a temp data dir |
+| `test_ambient.py`, `test_senses.py` failed to import without numpy | Fixed: skipped when missing |
+| `camera_status` had no test | Fixed |
 | Docker image never built | Open |
 
 ## 5. Safety rules for every new action

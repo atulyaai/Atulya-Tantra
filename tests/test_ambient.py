@@ -8,8 +8,9 @@ import wave
 from pathlib import Path
 
 import httpx
-import numpy as np
 import pytest
+
+np = pytest.importorskip("numpy")
 
 from atulya.ambient.listener import (
     FRAME_SAMPLES,
