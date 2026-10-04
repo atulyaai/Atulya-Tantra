@@ -87,7 +87,7 @@ class TextToSpeech:
         "sa_female": {"voice": "sa-IN-Neural", "language": "sa"},
     }
 
-    def __init__(self, output_dir: str | Path = "data/audio"):
+    def __init__(self, output_dir: str | Path = "kosh/audio"):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self._history: list[TTSResult] = []
@@ -207,7 +207,7 @@ class TextToSpeech:
 class SpeechToText:
     """STT using local whisper or OpenAI API."""
 
-    def __init__(self, output_dir: str | Path = "data/audio/transcripts"):
+    def __init__(self, output_dir: str | Path = "kosh/audio/transcripts"):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self._history: list[STTResult] = []
@@ -313,7 +313,7 @@ class SpeechToText:
 class VoicePipeline:
     """Combined TTS/STT for full voice conversations."""
 
-    def __init__(self, tts_dir: str = "data/audio/tts", stt_dir: str = "data/audio/stt"):
+    def __init__(self, tts_dir: str = "kosh/audio/tts", stt_dir: str = "kosh/audio/stt"):
         self.tts = TextToSpeech(tts_dir)
         self.stt = SpeechToText(stt_dir)
         self._conversation: list[dict[str, Any]] = []

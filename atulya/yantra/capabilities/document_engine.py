@@ -50,7 +50,7 @@ def content_from_prompt(prompt: str) -> DocumentContent:
 class DocumentEngine:
     """Generate PDF, DOCX, PPTX, XLSX, HTML, CSV, or Markdown."""
 
-    def __init__(self, output_dir: str | Path = "data/creations/documents"):
+    def __init__(self, output_dir: str | Path = "kosh/creations/documents"):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 

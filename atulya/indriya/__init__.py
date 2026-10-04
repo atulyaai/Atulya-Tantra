@@ -9,7 +9,7 @@
 
 Cameras come from ``ATULYA_CAMERAS`` ("front_door=rtsp://…, desk=0") and from
 the ones added in the web UI (``ATULYA_SENSES_FILE``, default
-data/agent/senses.json). Home Assistant sensors are watched whenever Home
+kosh/agent/senses.json). Home Assistant sensors are watched whenever Home
 Assistant is configured, unless ``ATULYA_WATCH_HOME=false``.
 """
 from __future__ import annotations
@@ -67,7 +67,7 @@ class Senses:
         home_bridge: Any = None,
     ):
         self.events = events
-        self.config_file = Path(config_file or os.environ.get("ATULYA_SENSES_FILE", "data/agent/senses.json"))
+        self.config_file = Path(config_file or os.environ.get("ATULYA_SENSES_FILE", "kosh/agent/senses.json"))
         self._detector_factory = detector_factory
         self._source_factory = source_factory
         self._home_bridge = home_bridge

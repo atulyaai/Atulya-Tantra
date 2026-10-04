@@ -12,7 +12,7 @@ Events available (wired by ``connect_sensors`` and the kernel):
   automation.completed / automation.failed
   action.executed / action.pending / action.cancelled   (from the kernel)
 
-A rule (JSON list in ATULYA_TRIGGERS_FILE, default data/agent/triggers.json):
+A rule (JSON list in ATULYA_TRIGGERS_FILE, default kosh/agent/triggers.json):
     {
       "id": "trg_...", "name": "Lights on when I'm reminded to read",
       "event": "reminder.due",              # type, glob ("health.*") or list of them
@@ -51,7 +51,7 @@ from atulya.events import Event, EventBus, default_bus
 logger = logging.getLogger(__name__)
 
 TRIGGER_SOURCE = "trigger"
-_DEFAULT_RULES_FILE = "data/agent/triggers.json"
+_DEFAULT_RULES_FILE = "kosh/agent/triggers.json"
 
 # Built-in reflexes, seeded on first run (users can edit, disable or delete them).
 DEFAULT_RULES: list[dict[str, Any]] = [

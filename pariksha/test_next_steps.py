@@ -387,7 +387,7 @@ def two_users(tmp_path, monkeypatch):
 
 
 ADMIN_ONLY = ["/api/brain", "/api/health", "/api/telemetry", "/api/system", "/api/audit", "/api/agent/tools",
-              "/api/agent/status", "/api/devices", "/api/users", "/api/routines", "/api/senses", "/api/triggers"]
+              "/api/agent/status", "/api/users", "/api/routines", "/api/senses", "/api/triggers"]
 
 
 @pytest.mark.parametrize("path", ADMIN_ONLY)

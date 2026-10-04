@@ -29,7 +29,7 @@ class VideoResult:
 
 
 class VideoGenerator:
-    def __init__(self, output_dir: str | Path = "data/creations/videos"):
+    def __init__(self, output_dir: str | Path = "kosh/creations/videos"):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.images = ImageEngine(self.output_dir / "frames")

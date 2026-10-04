@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 # ── Tool Registry ──────────────────────────────────────────────────────────
 
 TOOL_REGISTRY: dict[str, dict[str, Any]] = {}
-_DATA_DIR = Path(os.environ.get("ATULYA_AGENT_DATA_DIR", "data/agent"))
+_DATA_DIR = Path(os.environ.get("ATULYA_AGENT_DATA_DIR", "kosh/agent"))
 _DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 

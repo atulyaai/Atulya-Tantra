@@ -11,7 +11,7 @@ _SECRET_KEYS = ("password", "token", "secret", "key")
 
 
 def _path() -> Path:
-    base = Path(os.environ.get("ATULYA_AGENT_DATA_DIR", "data/agent"))
+    base = Path(os.environ.get("ATULYA_AGENT_DATA_DIR", "kosh/agent"))
     base.mkdir(parents=True, exist_ok=True)
     return base / "audit.jsonl"
 

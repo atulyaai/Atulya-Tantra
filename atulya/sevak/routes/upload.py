@@ -12,7 +12,7 @@ from atulya.sevak.helpers import _require_auth
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-UPLOAD_DIR = Path(__file__).resolve().parents[3] / "data" / "uploads"
+UPLOAD_DIR = Path(__file__).resolve().parents[3] / "kosh" / "uploads"
 _MAX_SIZE = 50 * 1024 * 1024  # 50MB
 
 

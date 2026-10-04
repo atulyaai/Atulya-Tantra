@@ -210,7 +210,7 @@ async def _open_page() -> PlaywrightPage:
     pw = await async_playwright().start()
     # A persistent profile keeps your logins, so you sign in once, yourself.
     context = await pw.chromium.launch_persistent_context(
-        os.environ.get("ATULYA_BROWSER_PROFILE", "data/browser/profile"), headless=False)
+        os.environ.get("ATULYA_BROWSER_PROFILE", "kosh/browser/profile"), headless=False)
     page = context.pages[0] if context.pages else await context.new_page()
     _SESSION.update(pw=pw, context=context, page=page)
     return PlaywrightPage(page)

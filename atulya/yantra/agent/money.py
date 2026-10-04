@@ -1,6 +1,6 @@
 """Money helper: expenses, budgets, bills and bank-statement import. Local only.
 
-Everything is kept in ``data/agent/money.json`` on this computer. Atulya never connects to a bank and never
+Everything is kept in ``kosh/agent/money.json`` on this computer. Atulya never connects to a bank and never
 moves money; it only records what you tell it (or what is in a statement file you give it) and answers questions.
 """
 from __future__ import annotations
@@ -294,10 +294,10 @@ def parse_statement(text: str, batch: str, now: datetime | None = None) -> list[
     "path": {"type": "string", "description": "File name or path of the CSV inside the data folder"},
 })
 async def statement_import(path: str) -> str:
-    root = Path("data").resolve()
+    root = Path("kosh").resolve()
     file = (root / path).resolve() if not Path(path).is_absolute() else Path(path).resolve()
     if root not in file.parents or file.suffix.lower() != ".csv" or not file.is_file():
-        return "Put the statement CSV in the Atulya data folder (for example data/statement.csv) and tell me its name."
+        return "Put the statement CSV in the Atulya data folder (for example kosh/statement.csv) and tell me its name."
     try:
         entries = parse_statement(await asyncio.to_thread(file.read_text, "utf-8-sig"), uuid.uuid4().hex[:8])
     except (ValueError, OSError, UnicodeDecodeError) as exc:
@@ -555,7 +555,7 @@ async def expenses_from_email(days: int = 7) -> str:
 
 # The phone posts each bank SMS here with this secret. It can add alerts and do nothing else.
 def _token_file() -> Path:
-    return Path(os.environ.get("ATULYA_AGENT_DATA_DIR", "data/agent")) / "money_inbox.token"
+    return Path(os.environ.get("ATULYA_AGENT_DATA_DIR", "kosh/agent")) / "money_inbox.token"
 
 
 def inbox_token(rotate: bool = False) -> str:

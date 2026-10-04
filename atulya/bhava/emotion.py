@@ -102,7 +102,7 @@ class MoodState:
 
     # --- persistence -----------------------------------------------------
     @classmethod
-    def load(cls, path: str | Path = "data/state/mood.json") -> "MoodState":
+    def load(cls, path: str | Path = "kosh/state/mood.json") -> "MoodState":
         p = Path(path)
         if p.exists():
             try:
@@ -112,7 +112,7 @@ class MoodState:
                 pass
         return cls()
 
-    def save(self, path: str | Path = "data/state/mood.json") -> None:
+    def save(self, path: str | Path = "kosh/state/mood.json") -> None:
         p = Path(path)
         try:
             p.parent.mkdir(parents=True, exist_ok=True)

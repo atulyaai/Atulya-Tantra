@@ -86,7 +86,7 @@ Atulya asks the first brain that is set up and falls back to the next. Put keys 
 | 6 | Gemini | `GEMINI_API_KEY` | Free tier; also describes pictures |
 | 7 | OpenAI, NVIDIA NIM | `OPENAI_API_KEY`, `NVIDIA_API_KEY` | Optional |
 
-Want a bigger model? See `demo/README.md`: try one locally (`demo/try_model.py`) or use a free Colab GPU (`demo/connect_remote.py`).
+Want a bigger model? See `prayog/README.md`: try one locally (`prayog/try_model.py`) or use a free Colab GPU (`prayog/connect_remote.py`).
 
 `ATULYA_BRAIN=cloud` puts the cloud brains first. With no local model installed (`ATULYA_AUTO_DOWNLOAD_MODEL=false`), if every cloud brain is busy Atulya says so and you try again. Every cloud brain sends your questions to that company; only the local model keeps them on your PC.
 
@@ -113,7 +113,7 @@ Atulya never reads out emoji and answers "what can you do" with a real list.
 
 1. In `.env` set `ATULYA_HOST=0.0.0.0`, then restart. (`ATULYA_LOCKDOWN=on` does the opposite: this computer only.)
 2. Find your PC's address (for example `192.168.1.15`) and open `http://192.168.1.15:8501` on the phone.
-3. Log in with username `admin` and the password you set in `ATULYA_DASHBOARD_TOKEN` (or the one written to `data/admin_token.txt` the first time). Other devices always need a login; only this computer skips it (`ATULYA_REQUIRE_LOGIN=on` turns that off).
+3. Log in with username `admin` and the password you set in `ATULYA_DASHBOARD_TOKEN` (or the one written to `kosh/admin_token.txt` the first time). Other devices always need a login; only this computer skips it (`ATULYA_REQUIRE_LOGIN=on` turns that off).
 4. **Camera and microphone on the phone need https.** Browsers only allow them on `https://` pages or on `http://localhost`. Set `ATULYA_HTTPS=on` in `.env` and restart: Atulya then serves `https://192.168.1.15:8501` with a certificate made for this computer. The browser warns once (the certificate is your own); choose Advanced, then Continue. If your PC's address changes, a new certificate is made automatically.
 5. Add to the home screen: **iOS** Share, Add to Home Screen; **Android** menu, Install app.
 6. Away from home: install Tailscale on the PC and phone and use the private address (`http://100.x.y.z:8501`). Avoid exposing the port to the internet.
@@ -124,32 +124,33 @@ TV, phone, lights, plugs, PCs: say "scan for devices", "add number 1 as living r
 
 ## Money
 
-Say "I spent 500 on groceries", "how much did I spend this month", "set a budget for food of 5000", "add bill electricity 2300 due on 18", "what bills are due". Everything stays in `data/agent/money.json`; Atulya never connects to a bank and never pays anything.
+Say "I spent 500 on groceries", "how much did I spend this month", "set a budget for food of 5000", "add bill electricity 2300 due on 18", "what bills are due". Everything stays in `kosh/agent/money.json`; Atulya never connects to a bank and never pays anything.
 
 Automatic recording of bank alerts (open **Action engine → Money** to set this up):
 
 - **Email:** say "check my email for bank transactions" (needs Google connected, or `configure_email`).
 - **SMS from your phone:** an SMS-forwarding app on the phone posts each bank SMS to your PC. Atulya gives you the address and a key that can only add bank alerts. The phone must reach the PC (see [Phone and other devices](#phone-and-other-devices)).
-- **Bank statement:** put the CSV in `data/` and say "import statement.csv".
+- **Bank statement:** put the CSV in `kosh/` and say "import statement.csv".
 
 OTPs, offers and due reminders are ignored, and the same transaction arriving by SMS and email is counted once. Bank messages vary, so check the totals the first week.
 
 ## Layout
 
-Every folder has a Sanskrit/Hindi name that says what it does. All Python is in `atulya/`; the screen is `drishti/`; everything Atulya stores lives in one `data/` folder.
+Every folder has a Sanskrit/Hindi name that says what it does. All Python is in `atulya/`; the screen is `drishti/`; everything Atulya stores lives in one `kosh/` folder.
 
 | Folder | Name | Meaning | What lives here |
 |---|---|---|---|
 | `drishti/` | दृष्टि | sight, what you see | The animated screen (React + Vite): the orb, the hologram, the windows, the phone shell |
 | `granth/` | ग्रंथ | book, text | Guides, architecture, security, features, status, images |
 | `pariksha/` | परीक्षा | examination, test | The test suite (one folder per big part, for example `pariksha/upakaran/`) |
-| `data/` | | | Everything Atulya stores on your computer (git-ignored). Keeps its English name so your existing memory and settings stay where they are |
+| `prayog/` | प्रयोग | experiment | Try a bigger brain: download and benchmark local models, or use a free Colab GPU |
+| `kosh/` | कोश | treasury | Everything Atulya stores on your computer (git-ignored). An old `data/` folder is moved here automatically the first time you start |
 | `atulya/buddhi/` | बुद्धि | intellect | The thinking: kernel, planner, safety rules, triggers, brain tiers, the language model and the provider failover router |
 | `atulya/yantra/` | यंत्र | machine, tool | Everything Atulya can *do*: `agent/` (reminders, email, calendar, music, money, web tasks, PC control, intent router), `capabilities/` (browser, documents, Google, Home Assistant, web search), `mcp/` (outside tools) |
 | `atulya/upakaran/` | उपकरण | devices | The device layer: TVs, phones, lights, PCs through profiles, ADB, Wake-on-LAN and Home Assistant |
 | `atulya/indriya/` | इन्द्रिय | the senses | Camera, motion, home sensors, reading pictures |
 | `atulya/shruti/` | श्रुति | hearing | The always-on listener: microphone, wake word (English and Hindi), barge-in, tray |
-| `atulya/smriti/` | स्मृति | memory | Memory: vectors, session search, reflection, summary tree, Obsidian export |
+| `atulya/smriti/` | स्मृति | memory | Memory: the manager, vector store and session search |
 | `atulya/vani/` | वाणी | speech | The voice pipeline |
 | `atulya/sandesh/` | संदेश | message | Telegram, Discord, Slack, email and other messaging channels |
 | `atulya/sevak/` | सेवक | servant, server | The web server: API routes, accounts, chat history |
@@ -162,8 +163,9 @@ Atulya-Tantra/
 |                  #   raksha, bhava, plus a few shared files (cli.py, config.py, envfile.py, events.py ...)
 |-- drishti/       # the animated screen: src/, public/, android/
 |-- granth/        # guides and architecture
+|-- prayog/        # experiments: bigger local models, Colab GPU brain
 |-- pariksha/      # tests
-|-- data/          # everything Atulya stores locally (git-ignored)
+|-- kosh/          # everything Atulya stores locally (git-ignored)
 |-- pyproject.toml, start.bat, Dockerfile, docker-compose.yml
 `-- .env           # your keys (git-ignored)
 ```
@@ -183,11 +185,11 @@ flowchart LR
     Tools --> Safety["safety: risky actions ask first"]
 ```
 
-Assistant tools live in `atulya/yantra/agent/` and register themselves with `@tool`. Risky ones (sending email, deleting events, PC control) ask first by default (`ATULYA_AUTO_APPROVE` can pre-approve specific ones), and every call is appended to `data/agent/audit.jsonl`.
+Assistant tools live in `atulya/yantra/agent/` and register themselves with `@tool`. Risky ones (sending email, deleting events, PC control) ask first by default (`ATULYA_AUTO_APPROVE` can pre-approve specific ones), and every call is appended to `kosh/agent/audit.jsonl`.
 
 ## Memory
 
-Atulya's memory is in `atulya/smriti/`: a vector store and session search (what the brain uses), plus reflection, a hierarchical summary tree and Obsidian export. A small local model copies recalled answers back, so with it memory is only shown when you ask about the past. Your profile (facts it learned, habits, what you trust it to do without asking) is under the **About you** pop-up. Identity and prompt rules are in `atulya/bhava/persona.py`; an optional override goes in `data/identity.json`.
+Atulya's memory is in `atulya/smriti/`: a vector store and session search, which is what the brain uses. A small local model copies recalled answers back, so with it memory is only shown when you ask about the past. Your profile (facts it learned, habits, what you trust it to do without asking) is under the **About you** pop-up. Identity and prompt rules are in `atulya/bhava/persona.py`; an optional override goes in `kosh/identity.json`.
 
 ## Development
 
@@ -198,7 +200,7 @@ cd drishti; npm run dev       # web dev server, proxies /api and /ws to :8501
 python -m atulya.cli doctor
 ```
 
-Docker: `docker compose up --build` (builds the web app, serves on port 8501, keeps `data/` on your disk). Not yet tried on a real server.
+Docker: `docker compose up --build` (builds the web app, serves on port 8501, keeps `kosh/` on your disk). Not yet tried on a real server.
 
 ## API
 
@@ -213,12 +215,12 @@ Token-protected routes expect `X-Atulya-Token`. Full list: [granth/API_REFERENCE
 | `POST /api/voice/stt`, `/api/voice/tts` | signed in | speech to text and back |
 | `GET /api/profile` and friends | signed in | what Atulya knows about you |
 | `GET /api/brain`, `/api/health`, `/api/telemetry`, `/api/system`, `/api/audit` | admin | models, server health, audit log |
-| `/api/users`, `/api/routines`, `/api/senses`, `/api/triggers`, `/api/devices`, `/api/agent/tools` | admin | management |
+| `/api/users`, `/api/routines`, `/api/senses`, `/api/triggers`, `/api/fabric`, `/api/agent/tools` | admin | management |
 | `GET /v1/models` | admin | OpenAI-style model list |
 
 ## Notes
 
-- Do not commit `.env` or `data/`; they hold your keys, accounts and memory.
+- Do not commit `.env` or `kosh/`; they hold your keys, accounts and memory.
 - `drishti/dist` is built by `start.bat`; `drishti/node_modules` is only needed while building and can be deleted any time.
 - Custom model training does not belong here; keep it in a separate repository and connect it as a provider.
 - Before exposing Atulya beyond your own network, read the hardening checklist in [granth/DEPLOYMENT.md](granth/DEPLOYMENT.md) and [granth/SECURITY_MODEL.md](granth/SECURITY_MODEL.md).

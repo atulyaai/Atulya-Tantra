@@ -39,9 +39,9 @@ class AtulyaConfig:
 
         return cls(
             root_dir=root,
-            data_dir=resolve("data_dir", "data"),
-            model_dir=resolve("model_dir", "data/models"),
-            logs_dir=resolve("logs_dir", "data/logs"),
+            data_dir=resolve("data_dir", "kosh"),
+            model_dir=resolve("model_dir", "kosh/models"),
+            logs_dir=resolve("logs_dir", "kosh/logs"),
             config_path=path if path.exists() else None,
         )
 

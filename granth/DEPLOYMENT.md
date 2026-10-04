@@ -60,10 +60,10 @@ pytest -x --tb=short -q
 Atulya listens on all interfaces and accepts any CORS origin by default so the phone app can reach it over your LAN. To lock it to this machine:
 
 - `ATULYA_HOST=127.0.0.1` — only this computer can connect.
-- `ATULYA_HTTPS=on` — serve https with a self-signed certificate for this computer (needed for phone camera/mic over Wi-Fi). Certificate and key are in `data/certs/` (override with `ATULYA_CERTS_DIR`); the key is readable by you only. For a public site use a real certificate behind a reverse proxy instead.
+- `ATULYA_HTTPS=on` — serve https with a self-signed certificate for this computer (needed for phone camera/mic over Wi-Fi). Certificate and key are in `kosh/certs/` (override with `ATULYA_CERTS_DIR`); the key is readable by you only. For a public site use a real certificate behind a reverse proxy instead.
 - `ATULYA_CORS_ORIGINS=https://your-site` — only listed web origins may call the API.
 - `ATULYA_PC_CONTROL` stays unset unless you want Atulya to open apps and type; every such action asks first.
-- Every tool call is written to `data/agent/audit.jsonl` (secrets masked).
+- Every tool call is written to `kosh/agent/audit.jsonl` (secrets masked).
 
 - `ATULYA_LOCKDOWN=on` — one switch for the above: listen on localhost only and allow no cross-site (CORS) callers unless `ATULYA_CORS_ORIGINS` lists them. The phone app will not reach it while this is on.
 - `GET /api/audit` (admin token) returns the latest audit-log entries.

@@ -18,7 +18,7 @@
 - Update the owning module's tests when adding new features
 
 ### DON'T
-- ❌ Never hardcode identity, personality, or prompts — use `atulya/bhava/persona.py` (optional override: `data/identity.json`)
+- ❌ Never hardcode identity, personality, or prompts — use `atulya/bhava/persona.py` (optional override: `kosh/identity.json`)
 - ❌ Never add GPU-only dependencies to `pyproject.toml`
 - ❌ Never commit model weights to git (use GitHub Releases or HF Hub)
 - Never commit `__pycache__/`, `.egg-info/`, or generated `outputs/` artifacts
@@ -35,16 +35,16 @@ that owns them.
 
 Allowed root support directories:
 
-- `data/`: runtime-local app state such as generated voice audio, temp uploads, and scheduler state.
+- `kosh/`: runtime-local app state such as generated voice audio, temp uploads, and scheduler state.
 - `granth/` (ग्रंथ, text): guides, architecture, security, features and images (the one place for documentation).
 
 Do not add new root directories unless they are documented here. New implementation should go into the owning product package.
 
 ### Folders
 
-The repo root has `atulya/` (all the Python), `drishti/` (the screen, दृष्टि), `granth/` (guides, ग्रंथ), `pariksha/` (tests, परीक्षा) and one local-data folder, `data/`, which keeps its English name so existing installs keep their data.
+The repo root has `atulya/` (all the Python), `drishti/` (the screen, दृष्टि), `granth/` (guides, ग्रंथ), `pariksha/` (tests, परीक्षा) and one local-data folder, `kosh/`, which keeps its English name so existing installs keep their data.
 
-- `data/`: everything Atulya stores on your machine (memory, accounts, sessions, chat history, audit log, tokens). Git-ignored. Override the agent part with `ATULYA_AGENT_DATA_DIR`.
+- `kosh/`: everything Atulya stores on your machine (memory, accounts, sessions, chat history, audit log, tokens). Git-ignored. Override the agent part with `ATULYA_AGENT_DATA_DIR`.
 - `granth/` (ग्रंथ, text): guides, architecture, security, features and images (the one place for documentation).
 - `drishti/` (दृष्टि, sight): the animated screen. `src/` is the React source (`pages/Orb.jsx` the orb, `pages/Hologram.js` the head, `Panel.jsx` the pop-up shell), `public/` holds static files, `android/` the phone shell. `build.py` builds only when the source changed. `dist/` is generated.
 - `atulya/`: all the Python.

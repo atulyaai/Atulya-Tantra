@@ -1,7 +1,7 @@
 """Encryption at rest for the files that hold your private data.
 
 Turn it on by setting ``ATULYA_VAULT_PASSPHRASE`` in ``.env``. The key is derived from that passphrase (scrypt) and a
-random salt kept in ``data/vault.salt``; the passphrase itself is never written anywhere. Files are encrypted with
+random salt kept in ``kosh/vault.salt``; the passphrase itself is never written anywhere. Files are encrypted with
 Fernet (AES-128-CBC + HMAC), so a changed or corrupted file is detected rather than silently read.
 
 Rules this module keeps:
@@ -31,7 +31,7 @@ class VaultLocked(Exception):
 
 
 def _salt_path() -> Path:
-    return Path(os.environ.get("ATULYA_VAULT_DIR", "data")) / "vault.salt"
+    return Path(os.environ.get("ATULYA_VAULT_DIR", "kosh")) / "vault.salt"
 
 
 def enabled() -> bool:
@@ -90,7 +90,7 @@ def write_text(path: Path, text: str, encoding: str = "utf-8") -> None:
     tmp.replace(path)
 
 
-def status(root: Path | str = "data") -> dict[str, object]:
+def status(root: Path | str = "kosh") -> dict[str, object]:
     root = Path(root)
     enc = plain = 0
     for f in root.rglob("*.json") if root.exists() else []:
@@ -108,7 +108,7 @@ def status(root: Path | str = "data") -> dict[str, object]:
 PRIVATE = ("money.json", "calendar.json", "reminders.json", "email_config.json", "tracking.json", "chat_history.json", "fabric.json")
 
 
-def encrypt_tree(root: Path | str = "data") -> int:
+def encrypt_tree(root: Path | str = "kosh") -> int:
     """Encrypt every private file under ``root`` now. Returns how many were converted."""
     if not enabled():
         raise VaultLocked("Set ATULYA_VAULT_PASSPHRASE in .env first.")

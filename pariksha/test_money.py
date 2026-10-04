@@ -14,7 +14,7 @@ NOW = datetime(2026, 10, 15, 10, 0)
 def books(tmp_path, monkeypatch):
     monkeypatch.setattr(t, "_DATA_DIR", tmp_path)
     monkeypatch.chdir(tmp_path)
-    (tmp_path / "data").mkdir()
+    (tmp_path / "kosh").mkdir()
 
 
 def run(coro):
@@ -76,7 +76,7 @@ def test_statement_parse_debits_only_and_single_amount_column():
 
 
 def test_import_dedupes_undoes_and_stays_in_the_data_folder(tmp_path):
-    (tmp_path / "data" / "s.csv").write_text(STATEMENT)
+    (tmp_path / "kosh" / "s.csv").write_text(STATEMENT)
     assert "Added 2 entries" in run(m.statement_import("s.csv"))
     assert "Added 0 entries" in run(m.statement_import("s.csv")) and "skipped 2" in run(m.statement_import("s.csv"))
     assert "Removed the last statement import (2 entries)" in run(m.expense_undo())

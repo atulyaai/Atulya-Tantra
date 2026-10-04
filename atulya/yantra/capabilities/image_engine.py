@@ -23,7 +23,7 @@ def _slug(value: str) -> str:
 
 
 class ImageEngine:
-    def __init__(self, output_dir: str | Path = "data/creations/images"):
+    def __init__(self, output_dir: str | Path = "kosh/creations/images"):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 

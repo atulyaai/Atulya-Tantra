@@ -135,7 +135,7 @@ class TestJwtSecret:
     def test_created_once_private_and_reused(self, tmp_path, monkeypatch):
         from atulya.sevak import state
 
-        path = tmp_path / "data" / "jwt_secret.key"
+        path = tmp_path / "kosh" / "jwt_secret.key"
         monkeypatch.delenv("ATULYA_JWT_SECRET", raising=False)
         monkeypatch.setenv("ATULYA_JWT_SECRET_FILE", str(path))
         monkeypatch.setattr(state, "ADMIN_TOKEN_SOURCE", "generated_runtime")

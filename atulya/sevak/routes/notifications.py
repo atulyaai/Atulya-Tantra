@@ -10,7 +10,7 @@ from atulya.sevak.helpers import _require_auth
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-SUBS_FILE = Path(__file__).resolve().parents[3] / "data" / "push_subs.json"
+SUBS_FILE = Path(__file__).resolve().parents[3] / "kosh" / "push_subs.json"
 
 @router.post("/api/notifications/subscribe")
 def subscribe(body: dict, token: str | None = Header(default=None, alias="X-Atulya-Token")):

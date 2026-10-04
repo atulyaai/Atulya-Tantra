@@ -56,20 +56,20 @@ def _find_persona_config() -> Path:
     candidates = [
         Path(os.environ["ATULYA_IDENTITY_PATH"]) if os.environ.get("ATULYA_IDENTITY_PATH") else None,
         Path(os.environ["ATULYA_PERSONA_PATH"]) if os.environ.get("ATULYA_PERSONA_PATH") else None,
-        Path.cwd() / "data" / "identity.json",
-        Path.cwd() / "data" / "persona.json",
+        Path.cwd() / "kosh" / "identity.json",
+        Path.cwd() / "kosh" / "persona.json",
     ]
     for candidate in candidates:
         if candidate and candidate.exists():
             return candidate
-    return Path.cwd() / "data" / "identity.json"
+    return Path.cwd() / "kosh" / "identity.json"
 
 
 class Persona:
     """Single source for Atulya identity, system prompts, and privacy rules."""
 
     def __init__(self, config_path: str | Path | None = None, data_dir: str | Path | None = None):
-        self.data_dir = Path(data_dir) if data_dir else Path.cwd() / "data"
+        self.data_dir = Path(data_dir) if data_dir else Path.cwd() / "kosh"
         self._config_path = Path(config_path) if config_path else _find_persona_config()
         self._config = self._load_config()
 

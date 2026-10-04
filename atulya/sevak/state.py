@@ -26,14 +26,14 @@ def _load_jwt_secret() -> str:
     """The key that signs sign-in tokens (including 90-day device tokens).
 
     ATULYA_JWT_SECRET wins; a configured ATULYA_DASHBOARD_TOKEN keeps working as
-    before; otherwise a random key is created once in data/jwt_secret.key
+    before; otherwise a random key is created once in kosh/jwt_secret.key
     (owner-only) so tokens survive restarts and every worker agrees on it.
     """
     if os.environ.get("ATULYA_JWT_SECRET"):
         return os.environ["ATULYA_JWT_SECRET"]
     if ADMIN_TOKEN_SOURCE == "env":
         return ADMIN_TOKEN
-    path = Path(os.environ.get("ATULYA_JWT_SECRET_FILE") or _ROOT / "data" / "jwt_secret.key")
+    path = Path(os.environ.get("ATULYA_JWT_SECRET_FILE") or _ROOT / "kosh" / "jwt_secret.key")
     for _ in range(2):
         try:
             existing = path.read_text(encoding="utf-8").strip()

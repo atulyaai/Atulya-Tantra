@@ -64,7 +64,7 @@ class GoogleNotConnected(GoogleError):
 
 
 def _dir() -> Path:
-    return Path(os.environ.get("ATULYA_GOOGLE_DIR", "data/agent/google"))
+    return Path(os.environ.get("ATULYA_GOOGLE_DIR", "kosh/agent/google"))
 
 
 def _safe(user: str) -> str:

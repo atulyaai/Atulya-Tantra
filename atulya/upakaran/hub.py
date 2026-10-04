@@ -39,7 +39,7 @@ def _has_phrase(text: str, phrase: str) -> bool:
 
 class DeviceHub:
     def __init__(self, path: str | Path | None = None, profiles: dict[str, dict[str, Any]] | None = None, drivers: dict[str, Driver] | None = None):
-        root = Path(os.environ.get("ATULYA_DEVICES_DIR", "data/devices"))
+        root = Path(os.environ.get("ATULYA_DEVICES_DIR", "kosh/devices"))
         self.path = Path(path) if path else root / "fabric.json"
         self.profile_dir = self.path.parent / "profiles"
         self.profiles = profiles if profiles is not None else load_profiles([self.profile_dir])
