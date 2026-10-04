@@ -12,6 +12,7 @@ import './styles.css';
 const Reflexes = lazy(() => import('./pages/Reflexes.jsx').then((m) => ({ default: m.Reflexes })));
 const Routines = lazy(() => import('./pages/Routines.jsx').then((m) => ({ default: m.Routines })));
 const MemoryTree = lazy(() => import('./pages/MemoryTree.jsx').then((m) => ({ default: m.MemoryTree })));
+const Providers = lazy(() => import('./pages/Providers.jsx').then((m) => ({ default: m.Providers })));
 const AboutYou = lazy(() => import('./pages/AboutYou.jsx').then((m) => ({ default: m.AboutYou })));
 const Senses = lazy(() => import('./pages/Senses.jsx').then((m) => ({ default: m.Senses })));
 
@@ -346,6 +347,7 @@ const MENU_ITEMS = [
   { id: 'memory', label: 'Memory tree', icon: '❋' },
   { id: 'routines', label: 'Routines', icon: '↻', admin: true },
   { id: 'senses', label: 'Senses', icon: '◎', admin: true },
+  { id: 'brains', label: 'Brains & keys', icon: '🔑', admin: true },
   { id: 'reflexes', label: 'Brain & reflexes', icon: '⚡', admin: true },
   { id: 'users', label: 'Users', icon: '👥', admin: true },
 ];
@@ -355,6 +357,7 @@ const PANEL_WORDS = [
   ['users', /\b(users?|accounts?|people)\b/],
   ['routines', /\b(routines?|schedules?|automations?)\b/],
   ['senses', /\b(senses|sensors?|cameras?)\b/],
+  ['brains', /\b(api keys?|brains?|providers?|models?)\b/],
   ['reflexes', /\b(reflexes|triggers?|brain settings)\b/],
   ['memory', /\b(memory|memories|memory tree|what do you remember)\b/],
   ['about', /\b(about me|profile|my details)\b/],
@@ -488,6 +491,7 @@ function App() {
     if (panel === 'memory') return lazyPage(MemoryTree, 'memory tree');
     if (!isAdmin) return <p className="lazy-loading">That area is for the admin.</p>;
     if (panel === 'users') return <UserManagement toast={toast} />;
+    if (panel === 'brains') return lazyPage(Providers, 'brains');
     if (panel === 'reflexes') return lazyPage(Reflexes, 'reflexes');
     if (panel === 'routines') return lazyPage(Routines, 'routines');
     if (panel === 'senses') return lazyPage(Senses, 'senses');

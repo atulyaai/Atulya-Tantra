@@ -17,6 +17,8 @@ import urllib.request
 import urllib.error
 from typing import Any, AsyncIterator
 
+from atulya.providers_catalog import CATALOG  # noqa: E402
+
 logger = logging.getLogger(__name__)
 
 
@@ -439,6 +441,30 @@ NO_BRAIN_MESSAGE = (
 )
 
 
+class OpenAICompatProvider(OpenRouterProvider):
+    """Any OpenAI-style provider from ``providers_catalog`` (Mistral, DeepSeek, Qwen, Together …)."""
+
+    def __init__(self, spec: Any):
+        self.spec = spec
+
+    @property
+    def URL(self) -> str:  # noqa: N802
+        base = os.environ.get("ATULYA_CUSTOM_URL", "") if self.spec.id == "custom" else self.spec.base_url
+        return base.rstrip("/") + "/chat/completions"
+
+    def name(self) -> str:
+        return self.spec.label.split(" (")[0]
+
+    def _key(self) -> str:  # type: ignore[override]
+        # A custom local server often needs no key, so a URL alone makes it available.
+        key = os.environ.get(self.spec.key_var, "")
+        return key or ("none" if self.spec.id == "custom" and os.environ.get("ATULYA_CUSTOM_URL") else "")
+
+    def models(self) -> list[str]:  # type: ignore[override]
+        raw = os.environ.get(self.spec.model_var, "") or self.spec.default_model
+        return [m.strip() for m in raw.split(",") if m.strip()]
+
+
 class NoBrainProvider(IntelligenceProvider):
     """Last link in the chain: says plainly that no brain is loaded.
 
@@ -540,6 +566,7 @@ class ProviderRouter(IntelligenceProvider):
             GroqProvider(),        # Fast free developer-tier API (3rd choice)
             OpenRouterProvider(),  # Free model aggregator when configured (3rd choice)
             OpenCodeGoProvider(),  # OpenCode Go key, when configured
+            *[OpenAICompatProvider(spec) for spec in CATALOG if not spec.builtin],  # Mistral, DeepSeek, Qwen …
             GeminiProvider(),      # Google free-tier key when configured (4th choice)
             OpenAIProvider(),      # Paid/optional fallback only (6th choice)
             NvidiaNimProvider(),   # Optional provider fallback (7th choice)
@@ -602,7 +629,7 @@ class ProviderRouter(IntelligenceProvider):
         # All providers failed, return a diagnostic error response
         errors_summary = ", ".join(attempted)
         logger.warning("No brain answered. Attempted: %s", errors_summary)
-        cloud_keys = ("ANTHROPIC_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "OPENCODE_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY", "NVIDIA_API_KEY")
+        cloud_keys = tuple(spec.key_var for spec in CATALOG if spec.id != "custom")
         if any(os.environ.get(k) for k in cloud_keys):
             return CLOUD_BUSY_MESSAGE, "Diagnostics Fallback"
         return NO_BRAIN_MESSAGE, "Diagnostics Fallback"

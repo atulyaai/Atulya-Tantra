@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from atulya.server.routes import agent, auth, automation, chat, create, devices, google, notifications, memory, mood, openai, profile, routines, senses, system, triggers, upload, voice, ws
+from atulya.server.routes import agent, auth, automation, chat, create, devices, google, notifications, memory, mood, openai, profile, providers, routines, senses, system, triggers, upload, voice, ws
 from atulya.server.automation_runner import AutomationRunner
 from atulya.mcp.external_client import MCPClientManager
 
@@ -166,7 +166,7 @@ app.add_middleware(
 )
 app.middleware("http")(_rate_limiter)
 
-for module in (auth, system, chat, automation, openai, voice, upload, devices, ws, notifications, agent, create, triggers, routines, profile, memory, mood, senses, google):
+for module in (auth, system, chat, automation, openai, voice, upload, devices, ws, notifications, agent, create, triggers, routines, profile, memory, mood, providers, senses, google):
     app.include_router(module.router)
 
 

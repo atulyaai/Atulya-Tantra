@@ -23,6 +23,19 @@ export function explainCameraError(err) {
   }
 }
 
+// What the browser says about cameras without asking: how many, and whether permission is already decided.
+export async function detectCameras() {
+  if (!navigator.mediaDevices?.enumerateDevices) return { state: 'unsupported', devices: [] };
+  let devices = [];
+  try {
+    devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
+  } catch { /* treated as none */ }
+  let state = 'prompt';
+  try { state = (await navigator.permissions.query({ name: 'camera' })).state; } catch { /* Safari/Firefox: unknown, so we just ask */ }
+  if (!devices.length) state = 'none'; // no hardware: permission is beside the point
+  return { state, devices: devices.map((d, i) => ({ id: d.deviceId, label: d.label || `Camera ${i + 1}` })) };
+}
+
 export function createWebcam({ onPresence, onGaze } = {}) {
   let stream = null;
   let video = null;
@@ -70,10 +83,11 @@ export function createWebcam({ onPresence, onGaze } = {}) {
     get active() { return Boolean(stream); },
     // The element to show as a small preview so you can always see that the camera is on.
     get video() { return video; },
-    async start() {
+    async start(deviceId) {
       if (stream) return video;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, facingMode: 'user' }, audio: false });
+        const base = deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'user' };
+        stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, ...base }, audio: false });
       } catch (err) {
         if (err?.name !== 'OverconstrainedError' && err?.name !== 'NotFoundError') throw err;
         stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false }); // any camera, any size

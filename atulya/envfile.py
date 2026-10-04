@@ -43,3 +43,38 @@ def load_env(paths: list[Path] | None = None) -> list[Path]:
             if value and not os.environ.get(key):
                 os.environ[key] = value
     return read
+
+
+def env_path() -> Path:
+    """The .env that Atulya writes to: the one next to start.bat."""
+    return Path(__file__).resolve().parents[1] / ".env"
+
+
+def set_env_value(key: str, value: str, path: Path | None = None) -> None:
+    """Set (or, with an empty value, remove) one variable in .env and in this running process."""
+    if not key.replace("_", "").isalnum() or any(c in value for c in "\r\n\0"):
+        raise ValueError("Invalid key or value")
+    path = path or env_path()
+    lines = path.read_text(encoding="utf-8-sig").splitlines() if path.exists() else []
+    out, done = [], False
+    for line in lines:
+        name = line.split("=", 1)[0].strip().removeprefix("export ").strip()
+        if "=" in line and not line.lstrip().startswith("#") and name == key:
+            if value and not done:
+                out.append(f"{key}={value}")
+            done = True
+        else:
+            out.append(line)
+    if value and not done:
+        out.append(f"{key}={value}")
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text("\n".join(out) + "\n", encoding="utf-8")
+    try:
+        tmp.chmod(0o600)  # keys: readable by you only (a no-op on Windows)
+    except OSError:
+        pass
+    tmp.replace(path)
+    if value:
+        os.environ[key] = value
+    else:
+        os.environ.pop(key, None)

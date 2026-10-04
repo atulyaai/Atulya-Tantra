@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api, boostAudio, getBoost, setBoost } from '../api.js';
-import { createWebcam, explainCameraError } from './webcam.js';
+import { createWebcam, detectCameras, explainCameraError } from './webcam.js';
 
 // The home screen: one glowing orb you talk to, Jarvis style. It wakes on
 // "Hey Atulya" (or "Hi / Hello / Listen Atulya", or just "Atulya"), ripples to
@@ -56,6 +56,8 @@ export function Orb({ onMenu, toast, onCommand }) {
   const previewRef = useRef(null);
   const [camOn, setCamOn] = useState(false);
   const [camError, setCamError] = useState('');
+  const [cams, setCams] = useState({ state: 'prompt', devices: [] });
+  const [camId, setCamId] = useState('');
   const [hint, setHint] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [typed, setTyped] = useState('');
@@ -466,19 +468,39 @@ export function Orb({ onMenu, toast, onCommand }) {
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  async function toggleWebcam(on) {
+  // Find cameras on load and whenever one is plugged in; if you turned the camera on before and the browser
+  // already allows it, switch it back on by itself. Otherwise the camera button asks when you tap it.
+  useEffect(() => {
+    let alive = true;
+    const refresh = async () => {
+      const found = await detectCameras();
+      if (!alive) return;
+      setCams(found);
+      if (found.state === 'granted' && found.devices.length && !webcamRef.current?.active && localStorage.getItem('atulya-cam') === 'on') {
+        toggleWebcam(true, found.devices[0].id);
+      }
+    };
+    refresh();
+    navigator.mediaDevices?.addEventListener?.('devicechange', refresh);
+    return () => { alive = false; navigator.mediaDevices?.removeEventListener?.('devicechange', refresh); };
+  }, []);
+
+  async function toggleWebcam(on, deviceId) {
     setCamError('');
     if (!webcamRef.current) {
       webcamRef.current = createWebcam({ onGaze: (x, y) => holoRef.current?.setGaze(x, y) });
     }
     try {
       if (on) {
-        const video = await webcamRef.current.start();
+        const video = await webcamRef.current.start(deviceId || camId || undefined);
         setCamOn(true);
+        try { localStorage.setItem('atulya-cam', 'on'); } catch { /* private mode */ }
+        detectCameras().then(setCams); // after permission the real names appear
         requestAnimationFrame(() => { if (previewRef.current && video) previewRef.current.replaceChildren(video); });
       } else {
         webcamRef.current.stop();
         setCamOn(false);
+        try { localStorage.setItem('atulya-cam', 'off'); } catch { /* private mode */ }
       }
     } catch (err) {
       setCamOn(false);
@@ -582,7 +604,14 @@ export function Orb({ onMenu, toast, onCommand }) {
       <div className="orb-top">
         <button type="button" className="orb-icon" onClick={onMenu} title="Menu" aria-label="Menu">☰</button>
         <div className="orb-name">ATULYA</div>
-        <button type="button" className="orb-icon" onClick={() => setShowSettings((v) => !v)} title="Settings" aria-label="Settings">⚙</button>
+        <div className="orb-icons">
+          {cams.state !== 'unsupported' && cams.state !== 'none' && (
+            <button type="button" className={`orb-icon ${camOn ? 'on' : ''}`} onClick={() => toggleWebcam(!camOn)}
+              title={camOn ? 'Turn the camera off' : cams.state === 'denied' ? 'Camera is blocked' : 'Turn the camera on (the browser will ask permission)'}
+              aria-label="Camera">📷</button>
+          )}
+          <button type="button" className="orb-icon" onClick={() => setShowSettings((v) => !v)} title="Settings" aria-label="Settings">⚙</button>
+        </div>
       </div>
 
       <div className="orb-captions" ref={captionsRef}>
@@ -635,6 +664,17 @@ export function Orb({ onMenu, toast, onCommand }) {
             <input type="checkbox" checked={camOn} onChange={(e) => toggleWebcam(e.target.checked)} />
             Let Atulya see me (webcam)
           </label>
+          <small className="orb-hint" style={{ color: '#9fd8d0' }}>
+            {cams.state === 'unsupported' ? 'This browser cannot use a camera here.'
+              : cams.devices.length ? `${cams.devices.length} camera${cams.devices.length > 1 ? 's' : ''} found${cams.state === 'granted' ? ', allowed' : cams.state === 'denied' ? ', blocked' : ', not allowed yet'}.`
+              : 'No camera detected. Plug one in and it will appear here.'}
+          </small>
+          {cams.devices.length > 1 && (
+            <select value={camId} onChange={(e) => { setCamId(e.target.value); if (camOn) { webcamRef.current?.stop(); toggleWebcam(true, e.target.value); } }}>
+              <option value="">Automatic</option>
+              {cams.devices.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
+            </select>
+          )}
           {camError && <small className="orb-hint">{camError}</small>}
           <button type="button" onClick={() => { historyRef.current = []; setHeard(''); setSaid(''); }}>Forget this conversation</button>
           {started && Boolean(loopRef.current.active) && <button type="button" onClick={stopLoop}>Stop listening</button>}
