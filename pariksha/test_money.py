@@ -3,9 +3,9 @@ from datetime import datetime
 
 import pytest
 
-from atulya.yantra.agent import money as m
-from atulya.yantra.agent import tools as t
-from atulya.yantra.agent.intent_router import route_intent
+from atulya.yantra import money as m
+from atulya.yantra import tools as t
+from atulya.yantra.intent_router import route_intent
 
 NOW = datetime(2026, 10, 15, 10, 0)
 

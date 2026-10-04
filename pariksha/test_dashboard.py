@@ -58,8 +58,8 @@ def test_routes_need_login_and_guard_locks(monkeypatch):
 def test_brain_tool_calls_are_audited(tmp_path, monkeypatch):
     import asyncio
 
-    from atulya.yantra.agent.audit import recent
-    from atulya.yantra.agent.tools import TOOL_REGISTRY
+    from atulya.yantra.audit import recent
+    from atulya.yantra.tools import TOOL_REGISTRY
     from atulya.buddhi.toolbelt import AgentToolAdapter
 
     monkeypatch.setenv("ATULYA_AGENT_DATA_DIR", str(tmp_path))
@@ -79,7 +79,7 @@ def test_no_brain_message_is_not_ranked_as_a_brain():
 def test_calendar_survives_a_restart(tmp_path, monkeypatch):
     import json
 
-    from atulya.yantra.agent import tools
+    from atulya.yantra import tools
 
     (tmp_path / "calendar.json").write_text(json.dumps([{"id": "e1", "title": "Client call", "time": 4e9, "duration": 30}]))
     monkeypatch.setattr(tools, "_DATA_DIR", tmp_path)
@@ -92,7 +92,7 @@ def test_no_pretend_devices_without_a_hub(monkeypatch):
     """Real use (no Home Assistant, no test switch): the brain says no hub is connected instead of faking success."""
     import asyncio
 
-    from atulya.yantra.agent import tools
+    from atulya.yantra import tools
 
     monkeypatch.delenv("ATULYA_SIMULATED_HOME", raising=False)
     monkeypatch.delenv("HOME_ASSISTANT_URL", raising=False)

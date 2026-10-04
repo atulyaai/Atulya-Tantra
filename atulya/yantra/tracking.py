@@ -10,8 +10,8 @@ import urllib.parse
 import urllib.request
 import uuid
 
-from atulya.yantra.agent import tools as _t
-from atulya.yantra.agent.tools import tool
+from atulya.yantra import tools as _t
+from atulya.yantra.tools import tool
 
 _PRICE = re.compile(r"(?:₹|rs\.?|inr|\$|usd|€)\s?([\d,]+(?:\.\d+)?)", re.I)
 

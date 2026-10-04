@@ -12,17 +12,7 @@ import pytest
 
 np = pytest.importorskip("numpy")
 
-from atulya.shruti.listener import (
-    FRAME_SAMPLES,
-    SAMPLE_RATE,
-    AmbientEngine,
-    AmbientSession,
-    AtulyaClient,
-    AuthError,
-    Segmenter,
-    WakeMatcher,
-    speakable,
-)
+from atulya.shruti.listener import FRAME_SAMPLES, SAMPLE_RATE, AmbientEngine, AmbientSession, AtulyaClient, AuthError, Segmenter, WakeMatcher, speakable
 
 
 def frames(signal: np.ndarray):

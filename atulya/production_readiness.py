@@ -81,9 +81,9 @@ def _check_telegram() -> ReadinessCheck:
 
 
 def _check_mcp_config(root: Path) -> ReadinessCheck:
-    path = root / "atulya" / "mcp" / "servers.json"
+    path = root / "atulya" / "yantra" / "mcp_servers.json"
     if not path.exists():
-        return ReadinessCheck("MCP config", "fail", "atulya/yantra/mcp/servers.json is missing")
+        return ReadinessCheck("MCP config", "fail", "atulya/yantra/mcp_servers.json is missing")
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except Exception as exc:

@@ -26,7 +26,7 @@ def _vector_count() -> int:
 
 @router.get("/api/memory/graph")
 def api_memory_graph(request: Request, user: dict = Depends(_require_auth)):
-    from atulya.yantra.agent.tools import TOOL_REGISTRY
+    from atulya.yantra.tools import TOOL_REGISTRY
     from atulya.bhava.emotion import MoodState
     from atulya.buddhi.intelligence import _SPEED
     from atulya.buddhi.llm import get_default_llm

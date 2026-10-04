@@ -1,8 +1,8 @@
 import asyncio
 import json
 
-from atulya.yantra.agent import media, webagent
-from atulya.yantra.agent.webagent import Element, Observation, hard_stop, parse_action, run_task
+from atulya.yantra import media, webagent
+from atulya.yantra.webagent import Element, Observation, hard_stop, parse_action, run_task
 from atulya.buddhi import safety
 
 
@@ -104,7 +104,7 @@ def test_play_music_falls_back_to_search(monkeypatch):
 
 
 def test_camera_status_without_senses(monkeypatch):
-    from atulya.yantra.agent.tools import camera_status
+    from atulya.yantra.tools import camera_status
 
     monkeypatch.setattr("atulya.indriya.current_senses", lambda: None)
     assert "No cameras" in asyncio.run(camera_status())

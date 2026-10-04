@@ -1,7 +1,7 @@
 """One tool surface for the whole assistant.
 
 Historically Atulya had two tool systems: the ``yantra`` ToolRegistry (files,
-web, office, ERP) used by the live chat/voice brain, and the ``atulya.yantra.agent``
+web, office, ERP) used by the live chat/voice brain, and the ``atulya.yantra.core``
 registry (home control, reminders, weather, email, calendar, time) used only by
 the CLI loop and automations. The chat brain could not call the personal-
 assistant tools at all, and approvals for them had nowhere to execute.
@@ -23,7 +23,7 @@ EXCLUDED_FROM_BRAIN = {"download_vision_model", "configure_email"}
 
 
 class AgentToolAdapter(Tool):
-    """Expose an ``atulya.yantra.agent`` function tool through the yantra Tool API."""
+    """Expose an ``atulya.yantra.core`` function tool through the yantra Tool API."""
 
     def __init__(self, name: str, info: dict[str, Any]):
         self.name = name
@@ -42,7 +42,7 @@ class AgentToolAdapter(Tool):
         self._fn = info["fn"]
 
     async def execute(self, **kwargs: Any) -> ToolResult:
-        from atulya.yantra.agent.audit import audit
+        from atulya.yantra.audit import audit
 
         audit("tool", name=self.name, args=kwargs)  # every assistant action the brain takes is on the record
         try:
@@ -57,7 +57,7 @@ class AgentToolAdapter(Tool):
 def build_unified_registry(data_dir: str | Path = ".") -> ToolRegistry:
     """Return the yantra default registry plus the personal-assistant tools."""
     registry = create_default_registry(data_dir)
-    from atulya.yantra.agent import tools as agent_tools  # lazy: avoids import cycles
+    from atulya.yantra import tools as agent_tools  # lazy: avoids import cycles
 
     existing = {t["name"] for t in registry.list_tools()}
     for name, info in agent_tools.TOOL_REGISTRY.items():

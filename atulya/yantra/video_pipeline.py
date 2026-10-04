@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from atulya.yantra.capabilities.image_engine import ImageEngine
+from atulya.yantra.image_engine import ImageEngine
 
 
 @dataclass

@@ -8,7 +8,7 @@ import urllib.parse
 import urllib.request
 import webbrowser
 
-from atulya.yantra.agent.tools import open_website, tool
+from atulya.yantra.tools import open_website, tool
 
 # Windows virtual-key codes for the media keys.
 _VK = {"play_pause": 0xB3, "next": 0xB0, "previous": 0xB1, "stop": 0xB2,

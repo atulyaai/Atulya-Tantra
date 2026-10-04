@@ -9,7 +9,7 @@ unreliable.
 ``route_intent`` returns a ``RoutedIntent`` only for high-confidence, concrete
 commands; it returns ``None`` for everything else so the normal LLM path
 handles general conversation. The routed tool names and argument shapes match
-the tools registered in ``atulya.yantra.agent.tools``.
+the tools registered in ``atulya.yantra.tools``.
 """
 from __future__ import annotations
 
@@ -262,7 +262,7 @@ async def route_and_execute(text: str) -> str | None:
     if routed is None:
         return None
     # Imported lazily to avoid a circular import (tools -> intent_router).
-    from atulya.yantra.agent.tools import execute_tool
+    from atulya.yantra.tools import execute_tool
 
     return await execute_tool(routed.tool, **routed.arguments)
 
@@ -303,7 +303,7 @@ _POLITE = r"(?:(?:hey |ok |okay )?atulya[, ]*)?(?:(?:can|could|would) you |pleas
 
 
 def _website_intent(t: str) -> RoutedIntent | None:
-    from atulya.yantra.agent.tools import WEBSITES  # lazy: tools.py is heavier than this module
+    from atulya.yantra.tools import WEBSITES  # lazy: tools.py is heavier than this module
 
     t = t.strip(" .!?")
     sites = "|".join(re.escape(name) for name in sorted(WEBSITES, key=len, reverse=True))

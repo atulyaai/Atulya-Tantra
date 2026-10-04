@@ -21,19 +21,10 @@ import time
 from collections import OrderedDict
 from typing import Any, AsyncIterator
 
-from atulya.yantra.agent.intent_router import route_intent
+from atulya.yantra.intent_router import route_intent
 from atulya.buddhi import safety
 from atulya.buddhi.planner import PLAN_TOOL, Plan, Planner, looks_failed, steps_for_clause, verify_step
-from atulya.buddhi.profile import (
-    LEARN_AFTER,
-    USER_SOURCES,
-    ProfileStore,
-    approval_key,
-    describe_fact,
-    extract_facts,
-    is_pure_statement,
-    profile_intent,
-)
+from atulya.buddhi.profile import LEARN_AFTER, USER_SOURCES, ProfileStore, approval_key, describe_fact, extract_facts, is_pure_statement, profile_intent
 from atulya.buddhi.toolbelt import EXCLUDED_FROM_BRAIN
 from atulya.buddhi.llm import AtulyaLLM, LLMEvent, LLMResponse, _chunk_text, get_default_llm
 from atulya.events import EventBus, default_bus
@@ -113,7 +104,7 @@ def _is_privileged(user: Any, source: str) -> bool:
 
 
 def _kernel_tools() -> set[str]:
-    from atulya.yantra.agent import tools as agent_tools
+    from atulya.yantra import tools as agent_tools
 
     return set(agent_tools.TOOL_REGISTRY) - EXCLUDED_FROM_BRAIN
 
@@ -663,7 +654,7 @@ class CognitiveKernel:
     async def _execute(self, tool: str, args: dict[str, Any]) -> dict[str, Any]:
         if isinstance(self.llm, AtulyaLLM) and self.llm.tools.get(tool) is not None:
             return await self.llm.run_tool({"tool": tool, "arguments": args})
-        from atulya.yantra.agent.tools import execute_tool  # brains without the unified registry
+        from atulya.yantra.tools import execute_tool  # brains without the unified registry
 
         out = await execute_tool(tool, **args)
         failed = out.startswith("Error")

@@ -232,6 +232,7 @@ class WebFetchTool(Tool):
 
     async def execute(self, url: str, **kwargs: Any) -> ToolResult:
         import httpx
+
         from atulya.raksha.security import SSRFProtection, is_public_ip
 
         allow_private = os.environ.get("ATULYA_FETCH_ALLOW_PRIVATE", "").lower() in ("1", "true", "yes")
@@ -324,7 +325,7 @@ class CreateOutputTool(Tool):
     description = "Create documents, images, videos, audio, and charts from a prompt"
 
     async def execute(self, prompt: str, format: str = "auto", **kwargs: Any) -> ToolResult:
-        from atulya.yantra.capabilities.connector import AtulyaTantraConnector
+        from atulya.yantra.connector import AtulyaTantraConnector
 
         root = Path(kwargs.pop("data_dir", "kosh")) / "creations"
         result = AtulyaTantraConnector(root).create(prompt, format, **kwargs)
@@ -337,19 +338,19 @@ class CreateOutputTool(Tool):
 
 
 def create_default_registry(data_dir: str | Path = ".") -> ToolRegistry:
-    from atulya.yantra.capabilities.browser_automation import BrowserAutomationTool
-    from atulya.yantra.capabilities.business_automation import (
-        HRAttendancePayrollTool,
+    from atulya.yantra.browser_automation import BrowserAutomationTool
+    from atulya.yantra.business_automation import (
+        AccountingERPTool,
         DataScrubberTool,
         GSTReconciliationTool,
-        AccountingERPTool,
-        SAPAutomationTool
+        HRAttendancePayrollTool,
+        SAPAutomationTool,
     )
-    from atulya.yantra.capabilities.office_tools import (
+    from atulya.yantra.office_tools import (
         CalendarTool,
-        CSVAnalyzeTool,
         ChartGenerateTool,
         CodeExecuteTool,
+        CSVAnalyzeTool,
         EmailDraftTool,
         PDFReadTool,
     )

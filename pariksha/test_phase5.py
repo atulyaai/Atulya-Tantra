@@ -7,13 +7,7 @@ import pytest
 import yaml
 
 from atulya.yantra.capabilities import create_default_registry
-from atulya.yantra.capabilities.business_automation import (
-    HRAttendancePayrollTool,
-    DataScrubberTool,
-    GSTReconciliationTool,
-    AccountingERPTool,
-    SAPAutomationTool,
-)
+from atulya.yantra.business_automation import HRAttendancePayrollTool, DataScrubberTool, GSTReconciliationTool, AccountingERPTool, SAPAutomationTool
 
 
 @pytest.mark.anyio
@@ -256,7 +250,7 @@ def test_automation_runner_executes_due_job(tmp_path):
 
 
 def test_mcp_config_ships_disabled_by_default():
-    data = json.loads(open("atulya/yantra/mcp/servers.json", encoding="utf-8").read())
+    data = json.loads(open("atulya/yantra/mcp_servers.json", encoding="utf-8").read())
     assert len(data["servers"]) >= 8
     assert all("enabled" in server for server in data["servers"])
     assert all("timeout" in server for server in data["servers"])
@@ -268,7 +262,7 @@ def test_mcp_config_ships_disabled_by_default():
 
 
 def test_mcp_http_url_is_not_double_suffixed(monkeypatch):
-    from atulya.yantra.mcp.external_client import MCPClient, MCPClientConfig
+    from atulya.yantra.mcp import MCPClient, MCPClientConfig
 
     captured = {}
 
@@ -352,7 +346,7 @@ def test_csv_analyze_tool(tmp_path):
 
 def test_mcp_server_jsonrpc_tool_call(tmp_path):
     from atulya.yantra.capabilities import Tool, ToolRegistry, ToolResult
-    from atulya.yantra.mcp.server import MCPServer
+    from atulya.yantra.mcp import MCPServer
 
     class DemoTool(Tool):
         name = "demo"

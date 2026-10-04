@@ -3,13 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from atulya.bhava.emotion import (
-    EmotionReading,
-    MoodState,
-    build_emotional_directive,
-    detect_emotion,
-    emotion_to_tts,
-)
+from atulya.bhava.emotion import EmotionReading, MoodState, build_emotional_directive, detect_emotion, emotion_to_tts
 
 
 # --- emotion detection ---------------------------------------------------

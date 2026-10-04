@@ -11,8 +11,8 @@ import os
 import platform
 import subprocess
 
-from atulya.yantra.agent.audit import audit
-from atulya.yantra.agent.tools import tool
+from atulya.yantra.audit import audit
+from atulya.yantra.tools import tool
 
 APP_ALLOWLIST: dict[str, list[str]] = {
     "notepad": ["notepad.exe"], "calculator": ["calc.exe"], "explorer": ["explorer.exe"],

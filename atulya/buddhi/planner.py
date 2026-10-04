@@ -32,7 +32,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from atulya.yantra.agent.intent_router import _match_device, route_intent
+from atulya.yantra.intent_router import _match_device, route_intent
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +141,7 @@ class Plan:
 
 # ── understanding a clause ────────────────────────────────────────────────
 def _light_devices() -> list[tuple[str, str]]:
-    from atulya.yantra.agent.tools import _HOME_DEVICES  # lazy: tools imports are heavy
+    from atulya.yantra.tools import _HOME_DEVICES  # lazy: tools imports are heavy
 
     return [(did, dev.get("name", did)) for did, dev in _HOME_DEVICES.items() if dev.get("type") == "light"]
 
@@ -343,7 +343,7 @@ _PLANNER_SYSTEM = "You turn goals into short, concrete smart-home and assistant 
 
 
 def decomposition_prompt(goal: str) -> str:
-    from atulya.yantra.agent.tools import _HOME_DEVICES
+    from atulya.yantra.tools import _HOME_DEVICES
 
     devices = ", ".join(dev.get("name", did).lower() for did, dev in _HOME_DEVICES.items())
     return (
@@ -395,7 +395,7 @@ async def verify_step(step: PlanStep) -> tuple[bool | None, str]:
     if not expected:
         return None, ""
 
-    from atulya.yantra.capabilities.home_assistant import HomeAssistantBridge
+    from atulya.yantra.home_assistant import HomeAssistantBridge
 
     bridge = HomeAssistantBridge()
     if bridge.configured:
@@ -420,7 +420,7 @@ async def verify_step(step: PlanStep) -> tuple[bool | None, str]:
                 await asyncio.sleep(VERIFY_RETRY_SECONDS)
         return ok, f"{entity} is {actual or 'unknown'}"
 
-    from atulya.yantra.agent.tools import _HOME_DEVICES
+    from atulya.yantra.tools import _HOME_DEVICES
 
     dev = _HOME_DEVICES.get(device)
     if not dev:

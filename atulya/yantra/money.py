@@ -20,8 +20,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from atulya.yantra.agent import tools as _t
-from atulya.yantra.agent.tools import tool
+from atulya.yantra import tools as _t
+from atulya.yantra.tools import tool
 
 CURRENCY = os.environ.get("ATULYA_CURRENCY", "₹")
 

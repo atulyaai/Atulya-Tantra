@@ -27,7 +27,7 @@ def _to_ts(value: Any) -> float | None:
 
 async def upcoming_events(window_minutes: int) -> list[dict[str, Any]]:
     """Events (local calendar plus Google, when connected) starting within the window."""
-    from atulya.yantra.agent import tools
+    from atulya.yantra import tools
 
     now = time.time()
     end = now + window_minutes * 60

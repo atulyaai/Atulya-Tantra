@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from atulya.yantra.agent.tools import tool
+from atulya.yantra.tools import tool
 from atulya.upakaran import learn
 from atulya.upakaran.base import DeviceError
 from atulya.upakaran.discovery import discover

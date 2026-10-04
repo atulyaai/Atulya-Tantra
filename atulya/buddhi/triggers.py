@@ -343,7 +343,7 @@ def connect_sensors(events: EventBus | None = None) -> None:
     if _SENSORS_CONNECTED:
         return
     bus = events or default_bus
-    from atulya.yantra.agent.tools import register_reminder_callback
+    from atulya.yantra.tools import register_reminder_callback
 
     async def _reminder_due(event_type: str, entry: dict[str, Any]) -> None:
         await bus.emit("reminder.due", {

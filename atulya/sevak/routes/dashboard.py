@@ -83,12 +83,12 @@ def build_dashboard(*, audit: list[dict[str, Any]], speeds: dict[str, dict[str, 
 
 @router.get("/api/dashboard")
 def api_dashboard(user: dict = Depends(_require_auth)):
-    from atulya.yantra.agent import tools
-    from atulya.yantra.agent.audit import recent
+    from atulya.yantra import tools
+    from atulya.yantra.audit import recent
     from atulya.buddhi.intelligence import _SPEED, ProviderRouter
     from atulya.raksha import vault
     from atulya.upakaran.hub import get_hub
-    from atulya.yantra.agent import money, pc_control
+    from atulya.yantra import money, pc_control
 
     ready = [p.name() for p in ProviderRouter().providers if p.is_available() and p.name() != "No brain loaded"]
     return build_dashboard(
@@ -113,7 +113,7 @@ def api_toggle_pc(body: dict, user: dict = Depends(_require_auth)):
 
 @router.post("/api/dashboard/media")
 async def api_media(body: dict, user: dict = Depends(_require_auth)):
-    from atulya.yantra.agent.media import media_control
+    from atulya.yantra.media import media_control
 
     action = str(body.get("action") or "")
     return {"message": await media_control(action)}
@@ -122,7 +122,7 @@ async def api_media(body: dict, user: dict = Depends(_require_auth)):
 @router.post("/api/dashboard/home")
 async def api_home(body: dict, user: dict = Depends(_require_auth)):
     """Turn a light or thermostat on/off from the dashboard. Locks are never touched here."""
-    from atulya.yantra.agent import tools
+    from atulya.yantra import tools
 
     device = tools._HOME_DEVICES.get(str(body.get("device_id")))
     action = str(body.get("action") or "")

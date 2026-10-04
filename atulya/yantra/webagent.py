@@ -17,8 +17,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Protocol
 
-from atulya.yantra.agent.audit import audit
-from atulya.yantra.agent.tools import tool
+from atulya.yantra.audit import audit
+from atulya.yantra.tools import tool
 
 logger = logging.getLogger(__name__)
 

@@ -1,15 +1,15 @@
 """The morning briefing: time, weather, calendar, reminders and what you're tracking."""
 from __future__ import annotations
 
-from atulya.yantra.agent import tools as _t
-from atulya.yantra.agent.tools import tool
+from atulya.yantra import tools as _t
+from atulya.yantra.tools import tool
 
 
 @tool("morning_briefing", "Give a spoken briefing: time, weather, calendar, reminders and tracked items", {
     "location": {"type": "string", "description": "City for the weather (optional)", "default": ""},
 })
 async def morning_briefing(location: str = "") -> str:
-    from atulya.yantra.agent import tracking
+    from atulya.yantra import tracking
 
     parts = [await _t.current_time()]
     if location.strip():
@@ -24,7 +24,7 @@ async def morning_briefing(location: str = "") -> str:
 
 @tool("what_can_you_do", "Tell the user, briefly, what Atulya can do", {})
 async def what_can_you_do() -> str:
-    from atulya.yantra.agent.pc_control import enabled as pc_enabled
+    from atulya.yantra.pc_control import enabled as pc_enabled
 
     pc = "I can open apps and type for you when PC control is switched on." if pc_enabled() else \
         "PC control is off, but you can switch it on."

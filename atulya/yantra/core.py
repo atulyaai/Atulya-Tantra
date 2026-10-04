@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable
 
-from atulya.yantra.agent.tools import TOOL_REGISTRY, get_tool_schemas, register_reminder_callback
+from atulya.yantra.tools import TOOL_REGISTRY, get_tool_schemas, register_reminder_callback
 
 logger = logging.getLogger(__name__)
 

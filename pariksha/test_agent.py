@@ -5,21 +5,8 @@ import asyncio
 
 import pytest
 
-from atulya.yantra.agent.tools import (
-    TOOL_REGISTRY,
-    get_tool_schemas,
-    execute_tool,
-    set_reminder,
-    list_reminders,
-    cancel_reminder,
-    get_system_status,
-    get_proactive_suggestions,
-    send_email,
-    fetch_emails,
-    configure_email,
-    analyze_image,
-)
-from atulya.yantra.agent.core import AgentCore
+from atulya.yantra.tools import TOOL_REGISTRY, get_tool_schemas, execute_tool, set_reminder, list_reminders, cancel_reminder, get_system_status, get_proactive_suggestions, send_email, fetch_emails, configure_email, analyze_image
+from atulya.yantra.core import AgentCore
 
 
 class TestToolRegistry:

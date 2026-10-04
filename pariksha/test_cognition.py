@@ -351,7 +351,7 @@ class TestTriggers:
         assert "trg_habit_nudge" not in {r["id"] for r in again.list_rules()}
 
     def test_reminder_alert_and_command_rule(self, tmp_path):
-        from atulya.yantra.agent.tools import _HOME_DEVICES
+        from atulya.yantra.tools import _HOME_DEVICES
 
         engine, bus, notes = self.make(tmp_path)
         engine.add_rule({"event": "reminder.due", "match": {"message": "dusk"},
@@ -367,7 +367,7 @@ class TestTriggers:
         assert _HOME_DEVICES["living_room_light"]["state"] == "on"
 
     def test_risky_command_blocked_unless_allowed(self, tmp_path):
-        from atulya.yantra.agent.tools import _HOME_DEVICES
+        from atulya.yantra.tools import _HOME_DEVICES
 
         engine, bus, notes = self.make(tmp_path)
         engine.add_rule({"id": "r1", "event": "custom.ping", "command": "unlock the front door", "cooldown_seconds": 0})
@@ -455,7 +455,7 @@ class TestSensors:
         assert seen == [("health.warning", "memory"), ("health.ok", "memory")]
 
     def test_reminder_confirmation_shows_time_not_module(self):
-        from atulya.yantra.agent.tools import set_reminder
+        from atulya.yantra.tools import set_reminder
 
         out = asyncio.run(set_reminder("stretch", "in 10 minutes"))
         assert "module" not in out and "Reminder set: 'stretch' at " in out
@@ -508,7 +508,7 @@ class TestBrainTiers:
 
 class TestHomeAssistant:
     def test_service_calls(self):
-        from atulya.yantra.capabilities.home_assistant import HomeAssistantBridge
+        from atulya.yantra.home_assistant import HomeAssistantBridge
 
         calls = []
 
@@ -533,7 +533,7 @@ class TestHomeAssistant:
         ]
 
     def test_errors_are_reported_not_faked(self):
-        from atulya.yantra.capabilities.home_assistant import HomeAssistantBridge, HomeAssistantError
+        from atulya.yantra.home_assistant import HomeAssistantBridge, HomeAssistantError
 
         bridge = HomeAssistantBridge(url="http://ha", token="t", entities={},
                                      transport=httpx.MockTransport(lambda r: httpx.Response(401, text="no")))
@@ -543,7 +543,7 @@ class TestHomeAssistant:
             asyncio.run(bridge.control("garage", "on"))
 
     def test_home_control_uses_simulation_when_unconfigured(self, monkeypatch):
-        from atulya.yantra.agent.tools import home_control
+        from atulya.yantra.tools import home_control
 
         monkeypatch.delenv("HOME_ASSISTANT_URL", raising=False)
         monkeypatch.delenv("HOME_ASSISTANT_TOKEN", raising=False)

@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 from atulya.sevak.routes import agent, auth, automation, chat, create, google, notifications, dashboard, fabric, memory, money, mood, openai, profile, providers, routines, senses, system, triggers, upload, vault, voice, ws
 from atulya.sevak.automation_runner import AutomationRunner
-from atulya.yantra.mcp.external_client import MCPClientManager
+from atulya.yantra.mcp import MCPClientManager
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ async def _warm_llm(llm) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from atulya.buddhi.llm import get_default_llm
-    from atulya.yantra.agent import AgentCore
+    from atulya.yantra.core import AgentCore
     from atulya.sevak.routes.agent import set_agent
 
     app.state.llm = get_default_llm()
@@ -86,9 +86,9 @@ async def lifespan(app: FastAPI):
     from atulya.buddhi.profile import watch_habits
 
     app.state.habit_task = asyncio.create_task(watch_habits(get_kernel(app.state.llm).profiles, default_bus))
-    from atulya.yantra.agent.calendar_watch import watch_calendar
+    from atulya.yantra.calendar_watch import watch_calendar
 
-    from atulya.yantra.agent.money import watch_bills
+    from atulya.yantra.money import watch_bills
 
     app.state.calendar_task = asyncio.create_task(watch_calendar(default_bus))
     app.state.bills_task = asyncio.create_task(watch_bills(default_bus))
@@ -126,7 +126,7 @@ async def _relay_notification(event) -> None:
 
 
 async def _connect_mcp_servers(app: FastAPI) -> None:
-    config_path = Path(__file__).resolve().parents[1] / "yantra" / "mcp" / "servers.json"
+    config_path = Path(__file__).resolve().parents[1] / "yantra" / "mcp_servers.json"
     if not config_path.exists():
         return
     try:

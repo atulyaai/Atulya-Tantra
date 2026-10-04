@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from atulya.sevak.helpers import _require_auth
-from atulya.yantra.capabilities.connector import AtulyaTantraConnector, CreationResult
+from atulya.yantra.connector import AtulyaTantraConnector, CreationResult
 
 router = APIRouter()
 

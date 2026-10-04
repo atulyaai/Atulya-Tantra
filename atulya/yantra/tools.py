@@ -79,7 +79,7 @@ async def execute_tool(name: str, **kwargs) -> str:
     if not info:
         return f"Error: unknown tool '{name}'"
     try:
-        from atulya.yantra.agent.audit import audit
+        from atulya.yantra.audit import audit
 
         audit("tool", name=name, args=kwargs)
         result = await info["fn"](**kwargs)
@@ -265,7 +265,7 @@ _EMAIL_CFG: dict[str, Any] = {}
 def _google():
     """The current user's connected Google account, or None."""
     try:
-        from atulya.yantra.capabilities.google_workspace import GoogleAccount
+        from atulya.yantra.google_workspace import GoogleAccount
 
         account = GoogleAccount.for_current_user()
         return account if account.connected else None
@@ -308,7 +308,7 @@ async def configure_email(imap_server: str, imap_port: int = 993, smtp_server: s
 async def send_email(to: str, subject: str, body: str) -> str:
     google = _google()
     if google is not None:
-        from atulya.yantra.capabilities.google_workspace import GoogleError
+        from atulya.yantra.google_workspace import GoogleError
 
         try:
             await google.send_message(to, subject, body)
@@ -341,7 +341,7 @@ async def send_email(to: str, subject: str, body: str) -> str:
 async def fetch_emails(limit: int = 5, query: str = "") -> str:
     google = _google()
     if google is not None:
-        from atulya.yantra.capabilities.google_workspace import GoogleError
+        from atulya.yantra.google_workspace import GoogleError
 
         try:
             messages = await google.list_messages(query or "in:inbox", limit)
@@ -490,7 +490,7 @@ async def calendar_add(title: str, date: str, duration_minutes: int = 60, descri
         return f"Could not parse date: '{date}'. Use YYYY-MM-DD HH:MM or natural language."
     google = _google()
     if google is not None:
-        from atulya.yantra.capabilities.google_workspace import GoogleError
+        from atulya.yantra.google_workspace import GoogleError
 
         try:
             await google.create_event(title, evt_time, duration_minutes, description)
@@ -510,7 +510,7 @@ async def calendar_add(title: str, date: str, duration_minutes: int = 60, descri
 async def calendar_list(days: int = 7) -> str:
     google = _google()
     if google is not None:
-        from atulya.yantra.capabilities.google_workspace import GoogleError, friendly_time
+        from atulya.yantra.google_workspace import GoogleError, friendly_time
 
         try:
             events = await google.list_events(days)
@@ -538,7 +538,7 @@ async def calendar_list(days: int = 7) -> str:
 async def calendar_remove(event_id: str) -> str:
     google = _google()
     if google is not None and event_id not in _CALENDAR:
-        from atulya.yantra.capabilities.google_workspace import GoogleError
+        from atulya.yantra.google_workspace import GoogleError
 
         try:
             await google.delete_event(event_id)
@@ -623,7 +623,7 @@ _NO_HUB = ("No smart-home hub is connected, so I can't control lights, locks or 
 
 @tool("home_list_devices", "List the devices in the connected Home Assistant hub", {})
 async def home_list_devices() -> str:
-    from atulya.yantra.capabilities.home_assistant import HomeAssistantBridge
+    from atulya.yantra.home_assistant import HomeAssistantBridge
 
     hub = HomeAssistantBridge().configured
     if not hub and not simulated_home():
@@ -646,7 +646,7 @@ async def home_list_devices() -> str:
 })
 async def home_control(device_id: str, action: str, value: str = "") -> str:
     # Real devices via Home Assistant only. Without a hub this says so, instead of pretending it worked.
-    from atulya.yantra.capabilities.home_assistant import HomeAssistantBridge
+    from atulya.yantra.home_assistant import HomeAssistantBridge
 
     bridge = HomeAssistantBridge()
     if bridge.configured:
@@ -810,4 +810,4 @@ _bootstrap()
 
 
 # Skill modules register their tools with @tool on import.
-from atulya.yantra.agent import briefing, devices_tools, media, money, pc_control, tracking, webagent  # noqa: E402,F401
+from atulya.yantra import briefing, devices_tools, media, money, pc_control, tracking, webagent  # noqa: E402,F401

@@ -113,7 +113,7 @@ def api_brain(token: str | None = Header(default=None, alias="X-Atulya-Token")):
 def api_audit(limit: int = 50, token: str | None = Header(default=None, alias="X-Atulya-Token")):
     """The most recent things Atulya did on your behalf (admin only)."""
     _require_admin(token)
-    from atulya.yantra.agent.audit import recent
+    from atulya.yantra.audit import recent
 
     return {"events": recent(max(1, min(limit, 500)))}
 

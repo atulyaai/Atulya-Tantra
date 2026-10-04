@@ -32,7 +32,7 @@ def mock_provider():
 
 @pytest.mark.asyncio
 async def test_tool_execution_latency():
-    from atulya.yantra.agent.tools import calculate
+    from atulya.yantra.tools import calculate
 
     n = 100
     times = []
@@ -47,7 +47,7 @@ async def test_tool_execution_latency():
 
 @pytest.mark.asyncio
 async def test_mcp_http_latency():
-    from atulya.yantra.mcp.external_client import MCPClientManager
+    from atulya.yantra.mcp import MCPClientManager
 
     mgr = MCPClientManager()
     t0 = time.perf_counter()

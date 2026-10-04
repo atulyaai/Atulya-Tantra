@@ -3,8 +3,8 @@ import json
 
 import pytest
 
-from atulya.yantra.agent import devices_tools as dt
-from atulya.yantra.agent.intent_router import route_intent
+from atulya.yantra import devices_tools as dt
+from atulya.yantra.intent_router import route_intent
 from atulya.buddhi import safety
 from atulya.upakaran import hub as hubmod
 from atulya.upakaran import learn

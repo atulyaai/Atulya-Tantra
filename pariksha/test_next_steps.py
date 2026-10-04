@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from atulya.yantra.agent.intent_router import route_intent
+from atulya.yantra.intent_router import route_intent
 
 
 def run(coro):
@@ -355,7 +355,7 @@ def test_emoji_are_never_spoken():
 def test_what_can_you_do_is_answered_by_a_tool_not_a_model(text):
     routed = route_intent(text)
     assert routed is not None and routed.tool == "what_can_you_do"
-    from atulya.yantra.agent import tools
+    from atulya.yantra import tools
 
     answer = run(tools.execute_tool("what_can_you_do"))
     assert "reminders" in answer and "music" in answer

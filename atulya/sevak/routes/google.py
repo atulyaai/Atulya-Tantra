@@ -20,7 +20,7 @@ def redirect_uri(request: Request) -> str:
 
 @router.get("/api/google/status")
 def api_google_status(request: Request, user: dict = Depends(_require_auth)):
-    from atulya.yantra.capabilities.google_workspace import GoogleAccount, client_config
+    from atulya.yantra.google_workspace import GoogleAccount, client_config
 
     cfg = client_config()
     return {
@@ -35,7 +35,7 @@ def api_google_status(request: Request, user: dict = Depends(_require_auth)):
 @router.post("/api/google/client")
 def api_google_client(body: dict, _admin: dict = Depends(_require_admin)):
     """Save the OAuth client (from Google Cloud Console) — admin only, stored owner-only."""
-    from atulya.yantra.capabilities.google_workspace import GoogleError, save_client_config
+    from atulya.yantra.google_workspace import GoogleError, save_client_config
 
     try:
         save_client_config(str(body.get("client_id") or ""), str(body.get("client_secret") or ""))
@@ -46,7 +46,7 @@ def api_google_client(body: dict, _admin: dict = Depends(_require_admin)):
 
 @router.post("/api/google/connect")
 def api_google_connect(request: Request, user: dict = Depends(_require_auth)):
-    from atulya.yantra.capabilities.google_workspace import GoogleError, begin_sign_in
+    from atulya.yantra.google_workspace import GoogleError, begin_sign_in
 
     try:
         url = begin_sign_in(str(user.get("username") or ""), redirect_uri(request))
@@ -72,7 +72,7 @@ def _page(title: str, message: str, ok: bool) -> HTMLResponse:
 @router.get("/api/google/callback")
 async def api_google_callback(state: str = "", code: str = "", error: str = ""):
     """Google redirects here after the consent screen. The single-use state is the proof."""
-    from atulya.yantra.capabilities.google_workspace import GoogleError, finish_sign_in
+    from atulya.yantra.google_workspace import GoogleError, finish_sign_in
 
     if error:
         return _page("Google sign-in cancelled", "Nothing was connected.", ok=False)
@@ -85,6 +85,6 @@ async def api_google_callback(state: str = "", code: str = "", error: str = ""):
 
 @router.post("/api/google/disconnect")
 async def api_google_disconnect(user: dict = Depends(_require_auth)):
-    from atulya.yantra.capabilities.google_workspace import GoogleAccount
+    from atulya.yantra.google_workspace import GoogleAccount
 
     return {"ok": await GoogleAccount(str(user.get("username") or "")).disconnect()}
