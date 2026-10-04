@@ -28,7 +28,7 @@ def main() -> None:
             print(f"  Open http://127.0.0.1:{port}, close the other window first, or set ATULYA_PORT in .env.\n")
             raise SystemExit(1)
 
-    print("\n  Atulya Tantra Drishti")
+    print("\n  Atulya")
     print(f"  Running on: http://{host}:{port}\n")
     
     from atulya.server import users
