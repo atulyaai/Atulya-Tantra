@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api, boostAudio, getBoost, setBoost } from '../api.js';
+import { createWebcam } from './webcam.js';
 
 // The home screen: one glowing orb you talk to, Jarvis style. It wakes on
 // "Hey Atulya" (or "Hi / Hello / Listen Atulya", or just "Atulya"), ripples to
@@ -51,6 +52,10 @@ export function Orb({ onMenu, toast, onCommand }) {
   const [heard, setHeard] = useState('');
   const [said, setSaid] = useState('');
   const captionsRef = useRef(null);
+  const webcamRef = useRef(null);
+  const previewRef = useRef(null);
+  const [camOn, setCamOn] = useState(false);
+  const [camError, setCamError] = useState('');
   const [hint, setHint] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [typed, setTyped] = useState('');
@@ -355,11 +360,16 @@ export function Orb({ onMenu, toast, onCommand }) {
     setHint('');
     setState('thinking');
     try {
+      // "What do you see?" with the webcam on: send one picture along with the question.
+      const wantsLook = /\b(what do you see|what can you see|look at (this|me)|what is this|what am i holding|can you see)\b/i.test(text);
+      const image = wantsLook && webcamRef.current?.active ? webcamRef.current.snapshot() : null;
       const res = await api.post('/api/voice/chat', {
         prompt: text,
         voice: voiceName(),
         history: historyRef.current.slice(-8),
+        ...(image ? { image } : {}),
       });
+      api.get('/api/mood').then((m) => holoRef.current?.setMood(m)).catch(() => {});
       const reply = String(res.response_text || res.error || '').trim();
       historyRef.current.push({ role: 'user', content: text }, { role: 'assistant', content: reply });
       setSaid(reply);
@@ -455,6 +465,27 @@ export function Orb({ onMenu, toast, onCommand }) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
+
+  async function toggleWebcam(on) {
+    setCamError('');
+    if (!webcamRef.current) {
+      webcamRef.current = createWebcam({ onGaze: (x, y) => holoRef.current?.setGaze(x, y) });
+    }
+    try {
+      if (on) {
+        const video = await webcamRef.current.start();
+        setCamOn(true);
+        requestAnimationFrame(() => { if (previewRef.current && video) previewRef.current.replaceChildren(video); });
+      } else {
+        webcamRef.current.stop();
+        setCamOn(false);
+      }
+    } catch (err) {
+      setCamOn(false);
+      setCamError(err?.name === 'NotAllowedError' ? 'Camera blocked: allow it in the address bar.' : 'No camera found.');
+    }
+  }
+  useEffect(() => () => webcamRef.current?.stop(), []);
 
   // Keep the newest line of a long answer in view inside the fixed caption box.
   useEffect(() => {
@@ -568,6 +599,8 @@ export function Orb({ onMenu, toast, onCommand }) {
         )}
       </div>
 
+      {camOn && <div className="orb-cam" ref={previewRef} title="Your camera is on. Everything stays in this browser unless you ask me to look at something." />}
+
       <form className="orb-type" onSubmit={(e) => { e.preventDefault(); const t = typed.trim(); setTyped(''); if (t) ask(t); }}>
         <input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Or type to Atulya…" />
       </form>
@@ -598,6 +631,11 @@ export function Orb({ onMenu, toast, onCommand }) {
             <input type="checkbox" checked={settings.handsFree} onChange={(e) => setSettings((s) => ({ ...s, handsFree: e.target.checked }))} />
             Wake word (“Hey Atulya”)
           </label>
+          <label className="check">
+            <input type="checkbox" checked={camOn} onChange={(e) => toggleWebcam(e.target.checked)} />
+            Let Atulya see me (webcam)
+          </label>
+          {camError && <small className="orb-hint">{camError}</small>}
           <button type="button" onClick={() => { historyRef.current = []; setHeard(''); setSaid(''); }}>Forget this conversation</button>
           {started && Boolean(loopRef.current.active) && <button type="button" onClick={stopLoop}>Stop listening</button>}
         </div>

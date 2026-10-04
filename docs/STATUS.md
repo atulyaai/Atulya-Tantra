@@ -45,7 +45,9 @@ Order matters: each step needs the one above it. Anything that spends money, boo
 | Proactive: meeting heads-up | Done (PR #58) |
 | Proactive: more triggers (traffic, bills, "you usually…") | Habit nudges done; the rest planned |
 | Hologram readability: face no longer washed out; caption in a fixed side box that auto-scrolls; soft lip glow that follows the voice | Done and checked in a real render when idle. **Lip glow position is estimated and not yet seen while speaking** |
-| Mood and eye contact on the hologram (`emotion.py` to `Hologram.js`) | Planned |
+| Mood on the hologram: `/api/mood` (tested) tints the figure warm or cool and sets how lively it breathes; refreshed after each reply | Done in code; **colour shift is subtle and was not judged by eye** |
+| Webcam as a sense (Settings → "Let Atulya see me"): in-browser motion presence, head turns toward you, "what do you see?" sends one picture to the vision brain; green-framed preview shows it is on | Done; checked in a real browser with a **fake camera** (video plays, no errors). **Not tried with a real camera or a real person**. Eye contact is motion-based, not face detection |
+| More senses (hand gestures, face recognition, ambient light, sound events) | Planned |
 | Voice ID (who is speaking) | Planned; needs a speaker-embedding model |
 | Memory tree view in the web app (menu → Memory tree, or say "show memory"): animated tree, trunk = you, branch per kind, leaf per stored fact, new facts grow in live | **Done**: backend (`/api/memory/graph`, tested) and canvas animation, checked in a real browser with 12 seeded facts. Not yet: relations between people (Alice → Bob), vector-memory leaves |
 | Automation dashboard in the web app (jobs, reminders, calendar, media, devices) | Planned |
@@ -64,6 +66,7 @@ Order matters: each step needs the one above it. Anything that spends money, boo
 | `test_ambient.py`, `test_senses.py` failed to import without numpy | Fixed: skipped when missing |
 | `camera_status` had no test | Fixed |
 | Docker image never built | Open |
+| Old sidebar UI appeared when the server was down (offline cache served an old saved copy) | Fixed: cache bumped to v3 (purges old copies); `start.bat` rebuilds on content change and had a duplicate build block removed. Do a hard refresh (Ctrl+Shift+R) once |
 
 ## 5. Safety rules for every new action
 

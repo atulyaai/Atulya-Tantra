@@ -367,6 +367,12 @@ export async function createHologram(container, getSignal) {
   let scatter = 0;
   let nextBlink = 2;
   let raf = 0;
+  // Mood tints the whole figure (warm when upbeat, cool when low) and sets how lively it breathes;
+  // gaze (from the webcam) turns the head a little toward you.
+  const feel = { valence: 0.2, energy: 0.5, gx: 0, gy: 0, rx: 0, ry: 0 };
+  const moodTint = new THREE.Color(1, 1, 1);
+  const goalTint = new THREE.Color();
+
   function frame() {
     raf = requestAnimationFrame(frame);
     const t = clock.getElapsedTime();
@@ -384,10 +390,17 @@ export async function createHologram(container, getSignal) {
     u.uJaw.value = sig.state === 'speaking' ? Math.min(1, level * 1.6) : 0;
     if (t > nextBlink) nextBlink = t + 2.5 + Math.random() * 3.5;
     u.uBlink.value = Math.max(0, 1 - Math.abs(nextBlink - t - 0.08) / 0.08);
-    u.uBreath.value = Math.sin(t * 1.25);
+    u.uBreath.value = Math.sin(t * (0.9 + feel.energy * 0.7));
     scatter += ((sig.state === 'thinking' ? 1 : 0) - scatter) * (sig.state === 'thinking' ? 0.03 : 0.08);
     u.uScatter.value = scatter * morph;
-    u.uTint.value.lerp(TINTS[sig.state] || TINTS.idle, 0.08);
+    const v = feel.valence;
+    moodTint.setRGB(1 + 0.12 * Math.max(0, v) - 0.1 * Math.max(0, -v), 1 + 0.02 * v, 1 - 0.1 * Math.max(0, v) + 0.12 * Math.max(0, -v));
+    goalTint.copy(TINTS[sig.state] || TINTS.idle).multiply(moodTint);
+    u.uTint.value.lerp(goalTint, 0.08);
+    feel.ry += (feel.gx * 0.22 - feel.ry) * 0.06;
+    feel.rx += (feel.gy * 0.1 - feel.rx) * 0.06;
+    points.rotation.y = feel.ry;
+    points.rotation.x = feel.rx;
     const breathe = 0.5 + 0.5 * Math.sin(t * 1.3);
     coreGlow.material.opacity = morph * (0.08 + 0.03 * breathe + level * 0.1);
     coreGlow.scale.setScalar(1.1 + level * 0.3);
@@ -403,6 +416,8 @@ export async function createHologram(container, getSignal) {
   frame();
 
   return {
+    setMood(m) { if (m) { feel.valence = Number(m.valence) || 0; feel.energy = Number(m.energy) || 0.5; } },
+    setGaze(x, y) { feel.gx = Math.max(-1, Math.min(1, x || 0)); feel.gy = Math.max(-1, Math.min(1, y || 0)); },
     isOpening() { return (performance.now() - opened) / 1000 < 4.8; },
     dispose() {
       cancelAnimationFrame(raf);

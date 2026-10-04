@@ -25,3 +25,15 @@ def test_route_requires_login():
     from atulya.server.app import app
 
     assert TestClient(app).get("/api/memory/graph").status_code in (401, 403)
+
+
+def test_mood_route_requires_login_and_reports_values(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from atulya.server.app import app
+
+    client = TestClient(app)
+    assert client.get("/api/mood").status_code in (401, 403)
+    from atulya.server.state import ADMIN_TOKEN as token
+    body = client.get("/api/mood", headers={"X-Atulya-Token": token}).json()
+    assert set(body) == {"label", "valence", "energy"} and -1 <= body["valence"] <= 1
