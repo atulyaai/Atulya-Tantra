@@ -46,7 +46,7 @@ Order matters: each step needs the one above it. Anything that spends money, boo
 | Proactive: more triggers (traffic, bills, "you usually…") | Habit nudges done; the rest planned |
 | Mood and eye contact on the hologram (`emotion.py` to `Hologram.js`) | Planned |
 | Voice ID (who is speaking) | Planned; needs a speaker-embedding model |
-| Memory: entity graph (people, places, relations) and a real memory view in the web app | Planned; vector store and summary tree exist |
+| Memory tree view in the web app (menu → Memory tree, or say "show memory"): animated tree, trunk = you, branch per kind, leaf per stored fact, new facts grow in live | **Done**: backend (`/api/memory/graph`, tested) and canvas animation, checked in a real browser with 12 seeded facts. Not yet: relations between people (Alice → Bob), vector-memory leaves |
 | Automation dashboard in the web app (jobs, reminders, calendar, media, devices) | Planned |
 | Encrypted memory at rest | `encrypted_storage.py` exists, nothing uses it |
 | Phone sync and push | Planned |

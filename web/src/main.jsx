@@ -11,6 +11,7 @@ import './styles.css';
 // Admin-only: trigger rules, brain tier, and live event feed.
 const Reflexes = lazy(() => import('./pages/Reflexes.jsx').then((m) => ({ default: m.Reflexes })));
 const Routines = lazy(() => import('./pages/Routines.jsx').then((m) => ({ default: m.Routines })));
+const MemoryTree = lazy(() => import('./pages/MemoryTree.jsx').then((m) => ({ default: m.MemoryTree })));
 const AboutYou = lazy(() => import('./pages/AboutYou.jsx').then((m) => ({ default: m.AboutYou })));
 const Senses = lazy(() => import('./pages/Senses.jsx').then((m) => ({ default: m.Senses })));
 
@@ -342,6 +343,7 @@ function Login({ onLogin }) {
 const MENU_ITEMS = [
   { id: 'chat', label: 'Chat history', icon: '✎' },
   { id: 'about', label: 'About you', icon: '☺' },
+  { id: 'memory', label: 'Memory tree', icon: '❋' },
   { id: 'routines', label: 'Routines', icon: '↻', admin: true },
   { id: 'senses', label: 'Senses', icon: '◎', admin: true },
   { id: 'reflexes', label: 'Brain & reflexes', icon: '⚡', admin: true },
@@ -354,6 +356,7 @@ const PANEL_WORDS = [
   ['routines', /\b(routines?|schedules?|automations?)\b/],
   ['senses', /\b(senses|sensors?|cameras?)\b/],
   ['reflexes', /\b(reflexes|triggers?|brain settings)\b/],
+  ['memory', /\b(memory|memories|memory tree|what do you remember)\b/],
   ['about', /\b(about me|profile|my details)\b/],
   ['chat', /\b(chat|history|conversation|transcript)\b/],
 ];
@@ -482,6 +485,7 @@ function App() {
   function panelContent() {
     if (panel === 'chat') return <Chat bootstrap={bootstrap} toast={toast} />;
     if (panel === 'about') return lazyPage(AboutYou, 'about you');
+    if (panel === 'memory') return lazyPage(MemoryTree, 'memory tree');
     if (!isAdmin) return <p className="lazy-loading">That area is for the admin.</p>;
     if (panel === 'users') return <UserManagement toast={toast} />;
     if (panel === 'reflexes') return lazyPage(Reflexes, 'reflexes');
