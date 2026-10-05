@@ -352,7 +352,8 @@ export async function createHologram(container, getSignal) {
     composer.setSize(w, h);
     camera.aspect = w / h;
     // On a tall phone screen, step back so the whole bust fits.
-    camera.position.z = 6 * Math.max(1, 1.15 / camera.aspect);
+    camera.position.z = 6 * Math.max(1, 0.6 / camera.aspect);
+    camera.position.y = camera.aspect < 1 ? 0.05 : -0.15;
     camera.updateProjectionMatrix();
     material.uniforms.uScale.value = (h * renderer.getPixelRatio()) / (2 * Math.tan((camera.fov * Math.PI) / 360));
   }
