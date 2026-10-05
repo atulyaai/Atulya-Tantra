@@ -13,8 +13,11 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 // Scene units: the chin sits at y = 0, the crown at y = 1.1, the bust ends at y = -0.85.
 const HEAD = { x: 0, y: 0.55, rx: 0.42, ry: 0.55 };
 const FACE = { y: 0.47, rx: 0.36, ry: 0.37 }; // where the warm glow lives
-const NECK = { half: 0.21, flare: 0.1, base: -0.22 };
-const SHOULDER = { x: 1.26, y: -0.85 };
+const NECK = { half: 0.3, flare: 0.04, base: -0.05 };
+// The shoulder line, measured off the reference video's last frame: it drops off the neck, runs shallow along
+// the trapezius, then droops over the shoulder. [sideways distance, height]
+const SHOULDER_PTS = [[0.34, -0.05], [0.4, -0.13], [0.5, -0.19], [0.72, -0.26], [0.8, -0.32], [0.92, -0.385], [1.0, -0.45], [1.08, -0.58], [1.15, -0.75], [1.2, -0.95]];
+const SHOULDER = { x: 1.2, y: -0.95 };
 const ORB = { x: 0, y: -0.8 };
 const KIND = { body: 0, glow: 1, vein: 2, dust: 3 };
 const BLUE = [0.12, 0.42, 0.95];
@@ -32,21 +35,24 @@ function headHalf(y) {
   const k = (y - HEAD.y) / HEAD.ry;
   if (Math.abs(k) >= 1) return 0;
   const ear = 0.035 * Math.exp(-(((y - 0.5) / 0.07) ** 2));
-  const round = k > 0 ? (1 - k ** 2.3) ** (1 / 2.1) : (1 - (-k) ** 2.4) ** (1 / 2.2);
+  const round = k > 0 ? (1 - k ** 2.3) ** (1 / 2.1) : (1 - (-k) ** 3.4) ** (1 / 2.8);
   return HEAD.rx * round + ear;
 }
 
 // Half-width of the neck at height y: it flares out towards the shoulders.
 function neckHalf(y) { return NECK.half + NECK.flare * smooth(0.0, NECK.base, y); }
 
-// Height of the shoulder line at sideways distance ax: drops quickly off the neck, then levels out.
+// Height of the shoulder line at sideways distance ax, from the measured points, softened at the corners.
 function shoulderY(ax) {
-  const x0 = neckHalf(NECK.base);
   const raw = (v) => {
-    const t = Math.min(1, Math.max(0, (v - x0) / (SHOULDER.x - x0)));
-    return NECK.base + (SHOULDER.y - NECK.base) * (0.62 * (1 - (1 - t) ** 1.6) + 0.38 * t ** 3);
+    const P = SHOULDER_PTS;
+    if (v <= P[0][0]) return P[0][1];
+    for (let i = 0; i < P.length - 1; i += 1) {
+      if (v <= P[i + 1][0]) return P[i][1] + (P[i + 1][1] - P[i][1]) * (v - P[i][0]) / (P[i + 1][0] - P[i][0]);
+    }
+    return P[P.length - 1][1];
   };
-  return (raw(ax - 0.09) + 2 * raw(ax) + raw(ax + 0.09)) / 4; // averaged, so the corners are soft
+  return (raw(ax - 0.05) + 2 * raw(ax) + raw(ax + 0.05)) / 4;
 }
 
 // The outline, as a list of [x, y] points walking from the left shoulder up and over the head.
