@@ -13,16 +13,17 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 // Scene units: the chin sits at y = 0, the crown at y = 1.1, the bust ends at y = -0.85.
 const HEAD = { x: 0, y: 0.55, rx: 0.42, ry: 0.55 };
 const FACE = { y: 0.47, rx: 0.36, ry: 0.37 }; // where the warm glow lives
-const NECK = { half: 0.3, flare: 0.04, base: -0.05 };
+const NECK = { half: 0.265, flare: 0.0, base: -0.06 };
 // The shoulder line, measured off the reference video's last frame: it drops off the neck, runs shallow along
 // the trapezius, then droops over the shoulder. [sideways distance, height]
-const SHOULDER_PTS = [[0.34, -0.05], [0.4, -0.13], [0.5, -0.19], [0.72, -0.26], [0.8, -0.32], [0.92, -0.385], [1.0, -0.45], [1.08, -0.58], [1.15, -0.75], [1.2, -0.95]];
-const SHOULDER = { x: 1.2, y: -0.95 };
+const SHOULDER_PTS = [[0.265, -0.06], [0.3, -0.11], [0.43, -0.21], [0.61, -0.28], [0.82, -0.33], [0.98, -0.42], [1.07, -0.58], [1.12, -0.74], [1.13, -1.0]];
+const SHOULDER = { x: 1.13, y: -1.0 };
 const ORB = { x: 0, y: -0.8 };
 const KIND = { body: 0, glow: 1, vein: 2, dust: 3 };
 const BLUE = [0.12, 0.42, 0.95];
 const DIM = [0.14, 0.4, 0.9];
 const ICE = [0.55, 0.88, 1.0];
+const CYAN = [0.25, 0.72, 1.0];
 const GOLD = [1.0, 0.72, 0.15];
 const ORANGE = [1.0, 0.42, 0.06];
 
@@ -59,7 +60,7 @@ function shoulderY(ax) {
 function outlinePoints(step) {
   const pts = [];
   for (let x = -SHOULDER.x; x <= -neckHalf(NECK.base); x += step) pts.push([x, shoulderY(-x)]);
-  for (let y = NECK.base; y <= 0.06; y += step) pts.push([-neckHalf(y), y]);
+  for (let y = NECK.base; y <= -0.01; y += step) pts.push([-neckHalf(y), y]);
   for (let a = 0; a <= Math.PI; a += step / 0.5) {
     // Walk the head from the chin round the left side to the crown.
     const y = HEAD.y - HEAD.ry * Math.cos(a);
@@ -124,48 +125,70 @@ function buildParticles() {
 
   // Bright rim: the whole silhouette, three parallel lines fading inward, plus a lit crown.
   const rim = outlinePoints(0.0035);
-  for (let layer = 0; layer < 3; layer += 1) {
+  for (let layer = 0; layer < 6; layer += 1) {
     for (const [x, y] of rim) {
-      const inset = layer * 0.0075;
+      const inset = layer * 0.0085;
       const dir = x === 0 ? 0 : Math.sign(x);
       const px = x - dir * inset * (y > NECK.base ? 1 : 0.4);
       const py = y - (y > NECK.base ? 0 : inset * 0.7);
-      if (Math.random() < 0.82 - layer * 0.18) {
+      if (Math.random() < 0.9 - layer * 0.13) {
         add([px + gauss() * 0.0015, py + gauss() * 0.0015, py > 0 ? 0.04 + faceDepth(px, py) : 0.3 * (1 - Math.min(1, (px / SHOULDER.x) ** 2)) - 0.1],
-          layer === 0 ? ICE : BLUE, rand(0.011, 0.019) * (1 - layer * 0.18), KIND.body, 0.1 + 0.5 * Math.random());
+          layer < 3 ? CYAN : BLUE, rand(0.012, 0.022) * (1 - layer * 0.1), KIND.body, 0.1 + 0.5 * Math.random());
       }
     }
   }
 
-  // Shoulders: lines parallel to the shoulder line, running out from the neck and fading as they go down.
-  for (let k = 1; k <= 9; k += 1) {
-    const drop = k * 0.05;
-    for (let ax = neckHalf(NECK.base); ax <= SHOULDER.x - 0.01; ax += 0.0045) {
-      const y = shoulderY(ax) - drop;
-      if (y < -0.95) continue;
-      for (const sx of [-1, 1]) {
-        add([sx * ax + gauss() * 0.001, y, 0.3 * (1 - Math.min(1, (ax / SHOULDER.x) ** 2)) - 0.1],
-          k <= 3 || Math.random() < 0.1 ? ICE : lerp3(BLUE, DIM, k / 12), rand(0.007, 0.013) * (k <= 3 ? 1.5 : 1 - k * 0.04), KIND.body, 0.3 + 0.5 * Math.random());
+  // The flow of lines under the shoulders: level sets of the distance to the outline (neck side, shoulder line,
+  // shoulder tip). Close to the edge they run parallel to it; further in they close into domes around each
+  // shoulder, like the reference. The deeper, the dimmer.
+  const outline = [];
+  for (let y = 0.05; y >= NECK.base; y -= 0.01) outline.push([neckHalf(y), y]);
+  for (let ax = neckHalf(NECK.base); ax <= SHOULDER.x; ax += 0.01) outline.push([ax, shoulderY(ax)]);
+  for (let y = shoulderY(SHOULDER.x); y >= -1.1; y -= 0.02) outline.push([SHOULDER.x, y]);
+  const dist = (x, y) => {
+    let best = 9;
+    for (const [ox, oy] of outline) { const d = (x - ox) ** 2 + (y - oy) ** 2; if (d < best) best = d; }
+    return Math.sqrt(best);
+  };
+  const LEVELS = 6;
+  for (let y = 0.04; y > -1.02; y -= 0.0045) {
+    for (let x = 0; x <= SHOULDER.x; x += 0.0045) {
+      if (y < -0.02 && x > shoulderX(y) + 0.002) continue;
+      if (y >= -0.02 && x > neckHalf(y)) continue;
+      const d = dist(x, y);
+      const k = Math.round(d / 0.04);
+      if (k < 1 || k > LEVELS || Math.abs(d - k * 0.04) > 0.0021) continue;
+      if (y > NECK.base && k > 3) continue; // the neck has its own lines
+      const fade = 1 - k / (LEVELS + 4);
+      for (const sx of x < 0.003 ? [1] : [-1, 1]) {
+        if (Math.random() > 0.55 + 0.4 * fade) continue;
+        add([sx * x + gauss() * 0.0008, y + gauss() * 0.0008, 0.3 * (1 - Math.min(1, (x / SHOULDER.x) ** 2)) - 0.1],
+          k <= 2 ? ICE : lerp3(BLUE, DIM, k / 20), rand(0.008, 0.013) * (k <= 2 ? 1.7 : 0.8 + fade * 0.7), KIND.body, 0.3 + 0.5 * Math.random());
       }
     }
   }
-  // Neck: fine vertical lines inside the neck, from the jaw down to the shoulders.
-  for (let m = 1; m <= 7; m += 1) {
-    for (let y = 0.05; y > NECK.base - m * 0.03; y -= 0.0045) {
-      const x = neckHalf(y) - m * 0.036;
-      if (x < 0.02) continue;
-      for (const sx of [-1, 1]) add([sx * x, y, 0.1], lerp3(BLUE, DIM, m / 9), rand(0.007, 0.011), KIND.body, 0.35 + 0.4 * Math.random());
+  // Domes: concentric half-circles round the lower middle of each shoulder.
+  const DOME = { x: 0.56, y: -1.0 };
+  for (let r = 0.06; r < 0.66; r += 0.05) {
+    const steps = Math.floor((Math.PI * r) / 0.0045);
+    for (let i = 0; i <= steps; i += 1) {
+      const a = (i / steps) * Math.PI;
+      const x = DOME.x + Math.cos(a) * r * 0.9;
+      const y = DOME.y + Math.sin(a) * r * 1.05;
+      if (y < -1.0 || dist(x, y) < 0.27 || x < 0.04) continue;
+      for (const sx of [-1, 1]) {
+        add([sx * x + gauss() * 0.0008, y + gauss() * 0.0008, 0.3 * (1 - Math.min(1, (x / SHOULDER.x) ** 2)) - 0.1],
+          Math.random() < 0.15 ? ICE : DIM, rand(0.008, 0.013) * (1.2 - r), KIND.body, 0.35 + 0.5 * Math.random());
+      }
     }
   }
-  // Chest: nested arches around the orb.
-  for (let r = 0.14; r < 1.36; r += 0.065) {
-    const steps = Math.floor((Math.PI * r * 1.8) / 0.0055);
-    for (let i = 0; i <= steps; i += 1) {
-      const a = -0.3 + (i / steps) * (Math.PI + 0.6);
-      const x = ORB.x + Math.cos(a) * r * 0.98;
-      const y = ORB.y + Math.sin(a) * r * 1.12;
-      if (y > 0.04 || y < -0.95 || Math.abs(x) > Math.min(0.58, shoulderX(y) - 0.012)) continue;
-      add([x, y, 0.3 * (1 - Math.min(1, (x / SHOULDER.x) ** 2)) - 0.1], Math.random() < 0.1 ? ICE : DIM, rand(0.007, 0.012), KIND.body, 0.35 + 0.5 * Math.random());
+  // Neck: nested U-shaped lines from side to side, like necklaces.
+  for (let m = 0; m < 15; m += 1) {
+    const y0 = 0.03 - m * 0.027;
+    for (let x = -0.3; x <= 0.3; x += 0.0045) {
+      if (Math.abs(x) > neckHalf(y0) - 0.004) continue;
+      const y = y0 - 0.07 * (1 - (x / 0.28) ** 2) * (0.5 + m * 0.05);
+      add([x, y, 0.1], lerp3(DIM, BLUE, m / 16), rand(0.006, 0.01), KIND.body, 0.35 + 0.4 * Math.random());
     }
   }
 
@@ -181,7 +204,22 @@ function buildParticles() {
       add([x + gauss() * 0.0012, y, 0.05], Math.random() < 0.3 ? ORANGE : GOLD, rand(0.01, 0.016) * thick, KIND.vein, 0.6 + 0.3 * t);
     }
   }
-  vein(0.0, -0.04, 0.0, -0.9, 0.012, 1.3);
+  vein(0.0, -0.04, 0.0, -0.95, 0.01, 1.3);
+  // Thin golden fibres fanning down to the centre of the chest.
+  for (const side of [-1, 1]) {
+    for (let j = 0; j < 5; j += 1) {
+      const x0 = 0.12 + j * 0.06;
+      const y0 = -0.2 - j * 0.012;
+      const cx = x0 * 1.25;
+      const x1 = 0.012 + j * 0.006;
+      for (let t = 0; t < 1; t += 0.003) {
+        const u = 1 - t;
+        const x = u * u * x0 + 2 * u * t * cx + t * t * x1;
+        const y = u * u * y0 + 2 * u * t * -0.6 + t * t * -0.97;
+        add([side * x + gauss() * 0.001, y, 0.08], Math.random() < 0.4 ? ORANGE : GOLD, rand(0.004, 0.007), KIND.vein, 0.6 + 0.3 * t);
+      }
+    }
+  }
   for (const side of [-1, 1]) {
     vein(side * 0.2, 0.02, side * 0.13, -0.18, 0.05, 1.2);
     vein(side * 0.13, -0.18, side * 0.17, -0.34, 0.05, 1.2);
@@ -385,8 +423,8 @@ export async function createHologram(container, getSignal) {
     composer.setSize(w, h);
     camera.aspect = w / h;
     // Step back far enough that the shoulders always fit across the screen.
-    camera.position.z = Math.max(5.6, 2.62 / (2 * Math.tan((camera.fov * Math.PI) / 360) * camera.aspect));
-    camera.position.y = camera.aspect < 1 ? 0.1 : 0.05;
+    camera.position.z = Math.max(5.6, 2.4 / (2 * Math.tan((camera.fov * Math.PI) / 360) * camera.aspect));
+    camera.position.y = camera.aspect < 1 ? 0.3 : 0.05;
     camera.updateProjectionMatrix();
     material.uniforms.uScale.value = (h * renderer.getPixelRatio()) / (2 * Math.tan((camera.fov * Math.PI) / 360));
   }
