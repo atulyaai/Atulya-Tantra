@@ -2,7 +2,7 @@
   "servers": [
     {
       "name": "filesystem",
-      "enabled": false,
+      "enabled": true,
       "timeout": 5,
       "transport": "stdio",
       "command": "npx",
@@ -10,7 +10,7 @@
     },
     {
       "name": "git",
-      "enabled": false,
+      "enabled": true,
       "timeout": 5,
       "transport": "stdio",
       "command": "npx",
@@ -18,7 +18,7 @@
     },
     {
       "name": "playwright",
-      "enabled": false,
+      "enabled": true,
       "timeout": 5,
       "transport": "stdio",
       "command": "npx",

@@ -211,6 +211,40 @@ _CONFIRM_ACTIONS = {
     **{("screen", a): "controls your screen" for a in ("focus", "click", "double_click", "right_click", "move", "scroll")},
 }
 
+# Outside MCP servers name their own tools, and `assess` matches on the exact
+# name -- so `mcp_filesystem_write_file` sailed straight past the gate that
+# stops the native `file_write`, because neither name equals the other. The
+# full name to bare name mapping is recorded when a server is adapted, and
+# only the tools listed here are allowed to run without asking: an outside
+# server is somebody else's code acting on this machine, so anything not
+# positively known to merely look around has to be confirmed first.
+MCP_BARE_NAMES: dict[str, str] = {}
+
+_MCP_READONLY = {
+    # filesystem
+    "read_file", "read_text_file", "read_media_file", "read_multiple_files",
+    "list_directory", "list_directory_with_sizes", "directory_tree",
+    "search_files", "get_file_info", "list_allowed_directories",
+    # git
+    "git_status", "git_diff", "git_diff_unstaged", "git_diff_staged",
+    "git_log", "git_show",
+    # playwright
+    "browser_snapshot", "browser_console_messages", "browser_network_requests",
+    "browser_network_request", "browser_wait_for", "browser_find",
+    "browser_take_screenshot",
+}
+
+
+def _mcp_readonly(tool: str) -> bool:
+    """Whether an outside server's tool only looks, and so may run freely."""
+    bare = MCP_BARE_NAMES.get(tool, "")
+    if bare:
+        return bare in _MCP_READONLY
+    # The registry was not built in this process, or the name is not one we
+    # discovered. Judge it by its tail instead of assuming it is harmless:
+    # only a name we positively recognise passes, everything else confirms.
+    return any(tool.endswith("_" + name) for name in _MCP_READONLY)
+
 
 @dataclass
 class Assessment:
@@ -240,6 +274,14 @@ def assess(tool: str, arguments: dict[str, Any] | None = None) -> Assessment:
             return Assessment(CONFIRM, "could change or restart a device")
     if tool == "files" and action == "copy" and (arguments or {}).get("overwrite") and "files" not in approved:
         return Assessment(CONFIRM, "replaces an existing file")
+
+    if tool.startswith("mcp_"):  # an outside server: read-only work is free, the rest is not
+        if tool.lower() in approved or "mcp" in approved:
+            return Assessment(ALLOW)
+        if _mcp_readonly(tool):
+            return Assessment(ALLOW)
+        return Assessment(CONFIRM, "an outside tool would make a change")
+
     reason = _CONFIRM_ACTIONS.get((tool, action))
     if reason and f"{tool}:{action}".lower() not in approved and tool.lower() not in approved:
         return Assessment(CONFIRM, reason)
@@ -397,6 +439,9 @@ class MCPToolAdapter(Tool):
         self._server = server
         self._tool = str(info.get("name") or "")
         self._manager = manager
+        # So the confirmation gate can judge this tool by the name it would
+        # have had natively instead of by a name nobody else has ever used.
+        MCP_BARE_NAMES[self.name] = self._tool
 
     async def execute(self, **kwargs: Any) -> ToolResult:
         from atulya.kriya import audit

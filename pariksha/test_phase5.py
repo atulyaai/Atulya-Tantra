@@ -333,13 +333,23 @@ def test_automation_runner_executes_due_job(tmp_path):
     asyncio.run(run())
 
 
-def test_mcp_config_ships_disabled_by_default():
+def test_mcp_config_enables_only_what_can_work_unattended():
+    """Three servers are proven and ship on; the rest cannot work alone.
+
+    filesystem, git and playwright spawn, connect and list tools with nothing
+    configured, so leaving them off meant shipping a feature that was never
+    used. google_drive and gmail need OAuth credentials only the owner can
+    create; telegram and browser point at ports nothing listens on. Enabling
+    either kind would only ever have produced a startup error.
+    """
     data = json.loads(open("atulya/setu_servers.json", encoding="utf-8").read())
     assert len(data["servers"]) >= 7
     assert all("enabled" in server for server in data["servers"])
     assert all("timeout" in server for server in data["servers"])
-    assert not any(server["enabled"] for server in data["servers"])
     by_name = {server["name"]: server for server in data["servers"]}
+    assert {name for name, s in by_name.items() if s["enabled"]} == {"filesystem", "git", "playwright"}
+    assert not by_name["google_drive"]["enabled"] and not by_name["gmail"]["enabled"]
+    assert not by_name["telegram"]["enabled"] and not by_name["browser"]["enabled"]
     assert by_name["google_drive"]["env"]["MCP_MODE"] == "stdio"
     assert by_name["google_drive"]["env"]["DISABLE_CONSOLE_OUTPUT"] == "true"
     assert by_name["gmail"]["env"]["MCP_MODE"] == "stdio"
@@ -706,3 +716,67 @@ def test_telegram_webhook_routes_message():
         assert sent == ["Atulya is working on it...", "reply:hi"]
 
     asyncio.run(run())
+
+
+# -- MCP tools and the confirmation gate ------------------------------------
+def test_an_outside_servers_writes_still_ask_first():
+    """`assess` matches exact names, so the `mcp_` prefix used to walk past it:
+    `mcp_filesystem_write_file` is not the native `file_write`, so neither
+    table caught it and a server could change files without anybody agreeing."""
+    from atulya.mastishk import assess
+
+    for name in ("mcp_filesystem_write_file", "mcp_filesystem_edit_file",
+                 "mcp_filesystem_move_file", "mcp_filesystem_create_directory",
+                 "mcp_git_git_commit", "mcp_git_git_reset", "mcp_git_git_add",
+                 "mcp_playwright_browser_run_code_unsafe",
+                 "mcp_playwright_browser_evaluate"):
+        assert assess(name, {}).needs_confirmation, name
+
+
+def test_an_outside_servers_reading_does_not_have_to_ask():
+    from atulya.mastishk import assess
+
+    for name in ("mcp_filesystem_read_text_file", "mcp_filesystem_list_directory",
+                 "mcp_filesystem_search_files", "mcp_git_git_status",
+                 "mcp_git_git_log", "mcp_playwright_browser_snapshot"):
+        assert not assess(name, {}).needs_confirmation, name
+
+
+def test_an_outside_tool_we_never_met_is_not_assumed_safe():
+    """Fail closed: a server nobody catalogued still has to ask first."""
+    from atulya.mastishk import assess
+
+    assert assess("mcp_mystery_do_anything", {}).needs_confirmation
+
+
+def test_what_the_server_says_it_is_beats_what_its_name_ends_with():
+    """The tail of the name is only a fallback. A tool called `read_file` whose
+    server reports it as `write_file` must still be asked about."""
+    from atulya.mastishk import MCPToolAdapter, MCP_BARE_NAMES, assess
+
+    tool = MCPToolAdapter("odd", {"name": "read_file"}, None)
+    MCP_BARE_NAMES[tool.name] = "write_file"
+    try:
+        assert assess(tool.name, {}).needs_confirmation
+    finally:
+        MCP_BARE_NAMES.pop(tool.name, None)
+    # ...and with the mapping gone the tail alone still catches the writes.
+    assert assess("mcp_odd_write_file", {}).needs_confirmation
+
+
+def test_the_outside_gate_can_be_opened_on_purpose(monkeypatch):
+    from atulya.mastishk import assess
+
+    monkeypatch.setenv("ATULYA_AUTO_APPROVE", "mcp_filesystem_write_file")
+    assert not assess("mcp_filesystem_write_file", {}).needs_confirmation
+
+    monkeypatch.setenv("ATULYA_AUTO_APPROVE", "mcp")
+    assert not assess("mcp_git_git_commit", {}).needs_confirmation
+
+
+def test_the_native_gate_is_unchanged():
+    from atulya.mastishk import assess
+
+    assert assess("file_write", {}).needs_confirmation
+    assert not assess("file_read", {}).needs_confirmation
+    assert assess("files", {"action": "delete"}).needs_confirmation
