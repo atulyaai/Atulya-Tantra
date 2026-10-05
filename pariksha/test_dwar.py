@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import time
+import urllib.parse
 import uuid
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -1039,4 +1040,142 @@ class TestAdminTokenSync:
 
         dwar.sync_admin_token()
         assert dwar._require_auth("configured-in-dotenv")["role"] == "admin"
+
+
+# ── test_miniapp ─────────────────────────────────────────────────────────────────
+BOT = "123456:TEST-BOT-TOKEN"
+ALLOWED_ID = 1484854122
+
+
+def _genuine_init_data(bot_token: str = BOT, user_id: int = ALLOWED_ID, auth_date: int | None = None) -> str:
+    """Build initData the way Telegram documents it, field by field.
+
+    The check string is written out here rather than produced by the code under
+    test, so a bug in sorting or in dropping ``hash`` would show up as a
+    disagreement instead of two wrong halves agreeing with each other.
+    """
+    import hashlib
+    import hmac as hmac_mod
+
+    when = int(time.time()) if auth_date is None else auth_date
+    fields = {
+        "auth_date": str(when),
+        "query_id": "AAH_test_query",
+        "user": json.dumps({"id": user_id, "first_name": "Ravi", "username": "ravi"}, separators=(",", ":")),
+    }
+    check_string = "\n".join(f"{key}={value}" for key, value in sorted(fields.items()))
+    secret = hmac_mod.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
+    fields["hash"] = hmac_mod.new(secret, check_string.encode(), hashlib.sha256).hexdigest()
+    return urllib.parse.urlencode(fields)
+
+
+def _edit(init_data: str, **changes: str) -> str:
+    fields = dict(urllib.parse.parse_qsl(init_data, keep_blank_values=True))
+    fields.update(changes)
+    return urllib.parse.urlencode(fields)
+
+
+def test_a_genuine_signature_names_the_user_it_was_signed_for():
+    from atulya.dwar import verify_telegram_init_data
+
+    user = verify_telegram_init_data(_genuine_init_data(), BOT)
+
+    assert user["id"] == ALLOWED_ID
+    assert user["first_name"] == "Ravi"
+
+
+def test_a_tampered_field_is_rejected():
+    """The signature covers every field, so changing one invalidates it."""
+    from atulya.dwar import verify_telegram_init_data
+
+    forged = _edit(_genuine_init_data(),
+                   user=json.dumps({"id": ALLOWED_ID, "first_name": "Someone Else"}))
+
+    assert verify_telegram_init_data(forged, BOT) == {}
+
+
+def test_a_signature_from_another_bots_token_is_rejected():
+    """Holding a different bot's token must not open this one's door."""
+    from atulya.dwar import verify_telegram_init_data
+
+    signed_by_other = _genuine_init_data(bot_token="99999:ANOTHER-BOT")
+
+    assert verify_telegram_init_data(signed_by_other, BOT) == {}
+    # ...and it really is valid, just under the other token: the rejection is
+    # about which token, not about a signature that never worked.
+    assert verify_telegram_init_data(signed_by_other, "99999:ANOTHER-BOT")["id"] == ALLOWED_ID
+
+
+def test_a_captured_link_stops_working():
+    from atulya.dwar import MINI_APP_INIT_DATA_MAX_AGE, verify_telegram_init_data
+
+    stale = _genuine_init_data(auth_date=int(time.time()) - MINI_APP_INIT_DATA_MAX_AGE - 60)
+
+    assert verify_telegram_init_data(stale, BOT) == {}
+    # a long enough window would take it, proving the date is what refused it
+    assert verify_telegram_init_data(stale, BOT, max_age=10 ** 9)["id"] == ALLOWED_ID
+
+
+def test_no_signature_means_no_user():
+    from atulya.dwar import verify_telegram_init_data
+
+    fields = dict(urllib.parse.parse_qsl(_genuine_init_data(), keep_blank_values=True))
+    fields.pop("hash")
+
+    assert verify_telegram_init_data("", BOT) == {}
+    assert verify_telegram_init_data(urllib.parse.urlencode(fields), BOT) == {}
+    assert verify_telegram_init_data("user=%7B%7D", BOT) == {}
+
+
+def _miniapp_client(monkeypatch, allowlist: str = str(ALLOWED_ID)):
+    from atulya.sevak import app
+
+    monkeypatch.setenv("ATULYA_TELEGRAM_BOT_TOKEN", BOT)
+    monkeypatch.setenv("ATULYA_TELEGRAM_ALLOWLIST", allowlist)
+    return TestClient(app)
+
+
+def test_a_signed_open_trades_for_a_session_the_api_accepts(monkeypatch):
+    client = _miniapp_client(monkeypatch)
+
+    res = client.post("/api/miniapp/session", json={"init_data": _genuine_init_data()})
+
+    assert res.status_code == 200
+    body = res.json()
+    assert body["user"] == {"username": f"telegram:{ALLOWED_ID}", "role": "admin", "display_name": "Ravi"}
+    from atulya.dwar import _require_auth
+
+    assert _require_auth(body["token"])["role"] == "admin"
+
+
+def test_an_empty_allowlist_admits_nobody(monkeypatch):
+    """Failing open here would make the hologram a public door."""
+    client = _miniapp_client(monkeypatch, allowlist="")
+
+    assert client.post("/api/miniapp/session", json={"init_data": _genuine_init_data()}).status_code == 403
+
+
+def test_a_user_off_the_allowlist_is_refused(monkeypatch):
+    client = _miniapp_client(monkeypatch)
+    stranger = _genuine_init_data(user_id=999999)
+
+    assert client.post("/api/miniapp/session", json={"init_data": stranger}).status_code == 403
+
+
+def test_a_bad_signature_is_refused_before_anything_else(monkeypatch):
+    client = _miniapp_client(monkeypatch)
+    tampered = _edit(_genuine_init_data(), query_id="AAH_someone_elses")
+
+    assert client.post("/api/miniapp/session", json={"init_data": tampered}).status_code == 401
+
+
+def test_without_a_bot_token_there_is_nothing_to_check(monkeypatch):
+    from atulya.sevak import app
+
+    monkeypatch.delenv("ATULYA_TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.setenv("ATULYA_TELEGRAM_ALLOWLIST", str(ALLOWED_ID))
+
+    res = TestClient(app).post("/api/miniapp/session", json={"init_data": _genuine_init_data()})
+
+    assert res.status_code == 503
 

@@ -18,7 +18,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs
+from urllib.parse import parse_qsl, parse_qs
 
 import psutil
 from pydantic import BaseModel
@@ -636,6 +636,93 @@ def api_auth_logout(token: str | None = Header(default=None, alias="X-Atulya-Tok
     if token:
         users.kill_session(token)
     return {"ok": True}
+
+
+# ── Telegram Mini App ───────────────────────────────────────────────────────
+# Telegram signs initData when the Mini App opens and treats it as good for a
+# day; the session minted from it is deliberately far shorter-lived.
+MINI_APP_INIT_DATA_MAX_AGE = 86400
+MINI_APP_SESSION_SECONDS = 3600
+
+
+def _telegram_allowed(user_id: Any) -> bool:
+    """Whether this Telegram account may open the Mini App.
+
+    An empty allowlist admits nobody. This endpoint hands a session to
+    whoever reaches it, so failing open would turn the hologram into a public
+    door the moment the server is tunneled out of the house.
+    """
+    allowed = {item.strip() for item in os.environ.get("ATULYA_TELEGRAM_ALLOWLIST", "").split(",") if item.strip()}
+    return bool(allowed) and str(user_id) in allowed
+
+
+def verify_telegram_init_data(init_data: str, bot_token: str, max_age: int = MINI_APP_INIT_DATA_MAX_AGE) -> dict:
+    """Check Telegram's signature over ``initData`` and return the user it names.
+
+    The secret key is HMAC-SHA256("WebAppData", bot_token) and the signature
+    covers every received field, sorted, with ``hash`` removed. A match means
+    somebody produced this holding this bot's token -- either Telegram or the
+    token's owner -- which is the only thing that makes it safe to expose a
+    session-minting endpoint through a public tunnel. Anything less returns
+    an empty dict rather than a guess.
+    """
+    if not init_data or not bot_token:
+        return {}
+    fields = parse_qsl(init_data, keep_blank_values=True)
+    signature = next((value for key, value in fields if key == "hash"), "")
+    if not signature:
+        return {}
+    signed = [(key, value) for key, value in fields if key != "hash"]
+    check_string = "\n".join(f"{key}={value}" for key, value in sorted(signed))
+    secret = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
+    if not hmac.compare_digest(hmac.new(secret, check_string.encode(), hashlib.sha256).hexdigest(), signature):
+        return {}
+    values = {key: value for key, value in fields}
+    try:
+        auth_date = int(values.get("auth_date") or "")
+    except ValueError:
+        return {}
+    if abs(int(time.time()) - auth_date) > max_age:
+        return {}  # a captured link must stop working, not become a key
+    try:
+        user = json.loads(values.get("user") or "{}")
+    except json.JSONDecodeError:
+        return {}
+    return user if isinstance(user, dict) else {}
+
+
+class MiniAppBody(BaseModel):
+    init_data: str = ""
+
+
+@router.post("/api/miniapp/session")
+def api_miniapp_session(body: MiniAppBody):
+    """Turn Telegram's signed ``initData`` into a session the hologram can use.
+
+    Opened from a link, the page runs on Telegram's host rather than this
+    server's, so there is no ``X-Atulya-Token`` to send and the local sign-in
+    shortcut is no help -- that one is for the computer Atulya runs on. The
+    signature is the credential instead, and the account it names must be on
+    the allowlist like anywhere else. Allowlisted Telegram users already
+    operate Atulya through chat, including PC control, so they get the same
+    standing here.
+    """
+    bot_token = os.environ.get("ATULYA_TELEGRAM_BOT_TOKEN", "").strip()
+    if not bot_token:
+        raise HTTPException(status_code=503, detail="The Telegram bot is not configured")
+    user = verify_telegram_init_data(body.init_data, bot_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Telegram could not confirm this request")
+    if not _telegram_allowed(user.get("id")):
+        raise HTTPException(status_code=403, detail="This Telegram account may not open Atulya")
+    user_id = user["id"]
+    name = str(user.get("first_name") or user.get("username") or "Telegram")
+    return {
+        "ok": True,
+        "token": _jwt_encode({"sub": f"telegram:{user_id}", "role": "admin", "name": name},
+                             expires_in=MINI_APP_SESSION_SECONDS),
+        "user": {"username": f"telegram:{user_id}", "role": "admin", "display_name": name},
+    }
 
 
 # ── pairing: phones, laptops and desktops that belong to you ─────────────────────────────────────────────

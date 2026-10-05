@@ -1,6 +1,6 @@
 import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { api, apiUrl, boostAudio, clearToken, getToken, setToken, getUser, setUser, getServerUrl, setServerUrl } from './api.js';
+import { api, apiUrl, boostAudio, clearToken, getToken, setToken, getUser, setUser, getServerUrl, setServerUrl, maybeInTelegram, telegramInitData } from './api.js';
 import { Orb } from './Orb.jsx';
 import { MenuPopover, Panel } from './Panel.jsx';
 import { selectSectionByText } from './sections.js';
@@ -435,9 +435,36 @@ function App() {
     }
   }, [authenticated]);
 
-  // On the computer Atulya runs on there is no login screen. Other devices still sign in.
+  // Telegram Mini App: the opening itself is the credential. Telegram signs the
+  // page's initData with the bot's token, the server checks that signature and
+  // the allowlist, and the session it hands back is deliberately short-lived.
   useEffect(() => {
     if (authenticated) return;
+    try { if (sessionStorage.getItem('atulya-signed-out')) return; } catch {}
+    telegramInitData()
+      .then((initData) => {
+        if (!initData) return null;
+        return fetch(apiUrl('/api/miniapp/session'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ init_data: initData }),
+        }).then((res) => (res.ok ? res.json() : null));
+      })
+      .then((data) => {
+        if (!data || !data.token) return;
+        setToken(data.token);
+        if (data.user) setUser(data.user);
+        setAuthenticated(true);
+        try { window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand(); } catch {}
+      })
+      .catch(() => {});
+  }, [authenticated]);
+
+  // On the computer Atulya runs on there is no login screen. Other devices still sign in.
+  // A Telegram Mini App is never that computer, and asking it would only be a
+  // wasted round trip to a page Telegram loaded from somewhere else entirely.
+  useEffect(() => {
+    if (authenticated || maybeInTelegram()) return;
     try { if (sessionStorage.getItem('atulya-signed-out')) return; } catch {}
     fetch(apiUrl('/api/auth/local'))
       .then((res) => (res.ok ? res.json() : null))

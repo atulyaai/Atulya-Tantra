@@ -27,6 +27,7 @@ uvicorn atulya.sevak:app --host 127.0.0.1 --port 8501
 | `GEMINI_API_KEY` | No | Gemini fallback |
 | `ATULYA_ENCRYPTION_KEY` | No | Data encryption key |
 | `ATULYA_TELEGRAM_BOT_TOKEN` | No | Telegram bot |
+| `ATULYA_TELEGRAM_ALLOWLIST` | No | Comma-separated Telegram user ids allowed to talk to Atulya (and to open the Mini App). Empty means nobody. |
 | `ATULYA_TANTRUM_ALLOW_MODEL` | No | Enable local on-device model |
 | `GOOGLE_SERVICE_ACCOUNT_KEY` | No | Google Drive MCP |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GMAIL_REFRESH_TOKEN` | No | Gmail MCP |
@@ -210,6 +211,31 @@ This guide targets Oracle Cloud's Always Free eligible compute in your chosen ho
 ## 6. Systemd alternative
 
 Use this instead of Compose's restart policy only if you prefer systemd to manage the Compose stack. Copy the repository to `/opt/atulya`, create `/etc/systemd/system/sevak.service` from `sevak.service` in the repository root, and verify its `WorkingDirectory` and Docker path. Run `sudo systemctl daemon-reload && sudo systemctl enable --now sevak`. **PASS:** `sudo systemctl status sevak` says active (exited), and `docker compose ps` shows both services running. Do not configure both systemd and Compose restart management.
+
+## Telegram Mini App (the hologram on your phone)
+
+The Mini App is this same dashboard opened inside Telegram: the hologram fills the screen, the menu is a tap away, and the account that signs you in comes from Telegram instead of a password.
+
+### What it needs
+
+1. A **public HTTPS address**. Telegram only loads `https://` URLs it can reach from its own servers, so `http://127.0.0.1:8501` will never work as a Mini App URL — a Cloudflare or Tailscale tunnel is enough. **PASS:** the address opens in an ordinary phone browser before you involve Telegram at all.
+2. `ATULYA_TELEGRAM_BOT_TOKEN` and `ATULYA_TELEGRAM_ALLOWLIST` in `.env` (the installer asks for both; the allowlist is a comma-separated list of numeric Telegram user ids, and `atulya doctor` fails while it is empty). An **empty allowlist admits nobody** — deliberately, because this endpoint hands out sessions.
+
+### Register it with BotFather
+
+1. Open **@BotFather** in Telegram and send `/newapp`, then choose your bot, a title, and a short name.
+2. When asked for the URL, give the public HTTPS address from step 1. **PASS:** BotFather replies with an app link; opening it from inside Telegram lands on the hologram with no password prompt.
+
+### What stops an imposter
+
+Telegram signs the page's `initData` with the bot's token as it opens. `POST /api/miniapp/session` re-computes that signature, refuses anything **stale** (a captured link must stop working rather than become a key), refuses anyone **off the allowlist**, and answers with a **one-hour** JWT. Possessing a signature is not enough on its own: it has to name an account that was already allowed to operate Atulya through chat, which is exactly what `ATULYA_TELEGRAM_ALLOWLIST` governs everywhere else.
+
+- **PASS:** the app opens straight into the hologram and the dashboard menu works.
+- **FAIL:** `503` means no bot token is configured; `401` means the signature did not check out (most often a bot token in `.env` that is not the one the app was registered with, or a page opened outside Telegram); `403` means the account is not on `ATULYA_TELEGRAM_ALLOWLIST`.
+
+### Behind Cloudflare Access
+
+Cloudflare Access cannot complete an interactive login inside a Telegram webview, and it would bounce the page away before the page could sign itself in. Give the Mini App its **own hostname** (for example `hologram.example.com`) with no Access application on it, and keep the main hostname behind Access. What that hostname exposes is precisely what an allowlisted Telegram user can already do through chat — but that is not nothing, so keep the allowlist to the accounts you actually use. `ATULYA_REQUIRE_LOGIN=on` does not affect this endpoint: it only disables the passwordless sign-in used by browsers.
 
 ## Leaked Telegram bot token
 

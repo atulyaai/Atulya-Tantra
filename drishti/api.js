@@ -3,7 +3,68 @@ const LEGACY_TOKEN_KEY = 'ai-dashboard-token';
 const SERVER_URL_KEY = 'atulya-server-url';
 const DEFAULT_SERVER_URL = 'https://atulya.atulvij.com';
 
+// ── Telegram Mini App ─────────────────────────────────────────────────────────
+// A Mini App is this same dashboard opened inside Telegram. Telegram signs the
+// opening (``initData``) with the bot's token, which is the only credential a
+// page with no password prompt can present, so the SDK holding it has to load
+// first. It is only fetched when the page looks like it came from Telegram: an
+// ordinary visit to the dashboard must not phone home to telegram.org.
+let telegramSdk = null;
+
+function looksLikeTelegram() {
+  if (window.Telegram && window.Telegram.WebApp) return true;
+  try {
+    if (/^https:\/\/([a-z0-9-]+\.)*(t\.me|telegram\.me|telegram\.org)(\/|$)/i.test(document.referrer || '')) return true;
+    if (/Telegram/i.test(navigator.userAgent || '')) return true;
+    // Escape hatch for a webview that hides where it came from: opening the
+    // Mini App URL as .../?tg asks for it in as many words.
+    if (new URLSearchParams(window.location.search).has('tg')) return true;
+  } catch {}
+  return false;
+}
+
+export function maybeInTelegram() {
+  return looksLikeTelegram();
+}
+
+function telegramSdkReady() {
+  if (window.Telegram && window.Telegram.WebApp) return Promise.resolve(window.Telegram.WebApp);
+  if (telegramSdk) return telegramSdk;
+  telegramSdk = new Promise((resolve) => {
+    let settled = false;
+    const done = (value) => { if (!settled) { settled = true; resolve(value); } };
+    try {
+      const script = document.createElement('script');
+      script.src = 'https://telegram.org/js/telegram-web-app.js';
+      script.async = true;
+      script.onload = () => done((window.Telegram && window.Telegram.WebApp) || null);
+      script.onerror = () => done(null);
+      document.head.appendChild(script);
+    } catch { done(null); }
+    setTimeout(() => done((window.Telegram && window.Telegram.WebApp) || null), 8000);
+  });
+  return telegramSdk;
+}
+
+// Resolves with Telegram's signature when this page was opened as a Mini App,
+// and with '' the moment it was not — so the ordinary sign-in flow never waits
+// on a request that was never going to be made.
+export function telegramInitData() {
+  if (!looksLikeTelegram()) return Promise.resolve('');
+  return telegramSdkReady().then((tg) => (tg && tg.initData ? tg.initData : ''));
+}
+
 export function getServerUrl() {
+  try {
+    // A Mini App is served by this very server: Telegram hands the user our own
+    // page, so the address to call back is the one it was loaded from. A server
+    // remembered on this device from an earlier visit would be a different
+    // machine and would never answer.
+    if (looksLikeTelegram()) {
+      const origin = window.location.origin;
+      if (origin && origin !== 'null') return origin.replace(/\/$/, '');
+    }
+  } catch {}
   try { return (localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL).replace(/\/$/, ''); }
   catch { return DEFAULT_SERVER_URL; }
 }
