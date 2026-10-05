@@ -1,12 +1,14 @@
 {
   "appId": "com.atulya.tantra",
   "appName": "Atulya Tantra",
-  "webDir": ".",
+  "webDir": "dist",
   "bundledWebRuntime": false,
   "server": {
     "androidScheme": "https",
     "cleartext": true,
-    "allowNavigation": ["*"]
+    "allowNavigation": [
+      "*"
+    ]
   },
   "plugins": {
     "SplashScreen": {
@@ -14,7 +16,11 @@
       "backgroundColor": "#0d0f15"
     },
     "PushNotifications": {
-      "presentationOptions": ["badge", "sound", "alert"]
+      "presentationOptions": [
+        "badge",
+        "sound",
+        "alert"
+      ]
     }
   }
 }

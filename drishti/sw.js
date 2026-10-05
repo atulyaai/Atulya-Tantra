@@ -11,7 +11,6 @@ const SHELL = ['/', '/index.html'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
@@ -56,4 +55,8 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil(self.clients.openWindow(event.notification.data?.url || '/'));
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });

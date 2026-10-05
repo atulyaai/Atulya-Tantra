@@ -173,3 +173,26 @@ If either Google server is enabled without credentials, readiness reports `produ
 ### Encryption at rest (`ATULYA_VAULT_PASSPHRASE`)
 
 Off by default. When a passphrase is set, private files (money, calendar, reminders, email settings, chat history, profiles) are stored encrypted with a key derived from the passphrase (scrypt) and a random salt in `kosh/vault.salt`. The passphrase is never written to disk. A file that cannot be opened is never overwritten. There is no recovery if the passphrase is lost. It does not protect against someone who can read the running process or your `.env`.
+
+## Build the Android app and install the PWA
+
+### Android debug APK
+
+Prerequisites: install Node.js 20 or newer, Python 3, Java 21, and Android Studio's Android SDK and command-line tools. Set `ANDROID_HOME` to the SDK directory and accept its licenses in Android Studio's **SDK Manager**. **PASS:** `adb --version` and `java -version` both print versions.
+
+From the repository root run:
+
+```sh
+cd drishti
+npm ci
+npm run build
+npm run android:debug
+```
+
+The script runs `npx cap add android` on the first build, then `npx cap sync android`, copies the tracked Android manifest and Gradle settings, and runs Gradle `assembleDebug`. **PASS:** `drishti/android/app/build/outputs/apk/debug/app-debug.apk` exists. **FAIL:** run `npx cap doctor android`, open `drishti/android/` in Android Studio, and accept any missing SDK packages. Android builds and installation have not been verified on a real phone.
+
+Install the debug build with `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`. On first launch, enter `https://atulya.atulvij.com` (or your own server address); the app stores it locally and uses it for API and WebSocket requests. **PASS:** the app proceeds to the sign-in screen after saving the address.
+
+### Progressive web app
+
+Run `npm ci && npm run build` from `drishti/`, then serve `drishti/dist/` from the Atulya server or another HTTPS host. Open the site in a supported mobile browser and use its **Install app** or **Add to Home Screen** action. **PASS:** the installed app shows the Atulya icon and opens standalone. Browsers require HTTPS (or localhost) for service workers and install prompts.

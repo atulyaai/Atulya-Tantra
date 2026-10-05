@@ -4,11 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "android:debug": "python build_apk.py",
     "dev": "vite --host 127.0.0.1 --port 5173",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1 --port 4173"
   },
   "dependencies": {
+    "@capacitor/android": "^7.6.9",
+    "@capacitor/cli": "^7.6.9",
+    "@capacitor/core": "^7.6.9",
+    "@capacitor/push-notifications": "^7.0.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "three": "^0.180.0"

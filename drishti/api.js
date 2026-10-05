@@ -1,6 +1,29 @@
 const TOKEN_KEY = 'atulya-dashboard-token';
 const LEGACY_TOKEN_KEY = 'ai-dashboard-token';
+const SERVER_URL_KEY = 'atulya-server-url';
+const DEFAULT_SERVER_URL = 'https://atulya.atulvij.com';
 
+export function getServerUrl() {
+  try { return (localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL).replace(/\/$/, ''); }
+  catch { return DEFAULT_SERVER_URL; }
+}
+
+export function setServerUrl(value) {
+  const parsed = new URL(value);
+  if (!['http:', 'https:'].includes(parsed.protocol) || parsed.pathname !== '/' || parsed.search || parsed.hash) {
+    throw new Error('Enter a server address such as https://atulya.atulvij.com');
+  }
+  try {
+    const previous = localStorage.getItem(SERVER_URL_KEY);
+    if (previous && previous.replace(/\/$/, '') !== parsed.origin) clearToken();
+    localStorage.setItem(SERVER_URL_KEY, parsed.origin);
+  } catch {}
+  return parsed.origin;
+}
+
+export function apiUrl(path) {
+  return new URL(path, `${getServerUrl()}/`).toString();
+}
 export function getToken() {
   try {
     return localStorage.getItem(TOKEN_KEY) || localStorage.getItem(LEGACY_TOKEN_KEY) || '';
@@ -49,7 +72,7 @@ async function request(path, options = {}) {
     headers.Authorization = `Bearer ${token}`;
     headers['X-Atulya-Token'] = token;
   }
-  const response = await fetch(path, { ...options, headers });
+  const response = await fetch(apiUrl(path), { ...options, headers });
   if (!response.ok) {
     let message = `Request failed (${response.status})`;
     try {
@@ -84,7 +107,7 @@ export const api = {
       headers.Authorization = `Bearer ${token}`;
       headers['X-Atulya-Token'] = token;
     }
-    const res = await fetch('/api/voice/stt', { method: 'POST', headers, body: form });
+    const res = await fetch(apiUrl('/api/voice/stt'), { method: 'POST', headers, body: form });
     if (!res.ok) throw new Error(`Local transcription failed (${res.status})`);
     return res.json();
   },
@@ -98,7 +121,7 @@ export const api = {
       headers.Authorization = `Bearer ${token}`;
       headers['X-Atulya-Token'] = token;
     }
-    fetch('/api/chat/stream', {
+    fetch(apiUrl('/api/chat/stream'), {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
@@ -147,7 +170,8 @@ export const api = {
     // Live server push (notifications, reminders, alerts). The server requires
     // the session token as a query param — browsers can't set WebSocket headers.
     // Returns a stop() that also cancels any pending reconnect.
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const server = new URL(getServerUrl());
+    const protocol = server.protocol === 'https:' ? 'wss:' : 'ws:';
     let ws = null;
     let reconnectTimer = null;
     let stopped = false;
@@ -156,7 +180,7 @@ export const api = {
     const open = () => {
       const token = getToken();
       if (stopped || !token) return;
-      ws = new WebSocket(`${protocol}//${window.location.host}/api/ws?token=${encodeURIComponent(token)}`);
+      ws = new WebSocket(`${protocol}//${server.host}/api/ws?token=${encodeURIComponent(token)}`);
       ws.onopen = () => {
         attempts = 0;
         ws.send(JSON.stringify({ type: 'ping' }));
