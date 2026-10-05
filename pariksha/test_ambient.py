@@ -270,6 +270,46 @@ def test_print_speaker(capsys):
 
 
 class TestCli:
+    def test_default_url_follows_the_server_bind(self, tmp_path, monkeypatch):
+        """`atulya listen` must dial the port sevak serves, not a remembered 8000."""
+        from atulya import shruti as cli
+
+        monkeypatch.setenv("ATULYA_AMBIENT_CONFIG", str(tmp_path / "no-such-config.json"))
+        monkeypatch.delenv("ATULYA_URL", raising=False)
+        monkeypatch.setenv("ATULYA_HOST", "0.0.0.0")  # bind-all cannot be dialled back
+        monkeypatch.setenv("ATULYA_PORT", "8501")
+
+        assert cli.default_url() == "http://127.0.0.1:8501"
+        args = cli.build_parser().parse_args([])
+        assert cli.resolve(args, cli.load_config())["url"] == "http://127.0.0.1:8501"
+
+    def test_default_url_falls_back_to_the_sevak_defaults(self, monkeypatch):
+        from atulya import shruti as cli
+
+        for name in ("ATULYA_URL", "ATULYA_HOST", "ATULYA_PORT"):
+            monkeypatch.delenv(name, raising=False)
+        assert cli.default_url() == "http://127.0.0.1:8501"
+
+    def test_default_stt_model_hears_the_hindi_wake_words(self, tmp_path, monkeypatch):
+        """Wake words ship in Devanagari, but base.en is an English-only model.
+
+        With the English-only default the Hindi wake words could never match,
+        and a second ~145 MB model was downloaded when the server already
+        caches the multilingual `base` for its own speech-to-text.
+        """
+        from atulya import shruti as cli
+        from atulya.vani import SUPPORTED_SPEECH
+
+        assert "hi" in SUPPORTED_SPEECH
+        assert any(any(ord(ch) >= 0x0900 for ch in word) for word in cli.DEFAULT_WAKE_WORDS)
+
+        monkeypatch.setenv("ATULYA_AMBIENT_CONFIG", str(tmp_path / "none.json"))
+        monkeypatch.delenv("ATULYA_WHISPER_MODEL", raising=False)
+        args = cli.build_parser().parse_args([])
+        model = cli.resolve(args, cli.load_config())["model"]
+
+        assert model == "base" and not model.endswith(".en")
+
     def test_options_precedence_and_saved_token_is_private(self, tmp_path, monkeypatch):
         from atulya import shruti as cli
 

@@ -6,7 +6,7 @@ wake word, sends what you say to your Atulya server, speaks the answer, and
 speaks notifications such as reminders or "someone is at the door". A tray
 icon shows its state and mutes the microphone.
 
-    atulya listen --url http://localhost:8000 --login     # once
+    atulya listen --login                                 # once (add --url for a remote server)
     atulya listen                                         # every time
     atulya listen --install-autostart                     # start at login
 
@@ -580,7 +580,7 @@ class Microphone:
 class LocalWhisper:
     """Private, offline speech-to-text with faster-whisper."""
 
-    def __init__(self, model: str = "base.en", hint: str = "Atulya"):
+    def __init__(self, model: str = "base", hint: str = "Atulya"):
         from faster_whisper import WhisperModel
 
         self.label = f"whisper {model} (local)"
@@ -617,7 +617,7 @@ class ServerSTT:
         return await self.client.transcribe(to_wav(audio))
 
 
-def make_stt(mode: str, client: Any, model: str = "base.en") -> Any:
+def make_stt(mode: str, client: Any, model: str = "base") -> Any:
     if mode in ("auto", "local"):
         try:
             return LocalWhisper(model)
@@ -907,14 +907,14 @@ def save_config(cfg: dict[str, Any], path: Path | None = None) -> Path:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="atulya listen", description="Always-listening Atulya (wake word, tray icon).")
-    p.add_argument("--url", help="Atulya server, e.g. http://localhost:8000")
+    p.add_argument("--url", help=f"Atulya server (default {default_url()})")
     p.add_argument("--token", help="Sign-in token (normally saved by --login)")
     p.add_argument("--login", action="store_true", help="Sign this device in and remember it")
     p.add_argument("--user", help="Username for --login")
     p.add_argument("--device", help="Name shown in Atulya (default: this computer's name)")
     p.add_argument("--wake", help="Wake phrases, comma-separated (default: hey atulya, atulya)")
     p.add_argument("--stt", choices=["auto", "local", "server"], help="Speech-to-text: local whisper or the server")
-    p.add_argument("--model", help="Local whisper model (default base.en; tiny.en for small devices)")
+    p.add_argument("--model", help="Local whisper model (default base; multilingual, so it hears Hindi wake words too)")
     p.add_argument("--follow-up", type=float, help="Seconds to keep listening without the wake word after a reply")
     p.add_argument("--mic", help="Microphone device name or number")
     p.add_argument("--no-tray", action="store_true", help="Run without a tray icon (headless)")
@@ -924,6 +924,20 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--remove-autostart", nargs="?", const="desktop", choices=["desktop", "systemd"])
     p.add_argument("--save", action="store_true", help="Save these options as the defaults")
     return p
+
+
+def default_url() -> str:
+    """Where sevak actually listens: ATULYA_HOST:ATULYA_PORT, default 127.0.0.1:8501.
+
+    This used to be hard-coded to localhost:8000, so on a default install
+    `atulya listen` dialled a port nothing was serving and failed at sign-in.
+    A bind-all address cannot be dialled back, so it becomes the loopback.
+    """
+    host = (os.environ.get("ATULYA_HOST", "") or "127.0.0.1").strip()
+    if host in ("0.0.0.0", "::"):  # binds every interface, but you still call home on one
+        host = "127.0.0.1"
+    port = (os.environ.get("ATULYA_PORT", "") or "8501").strip()
+    return f"http://{host}:{port}"
 
 
 def resolve(args: argparse.Namespace, cfg: dict[str, Any]) -> dict[str, Any]:
@@ -936,12 +950,12 @@ def resolve(args: argparse.Namespace, cfg: dict[str, Any]) -> dict[str, Any]:
         return cfg.get(key, default)
 
     return {
-        "url": pick(args.url, "ATULYA_URL", "url", "http://localhost:8000"),
+        "url": pick(args.url, "ATULYA_URL", "url", default_url()),
         "token": pick(args.token, "ATULYA_TOKEN", "token", ""),
         "device": pick(args.device, "ATULYA_DEVICE", "device", socket.gethostname() or "listener"),
         "wake": pick(args.wake, "ATULYA_WAKE_WORDS", "wake", ",".join(DEFAULT_WAKE_WORDS)),
         "stt": pick(args.stt, "ATULYA_AMBIENT_STT", "stt", "auto"),
-        "model": pick(args.model, "ATULYA_WHISPER_MODEL", "model", "base.en"),
+        "model": pick(args.model, "ATULYA_WHISPER_MODEL", "model", "base"),
         "follow_up": float(pick(args.follow_up, "ATULYA_FOLLOW_UP", "follow_up", 0.0)),
         "mic": pick(args.mic, "ATULYA_MIC", "mic", None),
     }
@@ -964,6 +978,12 @@ async def _text_loop(engine: AmbientEngine) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
+    # `atulya-listen` enters here without going through the atulya CLI, so without
+    # this the .env written by install.py -- briefing time, wake model, a custom
+    # port -- would be ignored and only the compiled-in defaults applied.
+    from atulya.adhar import load_env
+
+    load_env()
     args = build_parser().parse_args(argv)
     cfg = load_config()
     opts = resolve(args, cfg)
