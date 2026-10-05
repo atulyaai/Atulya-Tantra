@@ -70,6 +70,20 @@ def _load_admin_token() -> tuple[str, str]:
 ADMIN_TOKEN, ADMIN_TOKEN_SOURCE = _load_admin_token()
 
 
+def sync_admin_token() -> str:
+    """Re-read ATULYA_DASHBOARD_TOKEN once .env has actually been loaded.
+
+    ADMIN_TOKEN is frozen when this module is imported, but sevak imports it
+    (line 18, module scope) before main() reads .env — so without this the
+    token set in .env is ignored and a different random one is minted on every
+    boot. Every consumer reads ADMIN_TOKEN as a module attribute at call time,
+    so reassigning it here reaches them all.
+    """
+    global ADMIN_TOKEN, ADMIN_TOKEN_SOURCE
+    ADMIN_TOKEN, ADMIN_TOKEN_SOURCE = _load_admin_token()
+    return ADMIN_TOKEN
+
+
 def _load_jwt_secret() -> str:
     """The key that signs sign-in tokens (including 90-day device tokens).
 

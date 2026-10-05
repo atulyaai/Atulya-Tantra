@@ -998,3 +998,45 @@ def test_no_pretend_devices_without_a_hub(monkeypatch):
     assert "No smart-home hub" in said and "turned on" not in said
     assert "No smart-home hub" in asyncio.run(tools.home_list_devices())
 
+
+class TestAdminTokenSync:
+    """The token configured in .env must be the one the server actually accepts.
+
+    sevak imports atulya.dwar at module scope, so ADMIN_TOKEN was frozen before
+    main() read .env: the configured value was ignored and a different random
+    one minted on every boot. sevak.main() now calls sync_admin_token() after
+    loading .env.
+    """
+
+    def test_sync_picks_up_the_env_token(self, monkeypatch):
+        from atulya import dwar
+
+        monkeypatch.setattr(dwar, "ADMIN_TOKEN", "frozen-at-import")
+        monkeypatch.setattr(dwar, "ADMIN_TOKEN_SOURCE", "generated_runtime")
+        monkeypatch.setenv("ATULYA_DASHBOARD_TOKEN", "the-one-from-dotenv")
+
+        assert dwar.sync_admin_token() == "the-one-from-dotenv"
+        assert dwar.ADMIN_TOKEN == "the-one-from-dotenv"
+        assert dwar.ADMIN_TOKEN_SOURCE == "env"
+
+    def test_sync_mints_a_token_when_none_is_configured(self, monkeypatch):
+        from atulya import dwar
+
+        monkeypatch.setattr(dwar, "ADMIN_TOKEN", "stale")
+        monkeypatch.setattr(dwar, "ADMIN_TOKEN_SOURCE", "env")
+        monkeypatch.delenv("ATULYA_DASHBOARD_TOKEN", raising=False)
+
+        token = dwar.sync_admin_token()
+        assert token != "stale" and len(token) >= 24
+        assert dwar.ADMIN_TOKEN_SOURCE == "generated_runtime"
+
+    def test_auth_accepts_the_token_that_was_configured(self, monkeypatch):
+        from atulya import dwar
+
+        monkeypatch.setattr(dwar, "ADMIN_TOKEN", "original")  # recorded for restore
+        monkeypatch.setattr(dwar, "ADMIN_TOKEN_SOURCE", "original")
+        monkeypatch.setenv("ATULYA_DASHBOARD_TOKEN", "configured-in-dotenv")
+
+        dwar.sync_admin_token()
+        assert dwar._require_auth("configured-in-dotenv")["role"] == "admin"
+

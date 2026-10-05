@@ -253,6 +253,10 @@ def main() -> None:
 
     migrate_all()  # an old `data` folder becomes `kosh`, once
     found = load_env()
+    # `dwar` was imported at module scope, before .env was in the environment,
+    # so its ADMIN_TOKEN was minted at random. Refresh it now that .env is read,
+    # or the ATULYA_DASHBOARD_TOKEN you configured would never be accepted.
+    api.sync_admin_token()
     print("\n  Settings: " + (", ".join(str(p) for p in found) if found else "no .env file found next to start.bat"))
     _brain_report()
 

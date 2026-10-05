@@ -229,6 +229,80 @@ class TestCommandLine:
         assert before == after
 
 
+class TestHealthProbe:
+    """The health probe must authenticate, so a healthy server reads as healthy."""
+
+    @staticmethod
+    def _stub_urlopen(monkeypatch, status=200, error=None):
+        import urllib.request
+
+        seen = {}
+
+        class _Resp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        def fake(req, timeout=0):
+            seen["headers"] = {k.lower(): v for k, v in dict(getattr(req, "headers", {}) or {}).items()}
+            if error:
+                raise error
+            resp = _Resp()
+            resp.status = status
+            return resp
+
+        monkeypatch.setattr(urllib.request, "urlopen", fake)
+        return seen
+
+    def test_probe_sends_the_dashboard_token(self, monkeypatch):
+        """Without the header every healthy server looked like an anonymous 401."""
+
+        seen = self._stub_urlopen(monkeypatch, status=200)
+        monkeypatch.setenv("ATULYA_DASHBOARD_TOKEN", "probe-token-123")
+
+        ready, out = capture(installer.doctor)
+
+        assert seen["headers"].get("x-atulya-token") == "probe-token-123"
+        assert "HTTP 200" in out
+        assert ready is True
+
+    def test_probe_flags_a_rejected_token(self, monkeypatch):
+        """A server that ignores ATULYA_DASHBOARD_TOKEN must be reported, not passed."""
+        import urllib.error
+        import urllib.request
+
+        self._stub_urlopen(
+            monkeypatch,
+            error=urllib.error.HTTPError("http://x/api/health", 401, "Unauthorized", {}, io.StringIO()),
+        )
+        monkeypatch.setenv("ATULYA_DASHBOARD_TOKEN", "the-configured-token")
+
+        ready, out = capture(installer.doctor)
+
+        assert ready is False
+        assert "rejected" in out and "restart" in out
+
+    def test_probe_without_a_token_only_notes(self, monkeypatch):
+        import urllib.error
+
+        self._stub_urlopen(
+            monkeypatch,
+            error=urllib.error.HTTPError("http://x/api/health", 401, "Unauthorized", {}, io.StringIO()),
+        )
+        monkeypatch.delenv("ATULYA_DASHBOARD_TOKEN", raising=False)
+
+        _, out = capture(installer.doctor)
+
+        # With no token there is nothing to test: the probe must only note that,
+        # never claim the server rejected us. (The overall report still fails on
+        # the separate "dashboard token" check, which is the real problem.)
+        probe_line = next((row for row in out.splitlines() if "running server /api/health" in row), "")
+        assert "needs a token" in probe_line
+        assert "rejected" not in probe_line
+
+
 class TestSecretPathGuard:
     """The file tools must refuse .env and kosh/ no matter how they are called."""
 

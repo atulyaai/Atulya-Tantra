@@ -426,17 +426,32 @@ def doctor() -> bool:
         else os.environ.get("ATULYA_HOST", "127.0.0.1")
     )
     url = f"http://{host}:{port}/api/health"
+    # Probe with the dashboard token we hold. Sending no token made every healthy
+    # server look like an anonymous 401, which is exactly how a server that
+    # silently ignores ATULYA_DASHBOARD_TOKEN slips through.
+    token = (os.environ.get("ATULYA_DASHBOARD_TOKEN") or "").strip()
+    request = urllib.request.Request(url, headers={"X-Atulya-Token": token} if token else {})
     try:
-        with urllib.request.urlopen(url, timeout=3) as response:
+        with urllib.request.urlopen(request, timeout=3) as response:
             line("running server /api/health", response.status == 200, f"HTTP {response.status} at {url}")
     except urllib.error.HTTPError as exc:
-        line(
-            "running server /api/health",
-            True,
-            f"HTTP {exc.code} at {url} — listening, needs a token",
-            "",
-            state="note" if exc.code in (401, 403) else "",
-        )
+        if exc.code in (401, 403) and not token:
+            line(
+                "running server /api/health",
+                True,
+                f"HTTP {exc.code} at {url} — listening, needs a token",
+                "",
+                state="note",
+            )
+        elif exc.code in (401, 403):
+            line(
+                "running server /api/health",
+                False,
+                "the server rejected your ATULYA_DASHBOARD_TOKEN",
+                "restart Atulya so it re-reads .env",
+            )
+        else:
+            line("running server /api/health", False, f"HTTP {exc.code} at {url}", "")
     except Exception:
         say(f"  {'running server /api/health':34} {WARN:16} {DIM}not running (start it below){RESET}")
 
