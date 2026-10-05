@@ -1,6 +1,6 @@
 import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { api, boostAudio, clearToken, getToken, setToken, getUser, setUser } from './api.js';
+import { api, apiUrl, boostAudio, clearToken, getToken, setToken, getUser, setUser, getServerUrl, setServerUrl } from './api.js';
 import { Orb } from './Orb.jsx';
 import { MenuPopover, Panel } from './Panel.jsx';
 import { selectSectionByText } from './sections.js';
@@ -237,7 +237,7 @@ function Chat({ bootstrap, toast }) {
             const formData = new FormData();
             formData.append('file', f);
             try {
-              const res = await fetch('/api/upload', {
+              const res = await fetch(apiUrl('/api/upload'), {
                 method: 'POST',
                 headers: { 'X-Atulya-Token': getToken() },
                 body: formData,
@@ -259,7 +259,7 @@ function Chat({ bootstrap, toast }) {
               const formData = new FormData();
               formData.append('file', f);
               try {
-                const res = await fetch('/api/upload', {
+                const res = await fetch(apiUrl('/api/upload'), {
                   method: 'POST',
                   headers: { 'X-Atulya-Token': getToken() },
                   body: formData,
@@ -439,7 +439,7 @@ function App() {
   useEffect(() => {
     if (authenticated) return;
     try { if (sessionStorage.getItem('atulya-signed-out')) return; } catch {}
-    fetch('/api/auth/local')
+    fetch(apiUrl('/api/auth/local'))
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!data?.token) return;
@@ -603,4 +603,80 @@ class Recover extends React.Component {
   }
 }
 
-createRoot(document.getElementById('root')).render(<Recover><App /></Recover>);
+function UpdateToast() {
+  const [registration, setRegistration] = useState(null);
+  const [available, setAvailable] = useState(false);
+  const reloadRequested = useRef(false);
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return undefined;
+    let disposed = false;
+    let currentRegistration;
+    let onUpdateFound;
+    const onControllerChange = () => {
+      if (reloadRequested.current) window.location.reload();
+    };
+    navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
+    navigator.serviceWorker.getRegistration().then((reg) => {
+      if (!reg || disposed) return;
+      currentRegistration = reg;
+      const watchInstalling = () => {
+        const worker = reg.installing;
+        if (!worker) return;
+        worker.addEventListener('statechange', () => {
+          if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+            setRegistration(reg);
+            setAvailable(true);
+          }
+        });
+      };
+      onUpdateFound = watchInstalling;
+      reg.addEventListener('updatefound', watchInstalling);
+      if (reg.waiting && navigator.serviceWorker.controller) {
+        setRegistration(reg);
+        setAvailable(true);
+      }
+      reg.update().catch(() => {});
+    }).catch(() => {});
+    return () => {
+      disposed = true;
+      if (currentRegistration && onUpdateFound) currentRegistration.removeEventListener('updatefound', onUpdateFound);
+      navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+    };
+  }, []);
+  if (!available) return null;
+  return (
+    <div role="status" style={{ position: 'fixed', zIndex: 10000, bottom: 20, left: '50%', transform: 'translateX(-50%)', padding: '12px 16px', borderRadius: 12, background: '#151a2a', color: '#fff', boxShadow: '0 8px 30px #0008', display: 'flex', gap: 12, alignItems: 'center' }}>
+      <span>An update is available.</span>
+      <button type="button" className="primary" onClick={() => {
+        reloadRequested.current = true;
+        registration?.waiting?.postMessage({ type: 'SKIP_WAITING' });
+      }}>Reload</button>
+    </div>
+  );
+}
+
+function ServerAddressGate({ children }) {
+  const saved = (() => { try { return localStorage.getItem('atulya-server-url'); } catch { return null; } })();
+  const [address, setAddress] = useState(saved || getServerUrl());
+  const [ready, setReady] = useState(Boolean(saved));
+  const [error, setError] = useState('');
+  if (ready) return children;
+  return (
+    <main className="recover">
+      <h1>Connect to your Atulya server</h1>
+      <p>Enter the server address to connect this app to your Atulya server.</p>
+      <form onSubmit={(event) => {
+        event.preventDefault();
+        try { setServerUrl(address.trim()); setError(''); setReady(true); }
+        catch { setError('Enter a valid server address, such as https://atulya.atulvij.com'); }
+      }}>
+        <label htmlFor="server-address">Server address</label>
+        <input id="server-address" type="url" required value={address} onChange={(event) => setAddress(event.target.value)} />
+        {error && <p role="alert">{error}</p>}
+        <button type="submit" className="primary">Connect</button>
+      </form>
+    </main>
+  );
+}
+
+createRoot(document.getElementById('root')).render(<Recover><ServerAddressGate><App /><UpdateToast /></ServerAddressGate></Recover>);
