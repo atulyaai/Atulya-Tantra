@@ -34,26 +34,49 @@ _RATE_LIMIT_MAX = 100
 _RATE_STORE_MAX_CLIENTS = 10_000
 _RATE_STORE: OrderedDict[str, list[float]] = OrderedDict()
 
+# Guessing a password, a pairing code or a one-hour session token is a
+# different game from browsing, and the bucket above is sized for somebody
+# who is busy rather than somebody who is guessing:100 attempts a minute at
+# a login is a meaningful head start. These paths are counted against the
+# path as well as the address, so hammering one of them is over quickly and
+# the rest of the server keeps its full budget.
+_CREDENTIAL_MAX = 10
+_CREDENTIAL_PREFIXES = ("/api/auth/", "/api/pairing/", "/api/miniapp/session")
+_CREDENTIAL_STORE: OrderedDict[str, list[float]] = OrderedDict()
+
+
+def _count_one(store: OrderedDict, key: str, now: float, window_start: float, maximum: int):
+    """Count one call against a bucket, or say why it may not proceed."""
+    # Requests move their key to the end, so the front is always the oldest
+    # and expired clients can be evicted without scanning the whole store.
+    while store:
+        _, oldest_hits = next(iter(store.items()))
+        if oldest_hits and oldest_hits[-1] > window_start:
+            break
+        store.pop(next(iter(store)))
+    hits = [t for t in store.get(key, []) if t > window_start]
+    if len(hits) >= maximum:
+        return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded. Try again later."})
+    if key not in store and len(store) >= _RATE_STORE_MAX_CLIENTS:
+        return JSONResponse(status_code=429, content={"detail": "Rate limit capacity reached. Try again later."})
+    hits.append(now)
+    store[key] = hits
+    store.move_to_end(key)
+    return None
+
 
 async def _rate_limiter(request: Request, call_next):
     client = request.client.host if request.client else "unknown"
     now = time.time()
     window_start = now - _RATE_LIMIT_WINDOW
-    # Requests move their client to the end. This lets expired clients be
-    # evicted from the front without scanning the whole store on every call.
-    while _RATE_STORE:
-        oldest_client, oldest_hits = next(iter(_RATE_STORE.items()))
-        if oldest_hits and oldest_hits[-1] > window_start:
-            break
-        _RATE_STORE.pop(oldest_client)
-    hits = [t for t in _RATE_STORE.get(client, []) if t > window_start]
-    if len(hits) >= _RATE_LIMIT_MAX:
-        return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded. Try again later."})
-    if client not in _RATE_STORE and len(_RATE_STORE) >= _RATE_STORE_MAX_CLIENTS:
-        return JSONResponse(status_code=429, content={"detail": "Rate limit capacity reached. Try again later."})
-    hits.append(now)
-    _RATE_STORE[client] = hits
-    _RATE_STORE.move_to_end(client)
+    path = request.url.path
+    checks = [(client, _RATE_STORE, _RATE_LIMIT_MAX)]
+    if path.startswith(_CREDENTIAL_PREFIXES):
+        checks.append((f"{path}|{client}", _CREDENTIAL_STORE, _CREDENTIAL_MAX))
+    for key, store, maximum in checks:
+        refused = _count_one(store, key, now, window_start, maximum)
+        if refused is not None:
+            return refused
     return await call_next(request)
 
 

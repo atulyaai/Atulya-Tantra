@@ -267,3 +267,74 @@ async def test_the_title_is_only_repeated_when_it_adds_something(monkeypatch):
     await sevak._relay_notification(_Event({"title": "done", "message": "done"}))
 
     assert channel.sent[0][1] == "done"
+
+
+# -- guessing gets a smaller budget than browsing ---------------------------
+@pytest.mark.asyncio
+async def test_a_login_gets_far_fewer_attempts_than_a_page_load():
+    """The global bucket is sized for a busy client, not a brute force."""
+    import time as _time
+
+    from atulya.sevak import (
+        _CREDENTIAL_MAX,
+        _CREDENTIAL_STORE,
+        _RATE_STORE,
+        _rate_limiter,
+    )
+
+    _RATE_STORE.clear()
+    _CREDENTIAL_STORE.clear()
+    request = Mock()
+    request.client.host = "10.0.0.9"
+    request.url.path = "/api/auth/login"
+    _CREDENTIAL_STORE["/api/auth/login|10.0.0.9"] = [_time.time() - 1] * _CREDENTIAL_MAX
+    downstream = AsyncMock(return_value=object())
+
+    refused = await _rate_limiter(request, downstream)
+
+    assert refused.status_code == 429
+    # ...while the same address on an ordinary page still has its full budget
+    request.url.path = "/api/health"
+    assert await _rate_limiter(request, downstream) is downstream.return_value
+    _RATE_STORE.clear()
+    _CREDENTIAL_STORE.clear()
+
+
+@pytest.mark.asyncio
+async def test_guessing_one_path_does_not_spend_another_paths_budget():
+    import time as _time
+
+    from atulya.sevak import (
+        _CREDENTIAL_MAX,
+        _CREDENTIAL_STORE,
+        _RATE_STORE,
+        _rate_limiter,
+    )
+
+    _RATE_STORE.clear()
+    _CREDENTIAL_STORE.clear()
+    _CREDENTIAL_STORE["/api/auth/login|10.0.0.8"] = [_time.time() - 1] * _CREDENTIAL_MAX
+    request = Mock()
+    request.client.host = "10.0.0.8"
+    request.url.path = "/api/pairing/code"
+    downstream = AsyncMock(return_value=object())
+
+    assert await _rate_limiter(request, downstream) is downstream.return_value
+    _RATE_STORE.clear()
+    _CREDENTIAL_STORE.clear()
+
+
+def test_a_password_cannot_be_guessed_one_hundred_times_a_minute():
+    """End to end: the tenth attempt is answered, the eleventh is not."""
+    from fastapi.testclient import TestClient
+
+    from atulya.sevak import app
+
+    client = TestClient(app)
+    codes = [
+        client.post("/api/auth/login", json={"username": "me", "password": f"guess{i}"}).status_code
+        for i in range(12)
+    ]
+
+    assert 429 not in codes[:10]  # ten reach the handler, which is what it must
+    assert codes[10] == 429 and codes[11] == 429
