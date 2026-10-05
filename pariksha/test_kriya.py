@@ -166,6 +166,229 @@ def test_announces_soon_event_once(monkeypatch):
     assert bus.events[0][1]["title"] == "Standup"
 
 
+# ── test_email_watch ─────────────────────────────────────────────────────────
+class _FakeIMAP:
+    """The slice of aioimaplib the poller touches, minus the network."""
+
+    def __init__(self, uids=(), uidvalidity="77"):
+        self.uids = list(uids)
+        self.uidvalidity = uidvalidity
+        self.fetched: list[int] = []
+        self.commands: list[str] = []
+        self.closed = False
+
+    async def wait_hello_from_server(self):
+        return ("OK", [])
+
+    async def login(self, user, password):
+        self.user = user
+        return ("OK", [])
+
+    async def select(self, mailbox="INBOX"):
+        return ("OK", [])
+
+    async def status(self, mailbox, spec):
+        return ("OK", [f"INBOX (UIDVALIDITY {self.uidvalidity})".encode()])
+
+    async def uid_search(self, *criteria, charset="utf-8"):
+        return ("OK", [" ".join(str(u) for u in self.uids).encode()])
+
+    async def uid(self, command, *criteria):
+        self.commands.append(" ".join((command, *criteria)))
+        uid = int(criteria[0])
+        self.fetched.append(uid)
+        body = (f"From: Person {uid} <p{uid}@example.test\r\n"
+                f"Subject: Hello {uid}\r\n\r\n").encode()
+        return ("OK", [(f"1 FETCH (UID {uid})", body)])
+
+    async def logout(self):
+        self.closed = True
+        return ("OK", [])
+
+
+def _use_imap(monkeypatch, client):
+    """Point kriya's mail calls at a fake server instead of the internet."""
+    import sys
+    import types as _types
+
+    monkeypatch.setattr(tools, "_google", lambda: None)
+    monkeypatch.setattr(tools, "_EMAIL_CFG", {
+        "imap_server": "imap.example.test", "imap_port": 993,
+        "username": "me@example.test", "password": "hunter2",
+    })
+    monkeypatch.setitem(sys.modules, "aioimaplib",
+                        _types.SimpleNamespace(IMAP4_SSL=lambda host, port: client))
+
+
+def _watermark() -> dict:
+    return json.loads((tools._DATA_DIR / "email_state.json").read_text(encoding="utf-8"))
+
+
+def test_email_watch_idles_quietly_without_a_mailbox(monkeypatch):
+    monkeypatch.setattr(tools, "_google", lambda: None)
+    monkeypatch.setattr(tools, "_EMAIL_CFG", {})
+
+    assert run(tools._new_emails()) == []
+    assert not (tools._DATA_DIR / "email_state.json").exists()
+
+
+def test_first_poll_remembers_where_the_inbox_ends(monkeypatch):
+    """Turning the watcher on must not read the whole backlog aloud."""
+    client = _FakeIMAP(uids=[10, 11, 12])
+    _use_imap(monkeypatch, client)
+
+    assert run(tools._new_emails()) == []
+    assert _watermark() == {"backend": "imap", "uidvalidity": "77", "watermark": 12}
+
+
+def test_new_mail_is_announced_once_and_oldest_first(monkeypatch):
+    client = _FakeIMAP(uids=[10, 11])
+    _use_imap(monkeypatch, client)
+    run(tools._new_emails())  # baseline
+
+    client.uids += [13, 14]
+    got = run(tools._new_emails())
+
+    assert [m["id"] for m in got] == ["13", "14"]
+    assert [m["subject"] for m in got] == ["Hello 13", "Hello 14"]
+    assert run(tools._new_emails()) == []  # and never again
+    assert _watermark()["watermark"] == 14
+
+
+def test_a_flood_drains_in_batches_rather_than_all_at_once(monkeypatch):
+    client = _FakeIMAP(uids=[10])
+    _use_imap(monkeypatch, client)
+    run(tools._new_emails(limit=2))
+
+    client.uids = [10, 11, 12, 13, 14]
+    first = run(tools._new_emails(limit=2))
+    second = run(tools._new_emails(limit=2))
+
+    assert [m["id"] for m in first] == ["11", "12"]
+    assert [m["id"] for m in second] == ["13", "14"]  # nothing was skipped
+
+
+def test_a_rebuilt_mailbox_rebaselines_instead_of_reannouncing(monkeypatch):
+    client = _FakeIMAP(uids=[10, 11], uidvalidity="77")
+    _use_imap(monkeypatch, client)
+    run(tools._new_emails())
+
+    client.uids = [1, 2, 3]  # same store, numbering restarted from scratch
+    client.uidvalidity = "78"
+
+    assert run(tools._new_emails()) == []
+    assert _watermark() == {"backend": "imap", "uidvalidity": "78", "watermark": 3}
+
+
+def test_announcing_never_marks_the_message_as_read(monkeypatch):
+    client = _FakeIMAP(uids=[10])
+    _use_imap(monkeypatch, client)
+    run(tools._new_emails())
+
+    client.uids = [10, 11]
+    run(tools._new_emails())
+
+    assert client.fetched == [11]
+    assert all("BODY.PEEK" in command for command in client.commands)
+
+
+def test_a_failed_login_still_closes_the_connection(monkeypatch):
+    class _Rejects(_FakeIMAP):
+        async def login(self, user, password):
+            raise RuntimeError("bad password")
+
+    client = _Rejects(uids=[1])
+    _use_imap(monkeypatch, client)
+
+    with pytest.raises(RuntimeError, match="bad password"):
+        run(tools._new_emails())
+    assert client.closed
+
+
+def test_the_watcher_announces_a_sender_and_subject(monkeypatch):
+    client = _FakeIMAP(uids=[10])
+    _use_imap(monkeypatch, client)
+    run(tools._new_emails())
+    client.uids = [10, 11]
+    bus = _Bus()
+
+    async def spin():
+        task = asyncio.create_task(tools.watch_email(bus, interval=0.05, limit=5))
+        await asyncio.sleep(0.25)
+        task.cancel()
+
+    asyncio.run(spin())
+
+    assert [e[0] for e in bus.events] == ["email.new"]
+    assert bus.events[0][1] == {"from": "Person 11", "subject": "Hello 11"}
+
+
+def test_the_watcher_keeps_going_after_a_failure(monkeypatch):
+    """A dead mail server must slow the loop down, not end it."""
+    calls = {"n": 0}
+
+    async def flaky(limit=20):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("offline")
+        if calls["n"] == 2:
+            return [{"id": "9", "from": "Ravi <r@example.test>", "subject": "Back online"}]
+        return []  # the real _new_emails reports each message exactly once
+
+    monkeypatch.setattr(tools, "_new_emails", flaky)
+    bus = _Bus()
+
+    async def spin():
+        task = asyncio.create_task(tools.watch_email(bus, interval=0.05))
+        await asyncio.sleep(0.3)
+        task.cancel()
+
+    asyncio.run(spin())
+
+    assert [e[0] for e in bus.events] == ["email.new"]
+    assert bus.events[0][1]["from"] == "Ravi"
+
+
+class _FakeGmail:
+    """`list_messages`, newest first, exactly as Google returns it."""
+
+    def __init__(self, ids):
+        self.ids = list(ids)
+
+    async def list_messages(self, query="in:inbox", limit=5):
+        count = max(1, min(limit, 20))
+        return [{"id": i, "from": f"p{i}@example.test", "subject": f"Subj {i}"}
+                for i in self.ids[:count]]
+
+
+def test_gmail_announces_only_what_arrived_after_the_first_look(monkeypatch):
+    gmail = _FakeGmail(["c", "b", "a"])
+    monkeypatch.setattr(tools, "_google", lambda: gmail)
+
+    assert run(tools._new_emails()) == []  # a, b, c were already history
+
+    gmail.ids = ["e", "d", "c", "b", "a"]
+    got = run(tools._new_emails())
+
+    assert [m["id"] for m in got] == ["d", "e"]  # oldest first, none repeated
+    assert run(tools._new_emails()) == []
+    assert set(_watermark()["seen"]) == {"a", "b", "c", "d", "e"}
+
+
+def test_changing_mailboxes_starts_a_fresh_baseline(monkeypatch):
+    """State left behind by IMAP must not be read as Gmail's."""
+    client = _FakeIMAP(uids=[10])
+    _use_imap(monkeypatch, client)
+    run(tools._new_emails())
+    client.closed = False
+
+    gmail = _FakeGmail(["z", "y"])
+    monkeypatch.setattr(tools, "_google", lambda: gmail)
+
+    assert run(tools._new_emails()) == []
+    assert _watermark() == {"backend": "gmail", "seen": ["z", "y"]}
+
+
 # ── test_webagent ────────────────────────────────────────────────────────────
 class FakePage:
     def __init__(self, pages):

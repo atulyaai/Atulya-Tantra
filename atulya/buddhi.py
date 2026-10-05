@@ -953,6 +953,14 @@ DEFAULT_RULES: list[dict[str, Any]] = [
         "cooldown_seconds": 0,
     },
     {
+        "id": "trg_email_new",
+        "name": "New email",
+        "event": "email.new",
+        "notify": "Mail from {from}: {subject}.",
+        "enabled": True,
+        "cooldown_seconds": 0,
+    },
+    {
         "id": "trg_someone_at_door",
         "name": "Someone at the door",
         "event": ["vision.person", "doorbell.pressed"],

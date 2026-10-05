@@ -395,7 +395,7 @@ class TestTriggers:
         engine, _, _ = self.make(tmp_path)
         assert {r["id"] for r in engine.list_rules()} == {
             "trg_reminder_alert", "trg_health_alert", "trg_automation_failed", "trg_habit_nudge",
-            "trg_someone_at_door", "trg_calendar_soon", "trg_bill_due"}
+            "trg_someone_at_door", "trg_calendar_soon", "trg_bill_due", "trg_email_new"}
 
     def test_new_defaults_top_up_old_rule_files_once(self, tmp_path):
         """An older rules file gets new built-ins, but a deleted built-in never returns."""
@@ -409,6 +409,16 @@ class TestTriggers:
         engine.remove_rule("trg_habit_nudge")
         again = TriggerEngine(rules_file=rules_file, events=EventBus())
         assert "trg_habit_nudge" not in {r["id"] for r in again.list_rules()}
+
+    def test_the_new_mail_rule_reads_the_payload(self):
+        from atulya.buddhi import DEFAULT_RULES, render
+
+        rule = next(r for r in DEFAULT_RULES if r["id"] == "trg_email_new")
+
+        assert rule["event"] == "email.new"
+        assert render(rule["notify"], {"from": "Ravi", "subject": "Invoice"}) == "Mail from Ravi: Invoice."
+        # each field is capped, so one enormous subject cannot be shouted whole
+        assert len(render(rule["notify"], {"from": "R", "subject": "x" * 500})) < 340
 
     def test_reminder_alert_and_command_rule(self, tmp_path):
         from atulya.kriya import _HOME_DEVICES
