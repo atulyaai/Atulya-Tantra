@@ -614,8 +614,8 @@ export function Orb({ onMenu, toast, onCommand }) {
       <div ref={holoBoxRef} className={`orb-holo ${holo}`} onClick={tapOrb} />
       {holo === 'ready' && (
         <div className="orb-hud" aria-hidden="true">
-          <span>ATULYA · {state === 'idle' && !started ? 'STANDBY' : 'ONLINE'}</span>
-          <span>{state.toUpperCase()}</span>
+          <span>STATUS: {state === 'idle' && !started ? 'STANDBY' : state.toUpperCase()}</span>
+          <span>INTENSITY: {state === 'speaking' ? 'HIGH' : state === 'idle' ? 'LOW' : 'MEDIUM'}</span>
         </div>
       )}
       {holo === 'ready' && opening && <div className="orb-opening">Assembling · hologram</div>}
