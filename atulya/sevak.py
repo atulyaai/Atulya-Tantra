@@ -115,6 +115,9 @@ async def lifespan(app: FastAPI):
         if not await app.state.telegram.configure_profile():
             logger.warning("Telegram profile setup was incomplete; bot replies remain enabled")
         app.state.telegram_task = asyncio.create_task(_poll_telegram(app.state.telegram, app.state.llm))
+        # Armed here so a due reminder can reach a pocket, not just a browser.
+        _PROACTIVE["channel"] = app.state.telegram
+        _PROACTIVE["targets"] = [t.strip() for t in allowlist.split(",") if t.strip()]
         logger.info("Telegram bot polling enabled for the configured allowlist")
     elif bot_token:
         logger.warning("Telegram bot token is set but ATULYA_TELEGRAM_ALLOWLIST is empty; polling is disabled")
@@ -175,8 +178,40 @@ async def lifespan(app: FastAPI):
         if app.state.telegram_task:
             app.state.telegram_task.cancel()
             await asyncio.gather(app.state.telegram_task, return_exceptions=True)
+        _PROACTIVE["channel"] = None  # the next startup decides again
         await app.state.mcp_manager.shutdown_all()
         await agent_core.shutdown()
+
+
+# Set by the lifespan: the one channel Atulya may speak on without being
+# spoken to first. Telegram only lets a bot message a chat somebody has
+# already written to, so the allowlist doubles as the list of people who have.
+# A dict rather than two globals so the lifespan can arm and disarm it without
+# a `global` declaration scattered through a hundred-line function.
+_PROACTIVE: dict = {"channel": None, "targets": []}
+
+
+def _push_enabled() -> bool:
+    return os.environ.get("ATULYA_TELEGRAM_PUSH", "on").strip().lower() not in ("off", "0", "false", "no")
+
+
+async def _announce_on_telegram(title: str, message: str) -> None:
+    """Speak first, rather than only ever answering.
+
+    A dashboard client hears this over its socket; a phone in your pocket does
+    not, so the same words go to Telegram as plain text. A send that fails is
+    dropped -- a phone that has blocked the bot must not stop a reminder from
+    reaching everybody else -- and an empty message is not worth a tap.
+    """
+    channel = _PROACTIVE.get("channel")
+    if channel is None or not _push_enabled() or not message:
+        return
+    text = f"{title}: {message}" if title and title.lower() != message.lower() else message
+    for chat_id in _PROACTIVE.get("targets") or []:
+        try:
+            await channel.send(text[:4000], chat_id=chat_id)
+        except Exception as exc:  # noqa: BLE001 - one bad chat must not break the relay
+            logger.debug("telegram push to %s failed: %s", chat_id, exc)
 
 
 async def _relay_notification(event) -> None:
@@ -184,8 +219,11 @@ async def _relay_notification(event) -> None:
     from atulya.dwar import broadcast_event
 
     payload = event.payload or {}
-    logger.info("Atulya notification: %s — %s", payload.get("title"), payload.get("message"))
-    await broadcast_event(str(payload.get("title") or "Atulya"), str(payload.get("message") or ""), event_type="info")
+    title = str(payload.get("title") or "Atulya")
+    message = str(payload.get("message") or "")
+    logger.info("Atulya notification: %s — %s", title, message)
+    await broadcast_event(title, message, event_type="info")
+    await _announce_on_telegram(title, message)
 
 
 async def _connect_mcp_servers(app: FastAPI) -> None:

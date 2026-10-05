@@ -180,3 +180,90 @@ async def test_jwt_auth_header_accepted():
     result = _require_auth(token=token)
     assert result["username"] == "jwtuser"
     assert result["role"] == "user"
+
+
+# -- speaking first, not just answering -------------------------------------
+class _FakeTelegram:
+    def __init__(self, refuse=()):
+        self.sent = []
+        self.refuse = set(refuse)
+
+    async def send(self, message, chat_id="", **kwargs):
+        if chat_id in self.refuse:
+            raise RuntimeError("chat not found")  # a bot nobody has written to
+        self.sent.append((chat_id, message))
+        return True
+
+
+class _Event:
+    def __init__(self, payload):
+        self.payload = payload
+
+
+def _arm(monkeypatch, channel, targets):
+    """Point the proactive channel the way the lifespan does when Telegram is configured."""
+    from atulya import sevak
+
+    monkeypatch.setitem(sevak._PROACTIVE, "channel", channel)
+    monkeypatch.setitem(sevak._PROACTIVE, "targets", targets)
+    return sevak
+
+
+@pytest.mark.asyncio
+async def test_a_due_reminder_reaches_the_phone_not_only_the_browser(monkeypatch):
+    channel = _FakeTelegram()
+    sevak = _arm(monkeypatch, channel, ["1484854122"])
+
+    await sevak._relay_notification(_Event({"title": "Reminder", "message": "Call Mum"}))
+
+    assert channel.sent == [("1484854122", "Reminder: Call Mum")]
+
+
+@pytest.mark.asyncio
+async def test_telegram_can_be_switched_off_without_stopping_the_relay(monkeypatch):
+    channel = _FakeTelegram()
+    sevak = _arm(monkeypatch, channel, ["1484854122"])
+    monkeypatch.setenv("ATULYA_TELEGRAM_PUSH", "off")
+
+    await sevak._relay_notification(_Event({"title": "Reminder", "message": "Call Mum"}))
+
+    assert channel.sent == []
+
+
+@pytest.mark.asyncio
+async def test_an_announcement_with_nothing_to_say_is_not_sent(monkeypatch):
+    channel = _FakeTelegram()
+    sevak = _arm(monkeypatch, channel, ["1484854122"])
+
+    await sevak._relay_notification(_Event({"title": "Reminder", "message": ""}))
+
+    assert channel.sent == []
+
+
+@pytest.mark.asyncio
+async def test_one_chat_that_refuses_the_bot_does_not_stop_the_others(monkeypatch):
+    """A phone that has blocked the bot must not silence everybody else."""
+    channel = _FakeTelegram(refuse={"blocked"})
+    sevak = _arm(monkeypatch, channel, ["blocked", "good"])
+
+    await sevak._relay_notification(_Event({"title": "Reminder", "message": "Call Mum"}))
+
+    assert channel.sent == [("good", "Reminder: Call Mum")]
+
+
+@pytest.mark.asyncio
+async def test_with_no_telegram_configured_the_websocket_still_hears_it(monkeypatch):
+    """Arming is optional: a machine with no bot must not raise."""
+    sevak = _arm(monkeypatch, None, [])
+
+    await sevak._relay_notification(_Event({"title": "Reminder", "message": "Call Mum"}))
+
+
+@pytest.mark.asyncio
+async def test_the_title_is_only_repeated_when_it_adds_something(monkeypatch):
+    channel = _FakeTelegram()
+    sevak = _arm(monkeypatch, channel, ["1484854122"])
+
+    await sevak._relay_notification(_Event({"title": "done", "message": "done"}))
+
+    assert channel.sent[0][1] == "done"
