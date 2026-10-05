@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import math
+import os
 import re
 import sqlite3
 import shutil
@@ -18,6 +19,39 @@ from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# ── embedding backend ──────────────────────────────────────────────────────────
+# sentence-transformers is optional (extra 'embeddings'). If not available or
+# ATULYA_EMBEDDINGS=off, fall back to the deterministic hash embedding.
+_EMBEDDING_BACKEND: str | None = None  # "st" | "hash"
+_EMBEDDING_MODEL = None
+_EMBEDDING_DIM = 384  # all-MiniLM-L6-v2 default
+
+
+def _init_embedding_backend() -> None:
+    global _EMBEDDING_BACKEND, _EMBEDDING_MODEL
+    if os.environ.get("ATULYA_EMBEDDINGS", "on").strip().lower() in ("off", "0", "false", "no"):
+        _EMBEDDING_BACKEND = "hash"
+        return
+    try:
+        from sentence_transformers import SentenceTransformer
+        _EMBEDDING_MODEL = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+        _EMBEDDING_BACKEND = "st"
+        logger.info("Semantic embeddings enabled (sentence-transformers)")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("sentence-transformers not available, using hash embeddings: %s", exc)
+        _EMBEDDING_BACKEND = "hash"
+
+
+def embed_text(text: str) -> list[float]:
+    """Return a semantic embedding for text, or hash fallback."""
+    global _EMBEDDING_BACKEND, _EMBEDDING_MODEL
+    if _EMBEDDING_BACKEND is None:
+        _init_embedding_backend()
+    if _EMBEDDING_BACKEND == "st" and _EMBEDDING_MODEL is not None:
+        vec = _EMBEDDING_MODEL.encode(text, normalize_embeddings=True)
+        return vec.tolist()
+    return _hash_embed(text, dim=_EMBEDDING_DIM)
 
 # ── orchestrator ────────────────────────────────────────────────────────────
 class MemoryProviderType(Enum):
@@ -356,7 +390,7 @@ class VectorMemoryProvider(MemoryProvider):
             logging.getLogger(__name__).error("Vector store persist failed: %s", e)
 
     async def store(self, entry: MemoryEntry) -> str:
-        embedding = _hash_embed(entry.content)
+        embedding = embed_text(entry.content)
         record = {
             "id": entry.id,
             "provider": entry.provider,
@@ -379,7 +413,7 @@ class VectorMemoryProvider(MemoryProvider):
         if not self._entries:
             return []
 
-        query_embedding = _hash_embed(query)
+        query_embedding = embed_text(query)
         scored = []
         for i, emb in enumerate(self._embeddings):
             metadata = self._entries[i].get("metadata")

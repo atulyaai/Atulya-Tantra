@@ -334,29 +334,29 @@ def test_automation_runner_executes_due_job(tmp_path):
 
 
 def test_mcp_config_enables_only_what_can_work_unattended():
-    """Three servers are proven and ship on; the rest cannot work alone.
+    """Four servers are proven and ship on; the rest need credentials.
 
-    filesystem, git and playwright spawn, connect and list tools with nothing
-    configured, so leaving them off meant shipping a feature that was never
-    used. google_drive and gmail need OAuth credentials only the owner can
-    create; telegram and browser point at ports nothing listens on. Enabling
-    either kind would only ever have produced a startup error.
+    filesystem, git, playwright and fetch spawn, connect and list tools with
+    nothing configured. google_drive needs a service account; mqtt/brave-search/
+    memory need a broker or API keys. All are present so the owner can flip one
+    switch.
     """
     data = json.loads(open("atulya/setu_servers.json", encoding="utf-8").read())
-    assert len(data["servers"]) >= 7
     assert all("enabled" in server for server in data["servers"])
     assert all("timeout" in server for server in data["servers"])
     by_name = {server["name"]: server for server in data["servers"]}
-    assert {name for name, s in by_name.items() if s["enabled"]} == {"filesystem", "git", "playwright"}
-    assert not by_name["google_drive"]["enabled"] and not by_name["gmail"]["enabled"]
-    assert not by_name["telegram"]["enabled"] and not by_name["browser"]["enabled"]
+    assert set(by_name) == {"filesystem", "git", "playwright", "mqtt", "fetch", "brave-search", "memory", "google_drive"}
+    assert {name for name, s in by_name.items() if s["enabled"]} == {"filesystem", "git", "playwright", "fetch"}
+    assert not by_name["google_drive"]["enabled"]
+    assert not by_name["mqtt"]["enabled"]
+    assert not by_name["brave-search"]["enabled"]
+    assert not by_name["memory"]["enabled"]
     assert by_name["google_drive"]["env"]["MCP_MODE"] == "stdio"
     assert by_name["google_drive"]["env"]["DISABLE_CONSOLE_OUTPUT"] == "true"
-    assert by_name["gmail"]["env"]["MCP_MODE"] == "stdio"
 
 
 def test_mcp_config_never_ships_a_package_that_does_not_exist():
-    """Two of the eight entries named packages npm answers 404 for.
+    """Two entries this file used to carry named packages npm answers 404 for.
 
     ``@modelcontextprotocol/server-git`` and ``mcp-spotify`` do not exist, so
     enabling either could only ever have failed. git now uses the real

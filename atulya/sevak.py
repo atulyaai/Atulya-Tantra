@@ -166,7 +166,7 @@ async def lifespan(app: FastAPI):
     from atulya.buddhi import watch_habits
 
     app.state.habit_task = asyncio.create_task(watch_habits(get_kernel(app.state.llm).profiles, default_bus))
-    from atulya.kriya import watch_bills, watch_calendar, watch_email, watch_news
+    from atulya.kriya import watch_bills, watch_calendar, watch_email, watch_news, watch_mqtt, watch_filesystem
 
     app.state.calendar_task = asyncio.create_task(watch_calendar(default_bus))
     app.state.bills_task = asyncio.create_task(watch_bills(default_bus))
@@ -175,6 +175,10 @@ async def lifespan(app: FastAPI):
     app.state.email_task = asyncio.create_task(watch_email(default_bus))
     # News: same bargain -- no feeds subscribed means nothing is ever fetched.
     app.state.news_task = asyncio.create_task(watch_news(default_bus))
+    # MQTT: idles if no broker configured; otherwise republishes messages as events.
+    app.state.mqtt_task = asyncio.create_task(watch_mqtt(default_bus))
+    # Watchdog: file system changes become events.
+    app.state.watchdog_task = asyncio.create_task(watch_filesystem(default_bus))
     # Senses: cameras and Home Assistant sensors publish what they perceive.
     from atulya.indriya import Senses
 
@@ -194,6 +198,8 @@ async def lifespan(app: FastAPI):
         app.state.bills_task.cancel()
         app.state.email_task.cancel()
         app.state.news_task.cancel()
+        app.state.mqtt_task.cancel()
+        app.state.watchdog_task.cancel()
         await app.state.senses.stop()
         await app.state.automation_runner.stop()
         app.state.automation_task.cancel()

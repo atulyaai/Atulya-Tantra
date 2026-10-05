@@ -772,7 +772,266 @@ async def news_latest() -> str:
     return "Watching:\n" + "\n".join(lines)
 
 
-# ── Feedback: what to do differently next time ──────────────────────────────
+# ── Watch: MQTT messages arrive as events ────────────────────────────────────
+
+_MQTT_CONFIG_FILE = "mqtt_config.json"
+_MQTT_STATE_FILE = "mqtt_state.json"
+
+
+def _mqtt_config() -> dict:
+    data = _load_json(_MQTT_CONFIG_FILE)
+    return data if isinstance(data, dict) else {}
+
+
+def _save_mqtt_config(cfg: dict) -> None:
+    _save_json(_MQTT_CONFIG_FILE, cfg)
+
+
+def _mqtt_state() -> dict:
+    data = _load_json(_MQTT_STATE_FILE)
+    return data if isinstance(data, dict) else {}
+
+
+def _save_mqtt_state(state: dict) -> None:
+    _save_json(_MQTT_STATE_FILE, state)
+
+
+async def watch_mqtt(events: Any, host: str = "", port: int = 1883, subscribe: str = "atulya/#",
+                     username: str = "", password: str = "") -> None:
+    """Connect to an MQTT broker and republish messages as `mqtt.<topic>` events.
+
+    Configuration is read from `mqtt_config.json` (created by `mqtt_configure`)
+    and can be overridden by arguments. If no host is configured the watcher
+    idles instead of failing, so a machine without a broker pays nothing.
+    """
+    cfg = _mqtt_config()
+    host = host or cfg.get("host", "")
+    port = port or int(cfg.get("port", 1883))
+    subscribe = subscribe or cfg.get("subscribe", "atulya/#")
+    username = username or cfg.get("username", "")
+    password = password or cfg.get("password", "")
+
+    if not host:
+        logger.debug("MQTT watcher: no host configured, idling")
+        while True:
+            await asyncio.sleep(3600)
+
+    import paho.mqtt.client as mqtt
+
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    if username:
+        client.username_pw_set(username, password)
+
+    connected = asyncio.Event()
+
+    def on_connect(c, u, flags, rc, props):
+        if rc == 0:
+            c.subscribe(subscribe)
+            connected.set()
+        else:
+            logger.warning("MQTT connect failed: %s", rc)
+
+    def on_message(c, u, msg):
+        try:
+            payload = msg.payload.decode("utf-8", "replace")
+        except Exception:
+            payload = str(msg.payload)
+        asyncio.run_coroutine_threadsafe(
+            events.emit(f"mqtt.{msg.topic}", {"topic": msg.topic, "payload": payload}),
+            asyncio.get_event_loop(),
+        )
+
+    client.on_connect = on_connect
+    client.on_message = on_message
+
+    backoff = 1
+    while True:
+        try:
+            client.connect(host, port, keepalive=30)
+            client.loop_start()
+            await connected.wait()
+            logger.info("MQTT connected to %s:%s, subscribed to %s", host, port, subscribe)
+            backoff = 1
+            while True:
+                await asyncio.sleep(1)
+                if not client.is_connected():
+                    raise ConnectionError("disconnected")
+        except asyncio.CancelledError:
+            client.loop_stop()
+            client.disconnect()
+            raise
+        except Exception as exc:  # noqa: BLE001 - reconnect loop
+            client.loop_stop()
+            try:
+                client.disconnect()
+            except Exception:
+                pass
+            logger.warning("MQTT error: %s; reconnecting in %ss", exc, backoff)
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 60)
+
+
+@tool("mqtt_configure", "Configure MQTT broker connection", {
+    "host": {"type": "string", "description": "Broker host, e.g. 192.168.1.50 or test.mosquitto.org"},
+    "port": {"type": "integer", "description": "Broker port (default 1883)", "default": 1883},
+    "subscribe": {"type": "string", "description": "Topic pattern to subscribe (default atulya/#)", "default": "atulya/#"},
+    "username": {"type": "string", "description": "Username (optional)", "default": ""},
+    "password": {"type": "string", "description": "Password (optional)", "default": ""},
+})
+async def mqtt_configure(host: str = "", port: int = 1883, subscribe: str = "atulya/#",
+                          username: str = "", password: str = "") -> str:
+    host = str(host).strip()
+    if not host:
+        return "A broker host is required."
+    subscribe = str(subscribe).strip() or "atulya/#"
+    _save_mqtt_config({
+        "host": host, "port": int(port), "subscribe": subscribe,
+        "username": str(username).strip(), "password": str(password).strip()
+    })
+    return f"MQTT configured: {host}:{port} -> {subscribe}"
+
+
+@tool("mqtt_status", "Show MQTT configuration and connection status", {})
+async def mqtt_status() -> str:
+    cfg = _mqtt_config()
+    if not cfg.get("host"):
+        return "MQTT not configured. Use mqtt_configure to set a broker."
+    return (f"Host: {cfg.get('host')}:{cfg.get('port', 1883)}\n"
+            f"Subscribe: {cfg.get('subscribe', 'atulya/#')}\n"
+            f"User: {cfg.get('username') or '(none)'}")
+
+
+# ── Watch: file system changes arrive as events ────────────────────────────
+
+_WATCHDOG_CONFIG_FILE = "watchdog_config.json"
+_WATCHDOG_STATE_FILE = "watchdog_state.json"
+
+
+def _watchdog_config() -> dict:
+    data = _load_json(_WATCHDOG_CONFIG_FILE)
+    return data if isinstance(data, dict) else {}
+
+
+def _save_watchdog_config(cfg: dict) -> None:
+    _save_json(_WATCHDOG_CONFIG_FILE, cfg)
+
+
+def _watchdog_state() -> dict:
+    data = _load_json(_WATCHDOG_STATE_FILE)
+    return data if isinstance(data, dict) else {}
+
+
+def _save_watchdog_state(state: dict) -> None:
+    _save_json(_WATCHDOG_STATE_FILE, state)
+
+
+async def watch_filesystem(events: Any, paths: list[str] | None = None,
+                           recursive: bool = True, patterns: list[str] | None = None) -> None:
+    """Watch directories for file changes and emit `file.changed` events.
+
+    Configuration is read from `watchdog_config.json` (created by `watchdog_configure`)
+    and can be overridden by arguments. If no paths are configured the watcher
+    idles instead of failing.
+    """
+    cfg = _watchdog_config()
+    watch_paths = paths or cfg.get("paths", [])
+    if not watch_paths:
+        logger.debug("Watchdog: no paths configured, idling")
+        while True:
+            await asyncio.sleep(3600)
+
+    recursive = recursive if paths is None else recursive
+    if "recursive" in cfg and paths is None:
+        recursive = bool(cfg.get("recursive", True))
+
+    watch_patterns = patterns or cfg.get("patterns", None)
+
+    from watchdog.observers import Observer
+    from watchdog.events import PatternMatchingEventHandler
+
+    handler = PatternMatchingEventHandler(
+        patterns=watch_patterns,
+        ignore_patterns=None,
+        ignore_directories=False,
+        case_sensitive=False,
+    )
+
+    loop = asyncio.get_event_loop()
+    debounce: dict[str, float] = {}
+
+    def on_any_event(event):
+        if event.is_directory:
+            return
+        now = time.time()
+        key = event.src_path
+        if key in debounce and now - debounce[key] < 0.5:
+            return
+        debounce[key] = now
+        asyncio.run_coroutine_threadsafe(
+            events.emit("file.changed", {
+                "path": event.src_path,
+                "event_type": event.event_type,  # created, modified, deleted, moved
+                "is_directory": event.is_directory,
+            }),
+            loop,
+        )
+
+    handler.on_created = on_any_event
+    handler.on_modified = on_any_event
+    handler.on_deleted = on_any_event
+    handler.on_moved = lambda e: (on_any_event(e), on_any_event(type('obj', (), {'src_path': e.dest_path, 'is_directory': e.is_directory, 'event_type': 'created'})()))
+
+    observer = Observer()
+    for path in watch_paths:
+        if os.path.exists(path):
+            observer.schedule(handler, path, recursive=recursive)
+        else:
+            logger.warning("Watchdog path does not exist: %s", path)
+
+    observer.start()
+    logger.info("Watchdog watching %s (recursive=%s)", watch_paths, recursive)
+
+    try:
+        while True:
+            await asyncio.sleep(1)
+    except asyncio.CancelledError:
+        observer.stop()
+        observer.join()
+        raise
+    except Exception:  # noqa: BLE001
+        observer.stop()
+        observer.join()
+        raise
+
+
+@tool("watchdog_configure", "Configure filesystem watcher (watchdog)", {
+    "paths": {"type": "array", "items": {"type": "string"}, "description": "Directories to watch", "default": []},
+    "recursive": {"type": "boolean", "description": "Watch subdirectories recursively", "default": True},
+    "patterns": {"type": "array", "items": {"type": "string"}, "description": "Glob patterns to match (optional)", "default": []},
+})
+async def watchdog_configure(paths: list[str] = None, recursive: bool = True, patterns: list[str] = None) -> str:
+    paths = [str(p).strip() for p in (paths or []) if str(p).strip()]
+    if not paths:
+        return "At least one path is required."
+    for p in paths:
+        if not os.path.exists(p):
+            return f"Path does not exist: {p}"
+    _save_watchdog_config({
+        "paths": paths,
+        "recursive": bool(recursive),
+        "patterns": [str(p).strip() for p in (patterns or []) if str(p).strip()] or None
+    })
+    return f"Watchdog configured: {', '.join(paths)} (recursive={recursive})"
+
+
+@tool("watchdog_status", "Show filesystem watcher configuration", {})
+async def watchdog_status() -> str:
+    cfg = _watchdog_config()
+    if not cfg.get("paths"):
+        return "Watchdog not configured. Use watchdog_configure to add paths."
+    return (f"Paths: {', '.join(cfg.get('paths', []))}\n"
+            f"Recursive: {cfg.get('recursive', True)}\n"
+            f"Patterns: {cfg.get('patterns') or '(all)'}")
 
 _FEEDBACK_FILE = "feedback.json"
 _FEEDBACK_KEEP = 200  # enough to notice a pattern, small enough to quote per turn

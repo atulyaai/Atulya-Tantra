@@ -24,6 +24,8 @@ dependencies = [
     "feedparser>=6.0",
     "python-dateutil>=2.8",
     "croniter>=2.0",
+    "paho-mqtt>=2.0",
+    "watchdog>=4.0",
 ]
 
 [project.optional-dependencies]
@@ -79,6 +81,12 @@ voice = [
 control = [
     "pyautogui>=0.9",
 ]
+# Optional: real semantic embeddings for vector memory (RAG).
+embeddings = [
+    "sentence-transformers>=3.0",
+    "torch>=2.0",
+]
+
 # A trained wake-word model (ATULYA_WAKE_MODEL) and the natural offline voice (ATULYA_PIPER_MODEL, needs the
 # `piper` program on PATH).
 wake = [

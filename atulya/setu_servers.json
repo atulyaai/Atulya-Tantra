@@ -25,6 +25,60 @@
       "args": ["-y", "@playwright/mcp"]
     },
     {
+      "name": "mqtt",
+      "enabled": false,
+      "timeout": 5,
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-mqtt"]
+    },
+    {
+      "name": "fetch",
+      "enabled": false,
+      "timeout": 5,
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-fetch"]
+    },
+    {
+      "name": "brave-search",
+      "enabled": false,
+      "timeout": 5,
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+      "env": {
+        "BRAVE_API_KEY": ""
+      }
+    },
+    {
+      "name": "memory",
+      "enabled": false,
+      "timeout": 5,
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"]
+    },
+    {
+      "name": "fetch",
+      "enabled": true,
+      "timeout": 10,
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-fetch"]
+    },
+    {
+      "name": "brave-search",
+      "enabled": false,
+      "timeout": 10,
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+      "env": {
+        "BRAVE_API_KEY": ""
+      }
+    },
+    {
       "name": "google_drive",
       "enabled": false,
       "timeout": 5,
@@ -36,31 +90,6 @@
         "LOG_LEVEL": "info",
         "DISABLE_CONSOLE_OUTPUT": "true"
       }
-    },
-    {
-      "name": "gmail",
-      "enabled": false,
-      "timeout": 5,
-      "transport": "stdio",
-      "command": "npx",
-      "args": ["-y", "mcp-gmail"],
-      "env": {
-        "MCP_MODE": "stdio"
-      }
-    },
-    {
-      "name": "telegram",
-      "enabled": false,
-      "timeout": 5,
-      "transport": "http",
-      "url": "http://127.0.0.1:4000/mcp/rpc"
-    },
-    {
-      "name": "browser",
-      "enabled": false,
-      "timeout": 5,
-      "transport": "http",
-      "url": "http://127.0.0.1:4001/mcp/rpc"
     }
   ]
 }
