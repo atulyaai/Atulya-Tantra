@@ -7,6 +7,7 @@ import hmac
 import json
 import logging
 import os
+import shutil
 import time
 import urllib.request
 from dataclasses import dataclass, field
@@ -300,10 +301,13 @@ class MCPClient:
             self._server_info = init_result.get("serverInfo", {})
             self._connected_at = time.time()
 
-            # Discover capabilities
-            self._tools = (await self._request("tools/list", {})).get("tools", [])
-            self._resources = (await self._request("resources/list", {})).get("resources", [])
-            self._prompts = (await self._request("prompts/list", {})).get("prompts", [])
+            # Discover capabilities. Each probe is optional: per the MCP spec a
+            # server need only implement what it advertised, and answering
+            # "Method not found" for resources/list used to escape as a connect
+            # failure that threw away the tools/list results already in hand.
+            self._tools = await self._capability("tools/list", "tools")
+            self._resources = await self._capability("resources/list", "resources")
+            self._prompts = await self._capability("prompts/list", "prompts")
 
             self.status = MCPServerStatus.CONNECTED
             logger.info(
@@ -318,10 +322,25 @@ class MCPClient:
             self.status = MCPServerStatus.ERROR
             return False
 
+    async def _capability(self, method: str, key: str) -> list[dict[str, Any]]:
+        """Fetch one optional capability, treating its absence as empty."""
+        try:
+            result = await self._request(method, {})
+        except Exception as exc:  # noqa: BLE001 - an unsupported method is normal
+            logger.info("MCP '%s': %s unavailable (%s)", self.config.name, method, exc)
+            return []
+        return list(result.get(key) or [])
+
     async def _connect_stdio(self):
         """Spawn a process and connect via stdin/stdout."""
+        # Windows ships npx as npx.cmd, and create_subprocess_exec does not
+        # consult PATHEXT the way cmd.exe does -- so the bare name failed with
+        # WinError 2 and every stdio server in setu_servers.json (all six use
+        # npx) could never spawn. Resolve through PATH; keep the raw command
+        # for an absolute path or one that is not on PATH.
+        command = shutil.which(self.config.command) or self.config.command
         self._process = await asyncio.create_subprocess_exec(
-            self.config.command, *self.config.args,
+            command, *self.config.args,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -437,6 +456,7 @@ class MCPClientManager:
 
     def __init__(self):
         self._clients: dict[str, MCPClient] = {}
+        self.errors: list[str] = []  # connection failures, surfaced by the doctor and /api/system
 
     async def add_stdio(
         self,
@@ -500,4 +520,21 @@ class MCPClientManager:
         """Disconnect all clients."""
         for name in list(self._clients.keys()):
             await self.remove(name)
+
+
+_manager: MCPClientManager | None = None
+
+
+def get_manager() -> MCPClientManager:
+    """The one manager sevak connects to and the brain reads its tools from.
+
+    Before this existed sevak built its own MCPClientManager, discovered every
+    tool the enabled servers offered -- and then discarded the list, because
+    nothing else ever held a reference. `enabled` in setu_servers.json now
+    reaches the brain.
+    """
+    global _manager
+    if _manager is None:
+        _manager = MCPClientManager()
+    return _manager
 

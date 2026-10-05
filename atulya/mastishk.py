@@ -378,16 +378,66 @@ class AgentToolAdapter(Tool):
         return ToolResult(success=True, output=str(out) if out is not None else "")
 
 
+class MCPToolAdapter(Tool):
+    """A tool offered by an outside MCP server (``setu_servers.json``).
+
+    The name is prefixed ``mcp_<server>_`` deliberately: ``ToolRegistry.register``
+    overwrites on a duplicate name, so a server offering ``read_file`` would
+    otherwise displace Atulya's own path-guarded one and hand the model an
+    unchecked route into ``.env`` and ``kosh/``.
+    """
+
+    def __init__(self, server: str, info: dict[str, Any], manager: Any):
+        self.name = f"mcp_{server}_{info.get('name') or 'tool'}"
+        self.description = str(
+            info.get("description") or f"{info.get('name')} from the {server} MCP server"
+        )
+        # MCP calls its JSON schema inputSchema; the brain reads .parameters.
+        self.parameters = info.get("inputSchema") or {"type": "object", "properties": {}}
+        self._server = server
+        self._tool = str(info.get("name") or "")
+        self._manager = manager
+
+    async def execute(self, **kwargs: Any) -> ToolResult:
+        from atulya.kriya import audit
+
+        audit("tool", name=self.name, args=kwargs)  # outside actions are on the record too
+        try:
+            result = await self._manager.call_tool(self._server, self._tool, kwargs)
+        except Exception as exc:  # noqa: BLE001 - a dead server must not take the chat down
+            return ToolResult(success=False, error=f"{self._server}: {exc}")
+        return ToolResult(
+            success=bool(result.get("success")),
+            output=str(result.get("output") or ""),
+            error=str(result.get("error") or ""),
+        )
+
+
 def build_unified_registry(data_dir: str | Path = ".") -> ToolRegistry:
     """Return the yantra default registry plus the personal-assistant tools."""
     registry = create_default_registry(data_dir)
     from atulya import kriya as agent_tools  # lazy: avoids import cycles
 
-    existing = {t["name"] for t in registry.list_tools()}
+    taken = {t["name"] for t in registry.list_tools()}
     for name, info in agent_tools.TOOL_REGISTRY.items():
-        if name in EXCLUDED_FROM_BRAIN or name in existing:
+        if name in EXCLUDED_FROM_BRAIN or name in taken:
             continue
         registry.register(AgentToolAdapter(name, info))
+        taken.add(name)
+
+    # Outside MCP servers. sevak discovered these tools when it connected the
+    # entries enabled in setu_servers.json; nothing used to hand them over, so
+    # enabling a server changed nothing. They join last and are prefixed, so
+    # they can never displace a native tool.
+    from atulya.setu import get_manager  # lazy: keeps setu out of the import graph
+
+    manager = get_manager()
+    for info in manager.all_tools():
+        adapter = MCPToolAdapter(str(info.get("_server") or ""), info, manager)
+        if adapter.name in taken:
+            continue
+        registry.register(adapter)
+        taken.add(adapter.name)
     return registry
 
 

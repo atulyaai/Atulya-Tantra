@@ -14,7 +14,7 @@
       "timeout": 5,
       "transport": "stdio",
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-git"]
+      "args": ["-y", "mcp-git"]
     },
     {
       "name": "playwright",
@@ -47,14 +47,6 @@
       "env": {
         "MCP_MODE": "stdio"
       }
-    },
-    {
-      "name": "spotify",
-      "enabled": false,
-      "timeout": 5,
-      "transport": "stdio",
-      "command": "npx",
-      "args": ["-y", "mcp-spotify"]
     },
     {
       "name": "telegram",

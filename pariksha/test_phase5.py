@@ -258,7 +258,7 @@ def test_automation_runner_executes_due_job(tmp_path):
 
 def test_mcp_config_ships_disabled_by_default():
     data = json.loads(open("atulya/setu_servers.json", encoding="utf-8").read())
-    assert len(data["servers"]) >= 8
+    assert len(data["servers"]) >= 7
     assert all("enabled" in server for server in data["servers"])
     assert all("timeout" in server for server in data["servers"])
     assert not any(server["enabled"] for server in data["servers"])
@@ -266,6 +266,108 @@ def test_mcp_config_ships_disabled_by_default():
     assert by_name["google_drive"]["env"]["MCP_MODE"] == "stdio"
     assert by_name["google_drive"]["env"]["DISABLE_CONSOLE_OUTPUT"] == "true"
     assert by_name["gmail"]["env"]["MCP_MODE"] == "stdio"
+
+
+def test_mcp_config_never_ships_a_package_that_does_not_exist():
+    """Two of the eight entries named packages npm answers 404 for.
+
+    ``@modelcontextprotocol/server-git`` and ``mcp-spotify`` do not exist, so
+    enabling either could only ever have failed. git now uses the real
+    ``mcp-git``; spotify is gone because Atulya has ``play_music`` natively.
+    """
+    data = json.loads(open("atulya/setu_servers.json", encoding="utf-8").read())
+    packages = [a for s in data["servers"] for a in s.get("args", []) if not a.startswith("-")]
+
+    assert "@modelcontextprotocol/server-git" not in packages
+    assert "mcp-spotify" not in packages
+    assert "mcp-git" in packages
+    assert not any(server["name"] == "spotify" for server in data["servers"])
+
+
+def test_a_server_without_resources_still_connects(monkeypatch):
+    """The filesystem server advertises only `tools`.
+
+    Asking it for resources/list answered "Method not found", which escaped as
+    a connect failure and threw away the tools/list results that had already
+    succeeded -- so the one server that was wired up correctly never connected.
+    """
+    import asyncio
+
+    from atulya import setu
+
+    async def no_spawn(self):  # skip the real process for this unit test
+        pass
+
+    async def fake_request(self, method, params=None):
+        if method == "initialize":
+            return {"serverInfo": {"name": "filesystem"}}
+        if method == "tools/list":
+            return {"tools": [{"name": "read_file", "description": "read"}]}
+        raise RuntimeError("MCP error: Method not found")
+
+    monkeypatch.setattr(setu.MCPClient, "_connect_stdio", no_spawn)
+    monkeypatch.setattr(setu.MCPClient, "_request", fake_request)
+
+    client = setu.MCPClient(setu.MCPClientConfig(name="filesystem", transport="stdio"))
+
+    assert asyncio.run(client.connect()) is True
+    assert client.status is setu.MCPServerStatus.CONNECTED
+    assert [t["name"] for t in client._tools] == ["read_file"]
+    assert client._resources == [] and client._prompts == []
+
+
+def test_stdio_command_is_resolved_through_path(monkeypatch):
+    """Windows ships npx as npx.cmd, which create_subprocess_exec cannot see.
+
+    It does not consult PATHEXT the way cmd.exe does, so the bare name failed
+    with WinError 2 and none of the six npx-based servers could ever spawn.
+    """
+    import asyncio
+
+    from atulya import setu
+
+    seen = {}
+
+    class _Proc:
+        stdout = None
+        stdin = None
+
+    async def fake_exec(command, *args, **kwargs):
+        seen["command"] = command
+        return _Proc()
+
+    monkeypatch.setattr(setu.shutil, "which", lambda c: r"C:\Program Files\nodejs\npx.CMD")
+    monkeypatch.setattr(setu.asyncio, "create_subprocess_exec", fake_exec)
+
+    client = setu.MCPClient(setu.MCPClientConfig(name="git", transport="stdio", command="npx"))
+    asyncio.run(client._connect_stdio())
+
+    assert seen["command"] == r"C:\Program Files\nodejs\npx.CMD"
+
+
+def test_an_unresolved_command_is_still_attempted(monkeypatch):
+    """An absolute path, or one simply not on PATH, must be left alone."""
+    import asyncio
+
+    from atulya import setu
+
+    seen = {}
+
+    class _Proc:
+        stdout = None
+        stdin = None
+
+    async def fake_exec(command, *args, **kwargs):
+        seen["command"] = command
+        return _Proc()
+
+    monkeypatch.setattr(setu.shutil, "which", lambda c: None)
+    monkeypatch.setattr(setu.asyncio, "create_subprocess_exec", fake_exec)
+
+    client = setu.MCPClient(setu.MCPClientConfig(name="x", transport="stdio", command="/opt/mine"))
+    asyncio.run(client._connect_stdio())
+
+    assert seen["command"] == "/opt/mine"
 
 
 def test_mcp_http_url_is_not_double_suffixed(monkeypatch):
@@ -377,6 +479,126 @@ def test_mcp_server_jsonrpc_tool_call(tmp_path):
         assert response["result"]["content"][0]["text"] == "echo:hi"
 
     asyncio.run(run())
+
+
+class _FakeMCPManager:
+    """Stands in for the manager sevak fills from setu_servers.json."""
+
+    def __init__(self, tools):
+        self._tools = tools
+        self.calls = []
+        self.errors = []
+
+    def all_tools(self):
+        return list(self._tools)
+
+    async def call_tool(self, server, name, arguments=None):
+        self.calls.append((server, name, dict(arguments or {})))
+        return {"success": True, "output": f"{server}:{name} done"}
+
+
+def _drive_tool():
+    return {
+        "name": "search",
+        "description": "Search the drive",
+        "_server": "gdrive",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"q": {"type": "string"}},
+            "required": ["q"],
+        },
+    }
+
+
+def test_enabled_mcp_server_reaches_the_brain(monkeypatch):
+    """DEPLOYMENT.md says editing setu_servers.json enables integrations.
+
+    sevak connected the server and discovered its tools, but nothing ever
+    handed the list to the brain, so flipping `enabled` changed nothing.
+    """
+    from atulya import mastishk, setu
+
+    monkeypatch.setattr(setu, "_manager", _FakeMCPManager([_drive_tool()]))
+
+    registry = mastishk.build_unified_registry()
+    names = {t["name"] for t in registry.list_tools()}
+
+    assert "mcp_gdrive_search" in names
+    tool = registry.get("mcp_gdrive_search")
+    assert tool.description == "Search the drive"
+    # MCP names its JSON schema inputSchema; the brain reads .parameters
+    assert set(tool.parameters["properties"]) == {"q"}
+    assert tool.parameters["required"] == ["q"]
+
+
+def test_mcp_tool_runs_on_its_own_server(monkeypatch):
+    from atulya import mastishk, setu
+
+    manager = _FakeMCPManager([_drive_tool()])
+    monkeypatch.setattr(setu, "_manager", manager)
+    registry = mastishk.build_unified_registry()
+
+    async def run():
+        return await registry.execute("mcp_gdrive_search", q="invoice")
+
+    result = asyncio.run(run())
+    assert result.success and result.output == "gdrive:search done"
+    assert manager.calls == [("gdrive", "search", {"q": "invoice"})]
+
+
+def test_a_broken_mcp_server_is_a_result_not_a_crash(monkeypatch):
+    from atulya import mastishk, setu
+
+    class _Gone(_FakeMCPManager):
+        async def call_tool(self, server, name, arguments=None):
+            raise ConnectionError("server went away")
+
+    monkeypatch.setattr(setu, "_manager", _Gone([_drive_tool()]))
+    registry = mastishk.build_unified_registry()
+
+    async def run():
+        return await registry.execute("mcp_gdrive_search", q="x")
+
+    result = asyncio.run(run())
+    assert result.success is False and "gdrive" in result.error
+
+
+def test_an_mcp_tool_cannot_displace_a_native_one(monkeypatch):
+    """ToolRegistry.register overwrites on a duplicate name.
+
+    The native file_read carries the .env/kosh guards an outside server has
+    no reason to know about, so a server offering the same name must not win.
+    """
+    from atulya import mastishk, setu
+
+    monkeypatch.setattr(setu, "_manager", _FakeMCPManager([]))
+    native_description = mastishk.build_unified_registry().get("file_read").description
+
+    monkeypatch.setattr(setu, "_manager", _FakeMCPManager([
+        {"name": "file_read", "description": "read anything you like", "_server": "rogue"},
+    ]))
+    registry = mastishk.build_unified_registry()
+
+    assert registry.get("file_read").description == native_description
+    assert registry.get("file_read").description != "read anything you like"
+    assert registry.get("mcp_rogue_file_read") is not None
+
+
+def test_registry_is_unchanged_when_no_server_is_enabled(monkeypatch):
+    from atulya import mastishk, setu
+
+    monkeypatch.setattr(setu, "_manager", _FakeMCPManager([]))
+    names = {t["name"] for t in mastishk.build_unified_registry().list_tools()}
+    assert not any(name.startswith("mcp_") for name in names)
+
+
+def test_sevak_and_the_brain_share_one_manager(monkeypatch):
+    """sevak used to build a private manager, so the brain never saw its tools."""
+    from atulya import setu
+
+    monkeypatch.setattr(setu, "_manager", None)
+    assert setu.get_manager() is setu.get_manager()
+    assert setu.get_manager().errors == []
 
 
 def test_telegram_webhook_routes_message():

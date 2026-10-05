@@ -28,7 +28,6 @@ dependencies = [
 
 [project.optional-dependencies]
 serve = [
-    "paho-mqtt>=1.6",
     "aiosmtplib>=3.0",
     "aioimaplib>=1.0",
     "edge-tts>=6.0",

@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from atulya import dwar as api
 from atulya.dwar import AutomationRunner
 from atulya.raksha import cors_origins as _cors_origins
-from atulya.setu import MCPClientManager
+from atulya.setu import get_manager as _mcp_manager
 
 # ── sevak ────────────────────────────────────────────────────────────
 
@@ -94,8 +94,11 @@ async def lifespan(app: FastAPI):
     from atulya.mastishk import get_default_llm
 
     app.state.llm = get_default_llm()
-    app.state.mcp_manager = MCPClientManager()
-    app.state.mcp_errors = []
+    # One manager for the whole process: the brain reads its tools from here
+    # via build_unified_registry(), so an entry enabled in setu_servers.json
+    # actually reaches the model instead of being discovered and dropped.
+    app.state.mcp_manager = _mcp_manager()
+    app.state.mcp_errors = app.state.mcp_manager.errors  # same list, readable either way
     await _connect_mcp_servers(app)
     api._seed_default_jobs()
     app.state.automation_runner = AutomationRunner(api.JOBS_FILE, app.state.llm)
@@ -179,6 +182,7 @@ async def _relay_notification(event) -> None:
 
 
 async def _connect_mcp_servers(app: FastAPI) -> None:
+    app.state.mcp_errors.clear()  # the manager outlives one lifespan; a restart starts clean
     config_path = Path(__file__).resolve().parent / "setu_servers.json"
     if not config_path.exists():
         return
