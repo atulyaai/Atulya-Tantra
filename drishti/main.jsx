@@ -154,6 +154,16 @@ function Chat({ bootstrap, toast }) {
     );
   }
 
+  function rateAnswer(msg, idx, rating) {
+    const previous = messages[idx - 1];
+    const question = previous && previous.role === 'user' ? previous.text : '';
+    // Optimistic: the button presses even if the store cannot be reached,
+    // because a verdict that did not get through is not worth an error in
+    // the middle of a conversation.
+    setMessages((prev) => prev.map((item, i) => (i === idx ? { ...item, rating } : item)));
+    api.post('/api/feedback', { rating, prompt: question, reply: msg.text }).catch(() => {});
+  }
+
   return (
     <section className="panel chat">
       <div className="panel-title">
@@ -195,7 +205,29 @@ function Chat({ bootstrap, toast }) {
             <strong>{step.tool}</strong>: {step.success ? 'done' : step.error || 'failed'}
           </div>
         ))}
-        {messages.map((msg, idx) => <div className={`message ${msg.role}`} key={msg.id || idx}>{renderMarkdown(msg.text)}</div>)}
+        {messages.map((msg, idx) => (
+          <div className={`message ${msg.role}`} key={msg.id || idx}>
+            {renderMarkdown(msg.text)}
+            {msg.role === 'assistant' && msg.text && (
+              <span className="msg-feedback">
+                <button
+                  type="button"
+                  className={msg.rating === 'up' ? 'rated' : ''}
+                  title="Good answer"
+                  aria-label="Good answer"
+                  onClick={() => rateAnswer(msg, idx, 'up')}
+                >Good</button>
+                <button
+                  type="button"
+                  className={msg.rating === 'down' ? 'rated' : ''}
+                  title="Bad answer"
+                  aria-label="Bad answer"
+                  onClick={() => rateAnswer(msg, idx, 'down')}
+                >Bad</button>
+              </span>
+            )}
+          </div>
+        ))}
         <div ref={endRef} />
       </div>
       <form className="composer" onSubmit={send}>

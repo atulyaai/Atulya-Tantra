@@ -499,6 +499,74 @@ def test_the_headlines_tool_reports_what_is_watched(monkeypatch):
     assert "https://a.test/rss" in out and "Old story" in out
 
 
+# ── feedback: what to do differently next time ──────────────────────────────
+def test_feedback_records_both_directions():
+    tools.record_feedback("up", "hello", "hi there")
+    tally = tools.record_feedback("down", "what is 2+2", "five", "it is arithmetic")
+
+    assert tally == {"up": 1, "down": 1, "last": "down"}
+
+
+def test_a_verdict_survives_the_question_that_prompted_it():
+    """A rating on its own is a number; it needs to know what it was about."""
+    tools.record_feedback("down", "flight status", "check the website", "you did not answer")
+
+    stored = tools._feedback_entries()[-1]
+
+    assert stored["prompt"] == "flight status"
+    assert stored["comment"] == "you did not answer"
+    assert stored["rating"] == "down"
+
+
+def test_nothing_is_taught_when_nothing_was_complained_about():
+    tools.record_feedback("up", "what is 2+2", "four")
+
+    assert tools.feedback_notes() == ""
+
+
+def test_a_complaint_is_phrased_as_something_to_avoid():
+    tools.record_feedback("down", "flight status", "see above", "you said check the website")
+
+    notes = tools.feedback_notes()
+
+    assert "flight status" in notes and "you said check the website" in notes
+    assert "Do not answer like that" in notes
+
+
+def test_only_the_most_recent_complaints_are_held_up():
+    for i in range(6):
+        tools.record_feedback("down", f"question {i}", "", "")
+
+    notes = tools.feedback_notes(limit=2)
+
+    assert "question 5" in notes and "question 4" in notes
+    assert "question 3" not in notes
+
+
+def test_a_complaint_without_an_explanation_still_says_so():
+    tools.record_feedback("down", "", "")
+
+    assert "without saying why" in tools.feedback_notes()
+
+
+def test_the_store_does_not_grow_for_ever():
+    for i in range(250):
+        tools.record_feedback("up", f"question {i}", "answer")
+
+    entries = tools._feedback_entries()
+
+    assert len(entries) == tools._FEEDBACK_KEEP
+    assert entries[-1]["prompt"] == "question 249"  # the newest are the kept ones
+
+
+def test_the_feedback_tool_speaks_in_tallies():
+    run(tools.feedback_record("up", prompt="hello"))
+    out = run(tools.feedback_record("down", comment="too long", prompt="summarise this"))
+
+    assert "1 good, 1 bad" in out
+    assert "too long" in tools.feedback_notes()
+
+
 class _FakeGmail:
     """`list_messages`, newest first, exactly as Google returns it."""
 

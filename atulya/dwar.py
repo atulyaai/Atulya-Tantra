@@ -1304,6 +1304,31 @@ async def api_chat_history_clear(token: str | None = Header(default=None, alias=
     return {"ok": True}
 
 
+@router.post("/api/feedback")
+async def api_feedback(body: dict, token: str | None = Header(default=None, alias="X-Atulya-Token")):
+    """Mark an answer good or bad, so the next one is different.
+
+    The question and answer travel with the verdict: a rating on its own only
+    says a number went down, which is no use to anybody trying to work out
+    what was wrong with it.
+    """
+    _require_auth(token)
+    rating = str(body.get("rating") or "").strip().lower()
+    if rating not in ("up", "down"):
+        raise HTTPException(status_code=400, detail="rating must be 'up' or 'down'")
+    from atulya.adhar import default_bus
+    from atulya.kriya import record_feedback
+
+    tally = record_feedback(
+        rating,
+        str(body.get("prompt") or ""),
+        str(body.get("reply") or ""),
+        str(body.get("comment") or ""),
+    )
+    await default_bus.emit("feedback.received", {"rating": rating, **tally})
+    return {"ok": True, **tally}
+
+
 # ── openai ────────────────────────────────────────────────────────────
 def _model_registry() -> list[dict]:
     """The assistant is exposed as a single model; the brain routes behind it."""

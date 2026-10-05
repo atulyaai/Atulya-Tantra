@@ -772,6 +772,79 @@ async def news_latest() -> str:
     return "Watching:\n" + "\n".join(lines)
 
 
+# ── Feedback: what to do differently next time ──────────────────────────────
+
+_FEEDBACK_FILE = "feedback.json"
+_FEEDBACK_KEEP = 200  # enough to notice a pattern, small enough to quote per turn
+
+
+def _feedback_entries() -> list[dict]:
+    data = _load_json(_FEEDBACK_FILE)
+    entries = data.get("entries") if isinstance(data, dict) else None
+    return [dict(item) for item in (entries or []) if isinstance(item, dict)]
+
+
+def record_feedback(rating: str, prompt: str = "", reply: str = "", comment: str = "") -> dict:
+    """Remember how a reply landed.
+
+    Both directions are kept, but only the complaints become instructions:
+    being told an answer was good does not say what to repeat, whereas a
+    complaint does. The question is stored alongside so a lesson can name
+    what it was about instead of floating free of any context.
+    """
+    liked = str(rating or "").strip().lower() in ("up", "good", "like", "+", "1", "yes")
+    entries = _feedback_entries()
+    entries.append({
+        "rating": "up" if liked else "down",
+        "prompt": str(prompt or "")[:500],
+        "reply": str(reply or "")[:500],
+        "comment": str(comment or "")[:500],
+        "at": time.time(),
+    })
+    kept = entries[-_FEEDBACK_KEEP:]
+    _save_json(_FEEDBACK_FILE, {"entries": kept})
+    tally = {"up": 0, "down": 0}
+    for item in kept:
+        tally[item["rating"]] = tally.get(item["rating"], 0) + 1
+    return {**tally, "last": kept[-1]["rating"]}
+
+
+def feedback_notes(limit: int = 3) -> str:
+    """The recent thumbs-down, phrased as something to avoid. Empty if none.
+
+    Sent with the turn rather than in the system prompt: that prompt is held
+    byte-stable so llama.cpp can reuse its KV cache, and feedback arrives
+    between turns, so putting it there would cost a full re-prefill every time
+    somebody pressed a button.
+    """
+    downs = [item for item in _feedback_entries() if item.get("rating") == "down"]
+    if not downs:
+        return ""
+    lines = ["The user has recently marked answers as wrong. Do not answer like that:"]
+    for item in downs[-limit:]:
+        question = str(item.get("prompt") or "").strip()
+        said = str(item.get("comment") or "").strip()
+        if question:
+            lines.append(f'- To "{question[:120]}"')
+        if said:
+            lines.append(f"  they said: {said[:160]}")
+        if not question and not said:
+            lines.append("- They marked an earlier answer wrong without saying why")
+    return "\n".join(lines)
+
+
+@tool("feedback_record", "Record whether an answer was helpful", {
+    "rating": {"type": "string", "description": "\"up\" if they liked it, \"down\" if they did not"},
+    "comment": {"type": "string", "description": "What they said about it", "default": ""},
+    "prompt": {"type": "string", "description": "The question it answered", "default": ""},
+    "reply": {"type": "string", "description": "The answer that was given", "default": ""},
+})
+async def feedback_record(rating: str, comment: str = "", prompt: str = "", reply: str = "") -> str:
+    """So a complaint works by voice as well as by pressing a button."""
+    tally = record_feedback(rating, prompt, reply, comment)
+    return f"Noted. {tally['up']} good, {tally['down']} bad so far."
+
+
 
 # ── Tool: System / Proactive Skills ────────────────────────────────────────
 

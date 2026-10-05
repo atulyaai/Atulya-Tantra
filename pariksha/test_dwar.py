@@ -1272,3 +1272,47 @@ def test_a_sender_that_speaks_plain_text_is_still_readable(monkeypatch, tmp_path
     assert event.payload["hook"] == "sensor"
     assert "door=open" in event.payload["text"]  # a notification still has something to say
 
+
+# -- feedback ----------------------------------------------------------------
+def test_a_rating_is_refused_without_a_session():
+    from atulya.sevak import app
+
+    res = TestClient(app).post("/api/feedback", json={"rating": "up"})
+
+    assert res.status_code == 401
+
+
+def test_a_verdict_lands_with_the_question_it_was_about(monkeypatch, tmp_path):
+    from atulya import kriya
+    from atulya.dwar import ADMIN_TOKEN
+    from atulya.sevak import app
+
+    monkeypatch.setattr(kriya, "_DATA_DIR", tmp_path)
+
+    res = TestClient(app).post(
+        "/api/feedback",
+        json={"rating": "down", "prompt": "flight status", "reply": "see above", "comment": "not an answer"},
+        headers={"X-Atulya-Token": ADMIN_TOKEN},
+    )
+
+    assert res.status_code == 200
+    assert res.json() == {"ok": True, "up": 0, "down": 1, "last": "down"}
+    # the next turn is told what went wrong, not merely that something did
+    assert "flight status" in kriya.feedback_notes()
+
+
+def test_a_rating_that_is_neither_is_refused(monkeypatch, tmp_path):
+    from atulya import kriya
+    from atulya.dwar import ADMIN_TOKEN
+    from atulya.sevak import app
+
+    monkeypatch.setattr(kriya, "_DATA_DIR", tmp_path)
+
+    res = TestClient(app).post(
+        "/api/feedback",
+        json={"rating": "maybe"},
+        headers={"X-Atulya-Token": ADMIN_TOKEN},
+    )
+
+    assert res.status_code == 400
+

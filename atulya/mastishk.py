@@ -1763,6 +1763,21 @@ _PAST_CUES = re.compile(
 )
 
 
+def _recent_feedback() -> str:
+    """What the user has recently marked wrong, or nothing at all.
+
+    Imported lazily because kriya imports this module, so importing it back at
+    the top would close the loop. A store that cannot be read costs the reply
+    one lesson, not the reply.
+    """
+    try:
+        from atulya.kriya import feedback_notes
+
+        return feedback_notes()
+    except Exception:  # noqa: BLE001 - a broken feedback file must not stop a chat
+        return ""
+
+
 def wants_memory(prompt: str) -> bool:
     """Should past conversations be shown to the model for this question?
 
@@ -2122,6 +2137,9 @@ class AtulyaLLM:
         emotional = self._human_context(user_prompt) if user_prompt else ""
         if emotional:
             notes.append(emotional)
+        taught = _recent_feedback()
+        if taught:  # what this user has just told us was wrong
+            notes.append(taught)
         if context:  # what Atulya has learned about this user
             notes.append(context)
         return "[Notes for this turn]\n" + "\n".join(notes) + "\n\n"

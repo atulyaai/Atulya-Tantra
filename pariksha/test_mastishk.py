@@ -798,3 +798,35 @@ def test_confirmations_for_file_and_pc_tools_are_readable():
     assert describe_action("file_edit", {"path": "a.py"}) == "change the file a.py"
     assert describe_action("pc_screenshot", {}) == "take a screenshot of your screen"
     assert describe_action("exec", {"command": "dir"}) == "run this on your computer: dir"
+
+
+# -- feedback reaches the next turn -----------------------------------------
+def test_what_the_user_complained_about_reaches_the_next_turn(monkeypatch, tmp_path):
+    from atulya import kriya, mastishk
+
+    monkeypatch.setattr(kriya, "_DATA_DIR", tmp_path)
+    kriya.record_feedback("down", "flight status", "", "too brief")
+
+    notes = mastishk._recent_feedback()
+
+    assert "flight status" in notes and "too brief" in notes
+
+
+def test_a_good_answer_teaches_nothing(monkeypatch, tmp_path):
+    from atulya import kriya, mastishk
+
+    monkeypatch.setattr(kriya, "_DATA_DIR", tmp_path)
+    kriya.record_feedback("up", "what is 2+2", "four")
+
+    assert mastishk._recent_feedback() == ""
+
+
+def test_an_unreadable_feedback_file_costs_a_lesson_not_a_reply(monkeypatch):
+    from atulya import kriya, mastishk
+
+    def boom(name):
+        raise RuntimeError("disk gone")
+
+    monkeypatch.setattr(kriya, "_load_json", boom)
+
+    assert mastishk._recent_feedback() == ""
