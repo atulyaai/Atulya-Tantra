@@ -323,11 +323,99 @@ class TestCli:
         if os.name == "posix":
             assert oct(path.stat().st_mode & 0o777) == "0o600"
 
-    def test_refuses_to_start_without_sign_in(self, tmp_path, monkeypatch, capsys):
+    def test_local_url_falls_back_to_the_dashboard_token(self, tmp_path, monkeypatch):
+        """Autostart cannot pass --token, so a local listener signs itself in."""
         from atulya import shruti as cli
 
         monkeypatch.setenv("ATULYA_AMBIENT_CONFIG", str(tmp_path / "none.json"))
         monkeypatch.delenv("ATULYA_TOKEN", raising=False)
+        monkeypatch.delenv("ATULYA_URL", raising=False)
+        monkeypatch.setenv("ATULYA_DASHBOARD_TOKEN", "the-dashboard-token")
+
+        args = cli.build_parser().parse_args(["--url", "http://127.0.0.1:8501"])
+        assert cli.resolve(args, cli.load_config())["token"] == "the-dashboard-token"
+
+    def test_remote_url_never_gets_the_local_dashboard_token(self, monkeypatch):
+        """A local credential must not be shipped to another host."""
+        from atulya import shruti as cli
+
+        monkeypatch.delenv("ATULYA_TOKEN", raising=False)
+        monkeypatch.setenv("ATULYA_DASHBOARD_TOKEN", "the-dashboard-token")
+
+        args = cli.build_parser().parse_args(["--url", "https://assistant.example.com"])
+        assert cli.resolve(args, {})["token"] == ""
+
+    def test_saved_device_token_beats_the_fallback(self, tmp_path, monkeypatch):
+        """A scoped token from --login is more specific than the admin one."""
+        import json
+
+        from atulya import shruti as cli
+
+        cfg = tmp_path / "ambient.json"
+        cfg.write_text(json.dumps({"url": "http://127.0.0.1:8501", "token": "device-scoped"}), encoding="utf-8")
+        monkeypatch.setenv("ATULYA_AMBIENT_CONFIG", str(cfg))
+        monkeypatch.delenv("ATULYA_TOKEN", raising=False)
+        monkeypatch.setenv("ATULYA_DASHBOARD_TOKEN", "the-dashboard-token")
+
+        args = cli.build_parser().parse_args([])
+        assert cli.resolve(args, cli.load_config())["token"] == "device-scoped"
+
+    def test_hindi_survives_a_cp1252_console(self, tmp_path, monkeypatch):
+        """Windows' cp1252 console cannot encode the Hindi this assistant ships.
+
+        `atulya listen` returned out of adesh.main() before its UTF-8
+        reconfiguration ran, so a Devanagari wake word crashed on the very
+        startup line that prints it.
+        """
+        import io
+        import sys as _sys
+
+        from atulya import adhar
+        from atulya import shruti as cli
+
+        monkeypatch.setenv("ATULYA_AMBIENT_CONFIG", str(tmp_path / "none.json"))
+        monkeypatch.delenv("ATULYA_TOKEN", raising=False)
+        monkeypatch.delenv("ATULYA_DASHBOARD_TOKEN", raising=False)
+        monkeypatch.setattr(adhar, "load_env", lambda paths=None: [])
+        monkeypatch.setattr(_sys, "stdout", io.TextIOWrapper(io.BytesIO(), encoding="cp1252", errors="strict"))
+        monkeypatch.setattr(_sys, "stderr", io.TextIOWrapper(io.BytesIO(), encoding="cp1252", errors="strict"))
+
+        assert cli.main([]) == 1
+
+        assert _sys.stdout.encoding.lower().replace("-", "") == "utf8"
+        _sys.stdout.write("सुनो अतुल्य\n")  # raises UnicodeEncodeError at cp1252
+
+    def test_survives_a_console_free_start(self, tmp_path, monkeypatch):
+        """pythonw.exe (what autostart runs) has stdout=None.
+
+        The first print() would otherwise raise AttributeError and the listener
+        would vanish at every login with nothing in a log to show why.
+        """
+        import sys as _sys
+
+        from atulya import adhar
+        from atulya import shruti as cli
+
+        monkeypatch.setenv("ATULYA_AMBIENT_CONFIG", str(tmp_path / "none.json"))
+        monkeypatch.delenv("ATULYA_TOKEN", raising=False)
+        monkeypatch.delenv("ATULYA_DASHBOARD_TOKEN", raising=False)
+        monkeypatch.setattr(adhar, "load_env", lambda paths=None: [])
+        monkeypatch.setattr(_sys, "stdout", None)
+        monkeypatch.setattr(_sys, "stderr", None)
+
+        assert cli.main([]) == 1  # reaches the sign-in guard instead of raising
+        assert _sys.stdout is not None and _sys.stderr is not None
+
+    def test_refuses_to_start_without_sign_in(self, tmp_path, monkeypatch, capsys):
+        """A fresh device with no credential anywhere must not start listening."""
+        from atulya import adhar
+        from atulya import shruti as cli
+
+        monkeypatch.setenv("ATULYA_AMBIENT_CONFIG", str(tmp_path / "none.json"))
+        monkeypatch.delenv("ATULYA_TOKEN", raising=False)
+        monkeypatch.delenv("ATULYA_DASHBOARD_TOKEN", raising=False)
+        # Simulate a device that has never seen this install's .env.
+        monkeypatch.setattr(adhar, "load_env", lambda paths=None: [])
         assert cli.main([]) == 1
         assert "--login" in capsys.readouterr().out
 

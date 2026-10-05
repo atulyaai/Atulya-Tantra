@@ -43,6 +43,7 @@ import webbrowser
 from collections import deque
 from pathlib import Path
 from typing import Any, AsyncIterator, Awaitable, Callable
+from urllib.parse import urlsplit
 from xml.sax.saxutils import escape
 
 # ── shruti ────────────────────────────────────────────────────────────
@@ -940,6 +941,11 @@ def default_url() -> str:
     return f"http://{host}:{port}"
 
 
+def is_loopback(url: str) -> bool:
+    """True when the server is this machine, so a local credential may be used."""
+    return (urlsplit(url).hostname or "").lower() in ("127.0.0.1", "localhost", "::1")
+
+
 def resolve(args: argparse.Namespace, cfg: dict[str, Any]) -> dict[str, Any]:
     """Options from flags, then environment, then the saved config, then defaults."""
     def pick(flag: Any, env: str, key: str, default: Any) -> Any:
@@ -949,9 +955,19 @@ def resolve(args: argparse.Namespace, cfg: dict[str, Any]) -> dict[str, Any]:
             return os.environ[env]
         return cfg.get(key, default)
 
+    url = pick(args.url, "ATULYA_URL", "url", default_url())
+    token = pick(args.token, "ATULYA_TOKEN", "token", "")
+    if not token and is_loopback(url):
+        # Same machine as the server: use the dashboard token, so a listener
+        # started by autostart (which cannot pass --token) works with nothing
+        # more than install.py having run. Deliberately NOT done for a remote
+        # URL -- a local credential must never be shipped to another host,
+        # where a sign-in of its own (--login / ATULYA_TOKEN) is required.
+        token = (os.environ.get("ATULYA_DASHBOARD_TOKEN", "") or "").strip()
+
     return {
-        "url": pick(args.url, "ATULYA_URL", "url", default_url()),
-        "token": pick(args.token, "ATULYA_TOKEN", "token", ""),
+        "url": url,
+        "token": token,
         "device": pick(args.device, "ATULYA_DEVICE", "device", socket.gethostname() or "listener"),
         "wake": pick(args.wake, "ATULYA_WAKE_WORDS", "wake", ",".join(DEFAULT_WAKE_WORDS)),
         "stt": pick(args.stt, "ATULYA_AMBIENT_STT", "stt", "auto"),
@@ -977,6 +993,22 @@ async def _text_loop(engine: AmbientEngine) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # The autostart entry runs pythonw.exe, which has no console: there
+    # sys.stdout/sys.stderr are None and the first print() or log record
+    # raises AttributeError, so the listener would die silently at every login.
+    # With a console the encoding is Windows' cp1252, which cannot encode the
+    # Hindi wake words and replies this assistant ships -- atulya.adesh
+    # reconfigures for its other subcommands, but returned early before
+    # reaching `listen`.
+    for _stream in ("stdout", "stderr"):
+        stream = getattr(sys, _stream)
+        if stream is None:
+            setattr(sys, _stream, open(os.devnull, "w", encoding="utf-8", errors="replace"))
+        elif hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except (OSError, ValueError):  # already read, or not a real stream
+                pass
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
     # `atulya-listen` enters here without going through the atulya CLI, so without
     # this the .env written by install.py -- briefing time, wake model, a custom
