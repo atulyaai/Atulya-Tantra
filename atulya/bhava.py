@@ -19,13 +19,27 @@ from typing import Any, Iterator
 current_user: ContextVar[str] = ContextVar("atulya_current_user", default="")
 
 
+# What the person asking may do on this computer: {"role": "admin" | "user" | "device", "permission": "read" | ...}.
+current_access: ContextVar[dict] = ContextVar("atulya_current_access", default={})
+
+
+def access_of(user: object) -> dict:
+    """The part of a signed-in user that decides what they may do on the computer (nothing known = the owner, e.g.
+    routines and the command line)."""
+    if isinstance(user, dict):
+        return {"role": str(user.get("role") or ""), "permission": str(user.get("permission") or "")}
+    return {}
+
+
 @contextmanager
-def acting_as(user: str) -> Iterator[None]:
+def acting_as(user: str, access: dict | None = None) -> Iterator[None]:
     token = current_user.set(user or "")
+    access_token = current_access.set(access or {})
     try:
         yield
     finally:
         current_user.reset(token)
+        current_access.reset(access_token)
 
 
 # ── emotion ────────────────────────────────────────────────────────────

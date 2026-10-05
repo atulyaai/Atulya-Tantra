@@ -18,7 +18,7 @@ from typing import Any, AsyncIterator
 from atulya import mastishk as safety
 from atulya import raksha as vault
 from atulya.adhar import Event, EventBus, default_bus
-from atulya.bhava import acting_as, current_user
+from atulya.bhava import access_of, acting_as, current_access, current_user
 from atulya.kriya import _match_device, route_intent
 from atulya.mastishk import EXCLUDED_FROM_BRAIN, AtulyaLLM, LLMEvent, LLMResponse, _chunk_text, get_default_llm
 
@@ -1354,7 +1354,7 @@ class CognitiveKernel:
         tools_enabled: bool = True,
     ) -> LLMResponse:
         # Personal tools (Gmail, Calendar) act for whoever is asking.
-        with acting_as(self._user_key(user)):
+        with acting_as(self._user_key(user), access_of(user)):
             return await self._handle(text, user, history, source, approved_tool, provider, tools_enabled)
 
     async def _handle(self, text: str, user: Any, history: list[dict[str, str]] | None, source: str,
@@ -1381,12 +1381,14 @@ class CognitiveKernel:
         tools_enabled: bool = True,
     ) -> AsyncIterator[LLMEvent]:
         token = current_user.set(self._user_key(user))
+        access_token = current_access.set(access_of(user))
         try:
             async for event in self._stream(text, user, history, source, approved_tool, provider, tools_enabled):
                 yield event
         finally:
             try:
                 current_user.reset(token)
+                current_access.reset(access_token)
             except ValueError:  # closed from another context (e.g. a dropped connection)
                 pass
 

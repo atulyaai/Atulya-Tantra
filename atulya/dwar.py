@@ -438,7 +438,7 @@ def _require_auth(token: str | None = Header(default=None, alias="X-Atulya-Token
             return {"username": "admin", "role": "admin", "display_name": "Admin"}
         device = vault.paired_devices().authenticate(token)
         if device:  # a paired phone or computer: everyday access only, never admin
-            return {"username": f"device:{device['name']}", "role": "device", "display_name": device["name"],
+            return {"username": f"device:{device['id']}", "role": "device", "display_name": device["name"],
                     "device_id": device["id"], "permission": device["permission"]}
         jwt_payload = _jwt_decode(token)
         if jwt_payload:

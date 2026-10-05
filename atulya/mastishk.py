@@ -192,6 +192,8 @@ _CONFIRM_TOOLS = {
     "pc_type": "types on your keyboard",
     "pc_hotkey": "presses keyboard shortcuts",
     "pc_screenshot": "captures your screen",
+    "run_command": "runs a command on your computer",
+    "install_software": "installs software on your computer",
     "web_task": "drives a web browser to do a task for you",
     "device_remove": "forgets a device",
     "device_profile_approve": "lets me send a new kind of command to a device",
@@ -200,6 +202,10 @@ _CONFIRM_TOOLS = {
 # Specific (tool, action) pairs that need confirmation.
 _CONFIRM_ACTIONS = {
     ("home_control", "unlock"): "unlocks a door",
+    **{("files", a): "changes or opens your files" for a in ("move", "delete", "write", "edit", "open", "print")},
+    ("clipboard", "set"): "changes your clipboard",
+    ("screen", "read"): "reads what is on your screen",
+    **{("screen", a): "controls your screen" for a in ("focus", "click", "double_click", "right_click", "move", "scroll")},
 }
 
 
@@ -229,6 +235,8 @@ def assess(tool: str, arguments: dict[str, Any] | None = None) -> Assessment:
 
         if get_hub().is_risky(str((arguments or {}).get("device", "")), str((arguments or {}).get("action", ""))) and "device_do" not in approved:
             return Assessment(CONFIRM, "could change or restart a device")
+    if tool == "files" and action == "copy" and (arguments or {}).get("overwrite") and "files" not in approved:
+        return Assessment(CONFIRM, "replaces an existing file")
     reason = _CONFIRM_ACTIONS.get((tool, action))
     if reason and f"{tool}:{action}".lower() not in approved and tool.lower() not in approved:
         return Assessment(CONFIRM, reason)
@@ -290,6 +298,26 @@ def describe_action(tool: str, arguments: dict[str, Any] | None = None) -> str:
         return "type that on your keyboard"
     if tool == "pc_hotkey":
         return f"press {args.get('keys', 'a shortcut')}"
+    if tool == "files":
+        what, where = str(args.get("path", "a file")), str(args.get("to", ""))
+        verbs = {"list": f"look in {what}", "find": f"look for {what}", "read": f"read {what}",
+                 "copy": f"copy {what} to {where}", "move": f"move {what} to {where}",
+                 "delete": f"move {what} to the trash", "folder": f"make the folder {what}",
+                 "write": f"write the file {what}", "edit": f"change the file {what}",
+                 "open": f"open {what}", "print": f"print {what}"}
+        return verbs.get(str(args.get("action", "")).lower(), "work with your files")
+    if tool == "clipboard":
+        return "put that on your clipboard" if args.get("action") == "set" else "read your clipboard"
+    if tool == "screen":
+        act = str(args.get("action", "")).lower()
+        return {"read": "read what is on your screen", "windows": "list your open windows",
+                "focus": f"switch to the {args.get('title', '')} window"}.get(act, f"{act.replace('_', ' ')} on your screen")
+    if tool == "run_command":
+        return f"run this on your computer: {str(args.get('command', ''))[:80]}"
+    if tool == "install_software":
+        return f"install {args.get('package', 'a program')}"
+    if tool == "check_computer":
+        return "check your computer's health"
     if tool == "pc_screenshot":
         return "take a screenshot of your screen"
     if tool == "file_write":
@@ -1484,6 +1512,12 @@ _TOOL_PRIORITY = {
     "todo_create": 12,
     "calculate": 13,
     "web_fetch": 14,
+    "files": 15,
+    "screen": 16,
+    "run_command": 17,
+    "clipboard": 18,
+    "check_computer": 19,
+    "install_software": 20,
 }
 
 
@@ -1869,11 +1903,11 @@ class AtulyaLLM:
         """Build OpenAI-style function schemas for the model's native tool loop.
 
         Small models degrade with long tool lists, so only the top
-        ``ATULYA_MAX_TOOL_SCHEMAS`` (default 14) are advertised, ranked
+        ``ATULYA_MAX_TOOL_SCHEMAS`` (default 20) are advertised, ranked
         assistant-first by ``_TOOL_PRIORITY``; unranked tools keep registry
         order. Tools that declare a JSON ``parameters`` schema expose it.
         """
-        limit = max(1, int(os.environ.get("ATULYA_MAX_TOOL_SCHEMAS", "14")))
+        limit = max(1, int(os.environ.get("ATULYA_MAX_TOOL_SCHEMAS", "20")))
         listed = self.tools.list_tools()
         ranked = sorted(
             enumerate(listed),

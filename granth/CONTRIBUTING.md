@@ -51,7 +51,7 @@ The repo root has `atulya/` (all the Python), `drishti/` (the screen, दृष�
 
 ### Inside `atulya/`
 
-`atulya/` is 18 flat files, each named in Sanskrit/Hindi (Latin letters). The full table (file, Devanagari, meaning, what it holds) is in the [README](../README.md#layout). Rules of thumb:
+`atulya/` is 19 flat files, each named in Sanskrit/Hindi (Latin letters). The full table (file, Devanagari, meaning, what it holds) is in the [README](../README.md#layout). Rules of thumb:
 
 - New assistant tool: a function with `@tool(...)` in `kriya.py`.
 - New device brand: a JSON profile in `upakaran_profiles.json` (or learn it with the brain); a new connection method goes in `upakaran.py`.

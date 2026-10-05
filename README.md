@@ -136,11 +136,11 @@ OTPs, offers and due reminders are ignored, and the same transaction arriving by
 
 ## Layout
 
-Every file has a Sanskrit/Hindi name that says what it does, in plain letters so editors and Windows handle them (the Devanagari is beside each name). The layout is flat: every folder below holds files only, and `atulya/` has just 18 Python files.
+Every file has a Sanskrit/Hindi name that says what it does, in plain letters so editors and Windows handle them (the Devanagari is beside each name). The layout is flat: every folder below holds files only, and `atulya/` has just 19 Python files.
 
 | Folder | Name | Meaning | What lives here |
 |---|---|---|---|
-| `atulya/` | | | All the Python, 18 files (table below) |
+| `atulya/` | | | All the Python, 19 files (table below) |
 | `drishti/` | दृष्टि | sight, what you see | The animated screen (React + Vite), all files side by side: `Orb.jsx`, `Dashboard.jsx`, `MemoryTree.jsx`, `Hologram.js` ... plus `index.html`, `vite.config.js`, `build.py` |
 | `granth/` | ग्रंथ | book, text | Guides, architecture, security, features, status and the pictures |
 | `pariksha/` | परीक्षा | examination, test | The test suite: one `test_*.py` per part |
@@ -166,13 +166,14 @@ Files in `atulya/`:
 | `sevak.py` | सेवक | servant | The web server app (`python -m atulya.sevak`) |
 | `dwar.py` | द्वार | gate | The server's API: accounts and sessions, chat history, sign-in, brains and keys, chat and voice, automation, home and dashboard |
 | `raksha.py` | रक्षा | protection | Encryption at rest (vault), HTTPS certificates, security helpers, lockdown |
+| `sharir.py` | शरीर | body | What Atulya can do on a computer: files (inside the folders you allow, deletes go to a trash), clipboard, windows, mouse, screen, commands, installing software, printing, health check, with permission levels for paired devices |
 | `bhava.py` | भाव | feeling | Mood, persona and identity |
 | `adhar.py` | आधार | foundation | Settings, `.env` reading, the `data` -> `kosh` move, text helpers, safe maths, the event bus, the heartbeat |
 | `adesh.py` | आदेश | command | The command line (`python -m atulya.adesh doctor`) and the readiness checks |
 
 ```text
 Atulya-Tantra/
-|-- atulya/        # all the Python: 18 flat files (table above)
+|-- atulya/        # all the Python: 19 flat files (table above)
 |-- drishti/       # the animated screen, flat: the source, index.html, vite.config.js, build.py
 |-- granth/        # guides, architecture and pictures
 |-- pariksha/      # tests

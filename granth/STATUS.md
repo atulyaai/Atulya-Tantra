@@ -19,7 +19,7 @@ Last full test run: 698 passed, 6 skipped (the skips need numpy).
 | Weather, time, calculator | `get_weather`, `get_forecast`, `current_time`, `calculate` | Done |
 | Price watchlist, briefing | `track_*`, `morning_briefing` | Done |
 | Smart home | `home_control`, `home_list_devices` | Unverified; needs Home Assistant or MQTT |
-| Control the PC | `pc_open_app`, `pc_type`, `pc_hotkey`, `pc_screenshot` | Unverified; off until `ATULYA_PC_CONTROL=on`; asks first |
+| Control the PC | `pc_open_app`, `pc_type`, `pc_hotkey`, `pc_screenshot`, plus `files` (list, find, read, copy, move, delete to trash, write, edit, open, print), `clipboard`, `screen` (read by OCR, windows, click, scroll), `run_command`, `install_software`, `check_computer` (all in `sharir.py`) | Tested against temp folders and fake permission levels; never run on a real PC, so unverified. Off until `ATULYA_PC_CONTROL=on`; risky actions ask first; files stay in the folders you allow (`ATULYA_ALLOWED_FOLDERS`) |
 | Camera, pictures | `analyze_image`, `camera_status` | `camera_status` has no test |
 
 ## 2. Planned: real-world actions
@@ -35,7 +35,7 @@ Order matters: each step needs the one above it. Anything that spends money, boo
 | A5 | Messaging by voice: "tell Mum I'm late" | Contact book + `message_send`, asks first, only to saved contacts, honest when a channel is not set up (Telegram, WhatsApp, email, Slack, Discord, Signal) | **Built**, 7 tests including the exact Telegram request; checked through the real server up to the confirmation. **Not sent to a real Telegram bot or phone**; WhatsApp and the others need their own setup. No calls or SMS |
 | A6 | Phone control | Android over ADB (keys, volume, open app by name, open link, battery, screenshot); anything else through Home Assistant. Ringing a phone and push alerts need a companion app. iPhone: very limited | **Built for Android** (see device fabric below); not tried on a real phone. iPhone not covered |
 | A7 | TV control | Roku, Kodi, Android/Fire TV (ADB), Wake-on-LAN, and Samsung/LG/others via Home Assistant (see device fabric below) | **Built**; not tried on a real TV. Samsung/LG direct, Chromecast and AirPlay are not coveredr TV model |
-| A8 | Desktop control beyond keystrokes | Window list, focus, click by text on screen (OCR), file search and open | Planned |
+| A8 | Desktop control beyond keystrokes | Window list, focus, click, scroll, read the screen (OCR), file search and open | Built (unverified on a real PC); clicking by the text it sees is still missing |
 | A9 | Food, rides, bills | Only through official APIs or A1 with the same hard stops. Not before A1 is proven | Planned |
 
 ## 3. Planned: Jarvis behaviour

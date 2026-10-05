@@ -57,7 +57,7 @@ class TestToolbelt:
         names = [s["function"]["name"] for s in schemas]
         assert names[0] == "home_control"
         assert schemas[0]["function"]["parameters"]["properties"]
-        assert len(names) == 14
+        assert len(names) == 20 and "files" in names and "run_command" in names
 
     def test_live_brain_executes_assistant_tool(self):
         step = asyncio.run(make_llm().run_tool(
