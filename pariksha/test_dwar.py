@@ -1179,3 +1179,96 @@ def test_without_a_bot_token_there_is_nothing_to_check(monkeypatch):
 
     assert res.status_code == 503
 
+
+# ── inbound webhooks ────────────────────────────────────────────────────────
+def _hook_client(monkeypatch, tmp_path):
+    from atulya import kriya
+    from atulya.dwar import ADMIN_TOKEN
+    from atulya.sevak import app
+
+    monkeypatch.setattr(kriya, "_DATA_DIR", tmp_path)  # hooks live in agent state
+    return TestClient(app), {"X-Atulya-Token": ADMIN_TOKEN}
+
+
+def test_making_a_hook_hands_out_a_long_random_secret(monkeypatch, tmp_path):
+    client, headers = _hook_client(monkeypatch, tmp_path)
+
+    made = client.post("/api/hooks", json={"name": "github"}, headers=headers).json()
+
+    assert made["ok"] and made["name"] == "github"
+    assert len(made["token"]) >= 32
+    assert made["url"] == f"/api/hooks/github/{made['token']}"
+
+
+def test_making_the_same_hook_twice_keeps_the_same_secret(monkeypatch, tmp_path):
+    """Rotating it quietly would break the service already pointing here."""
+    client, headers = _hook_client(monkeypatch, tmp_path)
+    first = client.post("/api/hooks", json={"name": "github"}, headers=headers).json()
+
+    again = client.post("/api/hooks", json={"name": "github"}, headers=headers).json()
+
+    assert again["token"] == first["token"]
+
+
+def test_a_hook_name_must_look_like_a_name(monkeypatch, tmp_path):
+    client, headers = _hook_client(monkeypatch, tmp_path)
+
+    for bad in ("", "../etc/passwd", "Mix Ed Case", "a" * 65):
+        assert client.post("/api/hooks", json={"name": bad}, headers=headers).status_code == 400, bad
+
+
+def test_an_outside_service_can_speak_through_its_hook(monkeypatch, tmp_path):
+    client, headers = _hook_client(monkeypatch, tmp_path)
+    made = client.post("/api/hooks", json={"name": "github"}, headers=headers).json()
+
+    res = client.post(made["url"], json={"title": "Build passed", "ref": "main"})
+
+    assert res.status_code == 200
+    assert res.json()["event"] == "hook.github"
+
+
+def test_a_wrong_secret_is_refused(monkeypatch, tmp_path):
+    client, headers = _hook_client(monkeypatch, tmp_path)
+    client.post("/api/hooks", json={"name": "github"}, headers=headers)
+
+    assert client.post("/api/hooks/github/not-the-token", json={}).status_code == 403
+
+
+def test_a_name_nobody_created_goes_nowhere(monkeypatch, tmp_path):
+    client, headers = _hook_client(monkeypatch, tmp_path)
+
+    assert client.post("/api/hooks/elsewhere/anything", json={}).status_code == 404
+
+
+def test_forgetting_a_hook_closes_it(monkeypatch, tmp_path):
+    client, headers = _hook_client(monkeypatch, tmp_path)
+    made = client.post("/api/hooks", json={"name": "github"}, headers=headers).json()
+
+    assert client.delete("/api/hooks/github", headers=headers).status_code == 200
+    assert client.post(made["url"], json={}).status_code == 404
+    assert client.delete("/api/hooks/github", headers=headers).status_code == 404
+
+
+def test_listing_hooks_does_not_hand_out_the_secret(monkeypatch, tmp_path):
+    client, headers = _hook_client(monkeypatch, tmp_path)
+    client.post("/api/hooks", json={"name": "github"}, headers=headers)
+
+    listed = client.get("/api/hooks", headers=headers).json()
+
+    assert [hook["name"] for hook in listed["hooks"]] == ["github"]
+    assert "token" not in listed["hooks"][0]
+
+
+def test_a_sender_that_speaks_plain_text_is_still_readable(monkeypatch, tmp_path):
+    client, headers = _hook_client(monkeypatch, tmp_path)
+    made = client.post("/api/hooks", json={"name": "sensor"}, headers=headers).json()
+
+    res = client.post(made["url"], content=b"door=open", headers={"Content-Type": "text/plain"})
+
+    assert res.status_code == 200
+    from atulya.adhar import default_bus
+
+    event = [e for e in default_bus.history(50) if e.type == "hook.sensor"][-1]
+    assert event.payload["hook"] == "sensor"
+    assert "door=open" in event.payload["text"]  # a notification still has something to say
+

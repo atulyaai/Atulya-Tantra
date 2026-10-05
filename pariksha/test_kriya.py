@@ -349,6 +349,156 @@ def test_the_watcher_keeps_going_after_a_failure(monkeypatch):
     assert bus.events[0][1]["from"] == "Ravi"
 
 
+# ── the news arrives instead of being fetched ───────────────────────────────
+def _entry(key: str, title: str) -> dict:
+    return {"key": key, "title": title, "link": f"https://example.test/{key}"}
+
+
+def _use_feeds(monkeypatch, pages: dict):
+    """Point the feed reader at canned pages instead of the internet.
+
+    ``pages`` maps a feed address to the entry lists successive polls return.
+    """
+    cursor = {url: 0 for url in pages}
+
+    def read(url: str) -> list[dict]:
+        page = pages[url]
+        current = page[min(cursor[url], len(page) - 1)]
+        cursor[url] += 1
+        return current
+
+    monkeypatch.setattr(tools, "_feed_entries", read)
+
+
+def test_the_news_tools_are_registered():
+    for name in ("news_add_feed", "news_remove_feed", "news_latest"):
+        assert name in tools.TOOL_REGISTRY
+
+
+def test_no_feeds_means_nothing_is_ever_fetched(monkeypatch):
+    """A machine that follows nobody must not reach out to the internet at all."""
+    calls: list[str] = []
+    monkeypatch.setattr(tools, "_feed_entries", lambda url: calls.append(url) or [])
+
+    assert run(tools._new_news()) == []
+    assert calls == []
+    assert not (tools._DATA_DIR / "news_state.json").exists()
+
+
+def test_subscribing_does_not_read_the_backlog_aloud(monkeypatch):
+    _use_feeds(monkeypatch, {"https://a.test/rss": [[_entry("1", "Old story")]]})
+    run(tools.news_add_feed("https://a.test/rss"))
+
+    assert run(tools._new_news()) == []
+    assert run(tools._new_news()) == []  # still history, still quiet
+
+
+def test_a_new_headline_is_announced_once(monkeypatch):
+    _use_feeds(monkeypatch, {"https://a.test/rss": [
+        [_entry("1", "Old story")],
+        [_entry("2", "Fresh story"), _entry("1", "Old story")],
+    ]})
+    run(tools.news_add_feed("https://a.test/rss"))
+    run(tools._new_news())  # baseline
+
+    got = run(tools._new_news())
+
+    assert [e["title"] for e in got] == ["Fresh story"]
+    assert got[0]["feed"] == "https://a.test/rss"
+    assert run(tools._new_news()) == []  # never announced twice
+
+
+def test_one_dead_feed_does_not_silence_the_others(monkeypatch):
+    good = {"https://good.test/rss": [[], [_entry("2", "Still coming")]]}
+    cursor = {"https://good.test/rss": 0}
+
+    def read(url: str) -> list[dict]:
+        if "dead" in url:
+            raise RuntimeError("timed out")
+        page = good[url]
+        current = page[min(cursor[url], len(page) - 1)]
+        cursor[url] += 1
+        return current
+
+    monkeypatch.setattr(tools, "_feed_entries", read)
+    run(tools.news_add_feed("https://good.test/rss"))
+    run(tools.news_add_feed("https://dead.test/rss"))
+    assert run(tools._new_news()) == []  # baseline for the live one
+
+    got = run(tools._new_news())
+
+    assert [e["title"] for e in got] == ["Still coming"]
+
+
+def test_the_news_watcher_announces_a_headline(monkeypatch):
+    _use_feeds(monkeypatch, {"https://a.test/rss": [
+        [_entry("1", "Old story")],
+        [_entry("2", "Fresh story")],
+    ]})
+    run(tools.news_add_feed("https://a.test/rss"))
+    run(tools._new_news())
+    bus = _Bus()
+
+    async def spin():
+        task = asyncio.create_task(tools.watch_news(bus, interval=0.05))
+        await asyncio.sleep(0.3)
+        task.cancel()
+
+    asyncio.run(spin())
+
+    assert [e[0] for e in bus.events] == ["news.new"]
+    assert bus.events[0][1]["title"] == "Fresh story"
+
+
+def test_the_news_watcher_keeps_going_after_a_failure(monkeypatch):
+    """A feed that throws must slow the loop down, not end it."""
+    calls = {"n": 0}
+
+    async def flaky(limit=20):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("offline")
+        if calls["n"] == 2:
+            return [{"title": "Back online", "feed": "https://a.test/rss", "link": ""}]
+        return []
+
+    monkeypatch.setattr(tools, "_new_news", flaky)
+    bus = _Bus()
+
+    async def spin():
+        task = asyncio.create_task(tools.watch_news(bus, interval=0.05))
+        await asyncio.sleep(0.3)
+        task.cancel()
+
+    asyncio.run(spin())
+
+    assert [e[0] for e in bus.events] == ["news.new"]
+    assert bus.events[0][1]["title"] == "Back online"
+
+
+def test_a_feed_address_must_be_a_real_address():
+    assert "http" in run(tools.news_add_feed("not a url"))
+
+
+def test_subscribing_twice_says_so_and_unsubscribing_forgets():
+    run(tools.news_add_feed("https://a.test/rss"))
+
+    assert "Already watching" in run(tools.news_add_feed("https://a.test/rss"))
+    assert "Stopped" in run(tools.news_remove_feed("https://a.test/rss"))
+    assert "No news feeds yet" in run(tools.news_latest())
+    assert "not being watched" in run(tools.news_remove_feed("https://a.test/rss"))
+
+
+def test_the_headlines_tool_reports_what_is_watched(monkeypatch):
+    _use_feeds(monkeypatch, {"https://a.test/rss": [[_entry("1", "Old story")]]})
+    run(tools.news_add_feed("https://a.test/rss"))
+    run(tools._new_news())  # records the headlines without announcing them
+
+    out = run(tools.news_latest())
+
+    assert "https://a.test/rss" in out and "Old story" in out
+
+
 class _FakeGmail:
     """`list_messages`, newest first, exactly as Google returns it."""
 

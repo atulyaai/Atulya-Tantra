@@ -2940,6 +2940,104 @@ def api_recent_events(limit: int = 50, _admin: dict = Depends(_require_admin)):
     ]}
 
 
+# ── inbound webhooks ────────────────────────────────────────────────────────
+_HOOKS_FILE = "hooks.json"
+_HOOK_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+
+
+def _hooks() -> dict:
+    from atulya.kriya import _load_json
+
+    data = _load_json(_HOOKS_FILE)
+    return dict(data.get("hooks") or {}) if isinstance(data, dict) else {}
+
+
+def _save_hooks(hooks: dict) -> None:
+    from atulya.kriya import _save_json
+
+    _save_json(_HOOKS_FILE, {"hooks": hooks})
+
+
+def _hook_summary(payload: dict) -> str:
+    """One line a notification can carry when the sender wrote none."""
+    for key in ("title", "message", "summary", "event", "state", "status"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()[:300]
+    body = json.dumps({k: v for k, v in payload.items() if k != "hook"}, default=str, ensure_ascii=False)
+    return body[:300] or "(empty)"
+
+
+@router.get("/api/hooks")
+def api_list_hooks(_admin: dict = Depends(_require_admin)):
+    """The addresses outside services may POST to. The secret itself is only
+    handed out when a hook is made, so a leaked admin session reads nothing."""
+    hooks = _hooks()
+    return {"hooks": [{"name": name, "created": info.get("created")} for name, info in sorted(hooks.items())]}
+
+
+@router.post("/api/hooks")
+def api_create_hook(body: dict, _admin: dict = Depends(_require_admin)):
+    """Make an address an outside service can POST to, landing on the bus.
+
+    Calling it twice with the same name returns the same secret rather than
+    rotating it, because rotating it silently would break the service that was
+    already pointing here.
+    """
+    name = str(body.get("name") or "").strip().lower()
+    if not _HOOK_NAME_RE.match(name):
+        raise HTTPException(status_code=400, detail="A hook name is lowercase letters, digits, - and _ (max 64).")
+    hooks = _hooks()
+    entry = hooks.get(name)
+    token = str(entry.get("token") or "") if entry else ""
+    if not token:
+        token = secrets.token_urlsafe(32)
+        hooks[name] = {"token": token, "created": time.time()}
+        _save_hooks(hooks)
+    return {"ok": True, "name": name, "token": token, "url": f"/api/hooks/{name}/{token}"}
+
+
+@router.delete("/api/hooks/{name}")
+def api_delete_hook(name: str, _admin: dict = Depends(_require_admin)):
+    hooks = _hooks()
+    if name not in hooks:
+        raise HTTPException(status_code=404, detail="No such hook")
+    hooks.pop(name, None)
+    _save_hooks(hooks)
+    return {"ok": True}
+
+
+@router.post("/api/hooks/{name}/{token}")
+async def api_fire_hook(name: str, token: str, request: Request):
+    """Let an outside service -- GitHub, IFTTT, Home Assistant, a sensor -- speak.
+
+    This is the one route on the server that answers without a session, which
+    is the entire point of it, so the address itself carries a long random
+    secret compared in constant time, and a name nobody created cannot match
+    anything. What arrives becomes ``hook.<name>`` where any trigger rule can
+    pick it up, exactly like ``email.new`` or ``reminder.due``.
+    """
+    entry = _hooks().get(name)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="No such hook")
+    expected = str(entry.get("token") or "")
+    if not expected or not secrets.compare_digest(expected, token):
+        raise HTTPException(status_code=403, detail="Wrong hook token")
+    try:
+        body: Any = await request.json()
+    except Exception:  # noqa: BLE001 - a sender may not be speaking JSON at all
+        raw = (await request.body())[:2000]
+        body = {"raw": raw.decode("utf-8", "replace")}
+    payload = dict(body) if isinstance(body, dict) else {"raw": str(body)[:2000]}
+    payload["hook"] = name
+    payload.setdefault("text", _hook_summary(payload))
+    from atulya.adhar import default_bus
+
+    event = await default_bus.emit(f"hook.{name}", payload)
+    return {"ok": True, "event": event.type}
+
+
+
 # ── routines ────────────────────────────────────────────────────────────
 def _kernel(request: Request):
     from atulya.buddhi import get_kernel

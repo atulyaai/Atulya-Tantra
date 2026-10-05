@@ -961,6 +961,22 @@ DEFAULT_RULES: list[dict[str, Any]] = [
         "cooldown_seconds": 0,
     },
     {
+        "id": "trg_news_new",
+        "name": "News headlines",
+        "event": "news.new",
+        "notify": "News: {title}.",
+        "enabled": True,
+        "cooldown_seconds": 0,
+    },
+    {
+        "id": "trg_hook_event",
+        "name": "Incoming webhooks",
+        "event": "hook.*",
+        "notify": "Webhook {hook}: {text}.",
+        "enabled": True,
+        "cooldown_seconds": 60,
+    },
+    {
         "id": "trg_someone_at_door",
         "name": "Someone at the door",
         "event": ["vision.person", "doorbell.pressed"],

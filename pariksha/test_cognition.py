@@ -395,7 +395,8 @@ class TestTriggers:
         engine, _, _ = self.make(tmp_path)
         assert {r["id"] for r in engine.list_rules()} == {
             "trg_reminder_alert", "trg_health_alert", "trg_automation_failed", "trg_habit_nudge",
-            "trg_someone_at_door", "trg_calendar_soon", "trg_bill_due", "trg_email_new"}
+            "trg_someone_at_door", "trg_calendar_soon", "trg_bill_due", "trg_email_new",
+            "trg_news_new", "trg_hook_event"}
 
     def test_new_defaults_top_up_old_rule_files_once(self, tmp_path):
         """An older rules file gets new built-ins, but a deleted built-in never returns."""
@@ -419,6 +420,26 @@ class TestTriggers:
         assert render(rule["notify"], {"from": "Ravi", "subject": "Invoice"}) == "Mail from Ravi: Invoice."
         # each field is capped, so one enormous subject cannot be shouted whole
         assert len(render(rule["notify"], {"from": "R", "subject": "x" * 500})) < 340
+
+    def test_the_news_rule_reads_the_payload(self):
+        from atulya.buddhi import DEFAULT_RULES, render
+
+        rule = next(r for r in DEFAULT_RULES if r["id"] == "trg_news_new")
+
+        assert rule["event"] == "news.new"
+        assert render(rule["notify"], {"title": "Solar milestone reached"}) == "News: Solar milestone reached."
+        # a feed with a long headline cannot be shouted whole either
+        assert len(render(rule["notify"], {"title": "x" * 500})) < 340
+
+    def test_the_webhook_rule_reads_the_payload(self):
+        from atulya.buddhi import DEFAULT_RULES, render
+
+        rule = next(r for r in DEFAULT_RULES if r["id"] == "trg_hook_event")
+
+        assert rule["event"] == "hook.*"  # any name a hook may be given
+        assert render(rule["notify"], {"hook": "github", "text": "Build passed"}) == "Webhook github: Build passed."
+        # one chatty service cannot fill the screen: the rule cools down
+        assert rule["cooldown_seconds"] >= 30
 
     def test_reminder_alert_and_command_rule(self, tmp_path):
         from atulya.kriya import _HOME_DEVICES
