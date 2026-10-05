@@ -865,3 +865,5 @@ button.icon:hover { border-color: var(--line); }
 .db-fbtns button.danger { color: #ff9a9a; border-color: rgba(255, 154, 154, 0.5); } .db-fbtns button:disabled, .db-scan:disabled { opacity: 0.5; cursor: default; }
 .db-scan { margin: 6px 0; padding: 6px 12px; font-size: 13px; }
 @media (max-width: 900px) { .db-grid .db-tile { overflow: visible; flex: none; } .db-grid { flex: none; } }
+.pair-code { margin: 12px 0 0; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.pair-code strong { font: 700 34px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0.25em; color: #bfe6ff; text-shadow: 0 0 14px rgba(80, 170, 255, 0.6); }

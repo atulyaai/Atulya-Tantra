@@ -21,6 +21,7 @@ from typing import Any
 from urllib.parse import parse_qs
 
 import psutil
+from pydantic import BaseModel
 from fastapi import (
     APIRouter,
     Depends,
@@ -435,6 +436,10 @@ def _require_auth(token: str | None = Header(default=None, alias="X-Atulya-Token
             return user
         if token == ADMIN_TOKEN:
             return {"username": "admin", "role": "admin", "display_name": "Admin"}
+        device = vault.paired_devices().authenticate(token)
+        if device:  # a paired phone or computer: everyday access only, never admin
+            return {"username": f"device:{device['id']}", "role": "device", "display_name": device["name"],
+                    "device_id": device["id"], "permission": device["permission"]}
         jwt_payload = _jwt_decode(token)
         if jwt_payload:
             return {"username": jwt_payload.get("sub", "jwt_user"), "role": jwt_payload.get("role", "user"), "display_name": jwt_payload.get("name", "")}
@@ -610,6 +615,73 @@ def api_auth_logout(token: str | None = Header(default=None, alias="X-Atulya-Tok
     return {"ok": True}
 
 
+# ── pairing: phones, laptops and desktops that belong to you ─────────────────────────────────────────────
+class PairCodeBody(BaseModel):
+    permission: str = "files"
+
+
+class EnrollBody(BaseModel):
+    code: str
+    name: str = "device"
+    kind: str = "device"
+
+
+@router.post("/api/pairing/code")
+def api_pairing_code(body: PairCodeBody, request: Request, token: str | None = Header(default=None, alias="X-Atulya-Token")):
+    """Make a one-time code (valid 10 minutes) to pair a new device (admin only)."""
+    admin = _require_admin(token)
+    try:
+        made = vault.paired_devices().new_code(body.permission)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    money.audit("pairing.code", by=admin.get("username"), permission=made["permission"])
+    return {**made, "url": str(request.base_url).rstrip("/")}
+
+
+@router.post("/api/pairing/enroll")
+def api_pairing_enroll(body: EnrollBody, request: Request):
+    """A new device trades the code for its own token. No login needed, but wrong codes are rate limited."""
+    who = request.client.host if request.client else ""
+    try:
+        device, device_token = vault.paired_devices().enroll(body.code, body.name, body.kind, who)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    money.audit("pairing.enrolled", device=device["name"], kind=device["kind"], permission=device["permission"])
+    return {"token": device_token, "device": device}
+
+
+@router.get("/api/pairing/devices")
+def api_pairing_devices(token: str | None = Header(default=None, alias="X-Atulya-Token")):
+    _require_admin(token)
+    return {"devices": vault.paired_devices().list()}
+
+
+@router.post("/api/pairing/devices/{device_id}/revoke")
+def api_pairing_revoke(device_id: str, token: str | None = Header(default=None, alias="X-Atulya-Token")):
+    admin = _require_admin(token)
+    if not vault.paired_devices().revoke(device_id):
+        raise HTTPException(status_code=404, detail="No such device")
+    money.audit("pairing.revoked", by=admin.get("username"), device_id=device_id)
+    return {"ok": True}
+
+
+class PermissionBody(BaseModel):
+    permission: str
+
+
+@router.post("/api/pairing/devices/{device_id}/permission")
+def api_pairing_permission(device_id: str, body: PermissionBody, token: str | None = Header(default=None, alias="X-Atulya-Token")):
+    admin = _require_admin(token)
+    try:
+        done = vault.paired_devices().set_permission(device_id, body.permission)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not done:
+        raise HTTPException(status_code=404, detail="No such device")
+    money.audit("pairing.permission", by=admin.get("username"), device_id=device_id, permission=body.permission)
+    return {"ok": True}
+
+
 @router.get("/api/users")
 def api_list_users(_admin: dict = Depends(_require_admin)):
     return {"ok": True, "users": users.list_users()}
@@ -762,6 +834,15 @@ def api_brain(token: str | None = Header(default=None, alias="X-Atulya-Token")):
     from atulya.mastishk import describe
 
     return describe()
+
+
+@router.get("/api/audit/verify")
+def api_audit_verify(token: str | None = Header(default=None, alias="X-Atulya-Token")):
+    """Is the activity log intact? Any edited, removed or reordered line breaks the chain (admin only)."""
+    _require_admin(token)
+    from atulya.kriya import verify_audit
+
+    return verify_audit()
 
 
 @router.get("/api/audit")

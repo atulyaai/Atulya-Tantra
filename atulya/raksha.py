@@ -6,7 +6,9 @@ import datetime
 import hashlib
 import hmac
 import ipaddress
+import json
 import os
+import threading
 import secrets
 import socket
 import time
@@ -311,7 +313,7 @@ def status(root: Path | str = "kosh") -> dict[str, object]:
 
 
 # Files that hold private data. Everything else (settings, caches, tokens meant to be read by tools) stays as is.
-PRIVATE = ("money.json", "calendar.json", "reminders.json", "email_config.json", "tracking.json", "chat_history.json", "fabric.json", "contacts.json")
+PRIVATE = ("money.json", "calendar.json", "reminders.json", "email_config.json", "tracking.json", "chat_history.json", "fabric.json", "contacts.json", "paired.json")
 
 
 def encrypt_tree(root: Path | str = "kosh") -> int:
@@ -408,3 +410,120 @@ def ensure_certs(directory: Path | None = None, names: list[str] | None = None, 
     cert_file.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
     return str(cert_file), str(key_file)
 
+
+# ── paired devices ───────────────────────────────────────────────────────────
+# Your phone, laptop or desktop joins with a short one-time code and then holds its own token. The token can be
+# cut off on its own at any time, and it only ever carries the permission level it was paired with.
+
+PERMISSIONS = ("read", "files", "full")  # what a paired device may be asked to do, least to most
+_PAIR_CODE_SECONDS = 600
+_PAIR_FAILS = 8  # wrong codes allowed per address per minute
+
+
+class PairedDevices:
+    def __init__(self, path: Path | str | None = None):
+        base = Path(os.environ.get("ATULYA_AGENT_DATA_DIR", "kosh/agent"))
+        self.path = Path(path) if path else base / "paired.json"
+        self._lock = threading.Lock()
+        self._codes: dict[str, tuple[float, str]] = {}  # code -> (expires, permission)
+        self._fails: dict[str, list[float]] = {}
+
+    # storage: only a hash of each token is kept, so the file alone cannot be used to log in
+    def _load(self) -> dict[str, dict[str, Any]]:
+        try:
+            return json.loads(read_text(self.path))
+        except (FileNotFoundError, ValueError):
+            return {}
+
+    def _save(self, devices: dict[str, dict[str, Any]]) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        write_text(self.path, json.dumps(devices, indent=2))
+
+    @staticmethod
+    def _hash(token: str) -> str:
+        return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+    def new_code(self, permission: str = "files") -> dict[str, Any]:
+        if permission not in PERMISSIONS:
+            raise ValueError(f"permission must be one of {', '.join(PERMISSIONS)}")
+        with self._lock:
+            now = time.time()
+            self._codes = {c: v for c, v in self._codes.items() if v[0] > now}
+            while len(self._codes) >= 5:
+                self._codes.pop(min(self._codes, key=lambda c: self._codes[c][0]))
+            code = f"{secrets.randbelow(10**6):06d}"
+            self._codes[code] = (now + _PAIR_CODE_SECONDS, permission)
+        return {"code": code, "permission": permission, "expires_in": _PAIR_CODE_SECONDS}
+
+    def _too_many_fails(self, who: str) -> bool:
+        now = time.time()
+        recent = [t for t in self._fails.get(who, []) if now - t < 60]
+        self._fails[who] = recent
+        return len(recent) >= _PAIR_FAILS
+
+    def enroll(self, code: str, name: str, kind: str = "device", who: str = "") -> tuple[dict[str, Any], str]:
+        """Swap a one-time code for a device token. Raises ValueError for a wrong, used or expired code."""
+        with self._lock:
+            if self._too_many_fails(who):
+                raise ValueError("Too many wrong codes. Wait a minute and try again.")
+            entry = self._codes.pop(str(code).strip(), None)
+            if entry is None or entry[0] < time.time():
+                self._fails.setdefault(who, []).append(time.time())
+                raise ValueError("That pairing code is wrong or has expired.")
+            token = "dev_" + secrets.token_urlsafe(32)
+            device = {"id": uuid.uuid4().hex[:10], "name": (name or "device").strip()[:60] or "device",
+                      "kind": (kind or "device").strip()[:20], "permission": entry[1], "created": time.time(),
+                      "last_seen": 0.0, "revoked": False}
+            devices = self._load()
+            devices[self._hash(token)] = device
+            self._save(devices)
+        return {k: v for k, v in device.items()}, token
+
+    def authenticate(self, token: str | None) -> dict[str, Any] | None:
+        if not token or not token.startswith("dev_"):
+            return None
+        with self._lock:
+            devices = self._load()
+            device = devices.get(self._hash(token))
+            if not device or device.get("revoked"):
+                return None
+            if time.time() - device.get("last_seen", 0) > 60:  # note the visit, but do not rewrite the file every call
+                device["last_seen"] = time.time()
+                self._save(devices)
+        return dict(device)
+
+    def list(self) -> list[dict[str, Any]]:
+        with self._lock:
+            return sorted(self._load().values(), key=lambda d: d["created"])
+
+    def revoke(self, device_id: str) -> bool:
+        with self._lock:
+            devices = self._load()
+            for device in devices.values():
+                if device["id"] == device_id and not device.get("revoked"):
+                    device["revoked"] = True
+                    self._save(devices)
+                    return True
+        return False
+
+    def set_permission(self, device_id: str, permission: str) -> bool:
+        if permission not in PERMISSIONS:
+            raise ValueError(f"permission must be one of {', '.join(PERMISSIONS)}")
+        with self._lock:
+            devices = self._load()
+            for device in devices.values():
+                if device["id"] == device_id and not device.get("revoked"):
+                    device["permission"] = permission
+                    self._save(devices)
+                    return True
+        return False
+
+
+_paired: PairedDevices | None = None
+
+
+def paired_devices() -> PairedDevices:
+    global _paired
+    if _paired is None or _paired.path.parent != Path(os.environ.get("ATULYA_AGENT_DATA_DIR", "kosh/agent")):
+        _paired = PairedDevices()
+    return _paired
