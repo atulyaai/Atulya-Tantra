@@ -209,7 +209,7 @@ This guide targets Oracle Cloud's Always Free eligible compute in your chosen ho
 
 ## 6. Systemd alternative
 
-Use this instead of Compose's restart policy only if you prefer systemd to manage the Compose stack. Copy the repository to `/opt/atulya`, create `/etc/systemd/system/atulya.service` from `systemd/atulya.service`, and verify its `WorkingDirectory` and Docker path. Run `sudo systemctl daemon-reload && sudo systemctl enable --now atulya`. **PASS:** `sudo systemctl status atulya` says active (exited), and `docker compose ps` shows both services running. Do not configure both systemd and Compose restart management.
+Use this instead of Compose's restart policy only if you prefer systemd to manage the Compose stack. Copy the repository to `/opt/atulya`, create `/etc/systemd/system/sevak.service` from `sevak.service` in the repository root, and verify its `WorkingDirectory` and Docker path. Run `sudo systemctl daemon-reload && sudo systemctl enable --now sevak`. **PASS:** `sudo systemctl status sevak` says active (exited), and `docker compose ps` shows both services running. Do not configure both systemd and Compose restart management.
 
 ## Leaked Telegram bot token
 
