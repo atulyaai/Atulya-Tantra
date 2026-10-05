@@ -142,6 +142,36 @@ class TestCamera:
         asyncio.run(watcher.step())
         assert "offline" in watcher.status()["error"]
 
+    @pytest.mark.parametrize("kind", ["camera", "home_sensor"])
+    def test_stop_propagates_cancellation_of_the_stopping_task(self, kind, tmp_path):
+        from atulya.indriya import CameraWatcher, HomeSensorWatcher
+
+        async def run():
+            if kind == "camera":
+                watcher = CameraWatcher("desk", ListSource([]), EventBus(), snapshot_dir=tmp_path)
+            else:
+                watcher = HomeSensorWatcher(FakeBridge([]), EventBus())
+            child_cancelled = asyncio.Event()
+            release_child = asyncio.Event()
+
+            async def slow_to_stop():
+                try:
+                    await asyncio.Future()
+                except asyncio.CancelledError:
+                    child_cancelled.set()
+                    await release_child.wait()
+
+            watcher._task = asyncio.create_task(slow_to_stop())
+            stopping = asyncio.create_task(watcher.stop())
+            await child_cancelled.wait()
+            stopping.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await stopping
+            release_child.set()
+            assert watcher._task is None
+
+        asyncio.run(run())
+
     def test_credentials_are_masked(self):
         from atulya.indriya import mask_source
 

@@ -266,14 +266,21 @@ class CameraWatcher:
             self._task = asyncio.create_task(self.run())
 
     async def stop(self) -> None:
-        if self._task is not None:
-            self._task.cancel()
-            try:
-                await self._task
-            except (asyncio.CancelledError, Exception):  # noqa: BLE001
-                pass
+        task = self._task
+        try:
+            if task is not None:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    current = asyncio.current_task()
+                    if current is not None and current.cancelling():
+                        raise
+                except Exception:
+                    logger.exception("Camera watcher task failed during shutdown")
+        finally:
             self._task = None
-        await asyncio.to_thread(self.source.close)
+            await asyncio.to_thread(self.source.close)
 
     def status(self) -> dict[str, Any]:
         return {
@@ -523,12 +530,19 @@ class HomeSensorWatcher:
             self._task = asyncio.create_task(self.run())
 
     async def stop(self) -> None:
-        if self._task is not None:
-            self._task.cancel()
-            try:
-                await self._task
-            except (asyncio.CancelledError, Exception):  # noqa: BLE001
-                pass
+        task = self._task
+        try:
+            if task is not None:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    current = asyncio.current_task()
+                    if current is not None and current.cancelling():
+                        raise
+                except Exception:
+                    logger.exception("Home sensor watcher task failed during shutdown")
+        finally:
             self._task = None
 
     def status(self) -> dict[str, Any]:

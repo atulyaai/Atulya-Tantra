@@ -3,7 +3,9 @@
 Legend: **Done** = implemented and has unit tests. **Unverified** = implemented, but never run on real hardware or accounts
 (a unit test with mocks does not count). **Planned** = not written yet. Update this file in every PR.
 
-Last full test run: 698 passed, 6 skipped (the skips need numpy).
+Last full test run: 778 passed, 6 skipped, 2 warnings (local Windows run, 2026-10-05).
+
+Critical audit fixes on 2026-10-05: the server registers its API router once; the rate-limit store expires idle clients and has a fixed capacity; Telegram streaming avoids duplicate final replies, logs brain failures, and keeps voice approvals voice-first; watcher shutdown propagates cancellation; the LLM warm-up task is cancelled and awaited; corrupt vector memory is logged and copied before the app starts with an empty in-memory store. These fixes have unit tests. Telegram, phone, and cloud deployment behavior remain unverified against live services or real hardware.
 
 ## 1. Everyday actions (tools in `atulya/kriya.py` and friends)
 

@@ -99,6 +99,66 @@ async def test_rate_limiter_exceeded():
 
 
 @pytest.mark.asyncio
+async def test_rate_limiter_expires_idle_clients_and_bounds_store(monkeypatch):
+    import atulya.sevak as server
+
+    server._RATE_STORE.clear()
+    monkeypatch.setattr(server, "_RATE_STORE_MAX_CLIENTS", 1)
+    server._RATE_STORE["stale"] = [server.time.time() - server._RATE_LIMIT_WINDOW - 1]
+    request = Mock()
+    request.client.host = "fresh"
+    downstream = AsyncMock(return_value=object())
+
+    result = await server._rate_limiter(request, downstream)
+
+    assert result is downstream.return_value
+    assert list(server._RATE_STORE) == ["fresh"]
+    request.client.host = "another-client"
+    rejected = await server._rate_limiter(request, downstream)
+    assert rejected.status_code == 429
+    assert list(server._RATE_STORE) == ["fresh"]
+    server._RATE_STORE.clear()
+
+
+@pytest.mark.asyncio
+async def test_shutdown_cancels_and_awaits_background_task():
+    import asyncio
+
+    from atulya.sevak import _cancel_task
+
+    cleaned_up = asyncio.Event()
+
+    async def background_task():
+        try:
+            await asyncio.Future()
+        finally:
+            cleaned_up.set()
+
+    task = asyncio.create_task(background_task())
+    await asyncio.sleep(0)
+    await _cancel_task(task)
+
+    assert task.cancelled()
+    assert cleaned_up.is_set()
+
+
+def test_server_includes_each_api_route_once():
+    from collections import Counter
+
+    from fastapi.routing import APIRoute
+
+    from atulya.sevak import app
+
+    counts = Counter(
+        (route.path, tuple(sorted(route.methods or ())))
+        for route in app.routes
+        if isinstance(route, APIRoute)
+    )
+    assert all(count == 1 for count in counts.values())
+    assert counts[("/api/auth/login", ("POST",))] == 1
+
+
+@pytest.mark.asyncio
 async def test_dashboard_telemetry_endpoint():
     from fastapi.testclient import TestClient
 

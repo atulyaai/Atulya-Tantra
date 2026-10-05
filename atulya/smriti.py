@@ -4,9 +4,11 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import math
 import re
 import sqlite3
+import shutil
 import threading
 import time
 from abc import ABC, abstractmethod
@@ -15,6 +17,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+logger = logging.getLogger(__name__)
 
 # ── orchestrator ────────────────────────────────────────────────────────────
 class MemoryProviderType(Enum):
@@ -312,9 +315,28 @@ class VectorMemoryProvider(MemoryProvider):
         if self._store_path.exists():
             try:
                 data = json.loads(self._store_path.read_text(encoding="utf-8"))
-                self._entries = data.get("entries", [])
-                self._embeddings = data.get("embeddings", [])
+                if not isinstance(data, dict):
+                    raise ValueError("vector store root must be an object")
+                entries = data.get("entries", [])
+                embeddings = data.get("embeddings", [])
+                if (not isinstance(entries, list) or not isinstance(embeddings, list)
+                        or len(entries) != len(embeddings)):
+                    raise ValueError("vector store entries and embeddings are invalid or mismatched")
+                self._entries = entries
+                self._embeddings = embeddings
             except Exception:
+                stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+                backup = self._store_path.with_name(f"{self._store_path.name}.corrupt-{stamp}")
+                suffix = 1
+                while backup.exists():
+                    backup = self._store_path.with_name(f"{self._store_path.name}.corrupt-{stamp}-{suffix}")
+                    suffix += 1
+                try:
+                    shutil.copy2(self._store_path, backup)
+                except OSError:
+                    logger.exception("Vector memory is corrupt at %s; backup failed", self._store_path)
+                else:
+                    logger.exception("Vector memory is corrupt at %s; preserved a copy at %s", self._store_path, backup)
                 self._entries = []
                 self._embeddings = []
         self._initialized = True

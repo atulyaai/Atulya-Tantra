@@ -26,13 +26,22 @@ logger = logging.getLogger(__name__)
 
 async def _post_json(url: str, payload: dict[str, Any], timeout: float = 10.0) -> tuple[int, dict[str, Any]]:
     import asyncio
+    import urllib.error
 
     def request() -> tuple[int, dict[str, Any]]:
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
-        with urllib.request.urlopen(req, timeout=timeout) as response:
-            body = response.read().decode("utf-8") or "{}"
-            return response.status, json.loads(body)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                body = response.read().decode("utf-8") or "{}"
+                return response.status, json.loads(body)
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8") or "{}"
+            try:
+                result = json.loads(body)
+            except json.JSONDecodeError:
+                result = {}
+            return exc.code, result if isinstance(result, dict) else {}
 
     return await asyncio.to_thread(request)
 
@@ -201,6 +210,8 @@ class TelegramChannel(ChannelBase):
             return False
         try:
             status, result = await _post_json(f"https://api.telegram.org/bot{token}/{method}", payload)
+            if method == "editMessageText" and "message is not modified" in str(result.get("description", "")).casefold():
+                return True
             return status < 400 and bool(result.get("ok", True))
         except Exception:
             logger.warning("Telegram %s failed", method)
@@ -492,6 +503,7 @@ class TelegramChannel(ChannelBase):
             else:
                 response = await llm.ask(prompt, history=history)
         except Exception:
+            logger.exception("Telegram message handling failed (media_type=%s)", media_type or "text")
             if media_type == "video":
                 await self.send("I couldn't analyze this video. Try a shorter MP4 clip, or a model with video input support.", chat_id)
                 return "video_error"
@@ -558,7 +570,6 @@ class TelegramChannel(ChannelBase):
             elif event.type == "done":
                 provider = str(event.metadata.get("provider") or "")
         answer = "".join(text_parts).strip() or "I couldn't get a reply just now. Please try again."
-        await self._edit_text(chat_id, message_id, answer)
         remember = getattr(llm, "remember", None)
         if callable(remember):
             await remember(prompt, answer)
@@ -590,7 +601,9 @@ class TelegramChannel(ChannelBase):
             from atulya.mastishk import AtulyaLLM
             llm = AtulyaLLM()
         history = self._histories.setdefault(str(message.sender), [])
-        await self.send("Atulya is working on it...", chat_id)
+        voice_reply = self._reply_modes.get(str(message.sender), False)
+        if not voice_reply:
+            await self.send("Atulya is working on it...", chat_id)
         action_task = asyncio.create_task(self._keep_typing(chat_id))
         try:
             response = await llm.ask("Run the approved action now.", history=history,
@@ -610,7 +623,7 @@ class TelegramChannel(ChannelBase):
                 if match:
                     await self.send_pc_screenshot(match.group(1), chat_id)
         # Same rule as an ordinary reply: spoken in, spoken out.
-        if self._reply_modes.get(str(message.sender)) and await self._speak_reply(answer, chat_id):
+        if voice_reply and await self._speak_reply(answer, chat_id):
             return "approved"
         await self.send(html.escape(answer)[:3900], chat_id,
                         parse_mode=self.config.get("parse_mode", "HTML"))

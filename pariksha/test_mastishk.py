@@ -271,6 +271,30 @@ def test_telegram_ask_routes_to_llm():
     asyncio.run(run())
 
 
+def test_telegram_brain_failure_is_logged(caplog):
+    from atulya.sandesh import ChannelMessage, TelegramChannel
+
+    class BrokenLLM:
+        async def ask(self, prompt, history=None):
+            raise RuntimeError("brain offline")
+
+    async def run():
+        channel = TelegramChannel()
+        await channel.connect({"allowlist": "123", "bot_token": "test-token"})
+
+        async def fake_send(*args, **kwargs):
+            return True
+
+        channel.send = fake_send
+        return await channel.handle_message(
+            ChannelMessage("1", "telegram", "123", "hello", metadata={"chat_id": "10"}), BrokenLLM())
+
+    with caplog.at_level("ERROR", logger="atulya.sandesh"):
+        assert asyncio.run(run()) == "brain_error"
+    assert "Telegram message handling failed" in caplog.text
+    assert "RuntimeError: brain offline" in caplog.text
+
+
 def test_telegram_preserves_sender_history():
     from atulya.sandesh import ChannelMessage, TelegramChannel
 
@@ -375,6 +399,45 @@ def test_telegram_approval_is_one_shot_and_bound_to_sender():
     asyncio.run(run())
 
 
+def test_telegram_voice_approval_avoids_a_text_working_message():
+    from atulya.sandesh import ChannelMessage, TelegramChannel
+
+    pending = {"tool": "pc_open_app", "arguments": {"app": "calculator"}}
+
+    class FakeLLM:
+        async def ask(self, prompt, history=None, **kwargs):
+            class Response:
+                text = "Opening calculator."
+                tool_steps = []
+            return Response()
+
+    async def run():
+        channel = TelegramChannel()
+        await channel.connect({"allowlist": "123", "bot_token": "test-token"})
+        channel._reply_modes["123"] = True
+        channel._pending_approvals["123"] = (pending, __import__("time").time() + 60)
+        sent = []
+        spoken = []
+
+        async def fake_send(message, chat_id="", **kwargs):
+            sent.append(message)
+            return True
+
+        async def fake_speak(text, chat_id):
+            spoken.append(text)
+            return True
+
+        channel.send = fake_send
+        channel._speak_reply = fake_speak
+        result = await channel.handle_message(
+            ChannelMessage("2", "telegram", "123", "yes", metadata={"chat_id": "10"}), FakeLLM())
+        assert result == "approved"
+        assert sent == []
+        assert spoken == ["Opening calculator."]
+
+    asyncio.run(run())
+
+
 def test_openrouter_image_analysis_skips_models_without_image_support(monkeypatch):
     from atulya.mastishk import OpenRouterProvider
 
@@ -462,9 +525,26 @@ def test_telegram_streams_plain_chat_into_one_editable_message():
             ChannelMessage("1", "telegram", "123", "What is 2 plus 2?", metadata={"chat_id": "10"}), llm)
         assert result == "answered"
         assert edits[-1] == ("10", 99, "A streamed answer.")
+        assert len(edits) == 1
         assert llm.remembered == ("What is 2 plus 2?", "A streamed answer.")
 
     asyncio.run(run())
+
+
+def test_telegram_unchanged_stream_edit_does_not_trigger_duplicate_send(monkeypatch):
+    import atulya.sandesh as channels
+    from atulya.sandesh import TelegramChannel
+
+    async def fake_post(url, payload, timeout=10.0):
+        return 400, {"ok": False, "description": "Bad Request: message is not modified"}
+
+    async def run():
+        channel = TelegramChannel()
+        await channel.connect({"bot_token": "test-token"})
+        monkeypatch.setattr(channels, "_post_json", fake_post)
+        return await channel._edit_text("10", 99, "Same final answer")
+
+    assert asyncio.run(run()) is True
 
 
 def test_telegram_file_send_is_disabled_without_explicit_opt_in(monkeypatch):

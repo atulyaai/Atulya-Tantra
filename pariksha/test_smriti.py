@@ -265,6 +265,21 @@ class TestVectorMemoryProvider:
         assert tmp_dir.exists()
 
     @pytest.mark.asyncio
+    async def test_corrupt_store_is_preserved_before_fresh_start(self, provider, tmp_dir, caplog):
+        corrupt = b'{"entries": [broken'
+        provider._store_path.write_bytes(corrupt)
+
+        with caplog.at_level("ERROR", logger="atulya.smriti"):
+            await provider.initialize()
+
+        backups = list(tmp_dir.glob("vector_test.json.corrupt-*"))
+        assert len(backups) == 1
+        assert backups[0].read_bytes() == corrupt
+        assert provider._store_path.read_bytes() == corrupt
+        assert provider._entries == [] and provider._embeddings == []
+        assert "Vector memory is corrupt" in caplog.text
+
+    @pytest.mark.asyncio
     async def test_store_and_retrieve(self, provider, tmp_dir):
         await provider.initialize()
         entry = MemoryEntry(

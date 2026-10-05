@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import time
+from collections import OrderedDict
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -14,10 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from atulya import dwar as api_account
-from atulya import dwar as api_agent
-from atulya import dwar as api_chat
-from atulya import dwar as api_home
+from atulya import dwar as api
 from atulya.dwar import AutomationRunner
 from atulya.raksha import cors_origins as _cors_origins
 from atulya.setu import MCPClientManager
@@ -33,18 +31,29 @@ logger = logging.getLogger(__name__)
 
 _RATE_LIMIT_WINDOW = 60
 _RATE_LIMIT_MAX = 100
-_RATE_STORE: dict[str, list[float]] = {}
+_RATE_STORE_MAX_CLIENTS = 10_000
+_RATE_STORE: OrderedDict[str, list[float]] = OrderedDict()
 
 
 async def _rate_limiter(request: Request, call_next):
     client = request.client.host if request.client else "unknown"
     now = time.time()
     window_start = now - _RATE_LIMIT_WINDOW
+    # Requests move their client to the end. This lets expired clients be
+    # evicted from the front without scanning the whole store on every call.
+    while _RATE_STORE:
+        oldest_client, oldest_hits = next(iter(_RATE_STORE.items()))
+        if oldest_hits and oldest_hits[-1] > window_start:
+            break
+        _RATE_STORE.pop(oldest_client)
     hits = [t for t in _RATE_STORE.get(client, []) if t > window_start]
     if len(hits) >= _RATE_LIMIT_MAX:
         return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded. Try again later."})
+    if client not in _RATE_STORE and len(_RATE_STORE) >= _RATE_STORE_MAX_CLIENTS:
+        return JSONResponse(status_code=429, content={"detail": "Rate limit capacity reached. Try again later."})
     hits.append(now)
     _RATE_STORE[client] = hits
+    _RATE_STORE.move_to_end(client)
     return await call_next(request)
 
 
@@ -70,6 +79,14 @@ async def _poll_telegram(channel, llm) -> None:
         await asyncio.sleep(2)
 
 
+async def _cancel_task(task: asyncio.Task | None) -> None:
+    """Cancel a background task and wait for its cleanup to finish."""
+    if task is None:
+        return
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from atulya.dwar import set_agent
@@ -80,8 +97,8 @@ async def lifespan(app: FastAPI):
     app.state.mcp_manager = MCPClientManager()
     app.state.mcp_errors = []
     await _connect_mcp_servers(app)
-    api_agent._seed_default_jobs()
-    app.state.automation_runner = AutomationRunner(api_agent.JOBS_FILE, app.state.llm)
+    api._seed_default_jobs()
+    app.state.automation_runner = AutomationRunner(api.JOBS_FILE, app.state.llm)
     app.state.automation_task = asyncio.create_task(app.state.automation_runner.start())
 
     app.state.telegram_task = None
@@ -144,6 +161,7 @@ async def lifespan(app: FastAPI):
         await app.state.senses.stop()
         await app.state.automation_runner.stop()
         app.state.automation_task.cancel()
+        await _cancel_task(app.state.llm_warm_task)
         if app.state.telegram_task:
             app.state.telegram_task.cancel()
             await asyncio.gather(app.state.telegram_task, return_exceptions=True)
@@ -206,8 +224,7 @@ app.middleware("http")(_rate_limiter)
 
 
 
-for module in (api_account, api_chat, api_agent, api_home):
-    app.include_router(module.router)
+app.include_router(api.router)
 
 
 dist = Path(__file__).resolve().parents[1] / "drishti" / "dist"
