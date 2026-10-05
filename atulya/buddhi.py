@@ -1197,6 +1197,17 @@ def connect_sensors(events: EventBus | None = None) -> None:
 # ── buddhi ────────────────────────────────────────────────────────────
 KERNEL_PROVIDER = "Atulya Kernel"
 KERNEL_ORIGIN = "kernel"
+
+
+def _same_action(held: dict[str, Any] | None, approved: dict[str, Any]) -> bool:
+    """Is this approval for exactly the action that was held (same tool, same arguments)?"""
+    if not held:
+        return False
+
+    def key(action: dict[str, Any]) -> tuple[str, str]:
+        return str(action.get("tool") or ""), json.dumps(action.get("arguments") or {}, sort_keys=True, default=str)
+
+    return key(held) == key(approved)
 # Commands the user authored in advance (scheduled jobs, trigger rules) were
 # approved when they were created, so they don't stop to ask again.
 PRE_AUTHORIZED_SOURCES = {"automation", "trigger"}
@@ -1453,6 +1464,8 @@ class CognitiveKernel:
             denied = await self._deny_if_unprivileged(approved_tool, user, source)
             if denied is not None:
                 return denied
+            if not _same_action(held, approved_tool):  # only what Atulya itself asked about, once
+                return await self._not_waiting(approved_tool, user, source)
             self._learn_approval(user, approved_tool, True)
             if approved_tool.get("origin") == KERNEL_ORIGIN and approved_tool.get("tool") in _kernel_tools():
                 response = await self._act(approved_tool, user=user, source=source, prompt=text,
@@ -1667,6 +1680,17 @@ class CognitiveKernel:
                                provider=KERNEL_PROVIDER, trace=[_step("remember", "Forgot", "Profile cleared")])
         return LLMResponse(text="Okay, I'll keep what I know.", provider=KERNEL_PROVIDER,
                            trace=[_step("decide", "Kept", "Profile unchanged")])
+
+    async def _not_waiting(self, action: dict[str, Any], user: Any, source: str) -> LLMResponse:
+        """An approval for something that was never asked (or has expired): refuse, and say so."""
+        tool = str(action.get("tool") or "")
+        await self._emit("action.denied", {"tool": tool, "user": self._user_key(user), "source": source,
+                                           "reason": "no matching request was waiting"})
+        return LLMResponse(
+            text="That approval has expired or was never requested, so I did not do it. Ask me again.",
+            provider=KERNEL_PROVIDER,
+            trace=[_step("decide", "Refused", "No matching request was waiting for approval")],
+        )
 
     async def _deny_if_unprivileged(self, action: dict[str, Any], user: Any, source: str) -> LLMResponse | None:
         """Refuse a confirmation-level action for a non-admin web user."""

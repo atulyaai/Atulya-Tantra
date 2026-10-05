@@ -356,3 +356,12 @@ def test_loading_the_local_model_does_not_freeze_the_server(tmp_path, monkeypatc
     answer, ticks = asyncio.run(scenario())
     assert answer == "hi"
     assert ticks >= 8   # the loop kept running while the 0.4 s load happened (blocked loop: 0-1 ticks)
+
+
+def test_confirmations_for_file_and_pc_tools_are_readable():
+    from atulya.mastishk import describe_action
+
+    assert describe_action("file_write", {"path": "notes.txt"}) == "write the file notes.txt"
+    assert describe_action("file_edit", {"path": "a.py"}) == "change the file a.py"
+    assert describe_action("pc_screenshot", {}) == "take a screenshot of your screen"
+    assert describe_action("exec", {"command": "dir"}) == "run this on your computer: dir"

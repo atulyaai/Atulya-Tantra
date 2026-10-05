@@ -200,6 +200,27 @@ class TestKernel:
 
         asyncio.run(run())
 
+    def test_approval_must_match_what_was_asked_and_works_once(self):
+        kernel, seen = make_kernel()
+        admin = {"username": "u", "role": "admin"}
+        never_asked = {"tool": "send_email", "arguments": {"to": "x@y.z", "subject": "s", "body": "b"}}
+
+        async def run():
+            r = await kernel.handle("", user=admin, approved_tool=never_asked)
+            assert "never requested" in r.text
+            held = await kernel.handle("unlock the front door", user=admin)
+            changed = {**held.pending_tool, "arguments": {**held.pending_tool["arguments"], "device_id": "garage"}}
+            r = await kernel.handle("", user=admin, approved_tool=changed)  # different arguments
+            assert "never requested" in r.text
+            held = await kernel.handle("unlock the front door", user=admin)
+            ok = await kernel.handle("", user=admin, approved_tool=held.pending_tool)
+            assert ok.text == "Front Door is now unlocked."
+            again = await kernel.handle("", user=admin, approved_tool=held.pending_tool)  # replay
+            assert "never requested" in again.text
+
+        asyncio.run(run())
+        assert "action.denied" in seen
+
     def test_non_admin_can_do_everyday_actions_but_not_risky_ones(self):
         kernel, seen = make_kernel()
         guest = {"username": "guest", "role": "user"}

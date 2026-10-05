@@ -290,6 +290,14 @@ def describe_action(tool: str, arguments: dict[str, Any] | None = None) -> str:
         return "type that on your keyboard"
     if tool == "pc_hotkey":
         return f"press {args.get('keys', 'a shortcut')}"
+    if tool == "pc_screenshot":
+        return "take a screenshot of your screen"
+    if tool == "file_write":
+        return f"write the file {args.get('path', 'a file')}"
+    if tool == "file_edit":
+        return f"change the file {args.get('path', 'a file')}"
+    if tool in ("exec", "code_execute"):
+        return f"run this on your computer: {str(args.get('command') or args.get('code') or 'a command')[:80]}"
     if tool in _CHECKS:
         return _CHECKS[tool]
     return f"run {tool}"

@@ -16,6 +16,7 @@ import sys
 import secrets
 import socket
 import subprocess
+import threading
 import time
 import urllib.parse
 import urllib.request
@@ -51,14 +52,60 @@ def _clean(value: Any) -> Any:
     return value
 
 
-def audit(event: str, **fields: Any) -> None:
-    """Record one event; never raises."""
+_audit_lock = threading.Lock()
+_GENESIS = "0" * 64
+
+
+def _digest(prev: str, record: dict[str, Any]) -> str:
+    body = json.dumps(record, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256((prev + body).encode("utf-8")).hexdigest()
+
+
+def _tail_hash(path: Path) -> str:
+    """The hash of the last chained line (each line also carries the hash of the one before it)."""
     try:
-        line = json.dumps({"t": round(time.time(), 1), "event": event, **_clean(fields)}, ensure_ascii=False)
-        with _path().open("a", encoding="utf-8") as fh:
-            fh.write(line + "\n")
+        for line in reversed(path.read_text(encoding="utf-8").splitlines()):
+            if line.strip():
+                return str(json.loads(line).get("h") or _GENESIS)
+    except Exception:  # noqa: BLE001
+        pass
+    return _GENESIS
+
+
+def audit(event: str, **fields: Any) -> None:
+    """Record one event in a hash chain, so a changed or deleted line is detectable; never raises."""
+    try:
+        record = {"t": round(time.time(), 1), "event": event, **_clean(fields)}
+        with _audit_lock:
+            path = _path()
+            prev = _tail_hash(path)
+            line = json.dumps({**record, "prev": prev, "h": _digest(prev, record)}, ensure_ascii=False)
+            with path.open("a", encoding="utf-8") as fh:
+                fh.write(line + "\n")
     except Exception:  # noqa: BLE001 - auditing must never break an action
         pass
+
+
+def verify_audit() -> dict[str, Any]:
+    """Re-check the whole chain. Lines written before chaining existed are skipped."""
+    path = _path()
+    try:
+        lines = [x for x in path.read_text(encoding="utf-8").splitlines() if x.strip()]
+    except FileNotFoundError:
+        return {"ok": True, "checked": 0, "bad_line": None}
+    prev, checked = _GENESIS, 0
+    for number, line in enumerate(lines, 1):
+        try:
+            record = json.loads(line)
+        except ValueError:
+            return {"ok": False, "checked": checked, "bad_line": number}
+        if "h" not in record:  # from before the chain started
+            continue
+        claimed_prev, claimed = record.pop("prev", None), record.pop("h")
+        if claimed_prev != prev or _digest(prev, record) != claimed:
+            return {"ok": False, "checked": checked, "bad_line": number}
+        prev, checked = claimed, checked + 1
+    return {"ok": True, "checked": checked, "bad_line": None}
 
 
 def recent(limit: int = 20) -> list[dict[str, Any]]:

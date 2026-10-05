@@ -44,10 +44,76 @@ export function Senses({ toast }) {
     await load();
   }
 
+  const [paired, setPaired] = useState([]);
+  const [code, setCode] = useState(null);
+  const [permission, setPermission] = useState('files');
+  const loadPaired = () => api.get('/api/pairing/devices').then((r) => setPaired(r.devices)).catch(() => {});
+  useEffect(() => { loadPaired(); }, []);
+
+  async function makeCode() {
+    try {
+      setCode(await api.post('/api/pairing/code', { permission }));
+    } catch (err) {
+      toast('error', err.message);
+    }
+  }
+
+  async function cutOff(device) {
+    if (!window.confirm(`Cut off ${device.name}? It will need to be paired again.`)) return;
+    await api.post(`/api/pairing/devices/${device.id}/revoke`).catch((err) => toast('error', err.message));
+    await loadPaired();
+  }
+
   if (!senses) return <div className="lazy-loading">Loading senses…</div>;
   const origin = window.location.origin;
   return (
     <div className="reflexes">
+      <section className="panel">
+        <div className="panel-title">
+          <h2>Your devices</h2>
+          <span className="muted">Phones, laptops and desktops that belong to you. Each pairs once and can be cut off any time.</span>
+        </div>
+        <div className="reflex-list">
+          {paired.length === 0 && <p className="muted">No paired devices yet.</p>}
+          {paired.map((d) => (
+            <div className="reflex-card" key={d.id}>
+              <div className="reflex-head">
+                <strong>{d.name}</strong>
+                <span className="reflex-badges">
+                  {d.revoked ? <span className="badge warn">cut off</span> : <span className="badge good">{d.permission}</span>}
+                  <span className="badge">{d.kind}</span>
+                </span>
+              </div>
+              <div className="muted">Last seen {ago(d.last_seen)}</div>
+              {!d.revoked && (
+                <div className="reflex-actions">
+                  <button type="button" className="danger" onClick={() => cutOff(d)}>Cut off</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="setup-box">
+          <h3>Pair a new device</h3>
+          <div className="reflex-row">
+            <label>What may it do?
+              <select value={permission} onChange={(e) => setPermission(e.target.value)}>
+                <option value="read">Look only</option>
+                <option value="files">Work with files</option>
+                <option value="full">Everything (still asks before risky steps)</option>
+              </select>
+            </label>
+          </div>
+          <button type="button" className="primary" onClick={makeCode}>Show a pairing code</button>
+          {code && (
+            <p className="pair-code" aria-live="polite">
+              <strong>{code.code}</strong>
+              <span className="muted"> Type this on the new device within 10 minutes. Address: <code>{code.url}</code></span>
+            </p>
+          )}
+        </div>
+      </section>
+
       <section className="panel">
         <div className="panel-title">
           <h2>Cameras</h2>

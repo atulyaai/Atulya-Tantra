@@ -125,6 +125,20 @@ def test_audit_log_records_tools_and_hides_secrets(data_dir):
     assert login["password"] == "***" and "hunter2" not in json.dumps(events)
 
 
+def test_audit_log_is_a_hash_chain_that_detects_tampering(data_dir):
+    for n in range(4):
+        audit_mod.audit("step", n=n)
+    assert audit_mod.verify_audit() == {"ok": True, "checked": 4, "bad_line": None}
+    path = audit_mod._path()
+    lines = path.read_text(encoding="utf-8").splitlines()
+    path.write_text("\n".join([lines[0], lines[1].replace('"n": 1', '"n": 9'), *lines[2:]]) + "\n", encoding="utf-8")
+    assert audit_mod.verify_audit()["bad_line"] == 2           # edited line
+    path.write_text("\n".join([lines[0], *lines[2:]]) + "\n", encoding="utf-8")
+    assert not audit_mod.verify_audit()["ok"]                   # deleted line
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    assert audit_mod.verify_audit()["ok"]                       # restored
+
+
 # ── test_calendar_watch ────────────────────────────────────────────────────────────
 class _Bus:
     def __init__(self):
