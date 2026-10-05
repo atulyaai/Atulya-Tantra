@@ -463,18 +463,147 @@ class VectorMemoryProvider(MemoryProvider):
         }
 
 
+# ── voice_identity ──────────────────────────────────────────────────────────
+class VoiceIdentityProvider(MemoryProvider):
+    """Speaker embeddings for voice ID.
+
+    Stores (name -> embedding) pairs. Matching incoming audio against the
+    store returns the best match above a threshold, or None.
+    """
+
+    def __init__(self, data_dir: str | Path = "kosh/memory", threshold: float = 0.75):
+        self.data_dir = Path(data_dir)
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self._store_path = self.data_dir / "voice_identity.json"
+        self._embeddings: dict[str, list[float]] = {}
+        self._threshold = threshold
+        self._model = None
+        self._initialized = False
+
+    def _load_model(self):
+        """Lazy-load the speaker embedding model (speechbrain ECAPA-TDNN)."""
+        if self._model is not None:
+            return
+        try:
+            from speechbrain.inference.speaker import EncoderClassifier
+            self._model = EncoderClassifier.from_hparams(
+                source="speechbrain/spkrec-ecapa-voxcelebre2",
+                savedir=str(self.data_dir / "ecapa_voxcelebre2"),
+                run_opts={"device": "cpu"},
+            )
+            logger.info("Voice ID model loaded (ECAPA-TDNN)")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Voice ID model not available: %s", exc)
+            self._model = False  # mark as unavailable
+
+    async def initialize(self):
+        if self._initialized:
+            return
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        if self._store_path.exists():
+            try:
+                data = json.loads(self._store_path.read_text(encoding="utf-8"))
+                self._embeddings = data if isinstance(data, dict) else {}
+            except Exception:
+                self._embeddings = {}
+        self._initialized = True
+        # Load model in background
+        await asyncio.to_thread(self._load_model)
+
+    def _persist(self):
+        try:
+            self._store_path.write_text(
+                json.dumps(self._embeddings, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Voice identity persist failed: %s", exc)
+
+    def _embed_audio(self, audio_path: str) -> list[float] | None:
+        """Extract speaker embedding from a WAV file."""
+        if not self._model or self._model is False:
+            return None
+        try:
+            import torchaudio
+            import torch
+            waveform, sr = torchaudio.load(audio_path)
+            if sr != 16000:
+                import torchaudio.transforms as T
+                resampler = T.Resample(sr, 16000)
+                waveform = resampler(waveform)
+            # speechbrain expects (batch, time)
+            if waveform.ndim == 1:
+                waveform = waveform.unsqueeze(0)
+            elif waveform.shape[0] > 1:
+                waveform = waveform.mean(dim=0, keepdim=True)
+            with torch.no_grad():
+                emb = self._model.encode_batch(waveform)
+            return emb.squeeze().cpu().numpy().tolist()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Voice embed failed: %s", exc)
+            return None
+
+    def _cosine_sim(self, a: list[float], b: list[float]) -> float:
+        dot = sum(x * y for x, y in zip(a, b))
+        na = math.sqrt(sum(x * x for x in a))
+        nb = math.sqrt(sum(y * y for y in b))
+        return dot / (na * nb) if na and nb else 0.0
+
+    def enroll(self, name: str, audio_path: str) -> bool:
+        """Add or update a speaker from a WAV file."""
+        emb = self._embed_audio(audio_path)
+        if emb is None:
+            return False
+        self._embeddings[name] = emb
+        self._persist()
+        return True
+
+    def identify(self, audio_path: str) -> tuple[str, float] | None:
+        """Return (name, similarity) of best match, or None if below threshold."""
+        emb = self._embed_audio(audio_path)
+        if emb is None:
+            return None
+        best_name = None
+        best_sim = 0.0
+        for name, stored in self._embeddings.items():
+            sim = self._cosine_sim(emb, stored)
+            if sim > best_sim:
+                best_sim = sim
+                best_name = name
+        if best_sim >= self._threshold and best_name:
+            return best_name, best_sim
+        return None
+
+    async def store(self, entry: MemoryEntry) -> str:
+        # Not used for voice identity
+        return entry.id
+
+    async def search(self, query: str, limit: int = 10) -> list[MemoryEntry]:
+        # Not used for voice identity
+        return []
+
+    async def get_recent(self, limit: int = 10) -> list[MemoryEntry]:
+        return []
+
+    async def close(self):
+        self._persist()
+
+
 # ── manager ────────────────────────────────────────────────────────────
 class MemoryManager(MemoryOrchestrator):
     def __init__(self, data_dir: str | Path = "kosh/memory"):
         super().__init__(data_dir)
         self.session_search = SessionSearchProvider(data_dir)
         self.vector_store = VectorMemoryProvider(data_dir)
+        self.voice_identity = VoiceIdentityProvider(data_dir)
 
     async def initialize(self):
         await self.session_search.initialize()
         await self.vector_store.initialize()
+        await self.voice_identity.initialize()
         self.register_provider(self.session_search)
         self.register_provider(self.vector_store)
+        self.register_provider(self.voice_identity)
 
     async def close(self):
         if self.session_search:

@@ -65,6 +65,12 @@ ambient = [
     "pystray>=0.19",
     "Pillow>=10.0",
 ]
+# Voice identity: speaker embeddings + diarization (optional extra).
+voice_id = [
+    "speechbrain>=1.0",
+    "torchaudio>=2.0",
+    "pyannote.audio>=3.0",
+]
 # Cameras: motion + person detection for "someone is at the door".
 vision = [
     "opencv-python-headless>=4.8,<5",  # 5.x drops CascadeClassifier

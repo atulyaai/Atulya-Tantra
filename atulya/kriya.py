@@ -3327,7 +3327,52 @@ async def message_send(to: str, text: str, via: str = "") -> str:
         return f"I couldn't send to {contact['name']} on {chan}: {exc}"
     if not sent:
         return f"I couldn't send to {contact['name']} on {chan}. {chan.title()} isn't set up yet (see the Channels section of the README)."
-    return f"Sent to {contact['name']} on {chan}: “{text}”"
+    return f"Sent to {contact['name']} on {chan}."
+
+
+# ─ Voice Identity ────────────────────────────
+@tool("voice_enroll", "Enroll your voice for speaker recognition", {
+    "name": {"type": "string", "description": "Your name (e.g. 'Ananya')"},
+    "wav_path": {"type": "string", "description": "Path to a WAV file of you speaking (16kHz, mono)"},
+})
+async def voice_enroll(name: str, wav_path: str) -> str:
+    name = str(name).strip()
+    if not name:
+        return "A name is required."
+    if not os.path.exists(wav_path):
+        return f"File not found: {wav_path}"
+    from atulya.smriti import MemoryManager
+    mm = MemoryManager()
+    await mm.initialize()
+    ok = mm.voice_identity.enroll(name, wav_path)
+    await mm.close()
+    return f"Enrolled voice for {name}" if ok else "Enrollment failed (model unavailable or bad audio)."
+
+
+@tool("voice_identify", "Identify who is speaking from a WAV file", {
+    "wav_path": {"type": "string", "description": "Path to a WAV file (16kHz, mono)"},
+})
+async def voice_identify(wav_path: str) -> str:
+    if not os.path.exists(wav_path):
+        return f"File not found: {wav_path}"
+    from atulya.smriti import MemoryManager
+    mm = MemoryManager()
+    await mm.initialize()
+    result = mm.voice_identity.identify(wav_path)
+    await mm.close()
+    if result:
+        return f"Recognized: {result[0]} (similarity {result[1]:.2f})"
+    return "Unknown speaker (or model unavailable)."
+
+
+@tool("voice_list", "List enrolled voice identities", {})
+async def voice_list() -> str:
+    from atulya.smriti import MemoryManager
+    mm = MemoryManager()
+    await mm.initialize()
+    names = list(mm.voice_identity._embeddings.keys())
+    await mm.close()
+    return f"Enrolled voices: {', '.join(names) if names else '(none)'}"
 
 
 from atulya import jaal  # noqa: E402,F401  (registers the web tools; jaal needs the tool registry above)
