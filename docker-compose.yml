@@ -1,8 +1,28 @@
 services:
   atulya:
     build: .
-    ports: ["8501:8501"]
+    env_file: .env
+    environment:
+      ATULYA_HOST: 0.0.0.0
+      ATULYA_HTTPS: "off"
+      ATULYA_JWT_SECRET_FILE: /run/secrets/atulya_jwt_secret
+    secrets:
+      - atulya_jwt_secret
     volumes:
       - ./kosh:/app/kosh
-    env_file: [.env]
+    expose:
+      - "8501"
     restart: unless-stopped
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN:?Set CF_TUNNEL_TOKEN in .env}
+    environment:
+      CF_TUNNEL_TOKEN: ${CF_TUNNEL_TOKEN}
+    depends_on:
+      - atulya
+    restart: unless-stopped
+
+secrets:
+  atulya_jwt_secret:
+    file: ./secrets/jwt_secret
