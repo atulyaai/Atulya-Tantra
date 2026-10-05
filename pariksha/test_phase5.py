@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -198,6 +199,82 @@ def test_merge_env_defaults_preserves_existing_values(tmp_path):
     assert changed == {"ATULYA_GROQ_MODEL": "llama-3.3-70b-versatile"}
     assert "ATULYA_OLLAMA_MODEL=custom" in content
     assert "ATULYA_GROQ_MODEL=llama-3.3-70b-versatile" in content
+
+
+def test_free_provider_check_covers_the_whole_catalog():
+    """The readiness report counted three free keys, not the catalog's fourteen.
+
+    Setting CEREBRAS_API_KEY (or any of the other eleven) used to leave it
+    insisting that no free inference was configured at all.
+    """
+    from atulya import adesh as cli
+    from atulya.mastishk import CATALOG
+
+    expected = [spec.key_var for spec in CATALOG if spec.free in ("free", "free tier")]
+
+    assert cli._free_provider_keys() == expected
+    assert len(expected) >= 14
+    assert {"GROQ_API_KEY", "CEREBRAS_API_KEY", "HF_TOKEN"} <= set(expected)
+    # paid providers are not free inference
+    assert "DEEPSEEK_API_KEY" not in expected
+    assert "OPENAI_API_KEY" not in expected
+
+
+def test_readiness_passes_on_a_free_key_outside_the_old_shortlist(monkeypatch):
+    from atulya import adesh as cli
+
+    monkeypatch.setenv("ATULYA_OLLAMA_HOST", "http://127.0.0.1:1")  # offline, so keys decide
+    for key in cli._free_provider_keys():
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("CEREBRAS_API_KEY", "ck-test")
+
+    check = cli._check_free_provider()
+
+    assert check.status == "pass"
+    assert "CEREBRAS_API_KEY" in check.detail
+
+
+def test_setup_keys_runs_without_the_free_defaults(tmp_path, monkeypatch):
+    """`atulya setup --keys` must work on its own, after install.py has run."""
+    import argparse
+
+    from atulya import adesh as cli
+
+    seen: dict[str, object] = {}
+    monkeypatch.setattr(cli, "_collect_brain_keys", lambda path: seen.setdefault("path", path))
+
+    cli._cmd_setup(argparse.Namespace(free=False, keys=True, env=str(tmp_path / ".env")))
+
+    assert seen["path"] == Path(tmp_path) / ".env"
+
+
+def test_collect_brain_keys_writes_skips_and_reports_what_is_set(tmp_path, monkeypatch, capsys):
+    from atulya import adesh as cli
+    from atulya.mastishk import CATALOG
+
+    env_path = Path(tmp_path) / ".env"
+    existing = "sk-or-existing"
+    env_path.write_text(f"OPENROUTER_API_KEY={existing}\n", encoding="utf-8")
+    monkeypatch.setenv("OPENROUTER_API_KEY", existing)
+    monkeypatch.setenv("CEREBRAS_API_KEY", "")  # unset for this test, restored afterwards
+
+    answers = {spec.key_var: "" for spec in CATALOG if spec.free in ("free", "free tier")}
+    answers["CEREBRAS_API_KEY"] = "ck-secret-1234"
+
+    def fake_input(prompt: str) -> str:
+        key = prompt.split("\n", 1)[1].strip().split(" ", 1)[0]
+        return answers.get(key, "")
+
+    added = cli._collect_brain_keys(env_path, input_fn=fake_input)
+    out = capsys.readouterr().out
+    content = env_path.read_text(encoding="utf-8")
+
+    assert added == ["CEREBRAS_API_KEY"]
+    assert "CEREBRAS_API_KEY=ck-secret-1234" in content
+    assert f"OPENROUTER_API_KEY={existing}" in content  # never overwritten
+    assert f"set ({existing[-4:]})" in out  # an existing key shows its last four, not its body
+    assert "ck-secret-1234" not in out  # and the rest never reaches the console
+    assert os.environ.get("CEREBRAS_API_KEY") == "ck-secret-1234"
 
 
 def test_ollama_provider_reads_env(monkeypatch):

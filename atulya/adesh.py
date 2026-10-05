@@ -87,6 +87,8 @@ def main() -> None:
 
     setup_p = sub.add_parser("setup", help="Write safe local configuration defaults")
     setup_p.add_argument("--free", action="store_true", help="Configure free-first local/free-tier defaults")
+    setup_p.add_argument("--keys", action="store_true",
+                         help="Add free-tier brain keys interactively (shows which are already set)")
     setup_p.add_argument("--env", default=".env", help="Env file to update")
 
     args = parser.parse_args()
@@ -389,21 +391,64 @@ def _cmd_model(args: argparse.Namespace) -> None:
 
 
 def _cmd_setup(args: argparse.Namespace) -> None:
-    if not args.free:
-        print("Use: atulya setup --free")
+    if not args.free and not args.keys:
+        print("Use: atulya setup --free  (add --keys to fill in the brain keys)")
         return
     env_path = Path(args.env)
-    try:
-        changed = _merge_env_defaults(env_path, FREE_DEFAULTS)
-    except PermissionError as exc:
-        print(f"Could not update {env_path}: {exc}")
-        print("Run the command from a writable project directory, or choose --env inside a writable folder.\n")
-        return
-    if changed:
-        _print_table(["Added", "Value"], changed.items())
-    else:
-        print(f"{env_path} already has the free-first defaults.\n")
-    print(f"Configured free-first defaults in {env_path} without writing API keys.\n")
+    if args.free:
+        try:
+            changed = _merge_env_defaults(env_path, FREE_DEFAULTS)
+        except PermissionError as exc:
+            print(f"Could not update {env_path}: {exc}")
+            print("Run the command from a writable project directory, or choose --env inside a writable folder.\n")
+            return
+        if changed:
+            _print_table(["Added", "Value"], changed.items())
+        else:
+            print(f"{env_path} already has the free-first defaults.\n")
+        print(f"Configured free-first defaults in {env_path} without writing API keys.\n")
+    if args.keys:
+        _collect_brain_keys(env_path)
+
+
+def _collect_brain_keys(env_path: Path, input_fn: Any = input) -> list[str]:
+    """Walk every free-tier brain in the catalog, showing what is already set.
+
+    install.py offers the three keys it recommends and stops there, but the
+    catalog declares fourteen free-tier providers. The other eleven had no way
+    in at all, and the readiness report only counted the same three -- so
+    adding CEREBRAS_API_KEY still read as "no free inference configured".
+    """
+    from atulya.adhar import set_env_value
+    from atulya.mastishk import CATALOG
+
+    free_specs = [spec for spec in CATALOG if spec.free in ("free", "free tier")]
+    print(f"{len(free_specs)} free-tier brains. Press Enter to skip any you do not have.\n")
+    rows: dict[str, str] = {}
+    added: list[str] = []
+    for spec in free_specs:
+        label = f"{spec.label} ({spec.key_var})"
+        current = (os.environ.get(spec.key_var, "") or "").strip()
+        if current:
+            rows[label] = f"set ({current[-4:]})"
+            continue
+        where = f" — {spec.docs}" if spec.docs else ""
+        answer = (input_fn(f"  {spec.label}{where}\n    {spec.key_var} (Enter to skip): ") or "").strip()
+        if not answer:
+            rows[label] = "skipped"
+            continue
+        try:
+            set_env_value(spec.key_var, answer, env_path)
+        except ValueError:
+            rows[label] = "rejected (invalid)"
+            continue
+        rows[label] = "added"
+        added.append(spec.key_var)
+    _print_table(["Brain (variable)", "Status"], rows.items())
+    if added:
+        print(f"\nAdded {len(added)} key(s) to {env_path}. Restart Atulya so it re-reads them.")
+    print("Check with: python install.py --doctor   (or: atulya readiness)")
+    return added
 
 
 if __name__ == "__main__":
@@ -456,19 +501,31 @@ def _check_llm_bridge(root: Path) -> ReadinessCheck:
     return _file_check(root / "atulya" / "llm.py", "LLM bridge", "atulya/mastishk.py is present")
 
 
+def _free_provider_keys() -> list[str]:
+    """Key variables for every free-tier brain the catalog declares.
+
+    This used to be a three-item shortlist, so setting CEREBRAS_API_KEY (or
+    any of the other eleven) left the readiness report insisting that no free
+    inference was configured at all.
+    """
+    from atulya.mastishk import CATALOG
+
+    return [spec.key_var for spec in CATALOG if spec.free in ("free", "free tier")]
+
+
 def _check_free_provider() -> ReadinessCheck:
     if _ollama_available():
         return ReadinessCheck("Free inference", "pass", "Ollama is reachable on localhost")
-    configured = [
-        key for key in ("GROQ_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY")
-        if os.environ.get(key)
-    ]
+    keys = _free_provider_keys()
+    configured = [key for key in keys if os.environ.get(key)]
     if configured:
         return ReadinessCheck("Free inference", "pass", f"Configured: {', '.join(configured)}")
     return ReadinessCheck(
         "Free inference",
         "fail",
-        "Configure Ollama locally or set one free-tier key. Prefer OPENROUTER_API_KEY or GROQ_API_KEY; GEMINI_API_KEY is a rare fallback.",
+        f"Configure Ollama locally or set one of the {len(keys)} free-tier keys "
+        "(prefer OPENROUTER_API_KEY or GROQ_API_KEY). "
+        "Add them with: atulya setup --free --keys",
     )
 
 
