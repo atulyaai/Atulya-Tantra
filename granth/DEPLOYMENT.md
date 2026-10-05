@@ -174,25 +174,51 @@ If either Google server is enabled without credentials, readiness reports `produ
 
 Off by default. When a passphrase is set, private files (money, calendar, reminders, email settings, chat history, profiles) are stored encrypted with a key derived from the passphrase (scrypt) and a random salt in `kosh/vault.salt`. The passphrase is never written to disk. A file that cannot be opened is never overwritten. There is no recovery if the passphrase is lost. It does not protect against someone who can read the running process or your `.env`.
 
-## Build the Android app and install the PWA
+# Run it on an Oracle free VM behind Cloudflare
 
-### Android debug APK
+This guide targets Oracle Cloud's Always Free eligible compute in your chosen home region. Oracle capacity and eligibility vary; check the console's displayed cost before creating anything. The public app is `https://atulya.atulvij.com`. Keep the VM firewall closed to inbound web traffic: cloudflared makes an outbound tunnel.
 
-Prerequisites: install Node.js 20 or newer, Python 3, Java 21, and Android Studio's Android SDK and command-line tools. Set `ANDROID_HOME` to the SDK directory and accept its licenses in Android Studio's **SDK Manager**. **PASS:** `adb --version` and `java -version` both print versions.
+## 1. Create the VM
 
-From the repository root run:
+1. Sign in at [Oracle Cloud](https://cloud.oracle.com/). Open **☰ → Compute → Instances → Create instance**. **PASS:** the Create instance page is open.
+2. Name it `atulya`; select an Always Free eligible image and shape shown as eligible in your account; create an SSH key pair and save the private key somewhere safe. **PASS:** the review shows the eligible shape and estimated cost is $0. **FAIL:** stop if the console shows a charge or no eligible shape.
+3. Click **Create** and wait for **Running**. **PASS:** copy the public IPv4 address and connect using the saved SSH key. **FAIL:** resolve any subnet/security-list warning before continuing.
+4. In the instance subnet's security list, allow SSH (TCP 22) only from your current public IP. Do not add inbound 80/443; the tunnel needs outbound connectivity only. **PASS:** inbound rules show SSH restricted to your IP and no public web ports.
 
-```sh
-cd drishti
-npm ci
-npm run build
-npm run android:debug
-```
+## 2. Install Docker
 
-The script runs `npx cap add android` on the first build, then `npx cap sync android`, copies the tracked Android manifest and Gradle settings, and runs Gradle `assembleDebug`. **PASS:** `drishti/android/app/build/outputs/apk/debug/app-debug.apk` exists. **FAIL:** run `npx cap doctor android`, open `drishti/android/` in Android Studio, and accept any missing SDK packages. Android builds and installation have not been verified on a real phone.
+1. Connect over SSH. Run the official Docker Engine install instructions for the VM's Linux image from [Docker Engine documentation](https://docs.docker.com/engine/install/). Add your account to the Docker group only if you understand that group grants root-equivalent control; otherwise use `sudo docker`.
+2. Run `docker --version` and `docker compose version`. **PASS:** both print versions. **FAIL:** revisit the Docker instructions for the exact image.
+3. Clone the repository and enter it: `git clone https://github.com/atulyaai/Atulya-Tantra.git && cd Atulya-Tantra`. **PASS:** `docker-compose.yml` and `Dockerfile` are present.
 
-Install the debug build with `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`. On first launch, enter `https://atulya.atulvij.com` (or your own server address); the app stores it locally and uses it for API and WebSocket requests. **PASS:** the app proceeds to the sign-in screen after saving the address.
+## 3. Configure secrets and start Atulya
 
-### Progressive web app
+1. Copy `.env.example` to `.env`; edit it on the VM. Set `ATULYA_HOST=0.0.0.0`, `ATULYA_HTTPS=off`, `ATULYA_JWT_SECRET_FILE=/run/secrets/atulya_jwt_secret`, `ATULYA_PC_CONTROL=off`, and `ATULYA_PUBLIC_URL=https://atulya.atulvij.com`. Leave Telegram values blank unless you intentionally configure Telegram. **PASS:** these names and values are present; no secrets have been pasted into chat or committed.
+2. Create `secrets/jwt_secret` using `mkdir -p secrets && openssl rand -hex 32 > secrets/jwt_secret && chmod 600 secrets/jwt_secret && chmod 600 .env`. Add `CF_TUNNEL_TOKEN=` to `.env`; fill it after creating the tunnel. **PASS:** `test -s secrets/jwt_secret` succeeds and its file mode is 600.
+3. Run `docker compose up -d --build`. **PASS:** `docker compose ps` shows Atulya running. **FAIL:** inspect `docker compose logs atulya` and correct the reported configuration.
 
-Run `npm ci && npm run build` from `drishti/`, then serve `drishti/dist/` from the Atulya server or another HTTPS host. Open the site in a supported mobile browser and use its **Install app** or **Add to Home Screen** action. **PASS:** the installed app shows the Atulya icon and opens standalone. Browsers require HTTPS (or localhost) for service workers and install prompts.
+## 4. Create the Cloudflare Tunnel and DNS
+
+1. Sign in at [Cloudflare Zero Trust](https://one.dash.cloudflare.com/). Open **Networks → Tunnels → Create a tunnel**, select **Cloudflared**, name it `atulya-oracle`, and follow the Linux connector instructions. **PASS:** the tunnel status is **Healthy** after the connector is running.
+2. In the tunnel's **Public hostnames** page, add hostname `atulya.atulvij.com`, service type **HTTP**, URL `atulya:8501` when using the Compose connector (or `http://127.0.0.1:8501` for the systemd/host connector). **PASS:** the hostname appears and the tunnel reports Healthy.
+3. Put the tunnel token in `.env` as `CF_TUNNEL_TOKEN=...`, then run `docker compose up -d`; never paste the token into chat or commit it. Cloudflare's hostname setup creates the DNS record. **PASS:** DNS shows the tunnel CNAME and `https://atulya.atulvij.com` reaches the app. **FAIL:** check the tunnel connector logs and hostname target.
+4. Optional config-file deployment: copy `cloudflared-config.yml.example` to `/etc/cloudflared/config.yml`, replace both UUID placeholders, install the credentials JSON at the shown path, and run `cloudflared tunnel run <UUID>`. Do not run this host-based alternative alongside the Compose connector for the same tunnel.
+
+## 5. Require Cloudflare Access login
+
+1. In Zero Trust, open **Access → Applications → Add an application → Self-hosted**. Set the application domain to `atulya.atulvij.com`. **PASS:** the application is listed.
+2. Add an **Allow** policy with **Include → Emails →** only the owner's email address. Do not use a broad email-domain rule. **PASS:** only that exact email appears in the Include rule.
+3. Create path-specific policies before the catch-all application policy: `/api/pairing/enroll` and `/agent/*` use **Bypass**. The owner accepts that these routes rely on their device-token authentication; never use Bypass for other paths. Set Cloudflare rate limiting on these routes (for example, 10 requests/minute per source IP with a temporary block); tune to actual usage. Then apply the email-only **Allow** policy to all remaining paths. **PASS:** a private browser is redirected to Access for `/`; the two device-token routes reach the origin without Access and are rate limited. **FAIL:** if a protected page opens without login, disable the application until the policy is corrected.
+4. Verify device enrollment and `/agent/` only with a paired device token. **PASS:** no token is rejected and a valid token reaches its endpoint. Cloudflare Bypass is safe only because the application checks device tokens.
+
+## 6. Systemd alternative
+
+Use this instead of Compose's restart policy only if you prefer systemd to manage the Compose stack. Copy the repository to `/opt/atulya`, create `/etc/systemd/system/atulya.service` from `systemd/atulya.service`, and verify its `WorkingDirectory` and Docker path. Run `sudo systemctl daemon-reload && sudo systemctl enable --now atulya`. **PASS:** `sudo systemctl status atulya` says active (exited), and `docker compose ps` shows both services running. Do not configure both systemd and Compose restart management.
+
+## Leaked Telegram bot token
+
+> **Revoke it immediately:** open Telegram and message **@BotFather**, send `/revoke`, choose the affected bot, and follow the prompts. Put the newly issued token only in the server's `.env` and restart the service. A leaked token must be treated as compromised even if it was only pasted into a private conversation.
+
+## Update and inspect
+
+Run `git pull` followed by `docker compose up -d --build`. Check `docker compose ps` and `docker compose logs --tail=100`. **PASS:** both services are running and the site prompts for Access login from a signed-out browser.
