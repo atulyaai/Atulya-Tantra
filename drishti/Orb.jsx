@@ -67,7 +67,8 @@ export function Orb({ onMenu, toast, onCommand }) {
   const holoBoxRef = useRef(null);
   const holoRef = useRef(null); // the particle humanoid, once running
   const [holo, setHolo] = useState('loading'); // loading | ready | none (no WebGL: the orb shows)
-  const [opening, setOpening] = useState(true);
+  const [typing, setTyping] = useState(false); // the text box is hidden until asked for
+  const [capVisible, setCapVisible] = useState(true);
   const audioCtxRef = useRef(null);
   const analyserRef = useRef(null); // whichever source is live: mic or voice
   const micRef = useRef(null); // { stream, source, analyser }
@@ -345,7 +346,7 @@ export function Orb({ onMenu, toast, onCommand }) {
       u.lang = hindi ? 'hi-IN' : 'en-GB';
       // Some browsers never fire onend (no voices installed): don't hang on it.
       const timer = setTimeout(resolve, 2500 + text.split(/\s+/).length * 450);
-      u.onend = () => { clearTimeout(timer); resolve(); };
+      u.onend = () => { resolve(); };
       u.onerror = u.onend;
       window.speechSynthesis.speak(u);
     });
@@ -576,7 +577,6 @@ export function Orb({ onMenu, toast, onCommand }) {
   // The holographic humanoid (three.js), loaded lazily; the orb is the fallback.
   useEffect(() => {
     let cancelled = false;
-    const timer = setTimeout(() => setOpening(false), 5200);
     import('./Hologram.js')
       .then(async ({ createHologram }) => {
         if (cancelled) return;
@@ -607,37 +607,43 @@ export function Orb({ onMenu, toast, onCommand }) {
     error: 'Something went wrong',
   };
 
+  // With the hologram the screen stays free of text: replies appear in the right-hand corner, and only for a while.
+  const quiet = holo === 'ready';
+  useEffect(() => {
+    setCapVisible(true);
+    const id = setTimeout(() => setCapVisible(false), 16000);
+    return () => clearTimeout(id);
+  }, [said, heard, hint, state]);
+
   return (
-    <div className={`orb-screen ${state}${holo === 'ready' ? ' with-holo' : ''}`}>
+    <div className={`orb-screen ${state}${quiet ? ' with-holo' : ''}${typing ? ' typing' : ''}`}>
       <canvas ref={canvasRef} className={`orb-canvas${holo === 'ready' ? ' hidden' : ''}`} onClick={tapOrb}
         aria-label="Talk to Atulya" role="button" />
       <div ref={holoBoxRef} className={`orb-holo ${holo}`} onClick={tapOrb} />
-      {holo === 'ready' && (
-        <div className="orb-hud" aria-hidden="true">
-          <span>ATULYA · {state === 'idle' && !started ? 'STANDBY' : 'ONLINE'}</span>
-          <span>{state.toUpperCase()}</span>
-        </div>
-      )}
-      {holo === 'ready' && opening && <div className="orb-opening">Assembling · hologram</div>}
       <div className="orb-top">
         <button type="button" className="orb-icon" onClick={onMenu} title="Menu" aria-label="Menu">☰</button>
-        <div className="orb-name">ATULYA</div>
+        <div className="orb-name" />
         <div className="orb-icons">
           {cams.state !== 'unsupported' && cams.state !== 'none' && (
             <button type="button" className={`orb-icon ${camOn ? 'on' : ''}`} onClick={() => toggleWebcam(!camOn)}
               title={camOn ? 'Turn the camera off' : cams.state === 'denied' ? 'Camera is blocked' : 'Turn the camera on (the browser will ask permission)'}
               aria-label="Camera">📷</button>
           )}
+          {quiet && (
+            <button type="button" className={`orb-icon ${typing ? 'on' : ''}`} onClick={() => setTyping((v) => !v)}
+              title="Type to Atulya" aria-label="Type to Atulya">⌨</button>
+          )}
           <button type="button" className="orb-icon" onClick={() => setShowSettings((v) => !v)} title="Settings" aria-label="Settings">⚙</button>
         </div>
       </div>
 
+      {(!quiet || (capVisible && (heard || said || hint))) && (
       <div className="orb-captions" ref={captionsRef}>
-        <div className="orb-status">{STATUS[state]}</div>
+        {!quiet && <div className="orb-status">{STATUS[state]}</div>}
         {heard && <div className="orb-heard">“{heard}”</div>}
         {said && <div className="orb-said">{said}</div>}
         {hint && <div className="orb-hint">{hint}</div>}
-        {!said && !heard && state !== 'thinking' && (
+        {!quiet && !said && !heard && state !== 'thinking' && (
           <div className="orb-chips">
             {SUGGESTIONS.map((text) => (
               <button type="button" key={text} onClick={() => ask(text)}>{text}</button>
@@ -645,12 +651,15 @@ export function Orb({ onMenu, toast, onCommand }) {
           </div>
         )}
       </div>
+      )}
 
       {camOn && <div className="orb-cam" ref={previewRef} title="Your camera is on. Everything stays in this browser unless you ask me to look at something." />}
 
+      {(!quiet || typing) && (
       <form className="orb-type" onSubmit={(e) => { e.preventDefault(); const t = typed.trim(); setTyped(''); if (t) ask(t); }}>
-        <input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Or type to Atulya…" />
+        <input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Or type to Atulya…" autoFocus={quiet} />
       </form>
+      )}
 
       {showSettings && (
         <div className="orb-settings">
