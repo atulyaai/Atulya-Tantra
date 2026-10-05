@@ -13,8 +13,8 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 // Scene units: the chin sits at y = 0, the crown at y = 1.1, the bust ends at y = -0.85.
 const HEAD = { x: 0, y: 0.55, rx: 0.42, ry: 0.55 };
 const FACE = { y: 0.46, rx: 0.31, ry: 0.34 }; // where the warm glow lives
-const NECK = { half: 0.26, flare: 0.04, base: -0.04 };
-const SHOULDER = { x: 1.2, y: -0.82 };
+const NECK = { half: 0.27, flare: 0.05, base: -0.2 };
+const SHOULDER = { x: 1.24, y: -0.8 };
 const ORB = { x: 0, y: -0.8 };
 const KIND = { body: 0, glow: 1, vein: 2, dust: 3 };
 const BLUE = [0.12, 0.42, 0.95];
@@ -31,26 +31,29 @@ function smooth(e0, e1, x) { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - 
 function headHalf(y) {
   const k = (y - HEAD.y) / HEAD.ry;
   if (Math.abs(k) >= 1) return 0;
-  const ear = 0.018 * Math.exp(-(((y - 0.5) / 0.05) ** 2));
-  const round = k > 0 ? Math.sqrt(1 - k * k) : (1 - (-k) ** 2.4) ** (1 / 2.2);
+  const ear = 0.035 * Math.exp(-(((y - 0.5) / 0.07) ** 2));
+  const round = k > 0 ? (1 - k ** 2.3) ** (1 / 2.1) : (1 - (-k) ** 2.4) ** (1 / 2.2);
   return HEAD.rx * round + ear;
 }
 
 // Half-width of the neck at height y: it flares out towards the shoulders.
-function neckHalf(y) { return NECK.half + NECK.flare * smooth(0.05, NECK.base, y); }
+function neckHalf(y) { return NECK.half + NECK.flare * smooth(0.0, NECK.base, y); }
 
 // Height of the shoulder line at sideways distance ax: drops quickly off the neck, then levels out.
 function shoulderY(ax) {
   const x0 = neckHalf(NECK.base);
-  const t = Math.min(1, Math.max(0, (ax - x0) / (SHOULDER.x - x0)));
-  return NECK.base + (SHOULDER.y - NECK.base) * (1 - (1 - t) ** 1.4);
+  const raw = (v) => {
+    const t = Math.min(1, Math.max(0, (v - x0) / (SHOULDER.x - x0)));
+    return NECK.base + (SHOULDER.y - NECK.base) * (0.62 * (1 - (1 - t) ** 1.6) + 0.38 * t ** 3);
+  };
+  return (raw(ax - 0.09) + 2 * raw(ax) + raw(ax + 0.09)) / 4; // averaged, so the corners are soft
 }
 
 // The outline, as a list of [x, y] points walking from the left shoulder up and over the head.
 function outlinePoints(step) {
   const pts = [];
   for (let x = -SHOULDER.x; x <= -neckHalf(NECK.base); x += step) pts.push([x, shoulderY(-x)]);
-  for (let y = NECK.base; y <= 0.05; y += step) pts.push([-neckHalf(y), y]);
+  for (let y = NECK.base; y <= 0.06; y += step) pts.push([-neckHalf(y), y]);
   for (let a = 0; a <= Math.PI; a += step / 0.5) {
     // Walk the head from the chin round the left side to the crown.
     const y = HEAD.y - HEAD.ry * Math.cos(a);
@@ -89,7 +92,7 @@ function buildParticles() {
     order.push(ord);
   }
   const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
-  const faceDepth = (x, y) => 0.1 * Math.sqrt(Math.max(0, 1 - (x / (headHalf(y) + 1e-6)) ** 2));
+  const faceDepth = (x, y) => 0.2 * Math.sqrt(Math.max(0, 1 - (x / (headHalf(y) + 1e-6)) ** 2));
 
   // Head: dense horizontal contour lines; the part inside the face ellipse glows warm and ripples.
   for (let y = 0.012; y < HEAD.y + HEAD.ry - 0.01; y += 0.0175) {
@@ -121,7 +124,7 @@ function buildParticles() {
       const px = x - dir * inset * (y > NECK.base ? 1 : 0.4);
       const py = y - (y > NECK.base ? 0 : inset * 0.7);
       if (Math.random() < 0.82 - layer * 0.18) {
-        add([px + gauss() * 0.0015, py + gauss() * 0.0015, 0.04 + faceDepth(px, py)],
+        add([px + gauss() * 0.0015, py + gauss() * 0.0015, py > 0 ? 0.04 + faceDepth(px, py) : 0.3 * (1 - Math.min(1, (px / SHOULDER.x) ** 2)) - 0.1],
           layer === 0 ? ICE : BLUE, rand(0.011, 0.019) * (1 - layer * 0.18), KIND.body, 0.1 + 0.5 * Math.random());
       }
     }
@@ -135,7 +138,7 @@ function buildParticles() {
       const x = ORB.x + Math.cos(a) * r * 0.98;
       const y = ORB.y + Math.sin(a) * r * 1.12;
       if (y > 0.04 || y < -0.95 || Math.abs(x) > shoulderX(y) - 0.012) continue;
-      add([x, y, 0.03], Math.random() < 0.1 ? ICE : DIM, rand(0.007, 0.012), KIND.body, 0.35 + 0.5 * Math.random());
+      add([x, y, 0.3 * (1 - Math.min(1, (x / SHOULDER.x) ** 2)) - 0.1], Math.random() < 0.1 ? ICE : DIM, rand(0.007, 0.012), KIND.body, 0.35 + 0.5 * Math.random());
     }
   }
 
@@ -392,7 +395,7 @@ export async function createHologram(container, getSignal) {
     u.uTint.value.lerp(goalTint, 0.08);
     feel.ry += (feel.gx * 0.22 - feel.ry) * 0.06;
     feel.rx += (feel.gy * 0.1 - feel.rx) * 0.06;
-    points.rotation.y = feel.ry;
+    points.rotation.y = feel.ry + 0.16 * Math.sin(t * 0.45);
     points.rotation.x = feel.rx;
     const breathe = 0.5 + 0.5 * Math.sin(t * 1.3);
     coreGlow.material.opacity = morph * (0.1 + 0.04 * breathe + level * 0.3);
