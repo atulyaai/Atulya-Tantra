@@ -45,6 +45,11 @@ class TestStatusReport:
         for item in installer.ITEMS:
             assert item.label[:44] in out, f"{item.key} missing from the status table"
 
+    def test_env_template_leaves_dashboard_token_for_secure_generation(self):
+        template = (ROOT / ".env.example").read_text(encoding="utf-8")
+        assert "ATULYA_DASHBOARD_TOKEN=your_secure_auth_token_here" not in template
+        assert any(line.strip() == "ATULYA_DASHBOARD_TOKEN=" for line in template.splitlines())
+
     def test_never_prints_a_secret_value(self, monkeypatch):
         monkeypatch.setenv("GROQ_API_KEY", "gsk_SUPERSECRETVALUE123456")
         _, out = capture(installer.status_table)
