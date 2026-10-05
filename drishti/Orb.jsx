@@ -618,7 +618,7 @@ export function Orb({ onMenu, toast, onCommand }) {
           <span>{state.toUpperCase()}</span>
         </div>
       )}
-      {holo === 'ready' && opening && <div className="orb-opening">Opening humanoid view</div>}
+      {holo === 'ready' && opening && <div className="orb-opening">Assembling · hologram</div>}
       <div className="orb-top">
         <button type="button" className="orb-icon" onClick={onMenu} title="Menu" aria-label="Menu">☰</button>
         <div className="orb-name">ATULYA</div>

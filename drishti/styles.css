@@ -635,9 +635,8 @@ button.icon:hover { border-color: var(--line); }
   letter-spacing: 0.18em; color: rgba(110, 200, 255, 0.75); pointer-events: none;
 }
 .orb-opening {
-  position: absolute; left: 50%; bottom: 140px; transform: translateX(-50%);
-  padding: 8px 18px; border-radius: 6px;
-  background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 18px; letter-spacing: 0.02em;
+  position: absolute; right: 18px; top: 112px; text-align: right;
+  color: rgba(120, 220, 255, 0.85); font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase;
   pointer-events: none; animation: orb-fade 5.2s ease forwards;
 }
 @keyframes orb-fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
