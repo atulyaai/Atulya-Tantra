@@ -19,7 +19,7 @@ RUN apt-get update && \
 
 COPY . .
 COPY --from=screen /screen/dist ./drishti/dist
-RUN pip install -e ".[serve]"
+RUN pip install -e ".[serve,push]"
 
 VOLUME /app/kosh
 EXPOSE 8501

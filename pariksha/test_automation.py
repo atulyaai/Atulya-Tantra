@@ -43,6 +43,15 @@ class TestAutomationRoutes:
         assert result["ok"] is True
         assert result["job"]["name"] == "myjob"
 
+    def test_add_job_rejects_invalid_schedule(self, tmp_path, mock_admin):
+        import atulya.dwar as auto_mod
+        from atulya.dwar import api_cron_add_job
+        auto_mod.JOBS_FILE = tmp_path / "jobs.json"
+
+        with pytest.raises(Exception) as exc:
+            api_cron_add_job({"name": "bad", "schedule": "0", "command": "say hi"}, _admin=mock_admin.return_value)
+        assert getattr(exc.value, "status_code", None) == 400
+
     def test_delete_job(self, tmp_path, mock_admin):
         import atulya.dwar as auto_mod
         from atulya.dwar import api_cron_delete_job
@@ -88,11 +97,94 @@ class TestAutomationRoutes:
             with patch("atulya.dwar.AutomationRunner") as runner_cls:
                 runner = MagicMock()
                 runner.run_job = AsyncMock()
+                runner.start_job = AsyncMock(return_value={"id": "1", "name": "test", "command": "say hi"})
                 runner_cls.return_value = runner
                 import asyncio
                 result = asyncio.run(api_cron_run_job(mock_request, "1", _admin=mock_admin.return_value))
 
         assert result["ok"] is True
+
+
+class TestAutomationLifecycle:
+    @pytest.mark.asyncio
+    async def test_job_completion_is_persisted(self, tmp_path):
+        from types import SimpleNamespace
+        from atulya.dwar import AutomationRunner
+
+        jobs_file = tmp_path / "jobs.json"
+        jobs_file.write_text(json.dumps([{"id": "job-1", "name": "test", "command": "say hi"}]))
+        runner = AutomationRunner(jobs_file, llm=None)
+        runner._notify_job = AsyncMock()
+        kernel = SimpleNamespace(handle=AsyncMock(return_value=SimpleNamespace(
+            text="finished", provider="fake", needs_approval=False, pending_tool=None)))
+
+        with patch("atulya.buddhi.get_kernel", return_value=kernel):
+            await runner.run_job({"id": "job-1", "name": "test", "command": "say hi"})
+
+        saved = json.loads(jobs_file.read_text())[0]
+        assert saved["run_status"] == "completed"
+        assert saved["run_progress"] == 100
+        assert saved["last_result"] == "finished"
+        assert saved["run_expires_at"] > saved["run_updated_at"]
+
+    @pytest.mark.asyncio
+    async def test_cancelled_job_persists_cancelled_state(self, tmp_path):
+        import asyncio
+        from types import SimpleNamespace
+        from atulya.dwar import AutomationRunner
+
+        jobs_file = tmp_path / "jobs.json"
+        jobs_file.write_text(json.dumps([{"id": "job-2", "name": "test", "command": "wait"}]))
+        runner = AutomationRunner(jobs_file, llm=None)
+        runner._notify_job = AsyncMock()
+        started = asyncio.Event()
+
+        async def wait_forever(*_args, **_kwargs):
+            started.set()
+            await asyncio.Future()
+
+        kernel = SimpleNamespace(handle=wait_forever)
+        with patch("atulya.buddhi.get_kernel", return_value=kernel):
+            await runner.start_job({"id": "job-2", "name": "test", "command": "wait"})
+            await started.wait()
+            saved = await runner.cancel_job("job-2")
+
+        assert saved["run_status"] == "cancelled"
+        assert saved["last_error"] == "Cancelled by owner"
+
+    def test_expired_run_metadata_is_removed_but_job_is_kept(self, tmp_path, monkeypatch):
+        import atulya.dwar as auto_mod
+
+        jobs_file = tmp_path / "jobs.json"
+        jobs_file.write_text(json.dumps([{
+            "id": "job-3", "name": "keep me", "command": "say hi",
+            "run_status": "completed", "run_progress": 100, "run_expires_at": 50,
+            "last_result": "old result",
+        }]))
+        monkeypatch.setattr(auto_mod, "JOBS_FILE", jobs_file)
+        with patch("time.time", return_value=100):
+            jobs = auto_mod._load_jobs()
+
+        assert jobs == [{"id": "job-3", "name": "keep me", "command": "say hi"}]
+
+    @pytest.mark.asyncio
+    async def test_restart_marks_running_job_interrupted_without_replaying(self, tmp_path):
+        from atulya.dwar import AutomationRunner
+
+        jobs_file = tmp_path / "jobs.json"
+        jobs_file.write_text(json.dumps([{
+            "id": "job-4", "name": "maybe ran", "command": "turn off lights",
+            "schedule": "60", "enabled": True, "next_run": 1, "run_status": "running",
+        }]))
+        runner = AutomationRunner(jobs_file, llm=None)
+        with patch("time.time", return_value=1000):
+            await runner.tick()
+
+        saved = json.loads(jobs_file.read_text())[0]
+        assert saved["run_status"] == "interrupted"
+        assert saved["next_run"] == 1060
+        assert "not replayed" in saved["last_error"]
+        assert saved.get("run_count", 0) == 0
 
     def test_seed_default_jobs(self, tmp_path):
         import atulya.dwar as auto_mod

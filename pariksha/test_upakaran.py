@@ -204,9 +204,10 @@ elif "monkey" in tail and "missing.pkg" in tail:
 @pytest.fixture
 def fake_adb(tmp_path, monkeypatch):
     log = tmp_path / "calls.jsonl"
-    exe = tmp_path / "adb"
+    exe = tmp_path / "adb.py"
     exe.write_text(FAKE_ADB % {"py": sys.executable, "log": str(log)})
-    exe.chmod(exe.stat().st_mode | stat.S_IEXEC)
+    if sys.platform != "win32":
+        exe.chmod(exe.stat().st_mode | stat.S_IEXEC)
     monkeypatch.setenv("ATULYA_ADB", str(exe))
     return lambda: [json.loads(x) for x in log.read_text().splitlines()] if log.exists() else []
 

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { api } from './api.js';
 import { registerSections } from './sections.js';
+import { PairingManager } from './Pairing.jsx';
 
 // The action engine: one window for what Atulya is doing. Every tile reads real data (/api/dashboard).
 // Tap a tile, or say "open the calendar", to see it in full.
@@ -232,6 +233,7 @@ export function Dashboard({ toast }) {
       <div className={`db-grid ${open ? 'one' : ''}`}>
         {Object.entries(tiles).filter(([id, t]) => t && !hidden(id)).map(([id, t]) => <React.Fragment key={id}>{t}</React.Fragment>)}
       </div>
+      {!open && d.system && <PairingManager toast={toast} />}
     </div>
   );
 }

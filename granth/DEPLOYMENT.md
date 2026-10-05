@@ -1,14 +1,13 @@
 # Deployment
 
-## Quick Start (Docker)
+## Quick Start (local)
 
 ```bash
-git clone <repo>
-cd Atulya-Tantra
-docker compose up -d
+python -m pip install -e ".[serve]"
+python -m atulya.sevak
 ```
 
-Open http://localhost:80
+Open http://127.0.0.1:8501. Atulya creates a local admin sign-in on first start. For Oracle/Docker deployment, follow the full guide below rather than exposing this local server directly.
 
 ## Manual
 
@@ -16,7 +15,7 @@ Open http://localhost:80
 python -m venv venv
 source venv/bin/activate  # or .\venv\Scripts\Activate.ps1
 pip install -e ".[serve,dev]"
-uvicorn atulya.sevak:app --host 0.0.0.0 --port 8000
+uvicorn atulya.sevak:app --host 127.0.0.1 --port 8501
 ```
 
 ## Environment Variables
@@ -42,11 +41,7 @@ Edit `atulya/setu_servers.json` to enable integrations (filesystem, git, browser
 docker compose -f docker-compose.yml up -d
 ```
 
-The nginx reverse proxy handles:
-- Static file serving from `drishti/dist/`
-- API proxy to uvicorn on port 8000
-- WebSocket upgrade headers
-- 100MB upload limit
+The current container serves the built `drishti/dist/` app and API from port 8501. The Oracle guide below uses a Cloudflare Tunnel; no nginx container or public inbound web port is required.
 
 ## Testing
 
@@ -57,13 +52,13 @@ pytest -x --tb=short -q
 
 ## Hardening checklist
 
-Atulya listens on all interfaces and accepts any CORS origin by default so the phone app can reach it over your LAN. To lock it to this machine:
+Atulya can bind locally or to the LAN based on configuration. For internet deployment, use the Oracle and Cloudflare steps below; paired-device endpoints require their own device tokens.
 
 - `ATULYA_HOST=127.0.0.1` — only this computer can connect.
 - `ATULYA_HTTPS=on` — serve https with a self-signed certificate for this computer (needed for phone camera/mic over Wi-Fi). Certificate and key are in `kosh/certs/` (override with `ATULYA_CERTS_DIR`); the key is readable by you only. For a public site use a real certificate behind a reverse proxy instead.
 - `ATULYA_CORS_ORIGINS=https://your-site` — only listed web origins may call the API.
 - `ATULYA_PC_CONTROL` stays unset unless you want Atulya to open apps and type; every such action asks first.
-- Every tool call is written to `kosh/agent/audit.jsonl` (secrets masked).
+- Every tool call is written to a tamper-evident hash chain in `kosh/agent/audit.jsonl` (secrets masked).
 
 - `ATULYA_LOCKDOWN=on` — one switch for the above: listen on localhost only and allow no cross-site (CORS) callers unless `ATULYA_CORS_ORIGINS` lists them. The phone app will not reach it while this is on.
 - `GET /api/audit` (admin token) returns the latest audit-log entries.
@@ -158,9 +153,9 @@ If either Google server is enabled without credentials, readiness reports `produ
 ### Not done yet
 
 - No OS-level sandbox for tools; protection is the confirmation prompt and allowlists.
-- The audit log is a plain file, not tamper-evident.
-- Private data is stored as plain text unless you set `ATULYA_VAULT_PASSPHRASE` (see Encryption at rest below). Vector memory, the audit log and `.env` are never encrypted.
-- By default the server listens on all interfaces with open CORS so the phone app can connect. Use lockdown, or set `ATULYA_HOST` and `ATULYA_CORS_ORIGINS`, to tighten this.
+- The audit log is a hash chain that makes edits detectable; it is not encrypted.
+- Private data is encrypted only when `ATULYA_VAULT_PASSPHRASE` is set (see Encryption at rest below). `.env` must be protected separately.
+- For internet deployment, only expose the app through Cloudflare Tunnel and Cloudflare Access as described below.
 - Rate limiting is basic: a per-address request cap in `atulya/sevak.py`, nothing per user or per route.
 
 ### Guidance
@@ -195,21 +190,22 @@ This guide targets Oracle Cloud's Always Free eligible compute in your chosen ho
 
 1. Copy `.env.example` to `.env`; edit it on the VM. Set `ATULYA_HOST=0.0.0.0`, `ATULYA_HTTPS=off`, `ATULYA_JWT_SECRET_FILE=/run/secrets/atulya_jwt_secret`, `ATULYA_PC_CONTROL=off`, and `ATULYA_PUBLIC_URL=https://atulya.atulvij.com`. Leave Telegram values blank unless you intentionally configure Telegram. **PASS:** these names and values are present; no secrets have been pasted into chat or committed.
 2. Create `secrets/jwt_secret` using `mkdir -p secrets && openssl rand -hex 32 > secrets/jwt_secret && chmod 600 secrets/jwt_secret && chmod 600 .env`. Add `CF_TUNNEL_TOKEN=` to `.env`; fill it after creating the tunnel. **PASS:** `test -s secrets/jwt_secret` succeeds and its file mode is 600.
-3. Run `docker compose up -d --build`. **PASS:** `docker compose ps` shows Atulya running. **FAIL:** inspect `docker compose logs atulya` and correct the reported configuration.
+3. Start only Atulya first: `docker compose up -d --build atulya`. This avoids Compose requiring the tunnel token before Cloudflare has issued it. **PASS:** `docker compose ps atulya` shows Atulya running. **FAIL:** inspect `docker compose logs atulya` and correct the reported configuration.
 
 ## 4. Create the Cloudflare Tunnel and DNS
 
 1. Sign in at [Cloudflare Zero Trust](https://one.dash.cloudflare.com/). Open **Networks → Tunnels → Create a tunnel**, select **Cloudflared**, name it `atulya-oracle`, and follow the Linux connector instructions. **PASS:** the tunnel status is **Healthy** after the connector is running.
 2. In the tunnel's **Public hostnames** page, add hostname `atulya.atulvij.com`, service type **HTTP**, URL `atulya:8501` when using the Compose connector (or `http://127.0.0.1:8501` for the systemd/host connector). **PASS:** the hostname appears and the tunnel reports Healthy.
-3. Put the tunnel token in `.env` as `CF_TUNNEL_TOKEN=...`, then run `docker compose up -d`; never paste the token into chat or commit it. Cloudflare's hostname setup creates the DNS record. **PASS:** DNS shows the tunnel CNAME and `https://atulya.atulvij.com` reaches the app. **FAIL:** check the tunnel connector logs and hostname target.
+3. Put the tunnel token in `.env` as `CF_TUNNEL_TOKEN=...`, then run `docker compose up -d cloudflared`; never paste the token into chat or commit it. Cloudflare's hostname setup creates the DNS record. **PASS:** DNS shows the tunnel CNAME and `https://atulya.atulvij.com` reaches the app. **FAIL:** check the tunnel connector logs and hostname target.
 4. Optional config-file deployment: copy `cloudflared-config.yml.example` to `/etc/cloudflared/config.yml`, replace both UUID placeholders, install the credentials JSON at the shown path, and run `cloudflared tunnel run <UUID>`. Do not run this host-based alternative alongside the Compose connector for the same tunnel.
 
 ## 5. Require Cloudflare Access login
 
 1. In Zero Trust, open **Access → Applications → Add an application → Self-hosted**. Set the application domain to `atulya.atulvij.com`. **PASS:** the application is listed.
 2. Add an **Allow** policy with **Include → Emails →** only the owner's email address. Do not use a broad email-domain rule. **PASS:** only that exact email appears in the Include rule.
-3. Create path-specific policies before the catch-all application policy: `/api/pairing/enroll` and `/agent/*` use **Bypass**. The owner accepts that these routes rely on their device-token authentication; never use Bypass for other paths. Set Cloudflare rate limiting on these routes (for example, 10 requests/minute per source IP with a temporary block); tune to actual usage. Then apply the email-only **Allow** policy to all remaining paths. **PASS:** a private browser is redirected to Access for `/`; the two device-token routes reach the origin without Access and are rate limited. **FAIL:** if a protected page opens without login, disable the application until the policy is corrected.
-4. Verify device enrollment and `/agent/` only with a paired device token. **PASS:** no token is rejected and a valid token reaches its endpoint. Cloudflare Bypass is safe only because the application checks device tokens.
+3. Add exact path policies before the catch-all: `/api/pairing/enroll`, `/api/phone/*`, and `/agent/*` use **Bypass** because phone and computer companions cannot complete an interactive Access login. The app still checks paired device tokens. Do not bypass any wider path. Set Cloudflare rate limits on these paths (for example, 10 requests/minute per source IP with a temporary block); tune after normal use. Then apply the email-only **Allow** policy to everything else. **PASS:** a private browser is redirected to Access for `/`; only those exact device paths reach the origin without Access. **FAIL:** if any other path opens without login, disable the Access application until its policy is corrected.
+4. Verify enrollment, phone sync, and `/agent/` only with paired device tokens. **PASS:** requests without a token fail; a valid paired token reaches only its device-specific routes. Cloudflare Bypass is safe only because the app checks device tokens and Cloudflare rate limits the paths.
+5. Rate-limit `/api/pairing/enroll` separately (for example, 10 attempts/minute/source IP) and use a higher limit for the polling/sync paths (for example, 60 requests/minute/source IP) so an opted-in phone syncing three categories every 15 seconds is not blocked. **PASS:** normal polling continues while bursts are capped. **FAIL:** tune the limit without removing the rate rule.
 
 ## 6. Systemd alternative
 
@@ -221,4 +217,29 @@ Use this instead of Compose's restart policy only if you prefer systemd to manag
 
 ## Update and inspect
 
-Run `git pull` followed by `docker compose up -d --build`. Check `docker compose ps` and `docker compose logs --tail=100`. **PASS:** both services are running and the site prompts for Access login from a signed-out browser.
+Run `git pull` followed by `docker compose up -d --build atulya` and `docker compose up -d cloudflared`. Check `docker compose ps` and `docker compose logs --tail=100`. **PASS:** both services are running and the site prompts for Access login from a signed-out browser.
+
+## Local verification before any public deployment
+
+From the repository root, run `python -m pytest -q`, then `ruff check atulya pariksha`, then `cd drishti && npm ci && npm run build`. **PASS:** every command exits successfully. Also start the local app and sign in before creating the Oracle VM or exposing a hostname. Phone and remote-computer companions still need real-device verification; until then, treat those paths as unverified on hardware.
+
+## Pair a phone with Termux
+
+This companion can read private SMS, notification text, and location. Leave each sync switch off unless you intentionally want that category shared with your Atulya server. A paired token can be disconnected in the app at any time.
+
+For background browser notifications, install the optional `push` extra (the Docker image includes it), set a VAPID public key, private key, and `mailto:` subject in the server environment, and restart Atulya. Never share or commit the private key. If these values are absent, foreground WebSocket alerts continue and the app says background delivery is not configured.
+
+1. On Android, install **Termux** and **Termux:API** from the same source. The official Termux installation guide lists supported sources; do not mix APK sources because the add-on signatures must match. **PASS:** both apps install and open. [Official Termux installation guide](https://github.com/termux/termux-app#installation)
+2. In Atulya, open **Menu → Action engine → Paired phones and computers → Pair a phone**. Keep the six-digit code private and use it within ten minutes. **PASS:** the code and expiry appear on screen.
+3. Open Termux and type `pkg update -y && pkg install -y termux-api jq curl`. When Android asks, allow only the permissions for the features you intend to use. For notifications, open Android **Settings → Apps → Special app access → Notification access**, select **Termux:API**, and enable access. **PASS:** `termux-sms-list -l 1`, `termux-notification-list`, and `termux-location -p network -r once` return data for permitted categories. **FAIL:** reopen the Android permission page and check Termux:API is installed from the same source as Termux.
+4. Download the helper after this branch is merged: `curl -fsSL https://raw.githubusercontent.com/atulyaai/Atulya-Tantra/main/prayog/termux_phone.sh -o termux_phone.sh`. **PASS:** `test -s termux_phone.sh` succeeds.
+5. In the same Termux window, type `export ATULYA_SERVER=https://atulya.atulvij.com` (or your local server address), then `export ATULYA_PAIR_CODE=000000` with the code shown by Atulya, then `export ATULYA_SYNC_SMS=off ATULYA_SYNC_NOTIFICATIONS=off ATULYA_SYNC_LOCATION=off`, then `bash termux_phone.sh`. The helper securely stores the paired token in Termux's private home folder. **PASS:** it says the companion is connected, and the phone appears under Paired phones and computers. **FAIL:** check that the code has not expired and that `/api/pairing/enroll` is reachable.
+6. To enable a data category, stop the helper with Ctrl+C, set only the relevant flag to `on` (for example `export ATULYA_SYNC_NOTIFICATIONS=on`), and run it again. To verify a ring request, select the paired phone in Atulya and request **ring**; keep the app open and confirm the phone vibrates. **PASS:** the phone inbox receives only enabled categories and the phone responds to a queued command. **FAIL:** turn the category back off and check Android permissions and network access.
+7. To stop sharing, turn the flags off and stop the helper. To revoke access, open **Paired phones and computers → Disconnect** next to that phone. **PASS:** the device disappears from active pairings and its old token no longer works.
+
+## Pair another computer
+
+1. On the computer running Atulya, open **Menu → Action engine → Paired phones and computers → Pair another computer**. Keep the six-digit code private. **PASS:** an unexpired code is visible.
+2. On the computer to pair, clone the project, install its Python dependencies with `python -m pip install -e .`, and run `python -m atulya.dut --server https://atulya.atulvij.com --name "My laptop"`. Enter the pairing code when prompted. **PASS:** the companion confirms it paired and saves its device token in the current user's private config folder; the token is never shown in the command line.
+3. Leave the command running while you use Atulya. **PASS:** the computer appears in the paired-device list as recently seen. Ask Atulya to check that computer; approve the action when asked, then ask “show the latest computer results.” **FAIL:** verify its name, network access, and that its pairing has not been disconnected.
+4. To disconnect, open the paired-device list and click **Disconnect** for that computer. **PASS:** future tasks are rejected. The paired agent uses the same allowed-folder and command rules as local control; it is not an unrestricted remote shell.

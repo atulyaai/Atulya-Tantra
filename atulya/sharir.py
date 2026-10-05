@@ -13,6 +13,7 @@ live in one place:
 from __future__ import annotations
 
 import fnmatch
+import ctypes
 import os
 import platform
 import re
@@ -72,14 +73,25 @@ def allowed_roots() -> list[Path]:
     return [r.resolve() for r in roots if r.is_dir()]
 
 
-_NEVER = (".ssh", ".aws", ".gnupg", ".kube", ".docker", "gcloud", ".azure", "kosh", "AppData", "Library")
+_NEVER = (".ssh", ".aws", ".gnupg", ".kube", ".docker", "gcloud", ".azure", "kosh", "Library")
 _NEVER_NAMES = ("id_rsa", "id_ed25519", "known_hosts", "credentials", "secrets", "passwords")
 _NEVER_SUFFIX = (".pem", ".key", ".p12", ".pfx", ".kdbx", ".env")
 
 
+_BROWSER_DATA_PATHS = (
+    ("appdata", "local", "google", "chrome", "user data"),
+    ("appdata", "local", "microsoft", "edge", "user data"),
+    ("appdata", "local", "bravesoftware", "brave-browser", "user data"),
+    ("appdata", "roaming", "mozilla", "firefox", "profiles"),
+)
+
+
 def _forbidden(path: Path) -> bool:
-    parts = {p.lower() for p in path.parts}
+    parts = tuple(p.lower() for p in path.parts)
     if any(n.lower() in parts for n in _NEVER) or path.name.startswith(".env"):
+        return True
+    if any(any(parts[i:i + len(marker)] == marker for i in range(len(parts) - len(marker) + 1))
+           for marker in _BROWSER_DATA_PATHS):
         return True
     low = path.name.lower()
     return low.endswith(_NEVER_SUFFIX) or any(low.startswith(n) for n in _NEVER_NAMES)
@@ -460,7 +472,23 @@ def run_command(command: str, folder: str = "", timeout: int = 30) -> str:
         raise Refused("I won't run that: it could destroy data or hand control to a downloaded script.")
     if any(c in text for c in "|&;`$<>\n"):
         raise Refused("Give me one plain command without pipes, redirects or chaining.")
-    argv = shlex.split(text, posix=system() != "Windows")
+    if system() == "Windows":
+        argc = ctypes.c_int()
+        shell32 = ctypes.WinDLL("shell32", use_last_error=True)
+        shell32.CommandLineToArgvW.argtypes = [ctypes.c_wchar_p, ctypes.POINTER(ctypes.c_int)]
+        shell32.CommandLineToArgvW.restype = ctypes.POINTER(ctypes.c_wchar_p)
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+        kernel32.LocalFree.restype = ctypes.c_void_p
+        values = shell32.CommandLineToArgvW(text, ctypes.byref(argc))
+        if not values:
+            raise Refused("I couldn't parse that command safely.")
+        try:
+            argv = [values[index] for index in range(argc.value)]
+        finally:
+            kernel32.LocalFree(values)
+    else:
+        argv = shlex.split(text)
     if system() == "Windows" and argv and argv[0].lower() in _WINDOWS_BUILTINS:
         argv = ["cmd", "/c", *argv]
     cwd = str(resolve(folder)) if folder.strip() else None

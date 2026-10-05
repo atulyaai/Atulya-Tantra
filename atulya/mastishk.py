@@ -192,6 +192,8 @@ _CONFIRM_TOOLS = {
     "pc_type": "types on your keyboard",
     "pc_hotkey": "presses keyboard shortcuts",
     "pc_screenshot": "captures your screen",
+    "phone_command": "rings your phone or requests its location",
+    "remote_computer": "runs a task on another paired computer",
     "run_command": "runs a command on your computer",
     "install_software": "installs software on your computer",
     "web_task": "drives a web browser to do a task for you",
@@ -332,6 +334,7 @@ def describe_action(tool: str, arguments: dict[str, Any] | None = None) -> str:
 
 
 _CHECKS = {"calendar_list": "check your calendar", "fetch_emails": "check your email", "current_time": "check the time",
+           "phone_inbox": "check your paired phone inbox",
            "list_reminders": "check your reminders", "home_list_devices": "check your devices"}
 
 

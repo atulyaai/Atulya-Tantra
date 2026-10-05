@@ -16,6 +16,7 @@ htmlcov/
 
 # Environment & secrets
 .env
+secrets/
 *.pem
 *.key
 *.crt

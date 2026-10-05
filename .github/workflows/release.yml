@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: drishti/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - uses: android-actions/setup-android@v3
+      - run: python drishti/sync_version.py --check
+      - run: npm ci
+        working-directory: drishti
+      - run: python build_apk.py
+        working-directory: drishti
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-apk
+          path: drishti/android/app/build/outputs/apk/debug/app-debug.apk
+
+  release:
+    needs: android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: drishti/package-lock.json
+      - run: python drishti/sync_version.py --check
+      - run: npm ci && npm run build
+        working-directory: drishti
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-debug-apk
+          path: artifacts
+      - name: Package source and built web app
+        run: |
+          python - <<'PY'
+          import io
+          import subprocess
+          import tarfile
+          import zipfile
+          from pathlib import Path
+
+          archive = subprocess.check_output(["git", "archive", "--format=tar", "HEAD"])
+          output = f"atulya-tantra-{__import__('os').environ['GITHUB_REF_NAME']}.zip"
+          with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as source, zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as target:
+              for member in source.getmembers():
+                  if member.isfile():
+                      target.writestr(member.name, source.extractfile(member).read())
+              for path in Path("drishti/dist").rglob("*"):
+                  if path.is_file():
+                      target.write(path, path.as_posix())
+          PY
+          cp artifacts/app-debug.apk atulya-tantra-${GITHUB_REF_NAME}-debug.apk
+          sha256sum atulya-tantra-${GITHUB_REF_NAME}.zip atulya-tantra-${GITHUB_REF_NAME}-debug.apk > SHA256SUMS
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            atulya-tantra-${{ github.ref_name }}.zip
+            atulya-tantra-${{ github.ref_name }}-debug.apk
+            SHA256SUMS

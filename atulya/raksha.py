@@ -10,6 +10,7 @@ import json
 import os
 import threading
 import secrets
+import subprocess
 import socket
 import time
 import uuid
@@ -278,6 +279,32 @@ def read_text(path: Path, encoding: str = "utf-8") -> str:
     return (decrypt_bytes(blob) if is_encrypted(blob) else blob).decode(encoding)
 
 
+def _secure_file(path: Path) -> None:
+    """Restrict a sensitive file to the current user on POSIX and Windows."""
+    if os.name == "nt":
+        user = os.environ.get("USERNAME")
+        if not user:
+            raise OSError("Cannot identify the Windows account to secure a private file.")
+        principal = os.environ.get("USERDOMAIN", ".") + "\\" + user
+        result = subprocess.run(["icacls", str(path), "/inheritance:r", "/grant:r", f"{principal}:(F)"],
+                                capture_output=True, text=True, check=False)
+        if result.returncode:
+            raise OSError(result.stderr.strip() or "Could not restrict file permissions with icacls.")
+    else:
+        path.chmod(0o600)
+
+
+def private_file_is_restricted(path: Path) -> bool:
+    """Return whether group and other users are denied access to a private file."""
+    if os.name != "nt":
+        return path.exists() and path.stat().st_mode & 0o077 == 0
+    result = subprocess.run(["icacls", str(path)], capture_output=True, text=True, check=False)
+    if result.returncode:
+        return False
+    output = result.stdout.casefold()
+    return not any(identity in output for identity in ("everyone", "\\users:", "authenticated users"))
+
+
 def write_text(path: Path, text: str, encoding: str = "utf-8") -> None:
     """Write ``text`` (encrypted when the vault is on). Refuses to overwrite an encrypted file it cannot open."""
     path = Path(path)
@@ -291,10 +318,8 @@ def write_text(path: Path, text: str, encoding: str = "utf-8") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_bytes(data)
-    try:
-        tmp.chmod(0o600)
-    except OSError:
-        pass
+    if enabled():
+        _secure_file(tmp)
     tmp.replace(path)
 
 
@@ -404,9 +429,10 @@ def ensure_certs(directory: Path | None = None, names: list[str] | None = None, 
     key_file.write_bytes(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL,
                                            serialization.NoEncryption()))
     try:
-        key_file.chmod(0o600)   # the private key: readable by you only (no effect on Windows)
+        _secure_file(key_file)
     except OSError:
-        pass
+        key_file.unlink(missing_ok=True)
+        raise
     cert_file.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
     return str(cert_file), str(key_file)
 

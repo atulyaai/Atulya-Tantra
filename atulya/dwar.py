@@ -41,6 +41,9 @@ from atulya import dwar as chat_history
 from atulya import dwar as helpers
 from atulya import dwar as users
 from atulya import kriya as money
+from atulya import push as push_service
+from atulya import dut as computer_agent
+from atulya import phone as phone_store
 from atulya import raksha as vault
 from atulya.adhar import get_config, set_env_value
 from atulya.kaushal import AtulyaTantraConnector, CreationResult
@@ -1489,52 +1492,54 @@ async def broadcast_telemetry(telemetry: dict) -> None:
 
 async def broadcast_event(title: str, desc: str, event_type: str = "info") -> None:
     await broadcast("event", {"title": title, "desc": desc, "type": event_type})
+    if push_service.configured():
+        try:
+            # This event stream belongs to the owner/admin; never fan private reminder text out to every user.
+            await asyncio.to_thread(push_service.send, "admin",
+                                    {"title": title, "body": desc, "type": event_type})
+        except Exception:  # noqa: BLE001 - push delivery must not interrupt live events
+            logger.exception("Web Push delivery failed")
 
 
 # ── dwar_ghar ────────────────────────────────────────────────────────────
 # ── notifications ────────────────────────────────────────────────────────────
 
-SUBS_FILE = Path(__file__).resolve().parents[1] / "kosh" / "push_subs.json"
+@router.get("/api/notifications/vapid-key")
+def notifications_vapid_key(token: str | None = Header(default=None, alias="X-Atulya-Token")):
+    _require_admin(token)
+    return {"public_key": push_service.public_key(), "available": push_service.configured()}
+
 
 @router.post("/api/notifications/subscribe")
 def subscribe(body: dict, token: str | None = Header(default=None, alias="X-Atulya-Token")):
-    user = _require_auth(token)
-    sub = body.get("subscription")
-    if not sub:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=400, detail="Missing subscription")
-    username = user.get("username", "unknown")
-    SUBS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    subs = {}
-    if SUBS_FILE.exists():
-        subs = json.loads(SUBS_FILE.read_text())
-    if username not in subs:
-        subs[username] = []
-    subs[username].append(sub)
-    SUBS_FILE.write_text(json.dumps(subs, indent=2))
-    return {"ok": True}
+    user = _require_admin(token)
+    try:
+        push_service.subscribe(user.get("username", "unknown"), body.get("subscription"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "delivery_configured": push_service.configured()}
 
 @router.post("/api/notifications/unsubscribe")
 def unsubscribe(body: dict, token: str | None = Header(default=None, alias="X-Atulya-Token")):
-    user = _require_auth(token)
-    sub = body.get("subscription")
+    user = _require_admin(token)
+    sub = body.get("subscription") or {}
     username = user.get("username", "unknown")
-    if not SUBS_FILE.exists():
-        return {"ok": True}
-    subs = json.loads(SUBS_FILE.read_text())
-    if username in subs and sub in subs[username]:
-        subs[username].remove(sub)
-        SUBS_FILE.write_text(json.dumps(subs, indent=2))
+    endpoint = sub.get("endpoint", "") if isinstance(sub, dict) else ""
+    push_service.unsubscribe(username, endpoint)
     return {"ok": True}
 
 @router.post("/api/notifications/test")
-def test_notification(body: dict, token: str | None = Header(default=None, alias="X-Atulya-Token")):
-    _require_auth(token)
-    _require_admin(token)
+async def test_notification(body: dict, token: str | None = Header(default=None, alias="X-Atulya-Token")):
+    user = _require_admin(token)
     title = body.get("title", "Test")
     message = body.get("message", "This is a test notification")
     from fastapi.responses import JSONResponse
-    return JSONResponse({"ok": True, "sent": True, "title": title, "message": message})
+    if not push_service.configured():
+        return JSONResponse({"ok": False, "sent": False, "title": title, "message": message,
+                             "detail": "Web Push is not configured on this server."}, status_code=503)
+    sent = await asyncio.to_thread(push_service.send, user.get("username", "admin"),
+                                    {"title": str(title), "body": str(message), "type": "test"})
+    return JSONResponse({"ok": True, "sent": sent > 0, "count": sent, "title": title, "message": message})
 
 
 # ── memory ────────────────────────────────────────────────────────────
@@ -1618,14 +1623,178 @@ async def api_money_sms(request: Request):
 
 
 @router.get("/api/money/inbox")
-def api_money_inbox(request: Request, user: dict = Depends(_require_auth)):
+def api_money_inbox(request: Request, user: dict = Depends(_require_admin)):
     """The secret and the address to give your phone's SMS-forwarding app."""
     return {"key": money.inbox_token(), "path": "/api/money/sms", "origin": str(request.base_url).rstrip("/")}
 
 
 @router.post("/api/money/inbox/rotate")
-def api_money_inbox_rotate(user: dict = Depends(_require_auth)):
+def api_money_inbox_rotate(user: dict = Depends(_require_admin)):
     return {"key": money.inbox_token(rotate=True)}
+
+
+# ── paired phone companion ────────────────────────────────────────────────
+def _require_phone_device(token: str | None, *, command: bool = False) -> dict[str, Any]:
+    device = vault.paired_devices().authenticate(token)
+    if not device:
+        raise HTTPException(status_code=401, detail="A paired phone token is required.")
+    if str(device.get("kind", "")).lower() not in {"phone", "termux", "android"}:
+        raise HTTPException(status_code=403, detail="Pair this device as a phone before using phone sync.")
+    if command and device.get("permission") != "full":
+        raise HTTPException(status_code=403, detail="Phone commands require full permission.")
+    return device
+
+
+@router.post("/api/phone/{kind}")
+async def api_phone_receive(kind: str, request: Request,
+                            token: str | None = Header(default=None, alias="X-Atulya-Token")):
+    """Receive SMS, notification, or location batches from a paired Termux phone."""
+    device = _require_phone_device(token)
+    if kind not in {"sms", "notifications", "location"}:
+        raise HTTPException(status_code=404, detail="Unknown phone inbox type.")
+    try:
+        content_length = int(request.headers.get("content-length", "0"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid content length.") from exc
+    if content_length > 512_000:
+        raise HTTPException(status_code=413, detail="Phone sync batch is too large.")
+    chunks = []
+    received_bytes = 0
+    async for chunk in request.stream():
+        received_bytes += len(chunk)
+        if received_bytes > 512_000:
+            raise HTTPException(status_code=413, detail="Phone sync batch is too large.")
+        chunks.append(chunk)
+    try:
+        body = json.loads(b"".join(chunks) or b"{}")
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise HTTPException(status_code=400, detail="Send a valid JSON body.") from exc
+    if not isinstance(body, dict) or not isinstance(body.get("items"), list):
+        raise HTTPException(status_code=422, detail="Send a JSON body with an items array.")
+    try:
+        result = phone_store.add_items(kind, device["id"], body["items"])
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    money.audit("phone.inbox", kind=kind, device_id=device["id"], added=result["added"])
+    return {"ok": True, **result}
+
+
+@router.get("/api/phone/inbox")
+def api_phone_inbox(kind: str = "all", limit: int = 100, user: dict = Depends(_require_admin)):
+    try:
+        items = phone_store.list_items(kind, limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"items": items}
+
+
+@router.delete("/api/phone/inbox")
+def api_phone_clear(kind: str = "all", user: dict = Depends(_require_admin)):
+    try:
+        deleted = phone_store.clear_items(kind)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    money.audit("phone.inbox.cleared", by=user.get("username"), kind=kind, deleted=deleted)
+    return {"ok": True, "deleted": deleted}
+
+
+@router.get("/api/phone/devices")
+def api_phone_devices(user: dict = Depends(_require_admin)):
+    now = time.time()
+    devices = [device for device in vault.paired_devices().list()
+               if str(device.get("kind", "")).lower() in {"phone", "termux", "android"} and not device.get("revoked")]
+    return {"devices": [{**device, "online": now - float(device.get("last_seen", 0)) < 120} for device in devices]}
+
+
+class PhoneCommandBody(BaseModel):
+    action: str
+
+
+@router.post("/api/phone/devices/{device_id}/commands")
+def api_phone_command(device_id: str, body: PhoneCommandBody, user: dict = Depends(_require_admin)):
+    device = next((item for item in vault.paired_devices().list()
+                   if item.get("id") == device_id and not item.get("revoked")), None)
+    if not device or str(device.get("kind", "")).lower() not in {"phone", "termux", "android"}:
+        raise HTTPException(status_code=404, detail="No paired phone with that id.")
+    try:
+        command = phone_store.enqueue(device_id, body.action)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    money.audit("phone.command", by=user.get("username"), device_id=device_id, action=body.action)
+    return {"ok": True, "command": command}
+
+
+@router.get("/api/phone/commands")
+def api_phone_commands(token: str | None = Header(default=None, alias="X-Atulya-Token")):
+    device = _require_phone_device(token, command=True)
+    return {"commands": phone_store.poll(device["id"])}
+
+
+@router.post("/api/phone/commands/{command_id}/result")
+def api_phone_command_result(command_id: str, body: dict,
+                             token: str | None = Header(default=None, alias="X-Atulya-Token")):
+    device = _require_phone_device(token, command=True)
+    result = body.get("result", {})
+    if not isinstance(result, dict):
+        raise HTTPException(status_code=422, detail="Command result must be an object.")
+    if not phone_store.acknowledge(device["id"], command_id, result):
+        raise HTTPException(status_code=404, detail="No pending command for this phone.")
+    money.audit("phone.command.result", device_id=device["id"], command_id=command_id,
+                ok=bool(result.get("ok")))
+    return {"ok": True}
+
+
+# ── outbound companion for a paired computer ─────────────────────────────────
+def _require_computer_device(token: str | None) -> dict[str, Any]:
+    device = vault.paired_devices().authenticate(token)
+    if not device:
+        raise HTTPException(status_code=401, detail="A paired computer token is required.")
+    if str(device.get("kind", "")).lower() not in {"computer", "laptop", "workstation"}:
+        raise HTTPException(status_code=403, detail="Pair this device as a computer before using the companion.")
+    return device
+
+
+class RemoteComputerCommandBody(BaseModel):
+    device_id: str
+    operation: str
+    arguments: dict[str, Any] | None = None
+
+
+@router.post("/api/agent/computer/commands")
+def api_queue_computer_command(body: RemoteComputerCommandBody, user: dict = Depends(_require_admin)):
+    device = next((row for row in vault.paired_devices().list()
+                   if row.get("id") == body.device_id and not row.get("revoked")), None)
+    if not device or str(device.get("kind", "")).lower() not in {"computer", "laptop", "workstation"}:
+        raise HTTPException(status_code=404, detail="No paired computer with that id.")
+    if device.get("permission") not in {"read", "files", "full"}:
+        raise HTTPException(status_code=403, detail="The paired computer has no usable permission.")
+    try:
+        command = computer_agent.enqueue(body.device_id, body.operation, body.arguments or {})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    money.audit("computer.command", by=user.get("username"), device_id=body.device_id,
+                operation=body.operation)
+    return {"ok": True, "command": command}
+
+
+@router.get("/agent/commands")
+def api_computer_poll(token: str | None = Header(default=None, alias="X-Atulya-Token")):
+    device = _require_computer_device(token)
+    return {"commands": computer_agent.poll(device["id"], device.get("permission", "read"))}
+
+
+@router.post("/agent/results/{command_id}")
+def api_computer_result(command_id: str, body: dict,
+                        token: str | None = Header(default=None, alias="X-Atulya-Token")):
+    device = _require_computer_device(token)
+    result = body.get("result")
+    if not isinstance(result, dict):
+        raise HTTPException(status_code=422, detail="Command result must be an object.")
+    if not computer_agent.result(device["id"], command_id, result):
+        raise HTTPException(status_code=404, detail="No outstanding command for this computer.")
+    money.audit("computer.command.result", device_id=device["id"], command_id=command_id,
+                ok=bool(result.get("ok")))
+    return {"ok": True}
 
 
 # ── dashboard ────────────────────────────────────────────────────────────
@@ -1956,12 +2125,28 @@ except ImportError:  # pragma: no cover
     croniter = None
 
 
+def _next_job_run(schedule: str, now: float) -> float:
+    """Calculate the next interval or cron run without runner state."""
+    try:
+        return now + max(float(schedule), 1.0)
+    except ValueError:
+        if croniter is None:
+            return now + 60.0
+        return croniter(schedule, now).get_next(float)
+
+
 class AutomationRunner:
+    """Run scheduled assistant jobs with persisted lifecycle state and bounds."""
+
+    MAX_RUN_SECONDS = 300
+    RUN_STATE_TTL = 7 * 24 * 60 * 60
+
     def __init__(self, jobs_file: str | Path, llm: Any, interval: float = 1.0):
         self.jobs_file = Path(jobs_file)
         self.llm = llm
         self.interval = interval
         self._running = False
+        self._tasks: dict[str, asyncio.Task] = {}
 
     async def start(self) -> None:
         self._running = True
@@ -1971,6 +2156,12 @@ class AutomationRunner:
 
     async def stop(self) -> None:
         self._running = False
+        tasks = list(self._tasks.values())
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     async def tick(self) -> None:
         jobs = self._load_jobs()
@@ -1978,6 +2169,18 @@ class AutomationRunner:
         changed = False
         for job in jobs:
             if not job.get("enabled", True):
+                continue
+            if job.get("run_status") == "running":
+                if str(job.get("id") or "") in self._tasks:
+                    continue
+                # The previous process disappeared mid-run. Do not replay a
+                # possibly completed side effect after restart; move to the
+                # next occurrence and make the interruption visible.
+                job.update({"run_status": "interrupted", "run_phase": "server_restarted",
+                            "run_progress": 100, "run_updated_at": now,
+                            "last_error": "Server restarted during this run; it was not replayed."})
+                job["next_run"] = self._next_run(str(job.get("schedule") or "60"), now)
+                changed = True
                 continue
             next_run = float(job.get("next_run") or 0)
             if next_run <= 0:
@@ -1988,7 +2191,16 @@ class AutomationRunner:
                 continue
             command = str(job.get("command") or job.get("callback") or "").strip()
             if command:
+                # Persist the next occurrence before any action starts. A
+                # process crash can miss this occurrence, but cannot repeat
+                # an action whose completion was uncertain.
+                job["last_run"] = now
+                job["run_count"] = int(job.get("run_count") or 0) + 1
+                job["next_run"] = self._next_run(str(job.get("schedule") or "60"), now)
+                self._save_jobs(jobs)
                 await self.run_job(job)
+                changed = False
+                continue
             job["last_run"] = now
             job["run_count"] = int(job.get("run_count") or 0) + 1
             job["next_run"] = self._next_run(str(job.get("schedule") or "60"), now)
@@ -2010,8 +2222,17 @@ class AutomationRunner:
 
     async def run_job(self, job: dict[str, Any]) -> dict[str, Any]:
         command = str(job.get("command") or job.get("callback") or "").strip()
+        job_id = str(job.get("id") or "")
+        started = time.time()
+        job.update({"run_status": "running", "run_progress": 0, "run_phase": "starting",
+                    "run_started_at": started, "run_updated_at": started,
+                    "run_expires_at": started + self.RUN_STATE_TTL})
+        self._persist_run_state(job)
         if not command:
             job["last_error"] = "No command configured"
+            job.update({"run_status": "failed", "run_progress": 100,
+                        "run_phase": "finished", "run_updated_at": time.time()})
+            self._persist_run_state(job)
             await self._notify_job(job, error="No command configured")
             return job
         try:
@@ -2021,16 +2242,78 @@ class AutomationRunner:
             # go to the brain. Actions are remembered and published as events.
             from atulya.buddhi import get_kernel
 
-            response = await get_kernel(self.llm).handle(command, user="automation", source="automation")
+            job.update({"run_progress": 10, "run_phase": "thinking", "run_updated_at": time.time()})
+            self._persist_run_state(job)
+            response = await asyncio.wait_for(
+                get_kernel(self.llm).handle(command, user="automation", source="automation"),
+                timeout=self.MAX_RUN_SECONDS,
+            )
             job["last_result"] = (response.text or "")[:2000] if response.text is not None else ""
             job["last_provider"] = response.provider if response.provider is not None else ""
             job["last_error"] = ""
+            if getattr(response, "needs_approval", False):
+                job.update({"run_status": "needs_approval", "run_phase": "waiting_for_owner",
+                            "pending_tool": getattr(response, "pending_tool", None)})
+            else:
+                job.update({"run_status": "completed", "run_phase": "finished", "run_progress": 100})
+        except asyncio.CancelledError:
+            job.update({"run_status": "cancelled", "run_phase": "cancelled", "last_error": "Cancelled by owner"})
+            raise
         except Exception as exc:
-            job["last_error"] = str(exc)
+            job["last_error"] = "Job exceeded its time limit" if isinstance(exc, asyncio.TimeoutError) else str(exc)
             job["last_result"] = ""
             job["last_provider"] = ""
-        await self._notify_job(job, error=job.get("last_error") or "")
+            job.update({"run_status": "failed", "run_phase": "finished"})
+        finally:
+            job["run_progress"] = int(job.get("run_progress") or 0) if job.get("run_status") == "needs_approval" else 100
+            job["run_updated_at"] = time.time()
+            self._persist_run_state(job)
+            if job_id:
+                self._tasks.pop(job_id, None)
+        if job.get("run_status") == "needs_approval":
+            await self._notify_job(job, error="Approval required")
+        else:
+            await self._notify_job(job, error=job.get("last_error") or "")
         return job
+
+    async def start_job(self, job: dict[str, Any]) -> dict[str, Any]:
+        """Start a manual run in the background and return its persisted state."""
+        job_id = str(job.get("id") or "")
+        current = self._tasks.get(job_id)
+        if current and not current.done():
+            return {**job, "run_status": "running"}
+        task = asyncio.create_task(self.run_job(job))
+        self._tasks[job_id] = task
+        # Yield once so the initial `running` state is written before returning.
+        await asyncio.sleep(0)
+        return dict(job)
+
+    async def cancel_job(self, job_id: str) -> dict[str, Any] | None:
+        """Cancel a running job and wait for its cancelled state to be saved."""
+        task = self._tasks.get(job_id)
+        if task is None or task.done():
+            return None
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        return next((job for job in self._load_jobs() if str(job.get("id")) == job_id), None)
+
+    def _persist_run_state(self, job: dict[str, Any]) -> None:
+        """Persist only lifecycle/result fields, preserving concurrent job edits."""
+        if not job.get("id"):
+            return
+        jobs = self._load_jobs()
+        current = next((item for item in jobs if str(item.get("id")) == str(job["id"])), None)
+        if current is None:
+            current = {"id": str(job["id"])}
+            jobs.append(current)
+        for key in ("run_status", "run_progress", "run_phase", "run_started_at", "run_updated_at",
+                    "run_expires_at", "last_result", "last_provider", "last_error", "pending_tool"):
+            if key in job:
+                current[key] = job[key]
+        self._save_jobs(jobs)
 
     async def _notify_job(self, job: dict[str, Any], error: str = "") -> None:
         """Emit a completion event for a finished automation job.
@@ -2043,7 +2326,9 @@ class AutomationRunner:
         try:
             # Publish on the event bus so trigger rules can react (e.g. alert on failure).
             from atulya.adhar import default_bus
-            await default_bus.emit("automation.failed" if error else "automation.completed", {
+            event_name = "automation.failed" if error and error != "Approval required" else (
+                "automation.pending_approval" if error == "Approval required" else "automation.completed")
+            await default_bus.emit(event_name, {
                 "job": name,
                 "result": str(job.get("last_result") or "")[:500],
                 "error": error,
@@ -2057,7 +2342,7 @@ class AutomationRunner:
             await broadcast_event(
                 f"Automation job: {name}",
                 desc,
-                event_type="success" if not error else "error",
+                event_type="warning" if error == "Approval required" else ("success" if not error else "error"),
             )
         except Exception:  # pragma: no cover - notifications are best-effort
             pass
@@ -2074,12 +2359,7 @@ class AutomationRunner:
 
     @staticmethod
     def _next_run(schedule: str, now: float) -> float:
-        try:
-            return now + max(float(schedule), 1.0)
-        except ValueError:
-            if croniter is None:
-                return now + 60.0
-            return croniter(schedule, now).get_next(float)
+        return _next_job_run(schedule, now)
 
 
 # ── api_agent ────────────────────────────────────────────────────────────
@@ -2092,7 +2372,19 @@ def _load_jobs() -> list[dict]:
     if not JOBS_FILE.exists():
         return []
     try:
-        return json.loads(JOBS_FILE.read_text(encoding="utf-8"))
+        jobs = json.loads(JOBS_FILE.read_text(encoding="utf-8"))
+        now = time.time()
+        changed = False
+        for job in jobs:
+            expires = float(job.get("run_expires_at") or 0)
+            if expires and expires <= now:
+                for key in ("run_status", "run_progress", "run_phase", "run_started_at", "run_updated_at",
+                            "run_expires_at", "last_result", "last_provider", "last_error", "pending_tool"):
+                    job.pop(key, None)
+                changed = True
+        if changed:
+            _save_jobs(jobs)
+        return jobs
     except Exception:
         return []
 
@@ -2100,6 +2392,18 @@ def _load_jobs() -> list[dict]:
 def _save_jobs(jobs: list[dict]) -> None:
     JOBS_FILE.parent.mkdir(parents=True, exist_ok=True)
     JOBS_FILE.write_text(json.dumps(jobs, indent=2), encoding="utf-8")
+
+
+def _valid_job_schedule(value: Any) -> bool:
+    """Accept bounded interval seconds or a valid cron expression."""
+    schedule = str(value or "").strip()
+    if not schedule or len(schedule) > 100:
+        return False
+    try:
+        interval = float(schedule)
+        return 1 <= interval <= 365 * 24 * 60 * 60
+    except ValueError:
+        return bool(croniter and croniter.is_valid(schedule))
 
 
 def _seed_default_jobs() -> None:
@@ -2145,11 +2449,20 @@ def api_cron_jobs(_admin: dict = Depends(_require_admin)):
 @router.post("/api/cron/jobs")
 def api_cron_add_job(body: dict, _admin: dict = Depends(_require_admin)):
     jobs = _load_jobs()
+    name = str(body.get("name") or "job").strip()
+    schedule = str(body.get("schedule") or "").strip()
+    command = str(body.get("command") or body.get("callback") or "").strip()
+    if not name or len(name) > 80:
+        raise HTTPException(status_code=400, detail="Job name must be 1–80 characters")
+    if not _valid_job_schedule(schedule):
+        raise HTTPException(status_code=400, detail="Schedule must be 1–31536000 seconds or a valid cron expression")
+    if not command or len(command) > 1000:
+        raise HTTPException(status_code=400, detail="Job command must be 1–1000 characters")
     job = {
         "id": str(body.get("id") or int(time.time() * 1000)),
-        "name": str(body.get("name") or "job"),
-        "schedule": str(body.get("schedule") or ""),
-        "command": str(body.get("command") or body.get("callback") or ""),
+        "name": name,
+        "schedule": schedule,
+        "command": command,
         "enabled": bool(body.get("enabled", True)),
         "created_at": time.time(),
     }
@@ -2173,7 +2486,14 @@ def api_cron_update_job(job_id: str, body: dict, _admin: dict = Depends(_require
             continue
         for key in ("name", "schedule", "command"):
             if key in body:
-                job[key] = str(body.get(key) or "")
+                value = str(body.get(key) or "").strip()
+                if key == "name" and (not value or len(value) > 80):
+                    raise HTTPException(status_code=400, detail="Job name must be 1–80 characters")
+                if key == "schedule" and not _valid_job_schedule(value):
+                    raise HTTPException(status_code=400, detail="Schedule must be 1–31536000 seconds or a valid cron expression")
+                if key == "command" and (not value or len(value) > 1000):
+                    raise HTTPException(status_code=400, detail="Job command must be 1–1000 characters")
+                job[key] = value
         if "enabled" in body:
             job["enabled"] = bool(body["enabled"])
         job["updated_at"] = time.time()
@@ -2196,12 +2516,31 @@ async def api_cron_run_job(
         if runner is None:
             from atulya.mastishk import get_default_llm
             runner = AutomationRunner(JOBS_FILE, get_default_llm())
-        await runner.run_job(job)
-        job["last_run"] = time.time()
+            request.app.state.automation_runner = runner
+        started = time.time()
+        job["last_run"] = started
         job["run_count"] = int(job.get("run_count") or 0) + 1
+        job["next_run"] = _next_job_run(str(job.get("schedule") or "60"), started)
         _save_jobs(jobs)
+        job = await runner.start_job(job)
         return {"ok": True, "job": job}
     return {"ok": False, "error": "Job not found"}
+
+
+@router.post("/api/cron/jobs/{job_id}/cancel")
+async def api_cron_cancel_job(
+    request: Request,
+    job_id: str,
+    _admin: dict = Depends(_require_admin),
+):
+    """Cancel an active manual job. Scheduled jobs remain configured."""
+    runner = getattr(request.app.state, "automation_runner", None)
+    if runner is None:
+        return {"ok": False, "error": "No active job runner"}
+    job = await runner.cancel_job(job_id)
+    if job is None:
+        return {"ok": False, "error": "Job is not running"}
+    return {"ok": True, "job": job}
 
 
 # ── upload ────────────────────────────────────────────────────────────

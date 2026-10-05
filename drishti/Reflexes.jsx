@@ -53,9 +53,11 @@ function Stat({ label, value }) {
 
 export function Reflexes({ toast }) {
   const [rules, setRules] = useState([]);
+  const [jobs, setJobs] = useState([]);
   const [brain, setBrain] = useState(null);
   const [recent, setRecent] = useState([]);
   const [draft, setDraft] = useState(EMPTY_DRAFT);
+  const [jobDraft, setJobDraft] = useState({ name: '', schedule: '3600', command: '' });
   const [saving, setSaving] = useState(false);
 
   const loadRules = () => api.get('/api/triggers')
@@ -64,14 +66,69 @@ export function Reflexes({ toast }) {
   const loadRecent = () => api.get('/api/events/recent?limit=25')
     .then((res) => setRecent((res.events || []).slice().reverse()))
     .catch(() => {});
+  const loadJobs = () => api.get('/api/cron/jobs')
+    .then((res) => setJobs(res.jobs || []))
+    .catch((err) => toast('error', `Couldn't load scheduled jobs: ${err.message}`));
 
   useEffect(() => {
     loadRules();
     loadRecent();
+    loadJobs();
     api.get('/api/brain').then(setBrain).catch(() => {});
-    const timer = setInterval(loadRecent, 5000);
+    const timer = setInterval(() => { loadRecent(); loadJobs(); }, 3000);
     return () => clearInterval(timer);
   }, []);
+
+  async function createJob(e) {
+    e.preventDefault();
+    if (!jobDraft.name.trim() || !jobDraft.schedule.trim() || !jobDraft.command.trim()) {
+      toast('error', 'Add a name, schedule, and command.');
+      return;
+    }
+    if (!window.confirm('This job will run automatically on its schedule. Commands may perform actions. Add it?')) return;
+    setSaving(true);
+    try {
+      await api.post('/api/cron/jobs', { ...jobDraft, enabled: true });
+      setJobDraft({ name: '', schedule: '3600', command: '' });
+      await loadJobs();
+      toast('success', 'Scheduled job added');
+    } catch (err) {
+      toast('error', err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function runJob(job) {
+    if (!window.confirm(`Run "${job.name}" now? The command may perform actions.`)) return;
+    try {
+      await api.post(`/api/cron/jobs/${encodeURIComponent(job.id)}/run`, {});
+      await loadJobs();
+      toast('info', `Started ${job.name}`);
+    } catch (err) {
+      toast('error', err.message);
+    }
+  }
+
+  async function cancelJob(job) {
+    if (!window.confirm(`Cancel the active run of "${job.name}"?`)) return;
+    try {
+      await api.post(`/api/cron/jobs/${encodeURIComponent(job.id)}/cancel`, {});
+      await loadJobs();
+      toast('info', `Cancelled ${job.name}`);
+    } catch (err) {
+      toast('error', err.message);
+    }
+  }
+
+  async function toggleJob(job) {
+    try {
+      await api.patch(`/api/cron/jobs/${encodeURIComponent(job.id)}`, { enabled: job.enabled === false });
+      await loadJobs();
+    } catch (err) {
+      toast('error', err.message);
+    }
+  }
 
   const update = (field) => (e) => {
     const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
@@ -162,6 +219,49 @@ export function Reflexes({ toast }) {
           </p>
         </section>
       )}
+
+      <section className="panel">
+        <div className="panel-title">
+          <h2>Scheduled jobs</h2>
+          <span className="muted">Run on a schedule, inspect the latest state, or cancel an active run.</span>
+        </div>
+        <div className="reflex-list">
+          {jobs.length === 0 && <p className="muted">No scheduled jobs yet.</p>}
+          {jobs.map((job) => (
+            <div className="reflex-card" key={job.id}>
+              <div className="reflex-head">
+                <strong>{job.name}</strong>
+                <span className="reflex-badges">
+                  <span className={`badge ${job.run_status === 'failed' ? 'warn' : job.run_status === 'completed' ? 'good' : ''}`}>{job.run_status || (job.enabled === false ? 'paused' : 'scheduled')}</span>
+                </span>
+              </div>
+              <div className="reflex-body">
+                <div><small>SCHEDULE</small> {job.schedule} · {job.enabled === false ? 'paused' : 'enabled'}</div>
+                <div><small>COMMAND</small> {job.command}</div>
+                {job.run_status && <div><small>RUN</small> {job.run_phase || job.run_status} · {job.run_progress || 0}%
+                  {job.run_updated_at ? ` · ${timeAgo(job.run_updated_at)}` : ''}</div>}
+                {job.last_result && <div><small>RESULT</small> {String(job.last_result).slice(0, 300)}</div>}
+                {job.last_error && <div className="muted"><small>ERROR</small> {String(job.last_error).slice(0, 240)}</div>}
+              </div>
+              {job.run_status === 'running' && <div className="db-progress"><i style={{ width: `${Math.min(100, Math.max(0, job.run_progress || 0))}%` }} /></div>}
+              <div className="reflex-actions">
+                {job.run_status === 'running'
+                  ? <button type="button" className="danger" onClick={() => cancelJob(job)}>Cancel run</button>
+                  : <button type="button" onClick={() => runJob(job)}>Run now</button>}
+                <button type="button" onClick={() => toggleJob(job)}>{job.enabled === false ? 'Resume schedule' : 'Pause schedule'}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <form className="reflex-form" onSubmit={createJob}>
+          <h3>New scheduled job</h3>
+          <label>Name<input value={jobDraft.name} onChange={(e) => setJobDraft((prev) => ({ ...prev, name: e.target.value }))} maxLength={80} /></label>
+          <label>Schedule (seconds or cron)<input value={jobDraft.schedule} onChange={(e) => setJobDraft((prev) => ({ ...prev, schedule: e.target.value }))} placeholder="3600" /></label>
+          <label>Command<input value={jobDraft.command} onChange={(e) => setJobDraft((prev) => ({ ...prev, command: e.target.value }))} maxLength={1000} /></label>
+          <p className="muted reflex-hint">Scheduled commands may perform actions without asking again. Only schedule commands you authorize to run unattended. Each run is limited to five minutes.</p>
+          <button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Add scheduled job'}</button>
+        </form>
+      </section>
 
       <section className="panel">
         <div className="panel-title">

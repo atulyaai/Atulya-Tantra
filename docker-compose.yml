@@ -15,8 +15,9 @@ services:
     restart: unless-stopped
 
   cloudflared:
+    profiles: ["tunnel"]
     image: cloudflare/cloudflared:latest
-    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN:?Set CF_TUNNEL_TOKEN in .env}
+    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN:-}
     environment:
       CF_TUNNEL_TOKEN: ${CF_TUNNEL_TOKEN}
     depends_on:

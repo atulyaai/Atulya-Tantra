@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { api } from './api.js';
+import { api, getUser } from './api.js';
 
 function GoogleCard({ toast }) {
   const [status, setStatus] = useState(null);
@@ -82,9 +82,57 @@ function GoogleCard({ toast }) {
   );
 }
 
+function NotificationsCard({ toast }) {
+  const [status, setStatus] = useState({ available: false, subscribed: false, supported: false });
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+    if (!supported) { setStatus((value) => ({ ...value, supported: false })); return; }
+    navigator.serviceWorker.ready.then(async (registration) => {
+      const sub = await registration.pushManager.getSubscription();
+      const config = await api.get('/api/notifications/vapid-key');
+      setStatus({ supported: true, available: Boolean(config.available), subscribed: Boolean(sub) });
+    }).catch(() => setStatus({ supported, available: false, subscribed: false }));
+  }, []);
+
+  async function change() {
+    setBusy(true);
+    try {
+      if (status.subscribed) {
+        const result = await api.unsubscribePush();
+        if (!result.ok) throw new Error(result.error);
+        setStatus((value) => ({ ...value, subscribed: false }));
+        toast('success', 'Background notifications are off.');
+      } else {
+        if (Notification.permission !== 'granted') {
+          const permission = await Notification.requestPermission();
+          if (permission !== 'granted') throw new Error('Allow notifications in your browser to continue.');
+        }
+        const result = await api.subscribePush();
+        if (!result.ok) throw new Error(result.error);
+        setStatus((value) => ({ ...value, subscribed: true }));
+        toast('success', 'Background notifications are on.');
+      }
+    } catch (err) { toast('error', err.message); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <section className="panel">
+      <div className="panel-title"><h2>Background notifications</h2></div>
+      {!status.supported ? <p className="muted">This browser does not support background notifications.</p>
+        : !status.available ? <p className="muted">Background delivery is not configured on this server. Live alerts still appear while Atulya is open.</p>
+          : <><p className="muted">Receive Atulya alerts when this browser is closed. Your browser may ask for notification permission.</p>
+            <button type="button" disabled={busy} onClick={change}>{busy ? 'Please wait…' : status.subscribed ? 'Turn notifications off' : 'Turn notifications on'}</button></>}
+    </section>
+  );
+}
+
 export function AboutYou({ toast }) {
   const [profile, setProfile] = useState(null);
   const [teach, setTeach] = useState('');
+  const isAdmin = getUser()?.role === 'admin';
 
   const load = () => api.get('/api/profile').then(setProfile).catch((err) => toast('error', err.message));
   useEffect(() => { load(); }, []);
@@ -190,6 +238,7 @@ export function AboutYou({ toast }) {
       </section>
 
       <GoogleCard toast={toast} />
+      {isAdmin && <NotificationsCard toast={toast} />}
 
       <section className="panel">
         <div className="panel-title"><h2>Start over</h2></div>

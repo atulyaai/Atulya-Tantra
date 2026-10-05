@@ -2364,6 +2364,96 @@ async def device_list() -> str:
                      for r in rows)
 
 
+@tool("phone_command", "Ring a paired phone or request its current location", {
+    "action": {"type": "string", "description": "ring or locate"},
+    "device": {"type": "string", "description": "Optional paired phone name", "default": ""},
+})
+async def phone_command(action: str, device: str = "") -> str:
+    from atulya import phone as phone_store, raksha
+
+    phones = [row for row in raksha.paired_devices().list()
+              if str(row.get("kind", "")).lower() in {"phone", "termux", "android"}
+              and row.get("permission") == "full" and not row.get("revoked")]
+    if device:
+        query = device.strip().lower()
+        phones = [row for row in phones if query in str(row.get("name", "")).lower()]
+    if not phones:
+        return "No full-permission phone is paired. Pair the phone with full access, then try again."
+    if len(phones) > 1:
+        return "More than one phone is paired. Say the device name: " + ", ".join(str(row.get("name", "Phone")) for row in phones)
+    try:
+        phone_store.enqueue(phones[0]["id"], action.strip().lower())
+    except ValueError as exc:
+        return str(exc)
+    return f"Queued {action} for {phones[0].get('name', 'your phone')}. It must be online with the Termux companion running."
+
+
+@tool("phone_inbox", "Read recent SMS, notifications, or location sent by your paired phone", {
+    "kind": {"type": "string", "description": "all, sms, notifications, or location", "default": "all"},
+    "limit": {"type": "integer", "description": "Maximum number of recent records", "default": 10},
+})
+async def phone_inbox(kind: str = "all", limit: int = 10) -> str:
+    from atulya import phone as phone_store
+    from atulya.bhava import current_access
+
+    caller = current_access.get() or {}
+    if caller and caller.get("role") not in {"admin", "owner"}:
+        return "Phone inbox data is only available to the owner."
+    try:
+        rows = phone_store.list_items(kind, limit)
+    except ValueError as exc:
+        return str(exc)
+    if not rows:
+        return "No phone data has arrived yet. Start the paired phone companion and enable the data types you want to share."
+    return "\n".join(f"{row['kind']} · {time.strftime('%Y-%m-%d %H:%M', time.localtime(row.get('received_at', 0)))} · "
+                     f"{json.dumps(row.get('item', {}), ensure_ascii=False)[:700]}" for row in rows)
+
+
+@tool("remote_computer", "Queue a check, read task, or a command on another paired computer (commands ask first)", {
+    "device": {"type": "string", "description": "Name of a paired computer"},
+    "operation": {"type": "string", "description": "results, diagnose, list_dir, find_files, read_file, or run_command"},
+    "path": {"type": "string", "description": "Folder or file path for list_dir, find_files, or read_file", "default": ""},
+    "query": {"type": "string", "description": "File search text for find_files", "default": ""},
+    "command": {"type": "string", "description": "One safe command, only when the paired computer has full permission", "default": ""},
+})
+async def remote_computer(device: str, operation: str, path: str = "", query: str = "", command: str = "") -> str:
+    from atulya import dut, raksha
+    from atulya.bhava import current_access
+
+    caller = current_access.get() or {}
+    if caller and caller.get("role") not in {"admin", "owner"}:
+        return "Remote computer control is only available to the owner."
+    computers = [row for row in raksha.paired_devices().list()
+                 if str(row.get("kind", "")).lower() in {"computer", "laptop", "workstation"}
+                 and not row.get("revoked")]
+    query_name = device.strip().lower()
+    computers = [row for row in computers if query_name in str(row.get("name", "")).lower()]
+    if not computers:
+        return "No paired computer matches that name. Pair the companion first."
+    if len(computers) > 1:
+        return "More than one computer matches. Name one of: " + ", ".join(str(row.get("name", "Computer")) for row in computers)
+    selected = computers[0]
+    if operation == "results":
+        rows = dut.recent_results(selected["id"])
+        if not rows:
+            return f"No results have returned from {selected.get('name', 'the computer')} yet."
+        return "\n".join(f"{row['result'].get('output') or row['result'].get('error', 'Finished')}" for row in rows[-5:])
+    args: dict[str, Any] = {}
+    if operation in {"list_dir", "read_file"}:
+        args["path"] = path
+    elif operation == "find_files":
+        args.update(query=query, where=path)
+    elif operation == "run_command":
+        if selected.get("permission") != "full":
+            return "That paired computer is not approved for full control."
+        args["command"] = command
+    try:
+        dut.enqueue(selected["id"], operation, args)
+    except ValueError as exc:
+        return str(exc)
+    return f"Queued {operation} on {selected.get('name', 'the computer')}. The companion must be running; request its result again after it checks in."
+
+
 @tool("device_discover", "Scan your home network for TVs, phones, lights, speakers and anything else Atulya can control", {})
 async def device_discover() -> str:
     hub = get_hub()

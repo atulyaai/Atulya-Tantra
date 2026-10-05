@@ -5,7 +5,6 @@ import asyncio
 import datetime
 import json
 import os
-import stat
 import subprocess
 import sys
 
@@ -34,7 +33,7 @@ def test_certificate_covers_this_computers_names_and_addresses(tmp_path):
     c = load(tmp_path)
     assert c.not_valid_after_utc - datetime.datetime.now(datetime.timezone.utc) > datetime.timedelta(days=360)
     assert c.extensions.get_extension_for_class(x509.BasicConstraints).value.ca is False        # not a certificate authority
-    assert oct((tmp_path / "key.pem").stat().st_mode & 0o777) == "0o600"
+    assert https.private_file_is_restricted(tmp_path / "key.pem")
     assert cert_file.endswith("cert.pem") and key_file.endswith("key.pem")
 
 
@@ -62,8 +61,7 @@ def test_switch_and_local_names(monkeypatch):
 
 def test_the_key_is_never_world_readable(tmp_path):
     https.ensure_certs(tmp_path, ["localhost"], ["127.0.0.1"])
-    mode = (tmp_path / "key.pem").stat().st_mode
-    assert not mode & (stat.S_IRWXG | stat.S_IRWXO)
+    assert https.private_file_is_restricted(tmp_path / "key.pem")
 
 
 # ── test_vault ────────────────────────────────────────────────────────────
@@ -87,7 +85,7 @@ def test_roundtrip_is_really_encrypted(tmp_path, monkeypatch):
     raw = f.read_bytes()
     assert raw.startswith(b"ATV1") and b"salary" not in raw and b"50000" not in raw
     assert json.loads(vault.read_text(f)) == {"secret": "salary 50000"}
-    assert oct(f.stat().st_mode)[-3:] == "600"
+    assert vault.private_file_is_restricted(f)
 
 
 def test_wrong_or_missing_passphrase_locks_and_never_overwrites(tmp_path, monkeypatch):

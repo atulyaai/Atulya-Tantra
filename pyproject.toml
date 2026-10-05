@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "atulya-tantra"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Atulya Tantra — free-first AI assistant with local model inference, memory, tools, and automation"
 requires-python = ">=3.10"
 dependencies = [
@@ -32,6 +32,9 @@ serve = [
     "aiosmtplib>=3.0",
     "aioimaplib>=1.0",
     "edge-tts>=6.0",
+]
+push = [
+    "pywebpush>=2.0",
 ]
 # Lightweight local brain: run the tiny Qwen3-0.6B GGUF directly (no Ollama,
 # no torch). This is all you need for a working self-hosted assistant.
@@ -94,6 +97,9 @@ dev = [
 [project.scripts]
 atulya = "atulya.adesh:main"
 atulya-listen = "atulya.shruti:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "atulya.__version__"}
 
 [tool.setuptools.packages.find]
 include = ["atulya*"]

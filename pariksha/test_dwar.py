@@ -53,7 +53,7 @@ class TestNotifications:
     @pytest.fixture
     def mock_auth(self):
         with patch("atulya.dwar._require_auth") as m:
-            m.return_value = {"username": "testuser"}
+            m.return_value = {"username": "testuser", "role": "admin"}
             yield m
 
     @pytest.fixture
@@ -62,16 +62,15 @@ class TestNotifications:
             m.return_value = {"username": "admin", "role": "admin"}
             yield m
 
-    def test_subscribe(self, tmp_path, mock_auth):
-        import atulya.dwar as notif_mod
+    def test_subscribe(self, tmp_path, monkeypatch, mock_auth):
+        from atulya import push
         from atulya.dwar import subscribe
-        notif_mod.SUBS_FILE = tmp_path / "subs.json"
+        monkeypatch.setenv("ATULYA_AGENT_DATA_DIR", str(tmp_path))
+        subscription = {"endpoint": "https://push.test", "keys": {"p256dh": "p", "auth": "a"}}
 
-        result = subscribe({"subscription": {"endpoint": "https://push.test"}}, token="t")
-        assert result == {"ok": True}
-
-        data = json.loads((tmp_path / "subs.json").read_text())
-        assert data["testuser"] == [{"endpoint": "https://push.test"}]
+        result = subscribe({"subscription": subscription}, token="t")
+        assert result == {"ok": True, "delivery_configured": False}
+        assert push._read()["testuser"] == [subscription]
 
     def test_subscribe_no_subscription(self, tmp_path, mock_auth):
         import atulya.dwar as notif_mod
@@ -82,36 +81,35 @@ class TestNotifications:
         with pytest.raises(HTTPException, match="subscription"):
             subscribe({}, token="t")
 
-    def test_unsubscribe(self, tmp_path, mock_auth):
-        import atulya.dwar as notif_mod
+    def test_unsubscribe(self, tmp_path, monkeypatch, mock_auth):
+        from atulya import push
         from atulya.dwar import unsubscribe
-        subs_file = tmp_path / "subs.json"
-        notif_mod.SUBS_FILE = subs_file
-        subs_file.write_text(json.dumps({"testuser": [{"endpoint": "https://push.test"}]}))
+        monkeypatch.setenv("ATULYA_AGENT_DATA_DIR", str(tmp_path))
+        subscription = {"endpoint": "https://push.test", "keys": {"p256dh": "p", "auth": "a"}}
+        push.subscribe("testuser", subscription)
 
-        result = unsubscribe({"subscription": {"endpoint": "https://push.test"}}, token="t")
+        result = unsubscribe({"subscription": subscription}, token="t")
         assert result == {"ok": True}
-        data = json.loads(subs_file.read_text())
-        assert data["testuser"] == []
+        assert push._read() == {}
 
-    def test_unsubscribe_no_file(self, tmp_path, mock_auth):
-        import atulya.dwar as notif_mod
+    def test_unsubscribe_no_file(self, tmp_path, monkeypatch, mock_auth):
         from atulya.dwar import unsubscribe
-        notif_mod.SUBS_FILE = tmp_path / "subs.json"
+        monkeypatch.setenv("ATULYA_AGENT_DATA_DIR", str(tmp_path))
 
         result = unsubscribe({"subscription": {"endpoint": "x"}}, token="t")
         assert result == {"ok": True}
 
-    def test_test_notification(self, tmp_path, mock_auth, mock_admin):
-        import atulya.dwar as notif_mod
+    def test_test_notification(self, monkeypatch, mock_admin):
         from atulya.dwar import test_notification
-        notif_mod.SUBS_FILE = tmp_path / "subs.json"
+        monkeypatch.delenv("ATULYA_VAPID_PUBLIC_KEY", raising=False)
+        monkeypatch.delenv("ATULYA_VAPID_PRIVATE_KEY", raising=False)
+        monkeypatch.delenv("ATULYA_VAPID_SUBJECT", raising=False)
 
-        result = test_notification({"title": "Hi", "message": "Test"}, token="t")
-        assert result.status_code == 200
+        import asyncio
+        result = asyncio.run(test_notification({"title": "Hi", "message": "Test"}, token="t"))
+        assert result.status_code == 503
         body = json.loads(result.body)
-        assert body["title"] == "Hi"
-        assert body["message"] == "Test"
+        assert body["title"] == "Hi" and body["message"] == "Test" and body["sent"] is False
 
 
 # ── test_sessions ────────────────────────────────────────────────────────────

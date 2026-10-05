@@ -13,6 +13,9 @@ export function setServerUrl(value) {
   if (!['http:', 'https:'].includes(parsed.protocol) || parsed.pathname !== '/' || parsed.search || parsed.hash) {
     throw new Error('Enter a server address such as https://atulya.atulvij.com');
   }
+  if (parsed.protocol === 'http:' && !['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname)) {
+    throw new Error('Use HTTPS for any non-local server so your sign-in stays private.');
+  }
   try {
     const previous = localStorage.getItem(SERVER_URL_KEY);
     if (previous && previous.replace(/\/$/, '') !== parsed.origin) clearToken();
@@ -88,6 +91,7 @@ async function request(path, options = {}) {
 export const api = {
   get: (path) => request(path),
   post: (path, body) => request(path, { method: 'POST', body: JSON.stringify(body || {}) }),
+  patch: (path, body) => request(path, { method: 'PATCH', body: JSON.stringify(body || {}) }),
   delete: (path) => request(path, { method: 'DELETE' }),
   async getVoices() {
     return this.get('/api/voice/voices');
@@ -210,12 +214,29 @@ export const api = {
       const registration = await navigator.serviceWorker.ready;
       let sub = await registration.pushManager.getSubscription();
       if (!sub) {
+        const config = await this.get('/api/notifications/vapid-key');
+        if (!config.available || !config.public_key) return { ok: false, error: 'Web Push is not configured on this server' };
+        const encoded = config.public_key.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(config.public_key.length / 4) * 4, '=');
+        const key = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0));
         sub = await registration.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: null,
+          applicationServerKey: key,
         });
       }
       return this.post('/api/notifications/subscribe', { subscription: sub.toJSON() });
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  },
+  async unsubscribePush() {
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const sub = await registration.pushManager.getSubscription();
+      if (sub) {
+        await this.post('/api/notifications/unsubscribe', { subscription: sub.toJSON() });
+        await sub.unsubscribe();
+      }
+      return { ok: true };
     } catch (err) {
       return { ok: false, error: err.message };
     }

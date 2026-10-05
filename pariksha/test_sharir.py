@@ -181,7 +181,9 @@ def test_files_tool_round_trip_and_audit(home):
     assert "outside the folders" in run(kriya.files("read", "/etc/passwd"))
     assert "files can:" in run(kriya.files("explode", "x"))
     assert any(e["event"] == "files.write" for e in kriya.recent(20))
-    assert "abc" not in str(kriya.recent(20))  # contents never reach the log
+    records = [{key: value for key, value in event.items() if key not in {"prev", "h"}}
+               for event in kriya.recent(20)]
+    assert "abc" not in str(records)  # contents never reach the log; hash bytes are arbitrary
 
 
 def test_which_actions_need_a_yes():

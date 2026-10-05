@@ -191,4 +191,7 @@ Checks: disk space (<5GB = high, <20GB = medium), RAM (>90% = high, >80% = mediu
 | POST | `/api/cron/jobs` | Create cron job |
 | DELETE | `/api/cron/jobs/{id}` | Delete job |
 | PATCH | `/api/cron/jobs/{id}` | Update job |
-| POST | `/api/cron/jobs/{id}/run` | Run job immediately |
+| POST | `/api/cron/jobs/{id}/run` | Start a bounded background run; response includes current lifecycle state |
+| POST | `/api/cron/jobs/{id}/cancel` | Cancel an active manual run (does not delete or pause the schedule) |
+
+Job records expose `run_status`, `run_progress`, `run_phase`, `run_started_at`, `run_updated_at`, `run_expires_at`, `last_result`, and `last_error`. Runs have a five-minute limit; status and result metadata expire after seven days. A run found active after a server restart is marked `interrupted` and is not replayed, to avoid repeating an action whose completion is uncertain. Commands that require owner approval remain in `needs_approval` and are not executed by the scheduler.

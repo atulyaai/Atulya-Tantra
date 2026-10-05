@@ -11,6 +11,7 @@ import os
 import re
 import shutil
 import socket
+import sys
 import ssl
 import tempfile
 import urllib.parse
@@ -143,7 +144,9 @@ async def run_adb(*args: str, timeout: float = 15.0, binary: bool = False) -> by
     exe = adb_path()
     if not exe:
         raise DeviceError("The adb tool isn't installed. Install Android platform-tools and make sure `adb` is on your PATH.")
-    proc = await asyncio.create_subprocess_exec(exe, *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    executable = [sys.executable, exe] if Path(exe).suffix.lower() == ".py" else [exe]
+    proc = await asyncio.create_subprocess_exec(*executable, *args, stdout=asyncio.subprocess.PIPE,
+                                                stderr=asyncio.subprocess.PIPE)
     try:
         out, err = await asyncio.wait_for(proc.communicate(), timeout)
     except asyncio.TimeoutError as exc:
