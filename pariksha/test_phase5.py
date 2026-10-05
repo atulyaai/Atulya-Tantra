@@ -404,6 +404,6 @@ def test_telegram_webhook_routes_message():
             "message": {"text": "/ask hi", "chat": {"id": "1"}, "from": {"id": "123"}},
         }, llm=FakeLLM())
         assert result == "answered"
-        assert sent == ["reply:hi"]
+        assert sent == ["Atulya is working on it...", "reply:hi"]
 
     asyncio.run(run())

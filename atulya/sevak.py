@@ -58,6 +58,18 @@ async def _warm_llm(llm) -> None:
         logger.warning("LLM warmup skipped: %s", exc)
 
 
+async def _poll_telegram(channel, llm) -> None:
+    """Long-poll the configured, allowlisted Telegram bot for inbound messages."""
+    while True:
+        try:
+            await channel.poll_and_reply(llm=llm)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Telegram polling failed")
+        await asyncio.sleep(2)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from atulya.dwar import set_agent
@@ -71,6 +83,21 @@ async def lifespan(app: FastAPI):
     api_agent._seed_default_jobs()
     app.state.automation_runner = AutomationRunner(api_agent.JOBS_FILE, app.state.llm)
     app.state.automation_task = asyncio.create_task(app.state.automation_runner.start())
+
+    app.state.telegram_task = None
+    bot_token = os.environ.get("ATULYA_TELEGRAM_BOT_TOKEN", "").strip()
+    allowlist = os.environ.get("ATULYA_TELEGRAM_ALLOWLIST", "").strip()
+    if bot_token and allowlist:
+        from atulya.sandesh import TelegramChannel
+
+        app.state.telegram = TelegramChannel()
+        await app.state.telegram.connect({"allowlist": allowlist})
+        if not await app.state.telegram.configure_profile():
+            logger.warning("Telegram profile setup was incomplete; bot replies remain enabled")
+        app.state.telegram_task = asyncio.create_task(_poll_telegram(app.state.telegram, app.state.llm))
+        logger.info("Telegram bot polling enabled for the configured allowlist")
+    elif bot_token:
+        logger.warning("Telegram bot token is set but ATULYA_TELEGRAM_ALLOWLIST is empty; polling is disabled")
 
     # Initialize Atulya Agent
     agent_core = AgentCore(llm_provider=app.state.llm)
@@ -117,6 +144,9 @@ async def lifespan(app: FastAPI):
         await app.state.senses.stop()
         await app.state.automation_runner.stop()
         app.state.automation_task.cancel()
+        if app.state.telegram_task:
+            app.state.telegram_task.cancel()
+            await asyncio.gather(app.state.telegram_task, return_exceptions=True)
         await app.state.mcp_manager.shutdown_all()
         await agent_core.shutdown()
 

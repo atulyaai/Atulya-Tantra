@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react';
 
 // Files the browser asks for by name (service worker, manifest, icon, the hologram's head).
 // They sit next to the source in this one flat folder, so there is no public/ folder.
-const STATIC = ['favicon.svg', 'manifest.webmanifest', 'sw.js', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];
+const STATIC = ['favicon.svg', 'manifest.webmanifest', 'sw.js', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'hologram-points.bin'];
 const TYPES = { svg: 'image/svg+xml', bin: 'application/octet-stream', webmanifest: 'application/manifest+json', js: 'text/javascript' };
 
 const staticFiles = {

@@ -24,6 +24,7 @@ secrets/
 # Data / outputs
 *.model
 *.bin
+!drishti/hologram-points.bin
 *.gguf
 *.safetensors
 checkpoints/

@@ -220,6 +220,27 @@ def test_telegram_allowlist_blocks_unknown_user():
     asyncio.run(run())
 
 
+def test_telegram_start_replies_to_allowlisted_owner():
+    from atulya.sandesh import ChannelMessage, TelegramChannel
+
+    async def run():
+        channel = TelegramChannel()
+        await channel.connect({"allowlist": "123", "bot_token": "test-token"})
+        sent = []
+
+        async def fake_send(message, chat_id="", **kwargs):
+            sent.append((message, chat_id))
+            return True
+
+        channel.send = fake_send
+        result = await channel.handle_message(
+            ChannelMessage("1", "telegram", "123", "/start", metadata={"chat_id": "456"}))
+        assert result == "help"
+        assert sent == [("Atulya OS is online. Text and voice chats are ready. Send photos, short videos, or common text files for analysis. Use /send \"path\" to send a file from an allowed folder. Commands: /ask, /status, /help.", "456")]
+
+    asyncio.run(run())
+
+
 def test_telegram_ask_routes_to_llm():
     from atulya.sandesh import ChannelMessage, TelegramChannel
 
@@ -245,7 +266,7 @@ def test_telegram_ask_routes_to_llm():
             llm=FakeLLM(),
         )
         assert result == "answered"
-        assert sent == ["reply:status"]
+        assert sent == ["Atulya is working on it...", "reply:status"]
 
     asyncio.run(run())
 
@@ -307,7 +328,212 @@ def test_telegram_can_show_response_provider():
             ChannelMessage("1", "telegram", "123", "/ask hi", metadata={"chat_id": "1"}),
             llm=FakeLLM(),
         )
-        assert sent == ["reply:hi\n\nvia Local GGUF"]
+        assert sent == ["Atulya is working on it...", "reply:hi\n\nvia Local GGUF"]
+
+    asyncio.run(run())
+
+
+def test_telegram_approval_is_one_shot_and_bound_to_sender():
+    from atulya.sandesh import ChannelMessage, TelegramChannel
+
+    pending = {"tool": "pc_open_app", "arguments": {"app": "calculator"}}
+
+    class FakeLLM:
+        def __init__(self):
+            self.approved = []
+
+        async def ask(self, prompt, history=None, **kwargs):
+            self.approved.append(kwargs.get("approved_tool_call"))
+
+            class Response:
+                needs_approval = not bool(kwargs.get("approved_tool_call"))
+                pending_tool = pending if needs_approval else None
+                text = "Opening calculator."
+                provider = "fake"
+            return Response()
+
+    async def run():
+        channel = TelegramChannel()
+        await channel.connect({"allowlist": "123,456", "bot_token": "test-token"})
+        sent = []
+
+        async def fake_send(message, chat_id="", **kwargs):
+            sent.append((message, chat_id))
+            return True
+
+        channel.send = fake_send
+        llm = FakeLLM()
+        first = ChannelMessage("1", "telegram", "123", "open calculator", metadata={"chat_id": "10"})
+        assert await channel.handle_message(first, llm) == "approval_requested"
+        other = ChannelMessage("2", "telegram", "456", "yes", metadata={"chat_id": "20"})
+        assert await channel.handle_message(other, llm) == "no_pending_approval"
+        yes = ChannelMessage("3", "telegram", "123", "yes", metadata={"chat_id": "10"})
+        assert await channel.handle_message(yes, llm) == "approved"
+        assert llm.approved == [None, pending]
+        assert await channel.handle_message(yes, llm) == "no_pending_approval"
+
+    asyncio.run(run())
+
+
+def test_openrouter_image_analysis_skips_models_without_image_support(monkeypatch):
+    from atulya.mastishk import OpenRouterProvider
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("ATULYA_OPENROUTER_MODEL", "text-only,vision-model")
+    provider = OpenRouterProvider()
+    calls = []
+
+    def fake_ask_image(model, prompt, image_bytes, mime_type):
+        calls.append((model, prompt, image_bytes, mime_type))
+        if model == "text-only":
+            raise RuntimeError("model does not support images")
+        return "A test image description."
+
+    monkeypatch.setattr(provider, "_ask_image", fake_ask_image)
+
+    async def run():
+        result = await provider.analyze_image("What is this?", b"image-bytes", "image/png")
+        assert result == "A test image description."
+
+    asyncio.run(run())
+    assert [call[0] for call in calls] == ["text-only", "vision-model"]
+    assert all(call[1:] == ("What is this?", b"image-bytes", "image/png") for call in calls)
+
+
+def test_telegram_photo_download_uses_largest_photo(monkeypatch):
+    from atulya.sandesh import ChannelMessage, TelegramChannel
+
+    async def run():
+        channel = TelegramChannel()
+        seen = []
+
+        async def fake_download(file_id, announced_size=0, max_bytes=20 * 1024 * 1024):
+            seen.append((file_id, announced_size))
+            return b"photo", "photos/image.jpg"
+
+        channel._download_file = fake_download
+        message = ChannelMessage("1", "telegram", "123", "", metadata={"raw": {"message": {
+            "photo": [{"file_id": "small", "file_size": 100}, {"file_id": "large", "file_size": 500}],
+        }}})
+        image, mime_type = await channel._download_image(message)
+        assert image == b"photo" and mime_type == "image/jpeg"
+        assert seen == [("large", 500)]
+
+    asyncio.run(run())
+
+
+def test_telegram_streams_plain_chat_into_one_editable_message():
+    from atulya.mastishk import LLMEvent
+    from atulya.sandesh import ChannelMessage, TelegramChannel
+
+    class FakeLLM:
+        async def stream(self, prompt, history=None, tools_enabled=True):
+            assert tools_enabled is False
+            yield LLMEvent("token", content="A streamed ")
+            yield LLMEvent("token", content="answer.")
+            yield LLMEvent("done", metadata={"provider": "OpenRouter"})
+
+        async def remember(self, prompt, answer):
+            self.remembered = (prompt, answer)
+
+    async def run():
+        channel = TelegramChannel()
+        await channel.connect({"allowlist": "123", "bot_token": "test-token"})
+        sent = []
+        edits = []
+
+        async def fake_send_id(text, chat_id):
+            sent.append((text, chat_id))
+            return 99
+
+        async def fake_edit(chat_id, message_id, text):
+            edits.append((chat_id, message_id, text))
+            return True
+
+        async def fake_send(message, chat_id="", **kwargs):
+            sent.append((message, chat_id))
+            return True
+
+        channel._send_text_with_id = fake_send_id
+        channel._edit_text = fake_edit
+        channel.send = fake_send
+        llm = FakeLLM()
+        result = await channel.handle_message(
+            ChannelMessage("1", "telegram", "123", "What is 2 plus 2?", metadata={"chat_id": "10"}), llm)
+        assert result == "answered"
+        assert edits[-1] == ("10", 99, "A streamed answer.")
+        assert llm.remembered == ("What is 2 plus 2?", "A streamed answer.")
+
+    asyncio.run(run())
+
+
+def test_telegram_file_send_is_disabled_without_explicit_opt_in(monkeypatch):
+    from atulya.sandesh import ChannelMessage, TelegramChannel
+
+    monkeypatch.delenv("ATULYA_TELEGRAM_ALLOW_SEND", raising=False)
+    monkeypatch.delenv("ATULYA_ALLOWED_FOLDERS", raising=False)
+
+    async def run():
+        channel = TelegramChannel()
+        await channel.connect({"allowlist": "123", "bot_token": "test-token"})
+        sent = []
+
+        async def fake_send(message, chat_id="", **kwargs):
+            sent.append(message)
+            return True
+
+        channel.send = fake_send
+        result = await channel.handle_message(
+            ChannelMessage("1", "telegram", "123", '/send "C:\\private\\file.pdf"', metadata={"chat_id": "10"}))
+        assert result == "file_send_denied"
+        assert "ATULYA_ALLOWED_FOLDERS" in sent[-1]
+
+    asyncio.run(run())
+
+
+def test_telegram_long_poll_http_timeout_exceeds_telegram_wait(monkeypatch):
+    from atulya.sandesh import TelegramChannel
+    import atulya.sandesh as channels
+
+    seen = {}
+
+    async def fake_get(url, params, timeout):
+        seen.update(url=url, params=params, timeout=timeout)
+        return 200, {"ok": True, "result": []}
+
+    async def run():
+        channel = TelegramChannel()
+        await channel.connect({"bot_token": "test-token"})
+        assert await channel.receive() == []
+
+    monkeypatch.setattr(channels, "_get_json", fake_get)
+    asyncio.run(run())
+    assert seen["params"]["timeout"] == 30
+    assert seen["timeout"] > seen["params"]["timeout"]
+
+
+def test_server_telegram_polling_loop_repeats_and_cancels_cleanly():
+    from atulya.sevak import _poll_telegram
+
+    class FakeChannel:
+        def __init__(self):
+            self.calls = 0
+            self.called = asyncio.Event()
+
+        async def poll_and_reply(self, llm=None):
+            self.calls += 1
+            self.called.set()
+
+    async def run():
+        channel = FakeChannel()
+        task = asyncio.create_task(_poll_telegram(channel, llm=None))
+        await asyncio.wait_for(channel.called.wait(), timeout=1)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        assert channel.calls == 1
 
     asyncio.run(run())
 

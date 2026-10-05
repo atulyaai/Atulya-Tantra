@@ -2,9 +2,39 @@
 # Optional Termux companion. Grant Android permissions only for features you use.
 set -euo pipefail
 
-SERVER=${ATULYA_SERVER:-https://atulya.atulvij.com}
+SERVER=${ATULYA_SERVER:-${ATULYA_SERVER_URL:-https://atulya.atulvij.com}}
 TOKEN=${ATULYA_DEVICE_TOKEN:-}
 POLL_SECONDS=${ATULYA_POLL_SECONDS:-15}
+RINGTONE=${ATULYA_RINGTONE:-}
+
+usage() {
+  printf 'Usage: %s [listen|sync|sms|notifications|location|ring]\n' "$0" >&2
+}
+
+ring_local() {
+  command -v termux-media-player >/dev/null || { echo 'Install Termux:API with: pkg install termux-api' >&2; return 1; }
+  command -v termux-vibrate >/dev/null && termux-vibrate -d 1000 -f || true
+  local ring_file=$RINGTONE candidate
+  if [[ ! -r "$ring_file" ]]; then
+    ring_file=''
+    for candidate in /system/media/audio/alarms/*.ogg /system/media/audio/ringtones/*.ogg /system/media/audio/notifications/*.ogg; do
+      if [[ -r "$candidate" ]]; then ring_file=$candidate; break; fi
+    done
+  fi
+  [[ -n "$ring_file" ]] || { echo 'No readable ringtone found; set ATULYA_RINGTONE to an audio file.' >&2; return 1; }
+  termux-media-player play "$ring_file"
+  sleep 10
+  termux-media-player stop || true
+}
+
+if [[ "${1:-}" == ring ]]; then
+  ring_local
+  exit $?
+fi
+case "${1:-}" in
+  ''|listen|sync|sms|notifications|location) ;;
+  *) usage; exit 2 ;;
+esac
 
 if [[ "$SERVER" != https://* ]]; then
   echo "Use an https:// ATULYA_SERVER." >&2
@@ -62,16 +92,7 @@ run_command() {
   local action=$1 result='{"ok":true}'
   case "$action" in
     ring)
-      termux-vibrate -d 1000 -f || true
-      ring_file=''
-      for candidate in /system/media/audio/alarms/*.ogg /system/media/audio/ringtones/*.ogg /system/media/audio/notifications/*.ogg; do
-        if [[ -r "$candidate" ]]; then ring_file=$candidate; break; fi
-      done
-      if [[ -n "$ring_file" ]]; then
-        termux-media-player play "$ring_file" || true
-        sleep 10
-        termux-media-player stop || true
-      fi
+      ring_local || true
       ;;
     locate)
       sync_location >/dev/null
@@ -84,6 +105,12 @@ run_command() {
 }
 
 echo "Termux phone companion connected. Press Ctrl+C to stop."
+case "${1:-listen}" in
+  sms) sync_sms; exit $? ;;
+  notifications) sync_notifications; exit $? ;;
+  location) sync_location; exit $? ;;
+  sync) sync_sms; sync_notifications; sync_location; exit $? ;;
+esac
 while true; do
   for feature in sms notifications location; do
     case "$feature" in

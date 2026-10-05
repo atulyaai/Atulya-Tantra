@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import inspect
 import json
 import logging
@@ -633,6 +634,119 @@ class OpenRouterProvider(IntelligenceProvider):
             return ""  # a moderation model answered instead of a chat model: treat as no answer
         # Some reasoning models wrap their thinking in <think>…</think>.
         return re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
+
+    async def chat_stream(self, prompt: str, system_prompt: str = "") -> AsyncIterator[str]:
+        """Stream text tokens from the first configured OpenRouter model."""
+        if not self._key():
+            raise ValueError("OPENROUTER_API_KEY is not configured")
+        model = self.models()[0]
+        messages = ([{"role": "system", "content": system_prompt}] if system_prompt else []) + [
+            {"role": "user", "content": prompt}]
+        payload = {"model": model, "messages": messages, "max_tokens": 1024, "stream": True}
+        req = urllib.request.Request(
+            self.URL, data=json.dumps(payload).encode("utf-8"), method="POST",
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {self._key()}",
+                     "HTTP-Referer": "https://github.com/atulyaai/Atulya-Tantra", "X-Title": "Atulya OS"},
+        )
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue = asyncio.Queue()
+        done = object()
+
+        def pump() -> None:
+            try:
+                with urllib.request.urlopen(req, timeout=45.0) as response:
+                    for raw_line in response:
+                        line = raw_line.decode("utf-8", errors="replace").strip()
+                        if not line.startswith("data:"):
+                            continue
+                        data = line[5:].strip()
+                        if data == "[DONE]":
+                            break
+                        chunk = json.loads(data)
+                        delta = ((chunk.get("choices") or [{}])[0].get("delta") or {}).get("content")
+                        if isinstance(delta, str) and delta:
+                            loop.call_soon_threadsafe(queue.put_nowait, delta)
+            except Exception as exc:
+                loop.call_soon_threadsafe(queue.put_nowait, exc)
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, done)
+
+        threading.Thread(target=pump, daemon=True).start()
+        while (piece := await queue.get()) is not done:
+            if isinstance(piece, Exception):
+                raise piece
+            yield piece
+
+    def _ask_image(self, model: str, prompt: str, image_bytes: bytes, mime_type: str) -> str:
+        """Ask one OpenRouter model to interpret a private image from a data URL."""
+        encoded = base64.b64encode(image_bytes).decode("ascii")
+        image_url = f"data:{mime_type};base64,{encoded}"
+        payload = {"model": model, "max_tokens": 1024, "messages": [{"role": "user", "content": [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": image_url}},
+        ]}]}
+        req = urllib.request.Request(
+            self.URL, data=json.dumps(payload).encode(), method="POST",
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {self._key()}",
+                     "HTTP-Referer": "https://github.com/atulyaai/Atulya-Tantra", "X-Title": "Atulya OS"},
+        )
+        with urllib.request.urlopen(req, timeout=30.0) as response:
+            body = json.loads(response.read().decode("utf-8"))
+        text = (body["choices"][0]["message"].get("content") or "").strip()
+        if _looks_like_safety_label(text):
+            return ""
+        return re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
+
+    async def analyze_image(self, prompt: str, image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
+        """Try the configured OpenRouter models until one accepts image input."""
+        if not self._key():
+            raise ValueError("OPENROUTER_API_KEY is not configured")
+        failures: list[str] = []
+        for model in self.models():
+            try:
+                result = await asyncio.to_thread(self._ask_image, model, prompt, image_bytes, mime_type)
+            except Exception as exc:
+                failures.append(f"{model}: {exc}")
+                continue
+            if result:
+                return result
+            failures.append(f"{model}: empty reply")
+        logger.warning("OpenRouter image analysis failed (%s)", "; ".join(failures))
+        raise RuntimeError("No configured OpenRouter model could analyze that image")
+
+    def _ask_video(self, model: str, prompt: str, video_bytes: bytes, mime_type: str) -> str:
+        """Ask one OpenRouter model to analyze a short video data URL."""
+        encoded = base64.b64encode(video_bytes).decode("ascii")
+        payload = {"model": model, "max_tokens": 1024, "messages": [{"role": "user", "content": [
+            {"type": "text", "text": prompt},
+            {"type": "video_url", "video_url": {"url": f"data:{mime_type};base64,{encoded}"}},
+        ]}]}
+        req = urllib.request.Request(
+            self.URL, data=json.dumps(payload).encode("utf-8"), method="POST",
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {self._key()}",
+                     "HTTP-Referer": "https://github.com/atulyaai/Atulya-Tantra", "X-Title": "Atulya OS"},
+        )
+        with urllib.request.urlopen(req, timeout=60.0) as response:
+            body = json.loads(response.read().decode("utf-8"))
+        text = (body["choices"][0]["message"].get("content") or "").strip()
+        return re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
+
+    async def analyze_video(self, prompt: str, video_bytes: bytes, mime_type: str = "video/mp4") -> str:
+        """Try configured models until one supports video input."""
+        if not self._key():
+            raise ValueError("OPENROUTER_API_KEY is not configured")
+        failures: list[str] = []
+        for model in self.models():
+            try:
+                result = await asyncio.to_thread(self._ask_video, model, prompt, video_bytes, mime_type)
+            except Exception as exc:
+                failures.append(f"{model}: {exc}")
+                continue
+            if result:
+                return result
+            failures.append(f"{model}: empty reply")
+        logger.warning("OpenRouter video analysis failed (%s)", "; ".join(failures))
+        raise RuntimeError("No configured OpenRouter model could analyze that video")
 
     async def chat(self, prompt: str, system_prompt: str = "") -> str:
         if not self._key():

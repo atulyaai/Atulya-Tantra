@@ -296,8 +296,10 @@ def _secure_file(path: Path) -> None:
 
 def private_file_is_restricted(path: Path) -> bool:
     """Return whether group and other users are denied access to a private file."""
+    if not path.exists():
+        return False
     if os.name != "nt":
-        return path.exists() and path.stat().st_mode & 0o077 == 0
+        return path.stat().st_mode & 0o077 == 0
     result = subprocess.run(["icacls", str(path)], capture_output=True, text=True, check=False)
     if result.returncode:
         return False
@@ -426,12 +428,14 @@ def ensure_certs(directory: Path | None = None, names: list[str] | None = None, 
             .not_valid_after(now + datetime.timedelta(days=365)).add_extension(san, critical=False)
             .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
             .sign(key, hashes.SHA256()))
-    key_file.write_bytes(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL,
-                                           serialization.NoEncryption()))
+    key_tmp = key_file.with_name(key_file.name + ".tmp")
+    key_tmp.write_bytes(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL,
+                                          serialization.NoEncryption()))
     try:
-        _secure_file(key_file)
+        _secure_file(key_tmp)
+        key_tmp.replace(key_file)
     except OSError:
-        key_file.unlink(missing_ok=True)
+        key_tmp.unlink(missing_ok=True)
         raise
     cert_file.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
     return str(cert_file), str(key_file)
