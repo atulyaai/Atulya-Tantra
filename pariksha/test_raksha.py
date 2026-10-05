@@ -314,7 +314,23 @@ class TestJwtSecret:
         monkeypatch.delenv("ATULYA_JWT_SECRET")
         monkeypatch.setattr(state, "ADMIN_TOKEN_SOURCE", "env")
         monkeypatch.setattr(state, "ADMIN_TOKEN", "dashboard-token")
-        assert state._load_jwt_secret() == "dashboard-token"  # existing setups keep their tokens
+        # The dashboard token is a bearer value that shows up in logs, headers and
+        # examples. Deriving the JWT signing key from it would let anyone holding
+        # that one token forge a JWT for any role, so an explicit dashboard token
+        # must no longer double as the signing secret.
+        assert state._load_jwt_secret() != "dashboard-token"
+
+    def test_jwt_secret_is_not_the_dashboard_token(self, tmp_path, monkeypatch):
+        from atulya import dwar as state
+
+        monkeypatch.delenv("ATULYA_JWT_SECRET", raising=False)
+        monkeypatch.setenv("ATULYA_JWT_SECRET_FILE", str(tmp_path / "jwt.key"))
+        monkeypatch.setattr(state, "ADMIN_TOKEN_SOURCE", "env")
+        monkeypatch.setattr(state, "ADMIN_TOKEN", "dashboard-token")
+        secret = state._load_jwt_secret()
+        assert secret != "dashboard-token"
+        assert len(secret) >= 32
+        assert state._load_jwt_secret() == secret  # still stable across restarts
 
 
 # ── CORS ──────────────────────────────────────────────────────────────────
@@ -324,7 +340,38 @@ def test_cors_never_allows_credentials_for_any_origin():
 
     from atulya.sevak import app
 
+    # A wildcard here is a token leak, not a convenience: any web page could
+    # fetch /api/auth/local (which only checks the client is loopback) and read
+    # the admin token straight out of the body. The dashboard is same-origin and
+    # the Vite dev server proxies /api, so no origin needs to be listed by default.
     resp = TestClient(app).get("/api/health", headers={"Origin": "https://evil.example"})
-    assert resp.headers.get("access-control-allow-origin") == "*"
+    assert "access-control-allow-origin" not in resp.headers
     assert "access-control-allow-credentials" not in resp.headers
+
+
+def test_auth_local_is_refused_for_cross_site_fetch():
+    """A page on another site must not be able to claim it is 'local'."""
+    from starlette.requests import Request
+
+    from atulya.dwar import _is_local_request
+
+    def make(headers: dict[str, str] | None = None, host: str = "127.0.0.1"):
+        scope = {
+            "type": "http",
+            "headers": [(k.lower().encode(), v.encode()) for k, v in (headers or {}).items()],
+            "client": (host, 12345),
+            "method": "GET",
+            "path": "/api/auth/local",
+            "query_string": b"",
+        }
+        return Request(scope)
+
+    assert _is_local_request(make()) is True
+    assert _is_local_request(make({"sec-fetch-site": "same-origin"})) is True
+    assert _is_local_request(make({"sec-fetch-site": "none"})) is True  # typed in the address bar
+    assert _is_local_request(make({"sec-fetch-site": "cross-site"})) is False
+    assert _is_local_request(make({"sec-fetch-site": "same-site"})) is False
+    assert _is_local_request(make({"x-forwarded-for": "1.2.3.4"})) is False
+    assert _is_local_request(make({"x-real-ip": "1.2.3.4"})) is False
+    assert _is_local_request(make({}, host="192.168.1.50")) is False
 

@@ -177,10 +177,11 @@ export function AboutYou({ toast }) {
       <section className="panel">
         <div className="panel-title">
           <h2>What Atulya knows about you</h2>
-          <span className="muted">Stays on this machine. Say “what do you know about me?” or “forget …” anytime.</span>
+          <span className="muted">Saved on your Atulya server under this account. Say “what do you know about me?” or “forget …” anytime.</span>
         </div>
+        {profile.display_name && <p className="muted">Signed in as <strong>{profile.display_name}</strong>. Paired devices and linked Telegram accounts can use this profile.</p>}
         <div className="fact-list">
-          {profile.facts.length === 0 && <p className="muted">Nothing yet. Tell Atulya things like “my wife's name is Priya” or “I live in Delhi”.</p>}
+          {profile.facts.length === 0 && <p className="muted">No personal facts yet. Tell Atulya things like “my wife's name is Priya”, “I live in Delhi”, or “I prefer short answers”.</p>}
           {profile.facts.map((fact) => (
             <div className="fact" key={fact.id}>
               <span>{fact.text[0].toUpperCase() + fact.text.slice(1)}</span>
@@ -189,7 +190,7 @@ export function AboutYou({ toast }) {
           ))}
         </div>
         <form className="inline-form" onSubmit={learn}>
-          <input value={teach} onChange={(e) => setTeach(e.target.value)} placeholder="Teach Atulya: my son's name is Arjun" />
+          <input value={teach} onChange={(e) => setTeach(e.target.value)} placeholder="Teach Atulya: I prefer short answers" />
           <button type="submit">Remember</button>
         </form>
       </section>

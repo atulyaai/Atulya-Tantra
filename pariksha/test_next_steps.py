@@ -2,6 +2,7 @@
 import asyncio
 import datetime as dt
 import json
+import os
 
 import pytest
 
@@ -459,7 +460,9 @@ def test_busy_cloud_message_when_no_brain_answers(monkeypatch):
 
     router = ProviderRouter()
     router.providers = []  # nothing answers
-    for key in ("ANTHROPIC_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY", "NVIDIA_API_KEY"):
+    # Clear every provider key, not a hand-picked list: a local .env may carry
+    # others (DeepSeek, Mistral, …) and any one of them flips the message.
+    for key in [name for name in os.environ if name.endswith("_API_KEY")]:
         monkeypatch.delenv(key, raising=False)
     assert run(router.chat("hi"))[0] == NO_BRAIN_MESSAGE
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")

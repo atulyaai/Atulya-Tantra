@@ -10,12 +10,18 @@ venv/
 
 # Testing
 .pytest_cache/
+.ruff_cache/
 .coverage
 htmlcov/
 .benchmarks/
+# scratch dirs pytest and agents create while running the suite
+*-test-tmp/
+.pytest-tmp/
 
 # Environment & secrets
 .env
+.env.*
+!.env.example
 secrets/
 *.pem
 *.key
@@ -28,10 +34,6 @@ secrets/
 *.gguf
 *.safetensors
 checkpoints/
-outputs/npdna/benchmark.json
-
-# Runtime-local app state
-tantra/outputs/npdna/
 
 # Node / frontend
 node_modules/
@@ -58,6 +60,8 @@ tmp/
 
 # Everything Atulya learns and stores on your machine (memory, accounts, logs, tokens)
 kosh/
+# Generated invoices may contain private financial details.
+assets/invoices/
 # the old name of kosh/ (moved automatically on first start)
 data/
 outputs/

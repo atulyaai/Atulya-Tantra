@@ -236,7 +236,14 @@ def test_telegram_start_replies_to_allowlisted_owner():
         result = await channel.handle_message(
             ChannelMessage("1", "telegram", "123", "/start", metadata={"chat_id": "456"}))
         assert result == "help"
-        assert sent == [("Atulya OS is online. Text and voice chats are ready. Send photos, short videos, or common text files for analysis. Use /send \"path\" to send a file from an allowed folder. Commands: /ask, /status, /help.", "456")]
+        # The wording gains commands over time (/send, /link, …), so assert what
+        # a user needs to be told rather than pinning the whole sentence.
+        assert len(sent) == 1
+        text, chat_id = sent[0]
+        assert chat_id == "456"
+        assert text.startswith("Atulya OS is online.")
+        for command in ("/ask", "/status", "/help"):
+            assert command in text
 
     asyncio.run(run())
 
@@ -295,8 +302,14 @@ def test_telegram_brain_failure_is_logged(caplog):
     assert "RuntimeError: brain offline" in caplog.text
 
 
-def test_telegram_preserves_sender_history():
+def test_telegram_preserves_sender_history(monkeypatch):
+    from atulya import dwar
     from atulya.sandesh import ChannelMessage, TelegramChannel
+
+    # The channel loads any disk-backed history on first contact; this test is
+    # about continuity between two turns, so start from a clean slate instead of
+    # whatever the real kosh/ happens to hold.
+    monkeypatch.setattr(dwar, "list_messages", lambda user, limit=20: [])
 
     class FakeLLM:
         seen = []
@@ -319,6 +332,7 @@ def test_telegram_preserves_sender_history():
         await channel.handle_message(ChannelMessage("1", "telegram", "123", "/ask first", metadata={"chat_id": "1"}), llm=llm)
         await channel.handle_message(ChannelMessage("2", "telegram", "123", "/ask second", metadata={"chat_id": "1"}), llm=llm)
 
+        # This test is about in-memory continuity between two turns.
         assert llm.seen[0] == []
         assert llm.seen[1] == [
             {"role": "user", "content": "first"},
@@ -529,6 +543,119 @@ def test_telegram_streams_plain_chat_into_one_editable_message():
         assert llm.remembered == ("What is 2 plus 2?", "A streamed answer.")
 
     asyncio.run(run())
+
+
+def test_telegram_remembers_user_facts_and_persists_sender_history(tmp_path, monkeypatch):
+    import atulya.dwar as history_store
+    from atulya.buddhi import ProfileStore
+    from atulya.sandesh import ChannelMessage, TelegramChannel
+
+    monkeypatch.setenv("ATULYA_PROFILE_DIR", str(tmp_path / "profiles"))
+    monkeypatch.setenv("ATULYA_VAULT_DIR", str(tmp_path / "vault"))
+    monkeypatch.setattr(history_store, "HISTORY_FILE", tmp_path / "chat_history.json")
+
+    class FakeLLM:
+        async def ask(self, prompt, history=None, **kwargs):
+            raise AssertionError("a direct profile statement should not need the model")
+
+    async def run():
+        channel = TelegramChannel()
+        await channel.connect({"allowlist": "123", "bot_token": "test-token"})
+        sent = []
+
+        async def fake_send(message, chat_id="", **kwargs):
+            sent.append((message, chat_id))
+            return True
+
+        async def fake_send_id(message, chat_id):
+            return 99
+
+        async def fake_edit(chat_id, message_id, message):
+            sent.append((message, chat_id))
+            return True
+
+        async def quiet_typing(chat_id):
+            return None
+
+        channel.send = fake_send
+        channel._send_text_with_id = fake_send_id
+        channel._edit_text = fake_edit
+        channel._keep_typing = quiet_typing
+        result = await channel.handle_message(ChannelMessage(
+            "1", "telegram", "123", "I'm Ananya",
+            metadata={"chat_id": "10", "raw": {"message": {"from": {
+                "id": 123, "first_name": "Ananya", "username": "ananya"}}}},
+        ), FakeLLM())
+        return channel, result, sent
+
+    channel, result, sent = asyncio.run(run())
+    assert result == "answered"
+    assert "remember" in sent[-1][0].lower()
+    profile = ProfileStore(tmp_path / "profiles").view("telegram:123")
+    assert any(fact["key"] == "name" and fact["value"] == "Ananya" for fact in profile["facts"])
+    messages = history_store.list_messages({"username": "telegram:123"})
+    # The store keeps the raw reply; Telegram receives it HTML-escaped, so the
+    # two agree once the escape is undone.
+    from html import unescape
+
+    assert [row["text"] for row in messages[-2:]] == ["I'm Ananya", unescape(sent[-1][0])]
+    assert channel._telegram_identity(ChannelMessage(
+        "2", "telegram", "123", "", metadata={"raw": {"message": {"from": {"first_name": "Ananya"}}}},
+    ))["display_name"] == "Ananya"
+
+
+def test_long_term_recall_is_scoped_to_the_current_user(tmp_path):
+    from atulya.bhava import current_user
+    from atulya.mastishk import AtulyaLLM
+
+    async def run():
+        llm = AtulyaLLM(use_memory=True, memory_dir=str(tmp_path / "memory"))
+        token = current_user.set("alice")
+        await llm._store_exchange("My private phrase is silver maple", "I will remember silver maple.")
+        current_user.reset(token)
+
+        token = current_user.set("bob")
+        bob_results = await llm._retrieve_memory_context("private phrase silver maple")
+        current_user.reset(token)
+        token = current_user.set("alice")
+        alice_results = await llm._retrieve_memory_context("private phrase silver maple")
+        current_user.reset(token)
+        await llm._memory.close()
+        return bob_results, alice_results
+
+    bob_results, alice_results = asyncio.run(run())
+    assert bob_results == []
+    assert any("silver maple" in item for item in alice_results)
+
+
+def test_streaming_chat_retrieves_scoped_memory_and_stores_reply(tmp_path):
+    from atulya.bhava import current_user
+    from atulya.mastishk import AtulyaLLM
+
+    class StreamRouter:
+        def __init__(self):
+            self.prompt = ""
+
+        async def stream(self, prompt, system_prompt="", preferred_provider=""):
+            self.prompt = prompt
+            yield "You said silver maple.", "test"
+
+    async def run():
+        llm = AtulyaLLM(use_memory=True, memory_dir=str(tmp_path / "memory"))
+        llm.router = StreamRouter()
+        token = current_user.set("alice")
+        await llm._store_exchange("My private phrase is silver maple", "I will remember silver maple.")
+        events = [event async for event in llm.stream("What did I say about my private phrase?", tools_enabled=False)]
+        recalled = "silver maple" in llm.router.prompt
+        stored = await llm._retrieve_memory_context("What did I say about my private phrase?", limit=10)
+        current_user.reset(token)
+        await llm._memory.close()
+        return events, recalled, stored
+
+    events, recalled, stored = asyncio.run(run())
+    assert recalled
+    assert events[-1].type == "done"
+    assert any("You said silver maple" in item for item in stored)
 
 
 def test_telegram_unchanged_stream_edit_does_not_trigger_duplicate_send(monkeypatch):

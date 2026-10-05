@@ -10,6 +10,7 @@ from atulya.sevak import app
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("ATULYA_AGENT_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("ATULYA_VAULT_DIR", str(tmp_path / "vault"))
     monkeypatch.setattr(users, "USERS_FILE", tmp_path / "users.json")
     monkeypatch.setattr(users, "SESSIONS_FILE", tmp_path / "sessions.json")
     users._sessions.clear()
@@ -53,6 +54,91 @@ def test_a_paired_device_is_never_an_admin(client):
     assert client.get("/api/audit", headers=headers).status_code == 403
     assert client.post("/api/pairing/code", json={}, headers=headers).status_code == 403
     assert client.get("/api/mood", headers=headers).status_code == 200
+
+
+def test_paired_device_keeps_owner_profile_identity_without_owner_privileges(client):
+    device = pair(client, "read")
+    token = device["token"]
+    user = users._require_auth(token)
+
+    assert user["role"] == "device"
+    assert user["username"].startswith("device:")
+    assert user["profile_user"] == "admin"
+    assert user["profile_display_name"] == "Admin"
+    profile = client.get("/api/profile", headers={"X-Atulya-Token": token}).json()
+    assert profile["user"] == "admin" and profile["display_name"] == "Admin"
+    assert client.get("/api/audit", headers={"X-Atulya-Token": token}).status_code == 403
+
+
+def test_telegram_link_code_shares_owner_profile_by_explicit_pairing(client):
+    import asyncio
+
+    from atulya.sandesh import ChannelMessage, TelegramChannel
+
+    code = client.post("/api/pairing/telegram/code", headers=ADMIN).json()["code"]
+    channel = TelegramChannel()
+    asyncio.run(channel.connect({"allowlist": "123", "bot_token": "test-token"}))
+    sent = []
+
+    async def fake_send(text, chat_id="", **kwargs):
+        sent.append(text)
+        return True
+
+    channel.send = fake_send
+    message = ChannelMessage("1", "telegram", "123", f"/link {code}", metadata={"chat_id": "10"})
+    assert asyncio.run(channel.handle_message(message)) == "telegram_linked"
+    # The reply is HTML-escaped for Telegram's parse_mode (which supports
+    # numerical entities), so undo it before checking the wording.
+    from html import unescape
+
+    assert "Admin's Atulya profile and memory" in unescape(sent[-1])
+    assert channel._telegram_identity(message)["profile_user"] == "admin"
+    assert client.get("/api/pairing/telegram", headers=ADMIN).json()["links"][0]["telegram_id"] == "123"
+
+    assert client.post("/api/pairing/telegram/123/revoke", headers=ADMIN).json()["ok"]
+    assert "profile_user" not in channel._telegram_identity(message)
+
+
+def test_linked_telegram_replies_use_the_owner_profile_context(client, monkeypatch):
+    import asyncio
+
+    from atulya import buddhi
+    from atulya.raksha import paired_devices
+    from atulya.sandesh import ChannelMessage, TelegramChannel
+
+    code = client.post("/api/pairing/telegram/code", headers=ADMIN).json()["code"]
+    paired_devices().link_telegram(code, "123")
+    seen = {}
+
+    class Profiles:
+        def context_for(self, username, display_name=""):
+            seen.update(username=username, display_name=display_name)
+            return "owner profile context"
+
+    class Kernel:
+        profiles = Profiles()
+
+        async def _profile_turn(self, *_args):
+            return None
+
+    class FakeLLM:
+        async def ask(self, prompt, history=None):
+            class Response:
+                text = "Hello, owner."
+                provider = "fake"
+            return Response()
+
+    monkeypatch.setattr(buddhi, "get_kernel", lambda _llm: Kernel())
+
+    async def run():
+        channel = TelegramChannel()
+        await channel.connect({"allowlist": "123", "bot_token": "test-token"})
+        channel.send = lambda *_args, **_kwargs: asyncio.sleep(0, result=True)
+        message = ChannelMessage("1", "telegram", "123", "/ask hello", metadata={"chat_id": "10"})
+        await channel.handle_message(message, llm=FakeLLM())
+
+    asyncio.run(run())
+    assert seen == {"username": "admin", "display_name": "Admin"}
 
 
 def test_revoking_cuts_a_device_off_at_once(client):

@@ -18,7 +18,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncIterator
 
-from atulya.bhava import MoodState, Persona, build_emotional_directive, detect_emotion
+from atulya.bhava import MoodState, Persona, build_emotional_directive, current_user, detect_emotion
 from atulya.kaushal import Tool, ToolRegistry, ToolResult, create_default_registry
 
 # ── mastishk ────────────────────────────────────────────────────────────
@@ -1785,7 +1785,8 @@ class AtulyaLLM:
         if not mgr:
             return []
         try:
-            entries = await mgr.semantic_search(prompt, limit)
+            scope = current_user.get().strip() or "default"
+            entries = await mgr.semantic_search(prompt, limit, scope=scope)
             return [entry.content for entry in entries
                     if getattr(entry, "content", None) and not _echoed_memory(entry.content)]
         except Exception:
@@ -1797,7 +1798,8 @@ class AtulyaLLM:
             return  # never remember an answer that only parrots the question: a small model copies it back
         try:
             combined = f"Q: {prompt}\nA: {response_text}"
-            await mgr.store_session(combined)
+            scope = current_user.get().strip() or "default"
+            await mgr.store_session(combined, metadata={"scope": scope})
         except Exception:
             pass
 
@@ -1936,6 +1938,16 @@ class AtulyaLLM:
         if not tools_enabled and not approved_tool_call:
             system_prompt = self._build_system_prompt(history or [], user_prompt=prompt, context=context)
             working_prompt = self._turn_notes(prompt, context) + self._compose_prompt(prompt, history or [])
+            memories: list[str] = []
+            if (self.use_memory and provider != "public" and not provider.startswith("public")
+                    and wants_memory(prompt)):
+                memories = await self._retrieve_memory_context(prompt)
+                if memories:
+                    working_prompt = (
+                        "Relevant past interactions:\n"
+                        + "\n".join(f"- {memory}" for memory in memories)
+                        + f"\n\n{working_prompt}"
+                    )
             parts: list[str] = []
             async for piece, provider_name in self.router.stream(
                 working_prompt,
@@ -1946,6 +1958,9 @@ class AtulyaLLM:
                     parts.append(piece)
                     yield LLMEvent("token", content=piece)
                     await asyncio.sleep(0)
+            answer = "".join(parts).strip()
+            if answer:
+                await self._store_exchange(prompt, answer)
             yield LLMEvent(
                 "done",
                 metadata={"provider": provider_name, "steps": []},

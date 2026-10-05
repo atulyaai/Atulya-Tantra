@@ -14,7 +14,11 @@ from atulya.adhar import EventBus
 class StubRouter:
     """Stands in for the provider router so no real model/network is used."""
 
+    def __init__(self):
+        self.last_prompt = ""
+
     async def chat(self, *args, **kwargs):
+        self.last_prompt = args[0] if args else ""
         return ("[brain reply]", "stub")
 
 
@@ -123,6 +127,42 @@ class TestSafety:
 # ── kernel ──────────────────────────────────────────────────────────────────
 
 class TestKernel:
+    def test_profile_answers_who_am_i_from_saved_facts_and_account_name(self, tmp_path, monkeypatch):
+        from atulya.buddhi import CognitiveKernel, ProfileStore
+
+        monkeypatch.setenv("ATULYA_VAULT_DIR", str(tmp_path / "vault"))
+        profiles = ProfileStore(tmp_path / "profiles")
+        profiles.remember("owner", [{"kind": "preference", "key": "likes", "value": "short answers"}])
+        kernel = CognitiveKernel(llm=make_llm(), profiles=profiles)
+
+        response = asyncio.run(kernel.handle(
+            "Who am I?", user={"username": "owner", "role": "admin", "display_name": "Atulya Owner"}))
+
+        assert "Atulya Owner" in response.text
+        assert "short answers" in response.text
+
+    def test_account_name_and_preferences_reach_open_chat_context(self, tmp_path, monkeypatch):
+        from atulya.buddhi import CognitiveKernel, ProfileStore
+
+        monkeypatch.setenv("ATULYA_VAULT_DIR", str(tmp_path / "vault"))
+        profiles = ProfileStore(tmp_path / "profiles")
+        profiles.remember("owner", [{"kind": "preference", "key": "likes", "value": "short answers"}])
+        llm = make_llm()
+        kernel = CognitiveKernel(llm=llm, profiles=profiles)
+
+        asyncio.run(kernel.handle(
+            "Tell me a joke.", user={"username": "owner", "role": "admin", "display_name": "Atulya Owner"}))
+
+        assert "Atulya Owner" in llm.router.last_prompt
+        assert "short answers" in llm.router.last_prompt
+
+    def test_extract_facts_learns_name_and_answer_style(self):
+        from atulya.buddhi import extract_facts
+
+        facts = extract_facts("I'm Ananya. I prefer short answers.")
+        assert {fact["key"] for fact in facts} == {"name", "likes"}
+        assert extract_facts("I am tired.") == []
+
     def test_confirmation_intent(self):
         from atulya.buddhi import confirmation_intent
 

@@ -546,6 +546,12 @@ def extract_facts(text: str) -> list[dict[str, str]]:
     for m in re.finditer(r"\bi (?:don't|do not|really don't) (?:like|enjoy)\s+" + _VALUE + _END
                          + r"|\bi (?:hate|dislike|can't stand)\s+" + _VALUE + _END, t):
         add("preference", "dislikes", grab(m, 1) or grab(m, 2))
+    # Learn a naturally phrased first name, but only when it looks like a proper
+    # name. The pronoun carries its own case so the name part can require a
+    # capital: without that, IGNORECASE would record "I'm tired" as your name.
+    for m in re.finditer(r"\b(?:[Ii] am|[Ii]'m|[Ii]m)\s+([A-Z][\w'-]+)\b", raw):
+        if not any(f["kind"] == "name" for f in facts):
+            add("name", "name", m.group(1))
     m = re.search(r"^(?:please )?remember (?:that |this: |: )?((?:i|my|i'm|we|our)\b.{2,160})$", t)
     if m:
         facts.append({"kind": "note", "key": "note", "value": _second_person(grab(m, 1).strip(" ."))})
@@ -813,14 +819,17 @@ class ProfileStore:
             lines.append("I don't ask before I " + ", ".join(trusted))
         return lines
 
-    def context_for(self, user: str) -> str:
+    def context_for(self, user: str, display_name: str = "") -> str:
         """A short "about the user" block for the brain's system prompt."""
         data = self.load(user)
         lines = [describe_fact(f) for f in data["facts"][-25:]]
         lines += [f"usually {h['label']} {h['when']}" for h in self.habits(user)[:8]]
+        display_name = re.sub(r"[\r\n\t]+", " ", str(display_name or "")).strip()[:80]
+        if display_name:
+            lines.insert(0, f"the signed-in account uses the display name {json.dumps(display_name, ensure_ascii=False)}")
         if not lines:
             return ""
-        return "What you know about the user (use it naturally, don't recite it):\n" + "\n".join(
+        return "What you know about the user (use it naturally, adapt to learned preferences, and don't recite it):\n" + "\n".join(
             f"- {line}" for line in lines)
 
     def view(self, user: str) -> dict[str, Any]:
@@ -839,7 +848,8 @@ class ProfileStore:
 
 # ── what the user asks about their profile ────────────────────────────────
 _ABOUT_ME_RE = re.compile(r"\bwhat (?:do|else do) you (?:know|remember) about me\b|\bwhat have you learn(?:ed|t) about me\b"
-                          r"|\btell me (?:what you know )?about myself\b|\bwhat do you know of me\b")
+                          r"|\btell me (?:what you know )?about myself\b|\bwhat do you know of me\b"
+                          r"|\bwho am i\b|\bwhat(?:'s| is) my name\b")
 _FORGET_ALL_RE = re.compile(r"^(?:please )?forget (?:everything|all)(?: (?:you know|you've learned|about me|that you know))*"
                             r"(?: about me)?$")
 _FORGET_RE = re.compile(r"^(?:please )?forget (?:that |about )?(.+)$")
@@ -1433,7 +1443,8 @@ class CognitiveKernel:
                     provider: str, tools_enabled: bool) -> dict[str, Any]:
         kwargs = _brain_kwargs(history, approved_tool, provider, tools_enabled)
         if isinstance(self.llm, AtulyaLLM):  # the real brain also gets what it knows about the user
-            context = self.profiles.context_for(self._user_key(user))
+            display_name = (user.get("profile_display_name") or user.get("display_name", "")) if isinstance(user, dict) else ""
+            context = self.profiles.context_for(self._user_key(user), display_name=display_name)
             if context:
                 kwargs["context"] = context
         return kwargs
@@ -1576,6 +1587,10 @@ class CognitiveKernel:
             asked = _step("understand", "About you", "A question about what I've learned")
             if kind == "about":
                 lines = self.profiles.summary_lines(key)
+                display_name = (user.get("profile_display_name") or user.get("display_name", "")) if isinstance(user, dict) else ""
+                display_name = re.sub(r"[\r\n\t]+", " ", str(display_name or "")).strip()[:80]
+                if display_name:
+                    lines.insert(0, f"Your signed-in account's display name is {display_name}.")
                 reply = ("Here's what I know about you:\n" + "\n".join(f"- {line}" for line in lines) if lines else
                          "I don't know much about you yet. Tell me things like “my name is …”, "
                          "“my wife's name is …” or “I like …” and I'll remember.")
@@ -1888,7 +1903,7 @@ class CognitiveKernel:
     @staticmethod
     def _user_key(user: Any) -> str:
         if isinstance(user, dict):
-            return str(user.get("username") or "default")
+            return str(user.get("profile_user") or user.get("username") or "default")
         return str(user or "default")
 
 

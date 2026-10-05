@@ -340,7 +340,7 @@ def status(root: Path | str = "kosh") -> dict[str, object]:
 
 
 # Files that hold private data. Everything else (settings, caches, tokens meant to be read by tools) stays as is.
-PRIVATE = ("money.json", "calendar.json", "reminders.json", "email_config.json", "tracking.json", "chat_history.json", "fabric.json", "contacts.json", "paired.json")
+PRIVATE = ("money.json", "calendar.json", "reminders.json", "email_config.json", "tracking.json", "chat_history.json", "fabric.json", "contacts.json", "paired.json", "telegram_users.json")
 
 
 def encrypt_tree(root: Path | str = "kosh") -> int:
@@ -454,8 +454,10 @@ class PairedDevices:
     def __init__(self, path: Path | str | None = None):
         base = Path(os.environ.get("ATULYA_AGENT_DATA_DIR", "kosh/agent"))
         self.path = Path(path) if path else base / "paired.json"
+        self.telegram_path = self.path.with_name("telegram_users.json")
         self._lock = threading.Lock()
-        self._codes: dict[str, tuple[float, str]] = {}  # code -> (expires, permission)
+        self._codes: dict[str, tuple[float, str, str, str]] = {}  # expires, permission, owner username, display name
+        self._telegram_codes: dict[str, tuple[float, str, str]] = {}  # expires, owner username, display name
         self._fails: dict[str, list[float]] = {}
 
     # storage: only a hash of each token is kept, so the file alone cannot be used to log in
@@ -473,7 +475,8 @@ class PairedDevices:
     def _hash(token: str) -> str:
         return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
-    def new_code(self, permission: str = "files") -> dict[str, Any]:
+    def new_code(self, permission: str = "files", owner: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Make a pairing code tied to the account that approved the pairing."""
         if permission not in PERMISSIONS:
             raise ValueError(f"permission must be one of {', '.join(PERMISSIONS)}")
         with self._lock:
@@ -482,7 +485,9 @@ class PairedDevices:
             while len(self._codes) >= 5:
                 self._codes.pop(min(self._codes, key=lambda c: self._codes[c][0]))
             code = f"{secrets.randbelow(10**6):06d}"
-            self._codes[code] = (now + _PAIR_CODE_SECONDS, permission)
+            owner = owner or {}
+            self._codes[code] = (now + _PAIR_CODE_SECONDS, permission,
+                                 str(owner.get("username") or ""), str(owner.get("display_name") or ""))
         return {"code": code, "permission": permission, "expires_in": _PAIR_CODE_SECONDS}
 
     def _too_many_fails(self, who: str) -> bool:
@@ -500,10 +505,14 @@ class PairedDevices:
             if entry is None or entry[0] < time.time():
                 self._fails.setdefault(who, []).append(time.time())
                 raise ValueError("That pairing code is wrong or has expired.")
+            _, permission, owner_username, owner_display_name = entry
             token = "dev_" + secrets.token_urlsafe(32)
             device = {"id": uuid.uuid4().hex[:10], "name": (name or "device").strip()[:60] or "device",
-                      "kind": (kind or "device").strip()[:20], "permission": entry[1], "created": time.time(),
+                      "kind": (kind or "device").strip()[:20], "permission": permission, "created": time.time(),
                       "last_seen": 0.0, "revoked": False}
+            if owner_username:
+                device["owner_username"] = owner_username
+                device["owner_display_name"] = owner_display_name[:80]
             devices = self._load()
             devices[self._hash(token)] = device
             self._save(devices)
@@ -547,6 +556,70 @@ class PairedDevices:
                     self._save(devices)
                     return True
         return False
+
+    def new_telegram_code(self, owner: dict[str, Any]) -> dict[str, Any]:
+        """Make a one-time code to link an allowlisted Telegram sender to an account."""
+        username = str(owner.get("username") or "").strip()
+        if not username:
+            raise ValueError("The account has no username to link.")
+        with self._lock:
+            now = time.time()
+            self._telegram_codes = {c: v for c, v in self._telegram_codes.items() if v[0] > now}
+            while len(self._telegram_codes) >= 5:
+                self._telegram_codes.pop(min(self._telegram_codes, key=lambda c: self._telegram_codes[c][0]))
+            code = f"{secrets.randbelow(10**6):06d}"
+            self._telegram_codes[code] = (now + _PAIR_CODE_SECONDS, username,
+                                          str(owner.get("display_name") or "")[:80])
+        return {"code": code, "expires_in": _PAIR_CODE_SECONDS}
+
+    def link_telegram(self, code: str, sender_id: str) -> dict[str, Any]:
+        """Consume a one-time link code and bind this Telegram sender to its owner account."""
+        sender_id = str(sender_id).strip()
+        limiter_key = f"telegram:{sender_id}"
+        with self._lock:
+            if self._too_many_fails(limiter_key):
+                raise ValueError("Too many wrong codes. Wait a minute and try again.")
+            entry = self._telegram_codes.pop(str(code).strip(), None)
+            if entry is None or entry[0] < time.time():
+                self._fails.setdefault(limiter_key, []).append(time.time())
+                raise ValueError("That link code is wrong or has expired.")
+            links = self._load_telegram_links()
+            link = {"telegram_id": sender_id, "username": entry[1], "display_name": entry[2],
+                    "created": time.time()}
+            links[sender_id] = link
+            self._save_telegram_links(links)
+            return dict(link)
+
+    def telegram_owner(self, sender_id: str) -> dict[str, Any] | None:
+        """Return the account explicitly linked to a Telegram sender, if any."""
+        with self._lock:
+            return self._load_telegram_links().get(str(sender_id))
+
+    def telegram_links(self) -> list[dict[str, Any]]:
+        """List Telegram account links for the admin pairing screen."""
+        with self._lock:
+            return sorted(self._load_telegram_links().values(), key=lambda row: row.get("created", 0))
+
+    def unlink_telegram(self, sender_id: str) -> bool:
+        """Remove a Telegram-to-account link without deleting its separate chat history."""
+        with self._lock:
+            links = self._load_telegram_links()
+            if str(sender_id) not in links:
+                return False
+            del links[str(sender_id)]
+            self._save_telegram_links(links)
+            return True
+
+    def _load_telegram_links(self) -> dict[str, dict[str, Any]]:
+        try:
+            data = json.loads(read_text(self.telegram_path))
+        except (FileNotFoundError, ValueError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _save_telegram_links(self, links: dict[str, dict[str, Any]]) -> None:
+        self.telegram_path.parent.mkdir(parents=True, exist_ok=True)
+        write_text(self.telegram_path, json.dumps(links, indent=2))
 
 
 _paired: PairedDevices | None = None

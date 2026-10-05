@@ -374,13 +374,17 @@ class VectorMemoryProvider(MemoryProvider):
         self._persist()
         return entry.id
 
-    async def search(self, query: str, limit: int = 10) -> list[MemoryEntry]:
+    async def search(self, query: str, limit: int = 10, scope: str | None = None) -> list[MemoryEntry]:
+        """Return similar entries, filtering by owner scope when requested."""
         if not self._entries:
             return []
 
         query_embedding = _hash_embed(query)
         scored = []
         for i, emb in enumerate(self._embeddings):
+            metadata = self._entries[i].get("metadata")
+            if scope is not None and (not isinstance(metadata, dict) or metadata.get("scope") != scope):
+                continue
             sim = _cosine_similarity(query_embedding, emb)
             scored.append((sim, i))
         scored.sort(key=lambda x: x[0], reverse=True)
@@ -463,8 +467,9 @@ class MemoryManager(MemoryOrchestrator):
         )
         return await self.vector_store.store(vec_entry)
 
-    async def semantic_search(self, query: str, limit: int = 10) -> list[MemoryEntry]:
-        return await self.vector_store.search(query, limit)
+    async def semantic_search(self, query: str, limit: int = 10, scope: str | None = None) -> list[MemoryEntry]:
+        """Search episodic memories, optionally restricted to one user scope."""
+        return await self.vector_store.search(query, limit, scope=scope)
 
 
 __all__ = ["MemoryManager", "MemoryEntry", "MemoryOrchestrator", "MemoryProvider", "SessionSearchProvider", "VectorMemoryProvider"]

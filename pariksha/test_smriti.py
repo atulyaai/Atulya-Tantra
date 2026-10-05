@@ -113,6 +113,19 @@ class TestMemoryManagerIntegration:
         await mgr.close()
 
     @pytest.mark.asyncio
+    async def test_semantic_search_can_be_limited_to_one_user_scope(self, tmp_dir):
+        mgr = MemoryManager(data_dir=tmp_dir)
+        await mgr.initialize()
+        await mgr.store_session("I prefer short answers", metadata={"scope": "alice"})
+        await mgr.store_session("I prefer detailed answers", metadata={"scope": "bob"})
+
+        alice = await mgr.semantic_search("prefer answers", limit=10, scope="alice")
+        bob = await mgr.semantic_search("prefer answers", limit=10, scope="bob")
+        assert [entry.content for entry in alice] == ["I prefer short answers"]
+        assert [entry.content for entry in bob] == ["I prefer detailed answers"]
+        await mgr.close()
+
+    @pytest.mark.asyncio
     async def test_search_across_providers(self, tmp_dir):
         mgr = MemoryManager(data_dir=tmp_dir)
         await mgr.initialize()

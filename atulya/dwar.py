@@ -79,8 +79,8 @@ def _load_jwt_secret() -> str:
     """
     if os.environ.get("ATULYA_JWT_SECRET"):
         return os.environ["ATULYA_JWT_SECRET"]
-    if ADMIN_TOKEN_SOURCE == "env":
-        return ADMIN_TOKEN
+    # Never derive the signing key from the dashboard token: that token appears
+    # in logs and examples, so a JWT signed with it would be forgeable.
     path = Path(os.environ.get("ATULYA_JWT_SECRET_FILE") or _ROOT / "kosh" / "jwt_secret.key")
     for _ in range(2):
         try:
@@ -442,7 +442,9 @@ def _require_auth(token: str | None = Header(default=None, alias="X-Atulya-Token
         device = vault.paired_devices().authenticate(token)
         if device:  # a paired phone or computer: everyday access only, never admin
             return {"username": f"device:{device['id']}", "role": "device", "display_name": device["name"],
-                    "device_id": device["id"], "permission": device["permission"]}
+                    "device_id": device["id"], "permission": device["permission"],
+                    "profile_user": device.get("owner_username", ""),
+                    "profile_display_name": device.get("owner_display_name", "")}
         jwt_payload = _jwt_decode(token)
         if jwt_payload:
             return {"username": jwt_payload.get("sub", "jwt_user"), "role": jwt_payload.get("role", "user"), "display_name": jwt_payload.get("name", "")}
@@ -584,6 +586,10 @@ def _is_local_request(request: Request) -> bool:
     """True only for a direct connection from this computer (never through a proxy)."""
     if any(h in request.headers for h in ("x-forwarded-for", "x-real-ip", "forwarded")):
         return False
+    # A page in another browser tab can still issue this request, so require the
+    # fetch to come from the address bar or this origin, not another site.
+    if request.headers.get("sec-fetch-site", "").lower() in ("cross-site", "same-site"):
+        return False
     return (request.client.host if request.client else "") in ("127.0.0.1", "::1")
 
 
@@ -634,11 +640,40 @@ def api_pairing_code(body: PairCodeBody, request: Request, token: str | None = H
     """Make a one-time code (valid 10 minutes) to pair a new device (admin only)."""
     admin = _require_admin(token)
     try:
-        made = vault.paired_devices().new_code(body.permission)
+        made = vault.paired_devices().new_code(body.permission, owner=admin)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     money.audit("pairing.code", by=admin.get("username"), permission=made["permission"])
     return {**made, "url": str(request.base_url).rstrip("/")}
+
+
+@router.post("/api/pairing/telegram/code")
+def api_telegram_pairing_code(token: str | None = Header(default=None, alias="X-Atulya-Token")):
+    """Create a short-lived Telegram link code for the signed-in owner account."""
+    admin = _require_admin(token)
+    try:
+        made = vault.paired_devices().new_telegram_code(admin)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    money.audit("pairing.telegram_code", by=admin.get("username"))
+    return made
+
+
+@router.get("/api/pairing/telegram")
+def api_telegram_pairings(token: str | None = Header(default=None, alias="X-Atulya-Token")):
+    """List Telegram senders explicitly linked to owner accounts."""
+    _require_admin(token)
+    return {"links": vault.paired_devices().telegram_links()}
+
+
+@router.post("/api/pairing/telegram/{telegram_id}/revoke")
+def api_telegram_pairing_revoke(telegram_id: str, token: str | None = Header(default=None, alias="X-Atulya-Token")):
+    """Unlink a Telegram sender from the owner profile while keeping its own history."""
+    admin = _require_admin(token)
+    if not vault.paired_devices().unlink_telegram(telegram_id):
+        raise HTTPException(status_code=404, detail="Telegram account is not linked")
+    money.audit("pairing.telegram_revoked", by=admin.get("username"), telegram_id=telegram_id)
+    return {"ok": True}
 
 
 @router.post("/api/pairing/enroll")
@@ -902,12 +937,14 @@ def _store(request: Request):
 
 
 def _key(user: dict) -> str:
-    return str(user.get("username") or "default")
+    return str(user.get("profile_user") or user.get("username") or "default")
 
 
 @router.get("/api/profile")
 def api_profile(request: Request, user: dict = Depends(_require_auth)):
-    return _store(request).view(_key(user))
+    profile = _store(request).view(_key(user))
+    profile["display_name"] = (user.get("profile_display_name") or user.get("display_name") or "")
+    return profile
 
 
 @router.post("/api/profile/facts")

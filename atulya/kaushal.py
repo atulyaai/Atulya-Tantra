@@ -90,10 +90,30 @@ def _safe_path(path: str, allowed_base: str | None = None) -> Path:
             resolved.relative_to(cwd)
         except ValueError:
             raise PermissionError(f"Path {resolved} is outside current working directory {cwd}")
+    if _is_secret_path(resolved):
+        raise PermissionError(f"Access to {resolved.name} is restricted")
     return resolved
 
 
 _MAX_FILE_SIZE = 10 * 1024 * 1024
+_SECRET_FILES = {".env", "jwt_secret.key", "id_rsa", "id_ed25519", "id_ecdsa"}
+_SECRET_DIRS = {"kosh"}
+
+
+def _is_secret_path(resolved: Path) -> bool:
+    """True for credential stores the assistant must never read, edit or list.
+
+    kosh/ holds chat history, paired-device keys and channel tokens; the
+    remaining names are private keys and the .env config that carries every
+    provider key the dashboard knows about.
+    """
+    if resolved.name == ".env.example":
+        return False  # the committed template carries no real values
+    if resolved.name.lower() in _SECRET_FILES:
+        return True
+    if ".env." in resolved.name:  # .env.local, .env.production — often real keys
+        return True
+    return any(part.lower() in _SECRET_DIRS for part in resolved.parts)
 
 
 class FileReadTool(Tool):
@@ -153,7 +173,7 @@ class FileSearchTool(Tool):
     async def execute(self, pattern: str, path: str = ".", **kwargs: Any) -> ToolResult:
         try:
             safe = _safe_path(path)
-            matches = list(safe.glob(pattern))
+            matches = [m for m in safe.glob(pattern) if not _is_secret_path(m.resolve())]
             return ToolResult(success=True, output="\n".join(str(m) for m in matches))
         except (PermissionError, OSError) as e:
             return ToolResult(success=False, error=str(e))
@@ -171,6 +191,8 @@ class GrepTool(Tool):
             for f in safe.rglob("*"):
                 if f.is_file():
                     try:
+                        if _is_secret_path(f.resolve()):
+                            continue  # never read .env or kosh/ during a repo-wide scan
                         if f.stat().st_size > max_file_size:
                             continue
                         content = f.read_text(encoding="utf-8")
@@ -787,7 +809,9 @@ class CodeExecuteTool(Tool):
         blocked_modules = {"socket", "http", "urllib", "requests", "aiohttp", "NETWORK"}
         for module in blocked_modules:
             if f"import {module}" in code or f"from {module}" in code:
+                # Enforced, not merely logged: these modules reach the network.
                 logger.warning("Blocked module '%s' detected in code_execute", module)
+                return ToolResult(success=False, error=f"Blocked module: {module}")
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "snippet.py"
             path.write_text(code, encoding="utf-8")

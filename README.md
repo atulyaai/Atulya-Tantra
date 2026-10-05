@@ -58,6 +58,39 @@ A local-first personal AI assistant. You talk to a glowing hologram: it listens 
 
 You need Python 3.10+ and Node.js 18+.
 
+**One command.** `install.py` shows what is already configured, asks only for what is
+missing, installs the extras, builds the dashboard and checks that everything works:
+
+```powershell
+python install.py
+```
+
+It prints a table like this — secrets are never shown in full, only `set (last 4)`:
+
+```
+  Setting                                    State       How to get it
+  ------------------------------------------- ----------- -------------------------
+  Dashboard sign-in token                    ok          set (HiCm)
+  Telegram bot token                         missing     message @BotFather, send /newbot
+  Telegram user allowed to talk to Atulya    missing     message @userinfobot for your id
+  Brain key — OpenRouter                     ok          set (21ca)
+  Morning briefing time                      missing     for example 08:00
+```
+
+Other invocations:
+
+| Command | What it does |
+|---|---|
+| `python install.py --doctor` | Report only — changes nothing |
+| `python install.py --yes` | Unattended, accepts defaults (cPanel, VPS, CI) |
+| `python install.py --profile full` | `basic` / `voice` / `full` / `server` — pick up front, no prompts |
+| `python install.py --no-start` | Configure and check, but do not offer to start |
+
+The dashboard token is generated for you if you do not have one; it is written only to
+your local `.env`, which is git-ignored.
+
+Manual equivalent:
+
 1. Copy `.env.example` to `.env` and add a brain (see [Brains](#brains)). A free OpenRouter key is enough.
 2. Double-click **`start.bat`**. It installs what is missing, builds the web app only when it changed, and starts the server.
 3. Open http://localhost:8501 in **Chrome or Edge**, click once, and allow the microphone. On the computer Atulya runs on there is no login.

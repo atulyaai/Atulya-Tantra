@@ -94,6 +94,21 @@ back with `needs_approval: true` and a `pending_tool`; confirm by replying "yes"
 | POST | `/api/profile/trust` | `{key, trusted}` — stop asking / ask again (only for approved, learnable actions) |
 | DELETE | `/api/profile` | Forget everything about the user |
 
+## Pairing a device or Telegram account
+
+Pairing codes are created by the signed-in admin account and expire after ten minutes. A phone or computer enrolled with the code keeps its limited device role, but its profile and personal memory use the account that issued the code. A device ID identifies the device; it does not by itself identify the person.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/pairing/code` | `{permission}` — create a one-use device pairing code for the signed-in owner |
+| POST | `/api/pairing/enroll` | `{code, name, kind}` — exchange a code for a device token |
+| GET | `/api/pairing/devices` | List devices and their access levels (admin) |
+| POST | `/api/pairing/telegram/code` | Create a ten-minute code to link an allowlisted Telegram sender to the signed-in owner profile (admin) |
+| GET | `/api/pairing/telegram` | List linked Telegram sender IDs (admin) |
+| POST | `/api/pairing/telegram/{telegram_id}/revoke` | Unlink one Telegram sender; its separate Telegram chat history remains |
+
+Send `/link CODE` to the Telegram bot from the allowlisted sender to complete the link. Local accounts currently use their username and display name as identity; the app does not have verified email addresses, so it never guesses account ownership from an email or device ID.
+
 ## Senses
 
 | Method | Path | Description |

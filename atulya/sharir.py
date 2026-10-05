@@ -23,8 +23,6 @@ import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any
-
 from atulya.bhava import current_access
 
 LEVELS = ("read", "files", "full")
@@ -545,8 +543,3 @@ def diagnose() -> str:
     procs = sorted(psutil.process_iter(["name", "memory_percent"]), key=lambda p: p.info.get("memory_percent") or 0, reverse=True)[:5]
     lines.append("Biggest programs: " + ", ".join(f"{p.info['name']} ({p.info['memory_percent']:.0f}%)" for p in procs))
     return "\n".join(lines + (["", "What I would do:"] + [f"- {a}" for a in advice] if advice else ["", "Nothing looks wrong."]))
-
-
-def summary(tool: str, args: dict[str, Any]) -> str:
-    """One line for the activity log."""
-    return f"{tool} {', '.join(f'{k}={str(v)[:60]}' for k, v in args.items() if k != 'content')}"

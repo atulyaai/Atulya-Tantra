@@ -212,10 +212,13 @@ app = FastAPI(title="Atulya Tantra Dashboard", lifespan=lifespan)
 # The web UI is same-origin and authenticates with a header, so it needs no
 # CORS. ATULYA_CORS_ORIGINS lists other sites allowed to call the API.
 
-_CORS_ORIGINS = _cors_origins()
+# Same-origin dashboard needs no CORS at all, so the default is "none". A
+# wildcard here would let any web page read /api/auth/local and steal the admin
+# token, so ATULYA_CORS_ORIGINS must list origins explicitly to open this up.
+_CORS_ORIGINS = _cors_origins() or []
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if _CORS_ORIGINS is None else _CORS_ORIGINS,
+    allow_origins=_CORS_ORIGINS,
     allow_credentials=bool(_CORS_ORIGINS),  # never credentials with a wildcard
     allow_methods=["*"],
     allow_headers=["*"],

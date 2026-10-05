@@ -21,6 +21,8 @@ against real hardware yet**.
 
 ## Your own devices (what to do for each)
 
+Phones and computers paired through **Your devices** are associated with the signed-in account that issued the pairing code. They keep their device permission level and never gain admin access. Telegram accounts can share that profile after the owner creates a Telegram link code in the pairing panel and the allowlisted sender sends `/link CODE` to the bot. To unlink Telegram, use the same panel; the sender's separate Telegram chat history is kept.
+
 | Device | How | One-time setup |
 |---|---|---|
 | **Samsung Smart TV** (2014 and newer) | `samsung` driver (built in) | Same Wi-Fi as the PC. Say "scan for devices", add it, then press a key; the TV shows "Allow Atulya?" once. "Turn on" needs Wake-on-LAN (add the TV's MAC as a `wol` device) and the TV's "Power on with mobile" setting |

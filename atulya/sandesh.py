@@ -404,8 +404,24 @@ class TelegramChannel(ChannelBase):
         if not self.is_allowed(message.sender):
             await self.send("Access denied. Ask the owner to add your Telegram user id to ATULYA_TELEGRAM_ALLOWLIST.", chat_id)
             return "denied"
+        telegram_user = self._telegram_identity(message)
+        if text.startswith("/link"):
+            code = text[5:].strip()
+            if not code:
+                await self.send("Use /link followed by the one-time code shown in Atulya's Pairing settings.", chat_id)
+                return "telegram_link_usage"
+            try:
+                from atulya.raksha import paired_devices
+
+                linked = paired_devices().link_telegram(code, message.sender)
+            except ValueError as exc:
+                await self.send(str(exc), chat_id)
+                return "telegram_link_failed"
+            display = linked.get("display_name") or linked["username"]
+            await self.send(html.escape(f"This Telegram account is linked to {display}'s Atulya profile and memory."), chat_id)
+            return "telegram_linked"
         if text in {"/start", "/help"}:
-            await self.send("Atulya OS is online. Text and voice chats are ready. Send photos, short videos, or common text files for analysis. Use /send \"path\" to send a file from an allowed folder. Commands: /ask, /status, /help.", chat_id)
+            await self.send("Atulya OS is online. Text and voice chats are ready. Send photos, short videos, or common text files for analysis. Use /send \"path\" to send a file from an allowed folder, or /link CODE to connect your account profile. Commands: /ask, /status, /help.", chat_id)
             return "help"
         if text == "/status":
             await self.send("Atulya Telegram bridge is running. LLM fallback is free-first.", chat_id)
@@ -449,7 +465,18 @@ class TelegramChannel(ChannelBase):
         if llm is None:
             from atulya.mastishk import AtulyaLLM
             llm = AtulyaLLM()
-        history = self._histories.setdefault(str(message.sender), [])
+        sender_key = str(message.sender)
+        history = self._histories.get(sender_key)
+        if history is None:
+            try:
+                from atulya.dwar import list_messages
+
+                history = [{"role": row["role"], "content": row["text"]}
+                           for row in list_messages(telegram_user, limit=20) if row.get("text")]
+            except Exception:
+                logger.exception("Could not load Telegram chat history")
+                history = []
+            self._histories[sender_key] = history
         stream_message_id = None
         # Only text chat streams into one editable message; speech is built in
         # one go and the typing indicator covers the wait either way.
@@ -459,6 +486,9 @@ class TelegramChannel(ChannelBase):
             else:
                 await self.send("Atulya is working on it...", chat_id)
         action_task = asyncio.create_task(self._keep_typing(chat_id))
+        from atulya.bhava import current_user
+        memory_scope_token = current_user.set(telegram_user.get("profile_user") or telegram_user["username"])
+        profile_reply = False
         try:
             if voice_input:
                 prompt = await self._transcribe_voice(message)
@@ -498,10 +528,36 @@ class TelegramChannel(ChannelBase):
             elif media_type:
                 await self.send(f"I received your {media_type}. I can process voice notes, photos, short videos, and common text files.", chat_id)
                 return "media_received"
-            if stream_message_id is not None:
-                response = await self._stream_plain_reply(prompt, history, llm, chat_id, stream_message_id)
+            from atulya.buddhi import get_kernel, profile_intent
+            kernel = get_kernel(llm)
+            profile_kind = profile_intent(prompt)
+            if profile_kind and profile_kind[0] == "forget_all":
+                from types import SimpleNamespace
+
+                profile_reply = True
+                response = SimpleNamespace(
+                    text="For privacy, open About you in the signed-in app to review and delete your saved profile.",
+                    provider="Atulya Profile", tool_steps=[], needs_approval=False, pending_tool=None,
+                )
             else:
-                response = await llm.ask(prompt, history=history)
+                profile_response = await kernel._profile_turn(prompt, telegram_user)
+                if profile_response is not None:
+                    profile_reply = True
+                    response = profile_response
+                else:
+                    context = kernel.profiles.context_for(
+                        telegram_user.get("profile_user") or telegram_user["username"],
+                        display_name=(telegram_user.get("profile_display_name")
+                                      or telegram_user.get("display_name", "")))
+                    from atulya.mastishk import AtulyaLLM
+
+                    if stream_message_id is not None:
+                        response = await self._stream_plain_reply(
+                            prompt, history, llm, chat_id, stream_message_id, context=context)
+                    elif isinstance(llm, AtulyaLLM):
+                        response = await llm.ask(prompt, history=history, context=context)
+                    else:
+                        response = await llm.ask(prompt, history=history)
         except Exception:
             logger.exception("Telegram message handling failed (media_type=%s)", media_type or "text")
             if media_type == "video":
@@ -514,12 +570,19 @@ class TelegramChannel(ChannelBase):
             return "brain_error"
         finally:
             action_task.cancel()
+            current_user.reset(memory_scope_token)
         with self._lock:
             history.extend([
                 {"role": "user", "content": prompt},
                 {"role": "assistant", "content": response.text},
             ])
             del history[:-20]
+        try:
+            from atulya.dwar import append_exchange
+
+            append_exchange(telegram_user, prompt, response.text, provider=response.provider, surface="telegram")
+        except Exception:
+            logger.exception("Could not persist Telegram chat history")
         if getattr(response, "needs_approval", False) and response.pending_tool:
             self._pending_approvals[str(message.sender)] = (response.pending_tool, time.time() + 180)
             tool = str(response.pending_tool.get("tool") or "action")
@@ -527,7 +590,7 @@ class TelegramChannel(ChannelBase):
             details = ", ".join(f"{key}={str(value)[:100]}" for key, value in arguments.items())
             await self.send(f"Approval needed: {tool}{f' ({details})' if details else ''}. Reply yes to run it once, or no to cancel. This approval expires in 3 minutes.", chat_id)
             return "approval_requested"
-        outgoing = response.text if stream_message_id is not None else html.escape(response.text)
+        outgoing = response.text if stream_message_id is not None and not profile_reply else html.escape(response.text)
         show_provider = self.config.get("show_provider") or os.environ.get("ATULYA_TELEGRAM_SHOW_PROVIDER", "").lower() in {"1", "true", "yes"}
         if show_provider and getattr(response, "provider", ""):
             outgoing = f"{outgoing}\n\nvia {response.provider}"
@@ -552,15 +615,45 @@ class TelegramChannel(ChannelBase):
         from atulya.mastishk import _ACTION_CUES
         return not bool(_ACTION_CUES.search(prompt))
 
+    def _telegram_identity(self, message: ChannelMessage) -> dict[str, str]:
+        """Use a stable, sender-specific profile key for the Telegram channel."""
+        raw = message.metadata.get("raw") or {}
+        telegram_message = raw.get("message") or raw.get("edited_message") or {}
+        sender = telegram_message.get("from") or raw.get("from") or {}
+        display_name = " ".join(str(sender.get(key) or "").strip()
+                                for key in ("first_name", "last_name") if sender.get(key)).strip()
+        if not display_name:
+            display_name = str(sender.get("username") or "").strip()
+        identity = {
+            "username": f"telegram:{message.sender}",
+            "role": "user",
+            "display_name": display_name[:80],
+        }
+        try:
+            from atulya.raksha import paired_devices
+
+            owner = paired_devices().telegram_owner(message.sender)
+        except Exception:
+            logger.exception("Could not load Telegram profile link")
+            owner = None
+        if owner:
+            identity["profile_user"] = str(owner.get("username") or "")
+            identity["profile_display_name"] = str(owner.get("display_name") or "")
+        return identity
+
     async def _stream_plain_reply(self, prompt: str, history: list[dict[str, str]], llm: Any,
-                                  chat_id: str, message_id: int) -> Any:
+                                  chat_id: str, message_id: int, context: str = "") -> Any:
         """Edit one Telegram message as OpenRouter streams its response tokens."""
         from types import SimpleNamespace
         text_parts: list[str] = []
         provider = ""
         last_edit = time.monotonic()
         last_length = 0
-        async for event in llm.stream(prompt, history=history, tools_enabled=False):
+        from atulya.mastishk import AtulyaLLM
+
+        stream = (llm.stream(prompt, history=history, tools_enabled=False, context=context)
+                  if isinstance(llm, AtulyaLLM) else llm.stream(prompt, history=history, tools_enabled=False))
+        async for event in stream:
             if event.type == "token":
                 text_parts.append(event.content)
                 visible = "".join(text_parts)[:3900]
@@ -597,6 +690,7 @@ class TelegramChannel(ChannelBase):
         """Run only the exact tool call that this sender just approved."""
         import asyncio
         chat_id = str(message.metadata.get("chat_id") or "")
+        telegram_user = self._telegram_identity(message)
         if llm is None:
             from atulya.mastishk import AtulyaLLM
             llm = AtulyaLLM()
@@ -605,18 +699,40 @@ class TelegramChannel(ChannelBase):
         if not voice_reply:
             await self.send("Atulya is working on it...", chat_id)
         action_task = asyncio.create_task(self._keep_typing(chat_id))
+        from atulya.bhava import current_user
+        scope_token = current_user.set(telegram_user.get("profile_user") or telegram_user["username"])
         try:
-            response = await llm.ask("Run the approved action now.", history=history,
-                                     approved_tool_call=pending)
+            from atulya.mastishk import AtulyaLLM
+
+            if isinstance(llm, AtulyaLLM):
+                from atulya.buddhi import get_kernel
+
+                context = get_kernel(llm).profiles.context_for(
+                    telegram_user.get("profile_user") or telegram_user["username"],
+                    display_name=telegram_user.get("profile_display_name") or telegram_user.get("display_name", ""),
+                )
+                response = await llm.ask("Run the approved action now.", history=history,
+                                         approved_tool_call=pending, context=context)
+            else:
+                response = await llm.ask("Run the approved action now.", history=history,
+                                         approved_tool_call=pending)
         except Exception:
             await self.send("I couldn't complete that approved action. Please try again.", chat_id)
             return "approval_error"
         finally:
             action_task.cancel()
+            current_user.reset(scope_token)
         answer = response.text or "Done."
         history.extend([{"role": "user", "content": "Approved the pending action."},
                         {"role": "assistant", "content": answer}])
         del history[:-20]
+        try:
+            from atulya.dwar import append_exchange
+
+            append_exchange(telegram_user, "Approved the pending action.", answer,
+                            provider=getattr(response, "provider", ""), surface="telegram")
+        except Exception:
+            logger.exception("Could not persist Telegram approval history")
         for step in getattr(response, "tool_steps", []):
             if step.get("tool") == "pc_screenshot" and step.get("success"):
                 match = re.search(r"Saved a screenshot to (.+?)\.?$", str(step.get("output") or ""))
