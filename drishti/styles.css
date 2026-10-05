@@ -623,22 +623,10 @@ button.icon:hover { border-color: var(--line); }
 }
 .orb-canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: pointer; }
 .orb-canvas.hidden { display: none; }
-.orb-holo { position: absolute; inset: 0 0 22% 0; cursor: pointer; }
+.orb-holo { position: absolute; inset: 0; cursor: pointer; }
 .orb-holo canvas { display: block; width: 100%; height: 100%; }
 .orb-holo.none { display: none; }
 .with-holo { background: #000; }
-.with-holo .orb-hud {
-  position: absolute; top: 68px; right: 18px;
-  display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
-  font: 10px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  letter-spacing: 0.18em; color: rgba(110, 200, 255, 0.75); pointer-events: none;
-}
-.orb-opening {
-  position: absolute; right: 18px; top: 112px; text-align: right;
-  color: rgba(120, 220, 255, 0.85); font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase;
-  pointer-events: none; animation: orb-fade 5.2s ease forwards;
-}
-@keyframes orb-fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
 
 .orb-top {
   position: absolute; top: 0; left: 0; right: 0;
@@ -718,9 +706,17 @@ button.icon:hover { border-color: var(--line); }
   background: rgba(15, 40, 60, 0.8); color: #e6f8ff;
   border: 1px solid rgba(120, 220, 255, 0.25); border-radius: 8px; padding: 8px;
 }
+/* Full-page hologram: no text on the scene; replies and the text box live in the right-hand corner. */
+.orb-screen.with-holo .orb-captions {
+  left: auto; top: auto; right: 14px; bottom: 16px; transform: none;
+  width: min(340px, calc(100% - 28px)); height: auto; max-height: 38vh;
+  background: rgba(2, 8, 16, 0.72);
+}
+.orb-screen.with-holo.typing .orb-captions { bottom: 72px; }
+.orb-screen.with-holo .orb-type { left: auto; right: 14px; bottom: 16px; transform: none; width: min(340px, calc(100% - 28px)); }
+.orb-icon.on { border-color: rgba(120, 220, 255, 0.7); box-shadow: 0 0 12px rgba(80, 180, 255, 0.35); }
 @media (max-width: 600px) {
   .orb-said { font-size: 15px; }
-  .orb-hud { display: none; }
 }
 
 /* ── Pop-ups over the orb ─────────────────────────────────────────────── */
