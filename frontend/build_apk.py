@@ -23,7 +23,25 @@ def apply_version(gradle_file: Path, version: str) -> None:
 
 
 def run(*command: str) -> None:
-    subprocess.run(command, cwd=ROOT, check=True)
+    """Run a frontend tool, resolving the Windows .CMD shims for npm and npx.
+
+    subprocess in list form will not find ``npm``/``npx`` on their own there --
+    they are ``npm.cmd``/``npx.cmd`` -- so resolve the real path first.
+    """
+    executable = shutil.which(command[0]) or command[0]
+    subprocess.run([executable, *command[1:]], cwd=ROOT, check=True)
+
+
+def build_web() -> None:
+    """Put a current web bundle in ``dist/`` before Capacitor copies it over.
+
+    ``dist/`` is gitignored, so a checkout has none. Syncing an absent or stale
+    one is how an APK ends up with no UI in it at all, and nothing else in the
+    pipeline -- local or on the runner -- builds it.
+    """
+    if not (ROOT / "node_modules").exists():
+        run("npm", "ci")
+    run("npm", "run", "build")
 
 
 def main() -> None:
@@ -32,6 +50,7 @@ def main() -> None:
     if not match:
         raise ValueError("atulya.__version__ is missing")
     version = match.group(1)
+    build_web()
     if not ANDROID.exists():
         run("npx", "cap", "add", "android")
     run("npx", "cap", "sync", "android")
