@@ -356,43 +356,62 @@ class TestJwtSecret:
 
 # ── CORS ──────────────────────────────────────────────────────────────────
 
-def test_cors_never_allows_credentials_for_any_origin():
+def test_cors_never_allows_an_origin_that_is_not_the_app():
     from fastapi.testclient import TestClient
 
     from atulya.sevak import app
 
     # A wildcard here is a token leak, not a convenience: any web page could
-    # fetch /api/auth/local (which only checks the client is loopback) and read
-    # the admin token straight out of the body. The dashboard is same-origin and
-    # the Vite dev server proxies /api, so no origin needs to be listed by default.
+    # fetch /api/auth/local and read the admin token straight out of the body,
+    # because that endpoint lets every device in (a phone has nothing to sign
+    # up with). So the default list carries only the app's own origins and the
+    # dashboard's; ATULYA_CORS_ORIGINS names anything else.
     resp = TestClient(app).get("/api/health", headers={"Origin": "https://evil.example"})
     assert "access-control-allow-origin" not in resp.headers
     assert "access-control-allow-credentials" not in resp.headers
 
 
-def test_auth_local_is_refused_for_cross_site_fetch():
-    """A page on another site must not be able to claim it is 'local'."""
+def test_cors_lets_the_app_read_the_api():
+    """The app is served from its own origin, so it is cross-origin by construction."""
+    from fastapi.testclient import TestClient
+
+    from atulya.sevak import app
+
+    resp = TestClient(app).get("/api/health", headers={"Origin": "https://localhost"})
+    assert resp.headers.get("access-control-allow-origin") == "https://localhost"
+
+
+def test_auth_local_is_refused_for_another_sites_page():
+    """A page on another site must not be able to claim it is the app."""
     from starlette.requests import Request
 
-    from atulya.dwar import _is_local_request
+    from atulya.dwar import _may_skip_login
 
-    def make(headers: dict[str, str] | None = None, host: str = "127.0.0.1"):
+    def make(headers: dict[str, str] | None = None, host: str = "127.0.0.1:8501"):
+        all_headers = {"host": host}
+        all_headers.update(headers or {})
         scope = {
             "type": "http",
-            "headers": [(k.lower().encode(), v.encode()) for k, v in (headers or {}).items()],
-            "client": (host, 12345),
+            "headers": [(k.lower().encode(), v.encode()) for k, v in all_headers.items()],
+            "client": ("127.0.0.1", 12345),
             "method": "GET",
             "path": "/api/auth/local",
             "query_string": b"",
         }
         return Request(scope)
 
-    assert _is_local_request(make()) is True
-    assert _is_local_request(make({"sec-fetch-site": "same-origin"})) is True
-    assert _is_local_request(make({"sec-fetch-site": "none"})) is True  # typed in the address bar
-    assert _is_local_request(make({"sec-fetch-site": "cross-site"})) is False
-    assert _is_local_request(make({"sec-fetch-site": "same-site"})) is False
-    assert _is_local_request(make({"x-forwarded-for": "1.2.3.4"})) is False
-    assert _is_local_request(make({"x-real-ip": "1.2.3.4"})) is False
-    assert _is_local_request(make({}, host="192.168.1.50")) is False
+    # No Origin: the address bar, curl, any plain HTTP client.
+    assert _may_skip_login(make()) is True
+    assert _may_skip_login(make({"sec-fetch-site": "none"})) is True
+    # The dashboard, naming itself.
+    assert _may_skip_login(make({"origin": "http://127.0.0.1:8501"})) is True
+    # The app, opened on a phone across the LAN - the case with no way in before.
+    assert _may_skip_login(make({"origin": "https://localhost"}, host="192.168.1.5:8501")) is True
+    # Another site, and a sandboxed iframe hiding behind the literal "null".
+    assert _may_skip_login(make({"origin": "https://evil.example"})) is False
+    assert _may_skip_login(make({"origin": "null"})) is False
+    # A proxy speaks for someone else, so nothing about the request can be judged.
+    assert _may_skip_login(make({"x-forwarded-for": "1.2.3.4"})) is False
+    assert _may_skip_login(make({"x-real-ip": "1.2.3.4"})) is False
+    assert _may_skip_login(make({"forwarded": "for=1.2.3.4"})) is False
 

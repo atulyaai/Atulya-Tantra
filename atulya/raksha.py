@@ -230,6 +230,32 @@ def cors_origins() -> list[str] | None:
     return [] if lockdown_on() else None
 
 
+# Where the app itself is served from. The Android build loads its bundle from
+# its own origin (https://localhost inside the Capacitor WebView) rather than
+# from this server, so every call it makes is cross-origin by construction and
+# has to be listed here to be readable. A wildcard would let any web page fetch
+# /api/auth/local and walk off with the admin token, so these two origins are
+# the whole default: ATULYA_CORS_ORIGINS replaces them, lockdown empties them.
+APP_ORIGINS = ["https://localhost", "http://localhost"]
+
+
+def lan_ip() -> str | None:
+    """The address other devices on this network reach this one at.
+
+    Connecting a UDP socket sends no packets - the OS only picks the interface
+    and local port it would use - so this answers with the network idle or
+    offline. None when this machine has no route to speak of.
+    """
+    try:
+        import socket
+
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.connect(("192.0.2.1", 53))  # TEST-NET-1, never contacted
+            return probe.getsockname()[0]
+    except OSError:
+        return None
+
+
 # ── vault ────────────────────────────────────────────────────────────
 MAGIC = b"ATV1"
 _cache: dict[tuple[str, bytes], Fernet] = {}

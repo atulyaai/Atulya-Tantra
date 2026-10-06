@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 
 from atulya import dwar as api
 from atulya.dwar import AutomationRunner
-from atulya.raksha import cors_origins as _cors_origins
+from atulya.raksha import APP_ORIGINS as _APP_ORIGINS, cors_origins as _cors_origins, lan_ip as _lan_ip
 from atulya.setu import get_manager as _mcp_manager
 
 # ── sevak ────────────────────────────────────────────────────────────
@@ -403,17 +403,19 @@ async def _connect_mcp_servers(app: FastAPI) -> None:
 
 
 app = FastAPI(title="Atulya Tantra Dashboard", lifespan=lifespan)
-# The web UI is same-origin and authenticates with a header, so it needs no
-# CORS. ATULYA_CORS_ORIGINS lists other sites allowed to call the API.
-
-# Same-origin dashboard needs no CORS at all, so the default is "none". A
-# wildcard here would let any web page read /api/auth/local and steal the admin
-# token, so ATULYA_CORS_ORIGINS must list origins explicitly to open this up.
-_CORS_ORIGINS = _cors_origins() or []
+# The dashboard is same-origin and authenticates with a header, so it needs no
+# CORS. The app is the one caller that is cross-origin by construction - it is
+# served from the Capacitor WebView's own origin, never from here - so those
+# origins are the default and ATULYA_CORS_ORIGINS names the rest. A wildcard
+# would let any web page fetch /api/auth/local and read the admin token
+# straight out of the body. cors_origins() answers [] under lockdown, which
+# must stay empty, hence the explicit None check rather than `or`.
+_listed = _cors_origins()
+_CORS_ORIGINS = _APP_ORIGINS if _listed is None else _listed
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_CORS_ORIGINS,
-    allow_credentials=bool(_CORS_ORIGINS),  # never credentials with a wildcard
+    allow_credentials=False,  # every route reads a header, never a cookie
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -472,7 +474,16 @@ def main() -> None:
         cert_file, key_file = https_mod.ensure_certs()
         scheme, ssl_args = "https", {"ssl_certfile": cert_file, "ssl_keyfile": key_file}
     print("\n  Atulya")
-    print(f"  Running on: {scheme}://{host}:{port}\n")
+    loopback = host in ("127.0.0.1", "localhost", "::1")
+    local = "127.0.0.1" if loopback or host == "0.0.0.0" else host
+    print(f"  On this computer: {scheme}://{local}:{port}")
+    lan = None if loopback else _lan_ip()
+    if lan and not lan.startswith("127."):
+        print(f"  On your phone:    {scheme}://{lan}:{port}")
+    elif loopback:
+        print("  A phone cannot reach this. Set ATULYA_HOST=0.0.0.0 in .env, restart,")
+        print("  and the address to type into the app is printed here.")
+    print()
     if scheme == "https":
         print("  Your browser will warn once about the certificate (it is your own): choose Advanced > Continue.\n")
     from atulya import dwar as users

@@ -180,7 +180,7 @@ bounce the page away before the page could sign itself in. Give the Mini App its
 behind Access. What that hostname exposes is precisely what an allowlisted Telegram user can
 already do through chat — but that is not nothing, so keep the allowlist to the accounts you
 actually use. `ATULYA_REQUIRE_LOGIN=on` does not affect this endpoint: it only disables the
-passwordless sign-in used by browsers.
+passwordless sign-in used by browsers and by the phone app.
 
 ---
 

@@ -45,28 +45,46 @@ def api_auth_login(body: dict):
     }
 
 
-def _is_local_request(request: Request) -> bool:
-    """True only for a direct connection from this computer (never through a proxy)."""
+def _may_skip_login(request: Request) -> bool:
+    """True when this request can be let in without a password.
+
+    There is no sign-up: Atulya is a dashboard you run for yourself, and the
+    phone app has no other way in - a phone has no password to type and no
+    account to create - so every device that can reach the server is let
+    through. Two callers are not:
+
+    * a proxied request, whose client address is not its own, so nothing
+      about it can be judged.
+    * a page on some other web site, which must never read the admin token out
+      of a browser the owner has open. The Origin header is written by that
+      browser rather than by the page, so the page cannot forge it: the
+      dashboard and the app name themselves, anything else is refused.
+    """
     if any(h in request.headers for h in ("x-forwarded-for", "x-real-ip", "forwarded")):
         return False
-    # A page in another browser tab can still issue this request, so require the
-    # fetch to come from the address bar or this origin, not another site.
-    if request.headers.get("sec-fetch-site", "").lower() in ("cross-site", "same-site"):
-        return False
-    return (request.client.host if request.client else "") in ("127.0.0.1", "::1")
+    origin = request.headers.get("origin", "").lower().rstrip("/")
+    if not origin:
+        return True  # the address bar, curl, or any client that sends no Origin
+    host = request.headers.get("host", "").lower()
+    allowed = {f"http://{host}", f"https://{host}"}
+    allowed.update(o.lower() for o in vault.APP_ORIGINS)
+    return origin in allowed
 
 
 @router.get("/api/auth/local")
 def api_auth_local(request: Request):
-    """Sign in without a password when you are on the computer Atulya runs on.
+    """Sign in without a password.
 
-    Phones and other devices on the network still need to log in. Set
-    ``ATULYA_REQUIRE_LOGIN=on`` to turn this off.
+    This is a dashboard you run for yourself and there is no sign-up, so the
+    phone app would otherwise have nothing to type: every device that reaches
+    the server is let in as admin. Set ``ATULYA_REQUIRE_LOGIN=on`` to demand
+    the admin password everywhere, or ``ATULYA_LOCKDOWN=on`` to keep the
+    server on this computer alone.
     """
 
     if os.environ.get("ATULYA_REQUIRE_LOGIN", "").strip().lower() in ("on", "1", "true", "yes"):
         raise HTTPException(status_code=403, detail="Login required")
-    if not _is_local_request(request):
+    if not _may_skip_login(request):
         raise HTTPException(status_code=403, detail="Login required")
     return {"ok": True, "token": _d.ADMIN_TOKEN,
             "user": {"username": "admin", "role": "admin", "display_name": "Admin"}}

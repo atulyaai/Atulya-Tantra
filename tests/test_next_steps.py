@@ -207,11 +207,17 @@ def _client(host="127.0.0.1", headers=None):
     return TestClient(app, client=(host, 5000), headers=headers or {})
 
 
-def test_local_signin_only_from_this_computer(monkeypatch):
+def test_local_signin_is_open_to_every_device(monkeypatch):
+    """A phone has no password to type and no account to create, so it is open.
+
+    There is no sign-up: this is one dashboard, for its owner. The two callers
+    still refused are a proxied request and another site's page.
+    """
     monkeypatch.delenv("ATULYA_REQUIRE_LOGIN", raising=False)
     assert _client().get("/api/auth/local").json()["token"]
-    assert _client(host="192.168.1.20").get("/api/auth/local").status_code == 403
+    assert _client(host="192.168.1.20").get("/api/auth/local").json()["token"]
     assert _client(headers={"X-Forwarded-For": "8.8.8.8"}).get("/api/auth/local").status_code == 403
+    assert _client(headers={"Origin": "https://evil.example"}).get("/api/auth/local").status_code == 403
     monkeypatch.setenv("ATULYA_REQUIRE_LOGIN", "on")
     assert _client().get("/api/auth/local").status_code == 403
 

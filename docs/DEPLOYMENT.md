@@ -161,12 +161,15 @@ reports `production-candidate` and names the missing variable.
 
 Atulya can bind locally or to the LAN based on configuration.
 
-- `ATULYA_HOST=127.0.0.1` — only this computer can connect.
+- `ATULYA_HOST` — the default `127.0.0.1` lets only this computer connect. Set it to `0.0.0.0`
+  when a phone should reach the server; startup then prints the address to type into the app.
 - `ATULYA_HTTPS=on` — serve https with a self-signed certificate for this computer (needed for
   phone camera/mic over Wi-Fi). Certificate and key are in `kosh/certs/` (override with
   `ATULYA_CERTS_DIR`); the key is readable by you only. For a public site use a real certificate
   behind a reverse proxy instead.
-- `ATULYA_CORS_ORIGINS=https://your-site` — only listed web origins may call the API.
+- `ATULYA_CORS_ORIGINS=https://your-site` — extra web origins allowed to call the API. The app's
+  own origins are listed already, and never a wildcard: `/api/auth/local` answers with the admin
+  token, so a wildcard would hand it to any page open in your browser.
 - `ATULYA_PC_CONTROL` stays unset unless you want Atulya to open apps and type; every such action
   asks first.
 - `ATULYA_LOCKDOWN=on` — one switch for the above: listen on localhost only and allow no
@@ -182,8 +185,11 @@ Atulya can bind locally or to the LAN based on configuration.
 ### Enforced today
 
 - **Login:** API routes need a session token or the admin token (`X-Atulya-Token`), compared in
-  constant time. On the computer Atulya runs on, `/api/auth/local` signs you in without a password;
-  it refuses proxied and remote requests, and `ATULYA_REQUIRE_LOGIN=on` turns it off.
+  constant time. `/api/auth/local` signs you in without a password from any device that can reach
+  the server — there is no sign-up, and a phone has no password to type — while still refusing
+  proxied requests and pages on other web sites (the browser writes the `Origin` header, not the
+  page, so a page cannot forge it). `ATULYA_REQUIRE_LOGIN=on` demands the admin password
+  everywhere; `ATULYA_LOCKDOWN=on` keeps the server on this computer alone.
 - **Admin-only details:** normal users never see which model or provider answers, tool traces,
   server health, telemetry, the audit log, the model list, or the Brains & keys, Reflexes, Routines
   and Senses pop-ups. The server enforces this (403), and replies to normal users carry no model

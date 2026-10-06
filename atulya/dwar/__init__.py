@@ -608,7 +608,7 @@ from .routes_agent import *  # noqa: F401,F403
 from .routes_agent import _AGENT, _ALLOWED_TYPES, _HOOKS_FILE, _HOOK_NAME_RE, _MAX_SIZE, _connector  # noqa: F401
 from .routes_agent import _dispatch_channel_message, _engine, _get_agent, _hook_summary, _hooks, _kernel  # noqa: F401
 from .routes_agent import _options, _payload, _resolve_upload_path, _safe_component, _save_hooks, _validate_twilio_webhook  # noqa: F401
-from .routes_auth import _is_local_request, _telegram_allowed  # noqa: F401
+from .routes_auth import _may_skip_login, _telegram_allowed  # noqa: F401
 from .routes_automation import _load_jobs, _next_job_run, _save_jobs, _seed_default_jobs, _valid_job_schedule  # noqa: F401
 from .routes_chat import _merge_history, _model_registry, _require_bearer  # noqa: F401
 from .routes_companions import _MAX_BYTES, _alert_text, _require_computer_device, _require_phone_device, _web_flow  # noqa: F401
