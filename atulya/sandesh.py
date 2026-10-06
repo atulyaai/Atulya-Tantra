@@ -172,6 +172,8 @@ class TelegramChannel(ChannelBase):
         self._pending_approvals: dict[str, tuple[dict[str, Any], float]] = {}
         # sender id -> last message was a voice note (so the reply is spoken back)
         self._reply_modes: dict[str, bool] = {}
+        # Deduplicate: Telegram can re-deliver the same update_id on retry.
+        self._seen_ids: set[str] = set()
         self._lock = threading.Lock()
 
     async def send(self, message: str, chat_id: str = "", **kwargs: Any) -> bool:
@@ -197,6 +199,69 @@ class TelegramChannel(ChannelBase):
     async def send_action(self, chat_id: str, action: str = "typing") -> bool:
         """Show Telegram's short-lived typing or upload indicator."""
         return await self._call("sendChatAction", {"chat_id": chat_id, "action": action})
+
+    def _status_report(self) -> str:
+        """A real system status: brain, server, watchers, uptime — not a canned string."""
+        import platform
+        lines: list[str] = ["<b>Atulya System Status</b>", ""]
+
+        # Server uptime
+        try:
+            import time as _time
+            from atulya.dwar import START_TIME
+            up = int(_time.time() - START_TIME)
+            hrs, rem = divmod(up, 3600)
+            mins, secs = divmod(rem, 60)
+            uptime = f"{hrs}h {mins}m" if hrs else (f"{mins}m {secs}s" if mins else f"{secs}s")
+            lines.append(f"✅ Server: online ({uptime})")
+        except Exception:
+            lines.append("✅ Server: online")
+
+        # Brain / LLM
+        try:
+            from atulya.mastishk import active_brain, CATALOG
+            tier = active_brain()
+            lines.append(f"🧠 Brain: {tier}")
+            keys_set = sum(1 for s in CATALOG if os.environ.get(s.key_var, "").strip())
+            lines.append(f"🔑 Provider keys: {keys_set} configured")
+        except Exception as exc:
+            lines.append(f"🧠 Brain: error ({exc})")
+
+        # MCP servers
+        try:
+            from atulya.setu import get_manager
+            mgr = get_manager()
+            errs = mgr.errors if hasattr(mgr, "errors") else []
+            tool_count = len(mgr.all_tools()) if hasattr(mgr, "all_tools") else 0
+            if errs:
+                lines.append(f"🔌 MCP: {tool_count} tools, {len(errs)} server error(s)")
+            else:
+                lines.append(f"🔌 MCP: {tool_count} tools connected")
+        except Exception:
+            lines.append("🔌 MCP: not started")
+
+        # Watchers (email, news, MQTT, filesystem)
+        watchers = []
+        try:
+            import atulya.kriya as k
+            for name, fn in [("email", "watch_email"), ("news", "watch_news"),
+                             ("MQTT", "watch_mqtt"), ("files", "watch_filesystem")]:
+                if hasattr(k, fn):
+                    watchers.append(name)
+            lines.append(f"📡 Watchers loaded: {', '.join(watchers) if watchers else 'none'}")
+        except Exception:
+            pass
+
+        # System resources
+        try:
+            import psutil
+            mem = psutil.virtual_memory()
+            lines.append(f"💻 CPU {psutil.cpu_percent(interval=0.0)}% | RAM {mem.percent}%")
+        except Exception:
+            pass
+
+        lines.append(f"🖥 Platform: {platform.system()} {platform.release()}")
+        return "\n".join(lines)
 
     async def configure_profile(self) -> bool:
         """Set the display name and helpful commands for Atulya OS."""
@@ -393,6 +458,16 @@ class TelegramChannel(ChannelBase):
         messages: list[ChannelMessage] = []
         for update in payload.get("result", []):
             self.config["offset"] = max(self.config.get("offset", 0), update.get("update_id", 0) + 1)
+            # Telegram can re-deliver the same update_id on retry; drop it here
+            # so one message never produces two replies.
+            upd_id = str(update.get("update_id", ""))
+            if upd_id:
+                if upd_id in self._seen_ids:
+                    logger.debug("duplicate update %s ignored", upd_id)
+                    continue
+                self._seen_ids.add(upd_id)
+                if len(self._seen_ids) > 5000:
+                    self._seen_ids.clear()
             msg = update.get("message") or {}
             text = msg.get("text", "") or msg.get("caption", "")
             media = next((kind for kind in ("photo", "voice", "audio", "video", "document") if msg.get(kind)), "")
@@ -443,7 +518,7 @@ class TelegramChannel(ChannelBase):
             await self.send("Atulya OS is online. Text and voice chats are ready. Send photos, short videos, or common text files for analysis. Use /send \"path\" to send a file from an allowed folder, or /link CODE to connect your account profile. Commands: /ask, /status, /help.", chat_id)
             return "help"
         if text == "/status":
-            await self.send("Atulya Telegram bridge is running. LLM fallback is free-first.", chat_id)
+            await self.send(self._status_report(), chat_id, parse_mode="HTML")
             return "status"
         if text.startswith("/send"):
             path_text = text[5:].strip()

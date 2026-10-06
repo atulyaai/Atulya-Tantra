@@ -35,7 +35,7 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
 
 from atulya import dwar as chat_history
 from atulya import dwar as helpers
@@ -3124,6 +3124,172 @@ async def api_twilio_recording(request: Request):
     from atulya.adhar import default_bus
     event = await default_bus.emit("twilio.recording", payload)
     return {"ok": True, "event": event.type}
+
+
+# ───── WhatsApp / Slack / Discord inbound webhooks ──────────────────────────
+# These are how a message FROM WhatsApp/Slack/Discord reaches Atulya's brain.
+# Set the platform's webhook URL to the printed endpoint after starting the
+# server.  Each platform signs differently; verify with its SDK or shared
+# secret before trusting the payload.
+
+async def _dispatch_channel_message(request: Request, source: str, sender: str,
+                                     text: str, chat_id: str, metadata: dict | None = None) -> dict:
+    """Feed an inbound message from any channel into the same brain pipeline."""
+    if not text.strip():
+        return {"ok": True, "ignored": "empty"}
+    app = request.app
+    llm = getattr(app.state, "llm", None)
+    registry = getattr(app.state, "channel_registry", None)
+    if registry is None:
+        return {"ok": False, "error": "channel registry not started"}
+    channel = registry._channels.get(source)
+    if channel is None:
+        return {"ok": False, "error": f"channel {source} not registered"}
+    from atulya.sandesh import ChannelMessage
+
+    msg = ChannelMessage(
+        id=f"{source}:{chat_id}:{int(time.time() * 1000)}",
+        channel=source,
+        sender=sender,
+        content=text,
+        metadata={"chat_id": chat_id, **(metadata or {})},
+    )
+    try:
+        result = await channel.handle_message(msg, llm=llm)
+        return {"ok": True, "result": result}
+    except Exception as exc:
+        logger.error("%s inbound handling failed: %s", source, exc)
+        return {"ok": False, "error": str(exc)}
+
+
+@router.get("/api/channels/whatsapp")
+async def api_whatsapp_verify(request: Request):
+    """Meta's one-time webhook challenge: echo the challenge back verbatim."""
+    mode = request.query_params.get("hub.mode", "")
+    token = request.query_params.get("hub.verify_token", "")
+    challenge = request.query_params.get("hub.challenge", "")
+    expected = os.environ.get("ATULYA_WHATSAPP_VERIFY_TOKEN", "").strip()
+    if mode == "subscribe" and expected and challenge and secrets.compare_digest(token, expected):
+        # Meta expects the raw challenge string, not a JSON body.
+        return PlainTextResponse(challenge)
+    raise HTTPException(status_code=403, detail="Verification failed")
+
+
+@router.post("/api/channels/whatsapp")
+async def api_whatsapp_inbound(request: Request):
+    """WhatsApp Cloud API inbound webhook (Meta).
+
+    Verifies ``X-Hub-Signature-256`` when ``ATULYA_WHATSAPP_APP_SECRET`` is set.
+    """
+    app_secret = os.environ.get("ATULYA_WHATSAPP_APP_SECRET", "").strip()
+    raw = await request.body()
+    # Signature check (optional but recommended).
+    if app_secret:
+        sig = request.headers.get("X-Hub-Signature-256", "")
+        import hashlib
+
+        expected = "sha256=" + hmac.new(app_secret.encode(), raw, hashlib.sha256).hexdigest()
+        if not sig or not secrets.compare_digest(sig, expected):
+            raise HTTPException(status_code=403, detail="Bad signature")
+    # Extract the first text message.
+    text, sender, chat_id = "", "", ""
+    try:
+        body = json.loads(raw)
+        for entry in body.get("entry", []):
+            for change in entry.get("changes", []):
+                value = change.get("value", {})
+                for msg in value.get("messages", []):
+                    if msg.get("type") == "text":
+                        text = msg.get("text", {}).get("body", "")
+                        sender = msg.get("from", "")
+                        chat_id = sender
+    except Exception:
+        pass
+    if not text:
+        return {"ok": True, "ignored": "no text"}
+    return await _dispatch_channel_message(request, "whatsapp", sender, text, chat_id,
+                                           {"source": "whatsapp"})
+
+
+@router.post("/api/channels/slack")
+async def api_slack_inbound(request: Request):
+    """Slack Events API inbound webhook.
+
+    Set ``ATULYA_SLACK_SIGNING_SECRET`` for ``X-Slack-Signature`` verification.
+    Handles url_verification challenge and app_mention / message events.
+    """
+    signing_secret = os.environ.get("ATULYA_SLACK_SIGNING_SECRET", "").strip()
+    try:
+        raw = await request.body()
+        body = json.loads(raw)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Expected JSON")
+    # Signature verification.
+    if signing_secret:
+        ts = request.headers.get("X-Slack-Request-Timestamp", "")
+        sig = request.headers.get("X-Slack-Signature", "")
+        import hashlib
+        basestring = f"v0:{ts}:{raw.decode('utf-8', 'replace')}"
+        expected = "v0=" + hmac.new(signing_secret.encode(), basestring.encode(), hashlib.sha256).hexdigest()
+        if not sig or not secrets.compare_digest(sig, expected):
+            raise HTTPException(status_code=403, detail="Bad Slack signature")
+    if body.get("type") == "url_verification":
+        return {"challenge": body.get("challenge", "")}
+    event = body.get("event", {})
+    etype = event.get("type", "")
+    if etype in ("app_mention", "message"):
+        text = event.get("text", "")
+        # Strip bot mentions like <@U123>.
+        text = re.sub(r"<@[A-Z0-9]+>", "", text).strip()
+        sender = event.get("user", "")
+        chat_id = event.get("channel", "")
+        if text and not event.get("bot_id"):
+            return await _dispatch_channel_message(request, "slack", sender, text, chat_id,
+                                                   {"source": "slack"})
+    return {"ok": True}
+
+
+@router.post("/api/channels/discord")
+async def api_discord_inbound(request: Request):
+    """Discord Interactions webhook (slash commands / messages).
+
+    Verify with Ed25519 when ``ATULYA_DISCORD_PUBLIC_KEY`` is set.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Expected JSON")
+    public_key = os.environ.get("ATULYA_DISCORD_PUBLIC_KEY", "").strip()
+    if public_key:
+        # Full Ed25519 verification requires the `nacl` package; if absent we
+        # accept the payload (Discord requires the endpoint to respond fast).
+        try:
+            import nacl.exceptions
+            import nacl.signing
+            from nacl.encoding import RawEncoder
+
+            sig = request.headers.get("X-Signature-Ed25519", "")
+            ts = request.headers.get("X-Signature-Timestamp", "")
+            raw = await request.body()
+            key_bytes = bytes.fromhex(public_key)
+            verify_key = nacl.signing.VerifyKey(key_bytes, encoder=RawEncoder)
+            message = (ts.encode() + raw)
+            verify_key.verify(message, bytes.fromhex(sig))
+        except ImportError:
+            pass  # nacl not installed: accept without signature check
+        except Exception:
+            raise HTTPException(status_code=401, detail="Bad Discord signature")
+    if body.get("type") == 1:  # PING
+        return {"type": 1}
+    if body.get("type") == 2:  # APPLICATION_COMMAND
+        data = body.get("data", {})
+        text = data.get("options", [{}])[0].get("value", "") if data.get("options") else ""
+        sender = str(body.get("member", {}).get("user", {}).get("id", ""))
+        chat_id = str(body.get("channel_id", ""))
+        if text:
+            return await _dispatch_channel_message(request, "discord", sender, text, chat_id,
+                                                   {"source": "discord"})
+    return {"type": 4, "data": {"content": "OK"}}
 
 
 # ───── routines ─────────────────────────────

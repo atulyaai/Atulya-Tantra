@@ -327,10 +327,27 @@ export function Orb({ onMenu, toast, onCommand }) {
       if (audioBase64) {
         const audio = new Audio(`data:audio/mp3;base64,${audioBase64}`);
         audioRef.current = audio;
+        // Browsers suspend AudioContext until a user gesture; resume it or
+        // the analyser sees silence and audio.play() may be rejected too.
+        try { const c = audioCtx(); if (c.state === 'suspended') c.resume(); } catch { /* no analyser, still play */ }
         analyserRef.current = boostAudio(audio, audioCtx());
         audio.onended = done;
         audio.onerror = done;
-        audio.play().catch(() => speakInBrowser(text).then(done));
+        const p = audio.play();
+        if (p && p.catch) {
+          p.catch(() => {
+            // Autoplay blocked: wait for the first user gesture, then play.
+            const unlock = () => {
+              audio.play().then(done).catch(() => speakInBrowser(text).then(done));
+              window.removeEventListener('pointerdown', unlock);
+              window.removeEventListener('keydown', unlock);
+            };
+            window.addEventListener('pointerdown', unlock, { once: true });
+            window.addEventListener('keydown', unlock, { once: true });
+            // Safety: if no gesture comes, fall back to browser TTS.
+            setTimeout(() => { if (audio.paused) { speakInBrowser(text).then(done); } }, 1200);
+          });
+        }
         return;
       }
       analyserRef.current = null;
