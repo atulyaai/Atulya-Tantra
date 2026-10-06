@@ -6,9 +6,9 @@ services:
       ATULYA_HOST: 0.0.0.0
       ATULYA_PORT: "8501"
       ATULYA_HTTPS: "off"
-      ATULYA_JWT_SECRET_FILE: /app/kosh/jwt_secret.key
+      ATULYA_JWT_SECRET_FILE: /app/data/jwt_secret.key
     volumes:
-      - ./kosh:/app/kosh
+      - ./data:/app/data
     ports:
       - "${ATULYA_DOCKER_BIND:-127.0.0.1}:${ATULYA_PORT:-8501}:8501"
     restart: unless-stopped

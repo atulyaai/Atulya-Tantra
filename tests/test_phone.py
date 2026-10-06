@@ -4,9 +4,9 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from atulya import dwar as users
+from atulya import api as users
 from atulya import phone
-from atulya.sevak import app
+from atulya.server import app
 
 
 @pytest.fixture()

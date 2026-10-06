@@ -24,7 +24,7 @@ def _request(path: str = "/api/twilio/sms", query: bytes = b"") -> Request:
 
 
 def test_twilio_callback_requires_configured_secret(monkeypatch):
-    from atulya.dwar import _validate_twilio_webhook
+    from atulya.api import _validate_twilio_webhook
 
     monkeypatch.delenv("TWILIO_AUTH_TOKEN", raising=False)
     with pytest.raises(HTTPException) as exc:
@@ -33,7 +33,7 @@ def test_twilio_callback_requires_configured_secret(monkeypatch):
 
 
 def test_twilio_callback_rejects_missing_or_invalid_signature(monkeypatch):
-    from atulya.dwar import _validate_twilio_webhook
+    from atulya.api import _validate_twilio_webhook
 
     monkeypatch.setenv("TWILIO_AUTH_TOKEN", "test-auth-token")
     monkeypatch.setenv("ATULYA_TWILIO_PUBLIC_BASE_URL", "https://voice.example.test")
@@ -50,7 +50,7 @@ def test_twilio_callback_rejects_missing_or_invalid_signature(monkeypatch):
 
 def test_twilio_callback_validates_public_url_and_query(monkeypatch):
     from twilio.request_validator import RequestValidator
-    from atulya.dwar import _validate_twilio_webhook
+    from atulya.api import _validate_twilio_webhook
 
     secret = "test-auth-token"
     base_url = "https://voice.example.test"
@@ -67,7 +67,7 @@ def test_twilio_callback_validates_public_url_and_query(monkeypatch):
 
 
 def test_outbound_call_text_cannot_inject_twi_ml():
-    from atulya.kriya import _twilio_say_twiml
+    from atulya.actions import _twilio_say_twiml
 
     assert _twilio_say_twiml("Hi <Redirect>https://evil.test</Redirect> & bye") == (
         "<Response><Say>Hi &lt;Redirect&gt;https://evil.test&lt;/Redirect&gt; &amp; bye</Say></Response>"

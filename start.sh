@@ -69,10 +69,10 @@ fi
 # ------------------------------------------------------------- 3. web UI build
 echo "  [3/4] Building the web app..."
 if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
-    "$PYTHON" frontend/build.py || echo "  WARNING: the web app failed to build, so there is no web UI."
-    [ -f frontend/dist/index.html ] || echo "  WARNING: frontend/dist/index.html is missing."
+    "$PYTHON" webui/build.py || echo "  WARNING: the web app failed to build, so there is no web UI."
+    [ -f webui/dist/index.html ] || echo "  WARNING: webui/dist/index.html is missing."
 else
-    if [ -f frontend/dist/index.html ]; then
+    if [ -f webui/dist/index.html ]; then
         echo "  Node.js not found - using the existing build, which may be out of date."
     else
         echo "  WARNING: Node.js not found and there is no existing build. Install Node.js 18+."
@@ -99,4 +99,4 @@ echo "  |  Ctrl+C to stop                          |"
 echo "  +------------------------------------------+"
 echo ""
 
-exec "$PYTHON" -m atulya.sevak
+exec "$PYTHON" -m atulya.server

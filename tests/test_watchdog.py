@@ -7,7 +7,7 @@ def test_systemd_unit_loads_the_project_env_file(tmp_path):
 
     args = Namespace(
         cwd=str(tmp_path), url="http://127.0.0.1:8501/api/health", interval=30,
-        timeout=5, max_failures=3, cmd="python -m atulya.sevak",
+        timeout=5, max_failures=3, cmd="python -m atulya.server",
     )
     unit = generate_systemd_unit(args)
 

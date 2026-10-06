@@ -20,22 +20,22 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: webui/package-lock.json
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
           cache: gradle
       - uses: android-actions/setup-android@v3
-      - run: python frontend/sync_version.py --check
+      - run: python webui/sync_version.py --check
       - run: npm ci
-        working-directory: frontend
+        working-directory: webui
       - run: python build_apk.py
-        working-directory: frontend
+        working-directory: webui
       - uses: actions/upload-artifact@v4
         with:
           name: android-debug-apk
-          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          path: webui/android/app/build/outputs/apk/debug/app-debug.apk
 
   release:
     needs: android
@@ -49,10 +49,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - run: python frontend/sync_version.py --check
+          cache-dependency-path: webui/package-lock.json
+      - run: python webui/sync_version.py --check
       - run: npm ci && npm run build
-        working-directory: frontend
+        working-directory: webui
       - uses: actions/download-artifact@v4
         with:
           name: android-debug-apk
@@ -72,7 +72,7 @@ jobs:
               for member in source.getmembers():
                   if member.isfile():
                       target.writestr(member.name, source.extractfile(member).read())
-              for path in Path("frontend/dist").rglob("*"):
+              for path in Path("webui/dist").rglob("*"):
                   if path.is_file():
                       target.write(path, path.as_posix())
           PY

@@ -221,7 +221,7 @@ PROFILE_EXTRAS = {
 # ── environment reading ──────────────────────────────────────────────────────
 def load_existing() -> None:
     """Merge .env into os.environ without overriding anything already exported."""
-    from atulya.adhar import load_env
+    from atulya.settings import load_env
 
     try:
         load_env([ROOT / ".env"])
@@ -323,7 +323,7 @@ def ask(prompt: str, default: str = "") -> str:
 
 def interview(quiet: bool) -> list[str]:
     """Ask for the missing settings only. Returns the keys that changed."""
-    from atulya.adhar import set_env_value
+    from atulya.settings import set_env_value
 
     changed: list[str] = []
     # A missing dashboard token is a security hole, so it is always created.
@@ -374,12 +374,12 @@ def build_dashboard(quiet: bool) -> bool:
     if not (shutil.which("node") and shutil.which("npm")):
         say(
             f"  {WARN} Node.js not found — skipping the web UI build "
-            f"({DIM}an existing frontend/dist is used as-is, and the MCP tool servers "
+            f"({DIM}an existing webui/dist is used as-is, and the MCP tool servers "
             f"filesystem/git/playwright/fetch will not start{RESET})"
         )
         return False
     say("  Checking and building the dashboard when its source has changed...")
-    result = subprocess.call([sys.executable, str(ROOT / "frontend" / "build.py")], cwd=ROOT)
+    result = subprocess.call([sys.executable, str(ROOT / "webui" / "build.py")], cwd=ROOT)
     if result != 0:
         say(f"  {RED}dashboard build failed{RESET}")
         return False
@@ -440,7 +440,7 @@ def preflight_repair() -> list[tuple[str, bool, str, str]]:
 # ── doctor ───────────────────────────────────────────────────────────────────
 def doctor() -> bool:
     """Real end-to-end checks. Returns True when Atulya is ready to serve."""
-    from atulya.adhar import env_path
+    from atulya.settings import env_path
 
     failures = 0
 
@@ -477,7 +477,7 @@ def doctor() -> bool:
     )
 
     try:
-        from atulya import mastishk  # noqa: F401
+        from atulya import brain  # noqa: F401
 
         line("brain module imports", True)
     except Exception as exc:
@@ -575,7 +575,7 @@ Wants=network-online.target
 Type=simple
 User={getpass.getuser()}
 WorkingDirectory={ROOT}
-ExecStart={sys.executable} -m atulya.sevak
+ExecStart={sys.executable} -m atulya.server
 Restart=on-failure
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1
@@ -626,7 +626,7 @@ def _install_startup_shortcut() -> bool:
         (startup / "Atulya.bat").write_text(
             "@echo off\r\n"
             f'cd /d "{ROOT}"\r\n'
-            f'start "" /min "{sys.executable}" -m atulya.sevak\r\n',
+            f'start "" /min "{sys.executable}" -m atulya.server\r\n',
             encoding="utf-8",
         )
     except OSError as exc:
@@ -706,7 +706,7 @@ def main() -> int:
     step("4. Configure")
     interview(quiet=args.yes)
     # Profile-driven defaults for switches that are otherwise easy to forget.
-    from atulya.adhar import set_env_value
+    from atulya.settings import set_env_value
 
     if profile == "full":
         set_env_value("ATULYA_PC_CONTROL", "on")
@@ -737,13 +737,13 @@ def main() -> int:
     # The answer used to be "double-click start.bat" on every platform, which is
     # advice a Linux server cannot follow.
     start_hint = "double-click start.bat" if IS_WINDOWS else "./start.sh"
-    say(f"\n    {BOLD}python -m atulya.sevak{RESET}    (or {start_hint})")
+    say(f"\n    {BOLD}python -m atulya.server{RESET}    (or {start_hint})")
     if serviced:
         say(f"    {BOLD}sudo systemctl start {SERVICE_NAME}{RESET}    (installed, so it starts at boot)")
     say("")
     if not args.no_start and not args.yes and sys.stdin.isatty():
         if ask("Start Atulya now?", "y").lower().startswith("y"):
-            return subprocess.call([sys.executable, "-m", "atulya.sevak"], cwd=ROOT)
+            return subprocess.call([sys.executable, "-m", "atulya.server"], cwd=ROOT)
     return 0 if ready else 1
 
 

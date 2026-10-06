@@ -3,12 +3,12 @@ from __future__ import annotations
 
 import asyncio
 
-from atulya import kriya
-from atulya.mastishk import assess
+from atulya import actions
+from atulya.brain import assess
 
 
 def test_twilio_say_text_cannot_inject_xml_verbs():
-    twiml = kriya._twilio_say_twiml("hello</Say><Redirect>https://evil.test</Redirect>")
+    twiml = actions._twilio_say_twiml("hello</Say><Redirect>https://evil.test</Redirect>")
     assert twiml == "<Response><Say>hello&lt;/Say&gt;&lt;Redirect&gt;https://evil.test&lt;/Redirect&gt;</Say></Response>"
 
 
@@ -20,7 +20,7 @@ def test_external_actions_require_confirmation():
 def test_home_assistant_rejects_invalid_entity_ids_before_network(monkeypatch):
     monkeypatch.setenv("HOME_ASSISTANT_URL", "https://ha.example")
     monkeypatch.setenv("HOME_ASSISTANT_TOKEN", "secret")
-    result = asyncio.run(kriya.ha_state("../api/config"))
+    result = asyncio.run(actions.ha_state("../api/config"))
     assert result.startswith("Entity ID must look like")
 
 
@@ -49,8 +49,8 @@ def test_home_assistant_service_keeps_target_entity_authoritative(monkeypatch):
             calls.append((url, kwargs))
             return Response()
 
-    monkeypatch.setattr(kriya.httpx, "AsyncClient", Client)
-    result = asyncio.run(kriya.ha_call_service(
+    monkeypatch.setattr(actions.httpx, "AsyncClient", Client)
+    result = asyncio.run(actions.ha_call_service(
         "light", "turn_on", "light.kitchen", {"entity_id": "lock.front_door", "brightness": 50}
     ))
     assert "called on light.kitchen" in result
@@ -61,5 +61,5 @@ def test_home_assistant_service_keeps_target_entity_authoritative(monkeypatch):
 def test_home_assistant_rejects_pathlike_service_names(monkeypatch):
     monkeypatch.setenv("HOME_ASSISTANT_URL", "https://ha.example")
     monkeypatch.setenv("HOME_ASSISTANT_TOKEN", "secret")
-    result = asyncio.run(kriya.ha_call_service("light/../api", "turn_on", "light.kitchen"))
+    result = asyncio.run(actions.ha_call_service("light/../api", "turn_on", "light.kitchen"))
     assert "domain and service" in result

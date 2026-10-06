@@ -27,10 +27,10 @@
  +--------------------------------------------------------------------------+
  |                         HOW ATULYA WORKS                                 |
  |                                                                          |
- |  Your voice or text --> hologram screen (frontend/) --> server (atulya/sevak)|
+ |  Your voice or text --> hologram screen (webui/) --> server (atulya/server)|
  |                                  |                                       |
  |                                  v                                       |
- |                 thinking kernel (atulya/buddhi)                       |
+ |                 thinking kernel (atulya/pipeline)                       |
  |            /              |                 \                            |
  |     brain: cloud       memory: what you     tools: music, email,         |
  |     or local model     told it, habits      calendar, PC, home           |
@@ -165,7 +165,7 @@ Atulya never reads out emoji and answers "what can you do" with a real list.
 ### Money
 
 "I spent 500 on groceries", "how much did I spend this month", "set a budget for food of 5000",
-"what bills are due". Everything stays in `kosh/agent/money.json` — **Atulya never connects to a
+"what bills are due". Everything stays in `data/agent/money.json` — **Atulya never connects to a
 bank and never pays anything.** Bank alerts can come from email, from an SMS-forwarding app on your
 phone, or a pasted statement CSV; OTPs and offers are ignored and duplicates are counted once.
 
@@ -185,17 +185,17 @@ phone or a second computer is in **[docs/RECIPES.md](docs/RECIPES.md)**.
 
 ## Layout
 
-Project folders use standard English engineering names. Generated frontend dependencies and build
+Project folders use standard English engineering names. Generated webui dependencies and build
 output are not source files.
 
 | Folder | Purpose |
 |---|---|
 | `atulya/` | Python application package — API, reasoning, memory, tools, channels, devices and voice |
-| `frontend/` | React/Vite dashboard, PWA assets and Capacitor config; `dist/` is generated, `node_modules/` is disposable |
+| `webui/` | React/Vite dashboard, PWA assets and Capacitor config; `dist/` is generated, `node_modules/` is disposable |
 | `docs/` | Documentation: status, roadmap, deployment, recipes, architecture, API, devices |
 | `tests/` | Unit and integration tests, grouped by subsystem |
 | `examples/` | Termux companion and optional model experiments |
-| `kosh/` | Local user data — private memory, credentials and settings (कोश, store/vault); git-ignored |
+| `data/` | Local user data — private memory, credentials and settings (store/vault); git-ignored |
 | `runtime/` | Downloaded model files; optional and not source code |
 | `.github/` | CI and release workflows |
 
@@ -209,12 +209,12 @@ The module-by-module map (which file holds what) is in
 ```powershell
 python -m pytest -q          # tests
 ruff check .                 # lint (unused imports are errors)
-cd frontend; npm run dev     # web dev server, proxies /api and /ws to :8501
-python -m atulya.adesh doctor # readiness report
+cd webui; npm run dev     # web dev server, proxies /api and /ws to :8501
+python -m atulya.cli doctor # readiness report
 ```
 
 Docker: see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#4-run) — it covers `.env`, the bind address,
-the persistent `kosh/` volume and the JWT signing key.
+the persistent `data/` volume and the JWT signing key.
 
 ## API
 
@@ -231,8 +231,8 @@ Token-protected routes expect `X-Atulya-Token`. Full list:
 
 ## Notes
 
-- Do not commit `.env` or `kosh/`; they hold your keys, accounts and memory.
-- `frontend/dist` is built by `start.bat` / `start.sh`; `frontend/node_modules` is only needed while building
+- Do not commit `.env` or `data/`; they hold your keys, accounts and memory.
+- `webui/dist` is built by `start.bat` / `start.sh`; `webui/node_modules` is only needed while building
   and can be deleted any time. **A clean checkout has no web app until the build runs.**
 - Custom model training does not belong here; keep it in a separate repository and connect it as a
   provider.

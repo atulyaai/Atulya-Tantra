@@ -55,7 +55,7 @@ cloudflared makes an outbound tunnel.
 1. Copy `.env.example` to `.env`; edit it on the VM. Set `ATULYA_HOST=0.0.0.0`,
    `ATULYA_HTTPS=off`, `ATULYA_PC_CONTROL=off`, and `ATULYA_PUBLIC_URL=https://atulya.example.com`.
    **Leave `ATULYA_JWT_SECRET_FILE` unset** so Atulya creates its persistent signing key in the
-   mounted `kosh/` directory. Leave Telegram values blank unless you intentionally configure
+   mounted `data/` directory. Leave Telegram values blank unless you intentionally configure
    Telegram. **PASS:** these names and values are present; no secrets have been pasted into chat
    or committed.
 2. Add `CF_TUNNEL_TOKEN=` to `.env`; fill it after creating the tunnel. Protect `.env` with
@@ -109,10 +109,10 @@ cloudflared makes an outbound tunnel.
 ### 6. Systemd alternative
 
 Use this instead of Compose's restart policy only if you prefer systemd to manage the Compose
-stack. Copy the repository to `/opt/atulya`, create `/etc/systemd/system/sevak.service` from
-`sevak.service` in the repository root, and verify its `WorkingDirectory` and Docker path. Run
-`sudo systemctl daemon-reload && sudo systemctl enable --now sevak`. **PASS:** `sudo systemctl
-status sevak` says active (exited), and `docker compose ps` shows both services running. Do not
+stack. Copy the repository to `/opt/atulya`, create `/etc/systemd/system/server.service` from
+`server.service` in the repository root, and verify its `WorkingDirectory` and Docker path. Run
+`sudo systemctl daemon-reload && sudo systemctl enable --now server`. **PASS:** `sudo systemctl
+status server` says active (exited), and `docker compose ps` shows both services running. Do not
 configure both systemd and Compose restart management.
 
 ---
@@ -245,7 +245,7 @@ WebSocket alerts continue and the app says background delivery is not configured
    Pair another computer**. Keep the six-digit code private. **PASS:** an unexpired code is
    visible.
 2. On the computer to pair, clone the project, install its Python dependencies with `python -m
-   pip install -e .`, and run `python -m atulya.dut --server https://atulya.example.com --name "My
+   pip install -e .`, and run `python -m atulya.companion --server https://atulya.example.com --name "My
    laptop"`. Enter the pairing code when prompted. **PASS:** the companion confirms it paired and
    saves its device token in the current user's private config folder; the token is never shown in
    the command line.
@@ -285,7 +285,7 @@ Drive uses the free service-account path, which is simpler than user OAuth for a
 GOOGLE_SERVICE_ACCOUNT_KEY={"type":"service_account","project_id":"..."}
 ```
 
-8. Set `google_drive.enabled` to `true` in `atulya/setu_servers.json`.
+8. Set `google_drive.enabled` to `true` in `atulya/mcp_servers.json`.
 
 ### Gmail
 
@@ -319,12 +319,12 @@ node install/generate_gmail_refresh_token.mjs
 
 9. Copy only the printed `GMAIL_REFRESH_TOKEN=...` line into `.env`.
 10. There is no `gmail` entry to flip: Gmail is a built-in tool (`send_email`, `fetch_emails` in
-    `atulya/kriya/email.py`), not an MCP server.
+    `atulya/actions/email.py`), not an MCP server.
 
 ### Verify
 
 ```powershell
-python -m atulya.adesh readiness
+python -m atulya.cli readiness
 ```
 
 If either Google server is enabled without credentials, readiness reports `production-candidate`

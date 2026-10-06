@@ -12,7 +12,7 @@ Update this file in every PR.
 
 ---
 
-## Everyday actions (tools in `atulya/kriya/` and friends)
+## Everyday actions (tools in `atulya/actions/` and friends)
 
 | Ability | Tool | State |
 |---|---|---|
@@ -26,7 +26,7 @@ Update this file in every PR.
 | Weather, time, calculator | `get_weather`, `get_forecast`, `current_time`, `calculate` | Done |
 | Price watchlist, briefing | `track_*`, `morning_briefing` | Done |
 | Smart home | `home_control`, `home_list_devices` | Unverified; needs Home Assistant or MQTT |
-| Control the PC | `pc_open_app`, `pc_type`, `pc_hotkey`, `pc_screenshot`, plus `files` (list, find, read, copy, move, delete to trash, write, edit, open, print), `clipboard`, `screen` (read by OCR, windows, click, scroll), `run_command`, `install_software`, `check_computer` (all in `sharir.py`) | Tested against temp folders and fake permission levels; never run on a real PC, so unverified. Off until `ATULYA_PC_CONTROL=on`; risky actions ask first; files stay in the folders you allow (`ATULYA_ALLOWED_FOLDERS`) |
+| Control the PC | `pc_open_app`, `pc_type`, `pc_hotkey`, `pc_screenshot`, plus `files` (list, find, read, copy, move, delete to trash, write, edit, open, print), `clipboard`, `screen` (read by OCR, windows, click, scroll), `run_command`, `install_software`, `check_computer` (all in `computer.py`) | Tested against temp folders and fake permission levels; never run on a real PC, so unverified. Off until `ATULYA_PC_CONTROL=on`; risky actions ask first; files stay in the folders you allow (`ATULYA_ALLOWED_FOLDERS`) |
 | Camera, pictures | `analyze_image`, `camera_status` | `camera_status` has no test |
 
 ---

@@ -18,9 +18,9 @@ in [STATUS.md](STATUS.md).
 
 | Path | Use it when | State |
 |---|---|---|
-| **Native service** (`python -m atulya.sevak`) | This computer, or a server you control | **Proven.** The real server has been started and exercised (11 API routes, a money chat, the rebuilt dashboard) |
+| **Native service** (`python -m atulya.server`) | This computer, or a server you control | **Proven.** The real server has been started and exercised (11 API routes, a money chat, the rebuilt dashboard) |
 | **Docker Compose** | You want an isolated, repeatable server image | **Unverified — the image has never been built.** Do not commit to it until F1 closes |
-| **systemd (`sevak.service`)** | A Linux host where Docker should start at boot | Thin wrapper around `docker compose --profile tunnel up -d`; inherits Docker's status |
+| **systemd (`server.service`)** | A Linux host where Docker should start at boot | Thin wrapper around `docker compose --profile tunnel up -d`; inherits Docker's status |
 
 ---
 
@@ -57,14 +57,14 @@ the dashboard and checks that everything works. Secrets are never printed in ful
 python -m venv venv
 source venv/bin/activate          # Windows: .\venv\Scripts\Activate.ps1
 pip install -e ".[serve,dev]"
-cd frontend && npm ci && npm run build && cd ..
+cd webui && npm ci && npm run build && cd ..
 ```
 
 Optional extras: `.[ambient]` (always-on listener), `.[control]` (PC control), `.[vision]`
 (camera, OCR), `.[brain]` (a local model), `.[wake]` (wake-word model, Piper voice), `.[docs]`
 (document tools), `.[browser]` (browser automation).
 
-`frontend/dist/` is generated and git-ignored — **a clean checkout has no web app until you run
+`webui/dist/` is generated and git-ignored — **a clean checkout has no web app until you run
 the build**. This is the single most common way to end up with a blank dashboard or an APK with
 nothing inside it.
 
@@ -75,9 +75,9 @@ nothing inside it.
 ### Native (proven)
 
 ```bash
-uvicorn atulya.sevak:app --host 127.0.0.1 --port 8501
+uvicorn atulya.server:app --host 127.0.0.1 --port 8501
 # or simply
-python -m atulya.sevak
+python -m atulya.server
 ```
 
 On Windows, double-click **`start.bat`**: it installs what is missing, rebuilds the web app only
@@ -92,7 +92,7 @@ Atulya runs on there is no login; every other device needs one.
 docker compose -f docker-compose.yml up -d
 ```
 
-The container serves the built `frontend/dist/` app and API from port 8501 and keeps `kosh/` on
+The container serves the built `webui/dist/` app and API from port 8501 and keeps `data/` on
 your disk.
 
 ```bash
@@ -102,7 +102,7 @@ docker compose up -d --build
 
 - It publishes **`127.0.0.1:8501`** by default. Set `ATULYA_DOCKER_BIND=0.0.0.0` only when you
   need LAN access from other devices.
-- The JWT signing key is created in the persistent `kosh/` volume on first start. Leave
+- The JWT signing key is created in the persistent `data/` volume on first start. Leave
   `ATULYA_JWT_SECRET_FILE` unset unless you manage the key yourself (for example a Docker secret).
 - For public hosting, put it behind HTTPS or a Cloudflare Tunnel
   ([RECIPES.md](RECIPES.md#run-it-on-an-oracle-free-vm-behind-cloudflare)).
@@ -110,11 +110,11 @@ docker compose up -d --build
 ### Start at boot on Linux
 
 ```bash
-sudo cp sevak.service /etc/systemd/system/
-sudo systemctl daemon-reload && sudo systemctl enable --now sevak
+sudo cp server.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now server
 ```
 
-`sevak.service` is `WorkingDirectory=/opt/atulya` + `docker compose --profile tunnel up -d`.
+`server.service` is `WorkingDirectory=/opt/atulya` + `docker compose --profile tunnel up -d`.
 Verify those two lines match your layout before enabling it. **Do not configure both systemd and
 Compose restart management** — you will get two supervisors fighting over one stack.
 
@@ -122,7 +122,7 @@ Compose restart management** — you will get two supervisors fighting over one 
 
 ## 5. Environment variables
 
-Set these in `.env` (git-ignored). The server reads `.env` itself (`atulya/adhar.py`), so quoting,
+Set these in `.env` (git-ignored). The server reads `.env` itself (`atulya/settings.py`), so quoting,
 spaces and a Windows Notepad BOM are all handled — you do not need `start.bat` to load them.
 
 | Variable | Required | Description |
@@ -135,18 +135,18 @@ spaces and a Windows Notepad BOM are all handled — you do not need `start.bat`
 | `ATULYA_TELEGRAM_ALLOWLIST` | No | Comma-separated Telegram user ids allowed to talk to Atulya (and to open the Mini App). Empty means nobody |
 | `ATULYA_PUBLIC_URL` | For the Mini App | Public HTTPS origin of this server, e.g. `https://atulya.example.com`. Registered once with @BotFather via `/newapp`; see [RECIPES.md](RECIPES.md#telegram-mini-app-the-hologram-on-your-phone) |
 | `ATULYA_DOCKER_BIND` | Docker only | Bind address for the container. Defaults to `127.0.0.1`; set `0.0.0.0` only when you need LAN access |
-| `ATULYA_JWT_SECRET_FILE` | Docker/secrets | Where to persist the JWT signing key. Leave unset and Atulya creates it in the mounted `kosh/` volume |
+| `ATULYA_JWT_SECRET_FILE` | Docker/secrets | Where to persist the JWT signing key. Leave unset and Atulya creates it in the mounted `data/` volume |
 | `ATULYA_TANTRUM_ALLOW_MODEL` | No | Enable local on-device model |
 | `GOOGLE_SERVICE_ACCOUNT_KEY` | No | Google Drive MCP |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GMAIL_REFRESH_TOKEN` | No | Gmail MCP |
 
-`python -m atulya.adesh doctor` reports which of these are set without printing their values.
+`python -m atulya.cli doctor` reports which of these are set without printing their values.
 
 ---
 
 ## 6. MCP servers
 
-Edit `atulya/setu_servers.json` to enable integrations (Google Drive, Brave search, MQTT, local
+Edit `atulya/mcp_servers.json` to enable integrations (Google Drive, Brave search, MQTT, local
 memory, Twilio, Home Assistant, ...). **Four ship enabled**: `filesystem`, `git`, `playwright` and
 `fetch` — the ones that need no credentials. Every other entry is listed but off until you add its
 keys. A single manager is created for the whole process
@@ -154,7 +154,7 @@ and the brain reads its tools from `build_unified_registry()`, so an entry you e
 the model on every surface — web UI and Telegram alike.
 
 Setup for the Google servers is in [RECIPES.md](RECIPES.md#google-drive-and-gmail-mcp--oauth).
-Verify with `python -m atulya.adesh readiness`: if a server is enabled without credentials it
+Verify with `python -m atulya.cli readiness`: if a server is enabled without credentials it
 reports `production-candidate` and names the missing variable.
 
 ---
@@ -166,7 +166,7 @@ Atulya can bind locally or to the LAN based on configuration.
 - `ATULYA_HOST` — the default `127.0.0.1` lets only this computer connect. Set it to `0.0.0.0`
   when a phone should reach the server; startup then prints the address to type into the app.
 - `ATULYA_HTTPS=on` — serve https with a self-signed certificate for this computer (needed for
-  phone camera/mic over Wi-Fi). Certificate and key are in `kosh/certs/` (override with
+  phone camera/mic over Wi-Fi). Certificate and key are in `data/certs/` (override with
   `ATULYA_CERTS_DIR`); the key is readable by you only. For a public site use a real certificate
   behind a reverse proxy instead.
 - `ATULYA_CORS_ORIGINS=https://your-site` — extra web origins allowed to call the API. The app's
@@ -177,7 +177,7 @@ Atulya can bind locally or to the LAN based on configuration.
 - `ATULYA_LOCKDOWN=on` — one switch for the above: listen on localhost only and allow no
   cross-site (CORS) callers unless `ATULYA_CORS_ORIGINS` lists them. The phone app will not reach
   it while this is on.
-- Every tool call is written to a tamper-evident hash chain in `kosh/agent/audit.jsonl` (secrets
+- Every tool call is written to a tamper-evident hash chain in `data/agent/audit.jsonl` (secrets
   masked). `GET /api/audit` (admin token) returns the latest entries.
 
 ---
@@ -197,17 +197,17 @@ Atulya can bind locally or to the LAN based on configuration.
   and Senses pop-ups. The server enforces this (403), and replies to normal users carry no model
   details.
 - **Risky actions ask first:** sending email, deleting events or reminders, unlocking doors,
-  running code, and all PC control need your confirmation (`atulya/mastishk/`).
+  running code, and all PC control need your confirmation (`atulya/brain/`).
   `ATULYA_AUTO_APPROVE` can pre-approve specific ones.
 - **PC control is off by default:** `ATULYA_PC_CONTROL=on` enables it; it only opens apps from a
   fixed list and blocks dangerous shortcuts.
-- **Audit log:** every tool call is appended to `kosh/agent/audit.jsonl` with passwords and tokens
+- **Audit log:** every tool call is appended to `data/agent/audit.jsonl` with passwords and tokens
   masked; admins can read it at `GET /api/audit`.
 - **Triggers cannot be hijacked:** event data never becomes a command, and risky trigger commands
   are refused unless the rule allows them.
 - **Network guard:** the price tracker and web fetch tools only reach public addresses
   (`SSRFProtection`).
-- **No `eval`:** math goes through an AST allowlist (`atulya/adhar.py`).
+- **No `eval`:** math goes through an AST allowlist (`atulya/settings.py`).
 - **Bounded inputs:** request payloads and query parameters are size-limited; chat rejects model
   paths and empty prompts.
 - **Lockdown profile:** `ATULYA_LOCKDOWN=on` listens on localhost only and allows no cross-site
@@ -219,14 +219,14 @@ Atulya can bind locally or to the LAN based on configuration.
 - The audit log is a hash chain that makes edits detectable; it is **not encrypted**.
 - Private data is encrypted only when `ATULYA_VAULT_PASSPHRASE` is set (see below). `.env` must be
   protected separately.
-- Rate limiting is basic: a per-address request cap in `atulya/sevak.py`, nothing per user or per
+- Rate limiting is basic: a per-address request cap in `atulya/server.py`, nothing per user or per
   route.
 - For internet deployment, only expose the app through Cloudflare Tunnel and Cloudflare Access
   ([RECIPES.md](RECIPES.md)).
 
 ### Guidance
 
-- Treat `kosh/` (memory, audit log, tokens), `.env` and `kosh/chat_history.json` as sensitive;
+- Treat `data/` (memory, audit log, tokens), `.env` and `data/chat_history.json` as sensitive;
   they are git-ignored.
 - Do not expose the dashboard to an untrusted network without TLS, a reverse proxy and login.
 
@@ -234,7 +234,7 @@ Atulya can bind locally or to the LAN based on configuration.
 
 Off by default. When a passphrase is set, private files (money, calendar, reminders, email
 settings, chat history, profiles) are stored encrypted with a key derived from the passphrase
-(scrypt) and a random salt in `kosh/vault.salt`. The passphrase is never written to disk. A file
+(scrypt) and a random salt in `data/vault.salt`. The passphrase is never written to disk. A file
 that cannot be opened is never overwritten. **There is no recovery if the passphrase is lost.** It
 does not protect against someone who can read the running process or your `.env`.
 
@@ -247,8 +247,8 @@ From the repository root:
 ```bash
 python -m pytest -q          # must be green
 ruff check .                 # must be clean
-cd frontend && npm ci && npm run build   # must exit 0
-python -m atulya.adesh readiness         # reports missing config by name
+cd webui && npm ci && npm run build   # must exit 0
+python -m atulya.cli readiness         # reports missing config by name
 ```
 
 **PASS:** every command exits successfully, and the local app starts and lets you sign in *before*
@@ -269,7 +269,7 @@ docker compose ps
 docker compose logs --tail=100
 ```
 
-For the native path: `git pull`, `pip install -e ".[serve]"`, `cd frontend && npm ci && npm run
+For the native path: `git pull`, `pip install -e ".[serve]"`, `cd webui && npm ci && npm run
 build`, then restart the service.
 
 **PASS:** services are running and the site prompts for login from a signed-out browser.

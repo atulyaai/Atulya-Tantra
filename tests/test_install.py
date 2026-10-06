@@ -95,10 +95,10 @@ class TestStatusReport:
         monkeypatch.setenv("GROQ_API_KEY", "x")
         monkeypatch.setenv("ATULYA_BRIEFING_AT", "08:00")
 
-        from atulya import adhar
+        from atulya import settings
 
         writes: list[tuple[str, str]] = []
-        monkeypatch.setattr(adhar, "set_env_value", lambda k, v, path=None: writes.append((k, v)))
+        monkeypatch.setattr(settings, "set_env_value", lambda k, v, path=None: writes.append((k, v)))
         monkeypatch.setattr(sys, "stdin", io.StringIO(""))
 
         changed = capture(installer.interview, quiet=False)[0]
@@ -111,10 +111,10 @@ class TestStatusReport:
 
     def test_existing_token_is_left_alone(self, monkeypatch):
         monkeypatch.setenv("ATULYA_DASHBOARD_TOKEN", "already-here-token")
-        from atulya import adhar
+        from atulya import settings
 
         writes: list[tuple[str, str]] = []
-        monkeypatch.setattr(adhar, "set_env_value", lambda k, v, path=None: writes.append((k, v)))
+        monkeypatch.setattr(settings, "set_env_value", lambda k, v, path=None: writes.append((k, v)))
         monkeypatch.setattr(sys, "stdin", io.StringIO(""))
         changed = capture(installer.interview, quiet=False)[0]
         assert "ATULYA_DASHBOARD_TOKEN" not in changed
@@ -167,7 +167,7 @@ class TestInterview:
         assert (item.validate(value) is None) is good
 
     def test_dashboard_builder_checks_even_an_existing_build(self, tmp_path, monkeypatch):
-        web = tmp_path / "frontend"
+        web = tmp_path / "webui"
         (web / "dist").mkdir(parents=True)
         (web / "dist" / "index.html").write_text("stale", encoding="utf-8")
         monkeypatch.setattr(installer, "ROOT", tmp_path)
@@ -330,27 +330,27 @@ class TestHealthProbe:
 
 
 class TestSecretPathGuard:
-    """The file tools must refuse .env and kosh/ no matter how they are called."""
+    """The file tools must refuse .env and data/ no matter how they are called."""
 
     @pytest.mark.parametrize(
         "path",
-        [".env", "kosh/users.json", "kosh/jwt_secret.key", "sub/kosh/channels/channels.json", "id_rsa", ".env.local"],
+        [".env", "data/users.json", "data/jwt_secret.key", "sub/data/channels/channels.json", "id_rsa", ".env.local"],
     )
     def test_blocked(self, path, tmp_path, monkeypatch):
-        from atulya.kaushal import _is_secret_path
+        from atulya.skills import _is_secret_path
 
         monkeypatch.chdir(tmp_path)
         assert _is_secret_path((tmp_path / path).resolve()) is True
 
-    @pytest.mark.parametrize("path", ["README.md", "atulya/sandesh.py", ".env.example"])
+    @pytest.mark.parametrize("path", ["README.md", "atulya/channels.py", ".env.example"])
     def test_allowed(self, path, tmp_path, monkeypatch):
-        from atulya.kaushal import _is_secret_path
+        from atulya.skills import _is_secret_path
 
         monkeypatch.chdir(tmp_path)
         assert _is_secret_path((tmp_path / path).resolve()) is False
 
     def test_file_read_refuses_dotenv(self, tmp_path, monkeypatch):
-        from atulya.kaushal import FileReadTool
+        from atulya.skills import FileReadTool
 
         monkeypatch.chdir(tmp_path)
         (tmp_path / ".env").write_text("GROQ_API_KEY=gsk_topsecret\n", encoding="utf-8")
@@ -359,21 +359,21 @@ class TestSecretPathGuard:
         assert "restricted" in (result.error or "")
 
     def test_grep_never_reads_secrets_when_scanning_repo(self, tmp_path, monkeypatch):
-        from atulya.kaushal import GrepTool
+        from atulya.skills import GrepTool
 
         monkeypatch.chdir(tmp_path)
         (tmp_path / "public.txt").write_text("needle here", encoding="utf-8")
-        secret_dir = tmp_path / "kosh"
+        secret_dir = tmp_path / "data"
         secret_dir.mkdir()
         (secret_dir / "users.json").write_text("needle here", encoding="utf-8")
         (tmp_path / ".env").write_text("needle here", encoding="utf-8")
         result = asyncio.run(GrepTool().execute(pattern="needle", path=str(tmp_path)))
         listed = (result.output or "").splitlines()
         assert any("public.txt" in line for line in listed)
-        assert not any("kosh" in line or ".env" == Path(line).name for line in listed)
+        assert not any("data" in line or ".env" == Path(line).name for line in listed)
 
     def test_file_search_hides_secret_paths(self, tmp_path, monkeypatch):
-        from atulya.kaushal import FileSearchTool
+        from atulya.skills import FileSearchTool
 
         monkeypatch.chdir(tmp_path)
         (tmp_path / "keep.md").write_text("x", encoding="utf-8")
@@ -387,7 +387,7 @@ class TestCodeExecuteGuard:
     """The blocked-module list used to log a warning and run anyway."""
 
     def test_network_import_is_refused(self, tmp_path, monkeypatch):
-        from atulya.kaushal import CodeExecuteTool
+        from atulya.skills import CodeExecuteTool
 
         monkeypatch.chdir(tmp_path)
         result = asyncio.run(CodeExecuteTool().execute(code="import socket\nprint('hi')"))
@@ -395,7 +395,7 @@ class TestCodeExecuteGuard:
         assert "Blocked module" in (result.error or "")
 
     def test_harmless_code_still_runs(self, tmp_path, monkeypatch):
-        from atulya.kaushal import CodeExecuteTool
+        from atulya.skills import CodeExecuteTool
 
         monkeypatch.chdir(tmp_path)
         result = asyncio.run(CodeExecuteTool().execute(code="print(2 + 2)"))
@@ -406,14 +406,14 @@ class TestCodeExecuteGuard:
 class TestCorsDefault:
     def test_no_wildcard_cors_by_default(self, monkeypatch):
         monkeypatch.delenv("ATULYA_CORS_ORIGINS", raising=False)
-        from atulya import raksha
+        from atulya import security
 
-        monkeypatch.setattr(raksha, "lockdown_on", lambda: False)
-        # Empty list (not None) is what sevak.py turns into "no origins at all".
-        assert raksha.cors_origins() in ([], None)
+        monkeypatch.setattr(security, "lockdown_on", lambda: False)
+        # Empty list (not None) is what server.py turns into "no origins at all".
+        assert security.cors_origins() in ([], None)
 
     def test_explicit_origins_are_respected(self, monkeypatch):
-        from atulya import raksha
+        from atulya import security
 
         monkeypatch.setenv("ATULYA_CORS_ORIGINS", "https://a.example, https://b.example")
-        assert raksha.cors_origins() == ["https://a.example", "https://b.example"]
+        assert security.cors_origins() == ["https://a.example", "https://b.example"]

@@ -46,7 +46,7 @@ Say "learn the device at 192.168.1.50" (add notes or paste its API instructions 
 says, drafts a **profile**, and keeps it as a *proposal*. Read what it would send, then say "approve proposal a1b2c3". A profile can
 only send HTTP requests to that one device on your own network, and any PUT/DELETE it drafts asks for a yes every time.
 
-A profile is a small JSON file in `kosh/devices/profiles/` (see `atulya/upakaran_profiles.json` for examples).
+A profile is a small JSON file in `data/devices/profiles/` (see `atulya/device_profiles.json` for examples).
 
 ## Safety
 

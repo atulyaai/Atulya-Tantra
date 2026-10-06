@@ -3,9 +3,9 @@ from datetime import datetime
 
 import pytest
 
-from atulya import kriya as m
-from atulya import kriya as t
-from atulya.kriya import route_intent
+from atulya import actions as m
+from atulya import actions as t
+from atulya.actions import route_intent
 
 NOW = datetime(2026, 10, 15, 10, 0)
 
@@ -14,7 +14,7 @@ NOW = datetime(2026, 10, 15, 10, 0)
 def books(tmp_path, monkeypatch):
     monkeypatch.setattr(t, "_DATA_DIR", tmp_path)
     monkeypatch.chdir(tmp_path)
-    (tmp_path / "kosh").mkdir()
+    (tmp_path / "data").mkdir()
 
 
 def run(coro):
@@ -76,7 +76,7 @@ def test_statement_parse_debits_only_and_single_amount_column():
 
 
 def test_import_dedupes_undoes_and_stays_in_the_data_folder(tmp_path):
-    (tmp_path / "kosh" / "s.csv").write_text(STATEMENT)
+    (tmp_path / "data" / "s.csv").write_text(STATEMENT)
     assert "Added 2 entries" in run(m.statement_import("s.csv"))
     assert "Added 0 entries" in run(m.statement_import("s.csv")) and "skipped 2" in run(m.statement_import("s.csv"))
     assert "Removed the last statement import (2 entries)" in run(m.expense_undo())
@@ -124,7 +124,7 @@ def test_snapshot_and_bill_event_once(monkeypatch):
 
 
 def test_tools_with_a_parameter_called_name_run_through_the_registry():
-    from atulya.mastishk import build_unified_registry
+    from atulya.brain import build_unified_registry
 
     registry = build_unified_registry()
     result = run(registry.execute("bill_add", name="rent", amount=15000, due_day=5))
@@ -210,8 +210,8 @@ def test_email_text_and_tool(monkeypatch):
 def test_sms_inbox_endpoint_is_locked_to_its_own_key(monkeypatch, tmp_path):
     from fastapi.testclient import TestClient
 
-    from atulya.dwar import ADMIN_TOKEN
-    from atulya.sevak import app
+    from atulya.api import ADMIN_TOKEN
+    from atulya.server import app
 
     monkeypatch.setenv("ATULYA_AGENT_DATA_DIR", str(tmp_path))
     c = TestClient(app)

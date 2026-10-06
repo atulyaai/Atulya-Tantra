@@ -60,7 +60,7 @@ if errorlevel 1 (
 )
 if not defined ATULYA_AUTO_DOWNLOAD_MODEL set "ATULYA_AUTO_DOWNLOAD_MODEL=true"
 echo   Checking the brain model - the first run downloads about 400 MB...
-python -c "from atulya.mastishk import _ensure_model; p = _ensure_model(); print('   Brain model: ' + (p.name if p else 'not downloaded'))"
+python -c "from atulya.brain import _ensure_model; p = _ensure_model(); print('   Brain model: ' + (p.name if p else 'not downloaded'))"
 
 :after_local_brain
 
@@ -68,15 +68,15 @@ echo   [3/4] Building the web app...
 rem Builds only when the source changed; installs the web tools only when missing (so node_modules can be deleted).
 where node >nul 2>&1
 if errorlevel 1 (
-    if exist "frontend\dist\index.html" (
+    if exist "webui\dist\index.html" (
         echo   Node.js not found - using the existing build, which may be out of date.
     ) else (
         echo   WARNING: Node.js not found. Install Node.js 18+ from https://nodejs.org
     )
     goto :start_backend
 )
-python frontend\build.py
-if not exist "frontend\dist\index.html" (
+python webui\build.py
+if not exist "webui\dist\index.html" (
     echo   WARNING: The web app failed to build, so there is no web UI.
 )
 
@@ -98,6 +98,6 @@ echo.
 
 start "" cmd /c "timeout /t 2 >nul & start %SCHEME%://%ATULYA_HOST%:%ATULYA_PORT%"
 
-python -m atulya.sevak
+python -m atulya.server
 
 pause

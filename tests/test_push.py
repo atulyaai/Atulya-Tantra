@@ -1,6 +1,6 @@
 import pytest
 
-from atulya import sandesh as push
+from atulya import channels as push
 
 
 def test_push_subscriptions_are_validated_bounded_and_removable(tmp_path, monkeypatch):

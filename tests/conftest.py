@@ -21,7 +21,7 @@ os.environ.setdefault("ATULYA_JWT_SECRET_FILE", os.path.join(_STATE, "jwt_secret
 @pytest.fixture(autouse=True)
 def _isolate_http_rate_limit():
     """Give each API test a fresh client bucket; keep explicit limiter tests self-contained."""
-    from atulya.sevak import _CREDENTIAL_STORE, _RATE_STORE
+    from atulya.server import _CREDENTIAL_STORE, _RATE_STORE
 
     _RATE_STORE.clear()
     _CREDENTIAL_STORE.clear()

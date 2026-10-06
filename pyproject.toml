@@ -75,7 +75,7 @@ voice_id = [
     "pyannote.audio>=3.0",
 ]
 # Termux wake word listener (optional extra for phone).
-shruti_phone = [
+phone_listener = [
     "openwakeword>=0.6",
     "onnxruntime>=1.16",
     "numpy>=1.24",
@@ -119,10 +119,10 @@ dev = [
 ]
 
 [project.scripts]
-atulya = "atulya.adesh:main"
-atulya-listen = "atulya.shruti:main"
+atulya = "atulya.cli:main"
+atulya-listen = "atulya.ambient:main"
 atulya-watchdog = "atulya.watchdog:main"
-atulya-shruti-phone = "atulya.shruti_phone:main"
+atulya-ambient-phone = "atulya.phone_listener:main"
 
 [tool.setuptools.dynamic]
 version = {attr = "atulya.__version__"}
@@ -131,7 +131,7 @@ version = {attr = "atulya.__version__"}
 include = ["atulya*"]
 
 [tool.setuptools.package-data]
-"atulya" = ["upakaran_profiles.json", "setu_servers.json"]
+"atulya" = ["device_profiles.json", "mcp_servers.json"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

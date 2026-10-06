@@ -6,7 +6,7 @@ import os
 
 import pytest
 
-from atulya.kriya import route_intent
+from atulya.actions import route_intent
 
 
 def run(coro):
@@ -16,7 +16,7 @@ def run(coro):
 # ── brain ────────────────────────────────────────────────────────────────
 
 def test_brain_auto_follows_free_ram(monkeypatch):
-    from atulya import mastishk as brain
+    from atulya import brain as brain
 
     monkeypatch.setenv("ATULYA_BRAIN", "auto")
     monkeypatch.setattr(brain, "recommend_tier", lambda: "balanced")
@@ -42,7 +42,7 @@ class _Resp:
 def test_local_vision_describes_through_ollama(monkeypatch):
     import urllib.request
 
-    from atulya import indriya as eyes
+    from atulya import vision as eyes
 
     seen = {}
 
@@ -56,7 +56,7 @@ def test_local_vision_describes_through_ollama(monkeypatch):
 
 
 def test_describe_scene_prefers_local_then_cloud(monkeypatch):
-    from atulya import indriya as eyes
+    from atulya import vision as eyes
 
     monkeypatch.setattr(eyes, "local_describe", lambda i, q: "")
     monkeypatch.setattr(eyes, "cloud_describe", lambda i, q: "cloud says hi")
@@ -68,7 +68,7 @@ def test_describe_scene_prefers_local_then_cloud(monkeypatch):
 # ── lockdown ─────────────────────────────────────────────────────────────
 
 def test_lockdown_forces_localhost_and_no_cors(monkeypatch):
-    from atulya import raksha as lockdown
+    from atulya import security as lockdown
 
     monkeypatch.setenv("ATULYA_HOST", "0.0.0.0")
     monkeypatch.delenv("ATULYA_CORS_ORIGINS", raising=False)
@@ -83,7 +83,7 @@ def test_lockdown_forces_localhost_and_no_cors(monkeypatch):
 # ── daily briefing ───────────────────────────────────────────────────────
 
 def test_briefing_clock_fires_once_per_day():
-    from atulya.shruti import BriefingClock
+    from atulya.ambient import BriefingClock
 
     clock = BriefingClock("08:00")
     day = dt.date(2026, 10, 4)
@@ -94,7 +94,7 @@ def test_briefing_clock_fires_once_per_day():
 
 
 def test_engine_speaks_the_briefing():
-    from atulya.shruti import AmbientEngine
+    from atulya.ambient import AmbientEngine
 
     class Client:
         sent = []
@@ -139,7 +139,7 @@ def test_router_still_prefers_websites_for_play_on_site():
 def test_speaker_picks_piper_when_configured(monkeypatch):
     import shutil
 
-    from atulya.shruti import Speaker
+    from atulya.ambient import Speaker
 
     monkeypatch.setenv("ATULYA_PIPER_MODEL", "voice.onnx")
     monkeypatch.setattr(shutil, "which", lambda name: "/bin/piper" if name == "piper" else None)
@@ -152,7 +152,7 @@ def test_speaker_picks_piper_when_configured(monkeypatch):
 
 def test_wake_gate_fires_and_expires():
     np = pytest.importorskip("numpy")
-    from atulya.shruti import WakeGate
+    from atulya.ambient import WakeGate
 
     now = [100.0]
 
@@ -175,7 +175,7 @@ def test_wake_gate_fires_and_expires():
 
 def test_microphone_holds_back_speech_without_wake_word():
     pytest.importorskip("numpy")
-    from atulya.shruti import Microphone, WakeGate
+    from atulya.ambient import Microphone, WakeGate
 
     class Never:
         def predict(self, chunk):
@@ -191,7 +191,7 @@ def test_microphone_holds_back_speech_without_wake_word():
 def test_pick_language_never_returns_arabic():
     from types import SimpleNamespace
 
-    from atulya.vani import pick_language
+    from atulya.voice import pick_language
 
     noisy = SimpleNamespace(language="ar", all_language_probs=[("ar", 0.5), ("hi", 0.3), ("en", 0.1)])
     assert pick_language(noisy) == "hi"
@@ -202,7 +202,7 @@ def test_pick_language_never_returns_arabic():
 def _client(host="127.0.0.1", headers=None):
     from fastapi.testclient import TestClient
 
-    from atulya.sevak import app
+    from atulya.server import app
 
     return TestClient(app, client=(host, 5000), headers=headers or {})
 
@@ -225,7 +225,7 @@ def test_local_signin_is_open_to_every_device(monkeypatch):
 # ── echo guard ───────────────────────────────────────────────────────────
 
 def test_is_echo_detects_parroting():
-    from atulya.mastishk import _echoed_memory, is_echo
+    from atulya.brain import _echoed_memory, is_echo
 
     assert is_echo("who are you", "Who are you?")
     assert is_echo("who are you", "who are you")
@@ -237,7 +237,7 @@ def test_is_echo_detects_parroting():
 
 
 def test_ask_retries_plainly_when_the_model_parrots(monkeypatch):
-    from atulya.mastishk import AtulyaLLM
+    from atulya.brain import AtulyaLLM
 
     llm = AtulyaLLM(use_memory=False)
     calls = []
@@ -252,7 +252,7 @@ def test_ask_retries_plainly_when_the_model_parrots(monkeypatch):
 
 
 def test_copied_memory_answer_is_detected():
-    from atulya.mastishk import copies_memory
+    from atulya.brain import copies_memory
 
     mem = ["Q: who are you\nA: I'm Atulya, an assistant."]
     assert copies_memory("tell me a joke", "I'm Atulya, an assistant.", mem)
@@ -261,7 +261,7 @@ def test_copied_memory_answer_is_detected():
 
 
 def test_tiny_brain_recalls_only_when_asked_about_the_past(monkeypatch):
-    from atulya.mastishk import wants_memory
+    from atulya.brain import wants_memory
 
     monkeypatch.setenv("ATULYA_BRAIN", "tiny")
     assert not wants_memory("tell me a joke")
@@ -272,7 +272,7 @@ def test_tiny_brain_recalls_only_when_asked_about_the_past(monkeypatch):
 
 
 def test_clean_history_drops_parroted_and_repeated_replies():
-    from atulya.mastishk import AtulyaLLM, clean_history
+    from atulya.brain import AtulyaLLM, clean_history
 
     history = [
         {"role": "user", "content": "who are you"},
@@ -298,7 +298,7 @@ def test_clean_history_never_erases_what_the_user_said():
     from a real Telegram thread, leaving the model with no memory of the
     conversation and the user with identical replies to every message.
     """
-    from atulya.mastishk import clean_history
+    from atulya.brain import clean_history
 
     greeting = "Good evening! I am here to help."
     history = [{"role": "user", "content": "Hi"}]
@@ -318,7 +318,7 @@ def test_clean_history_never_erases_what_the_user_said():
 # ── Claude brain ─────────────────────────────────────────────────────────
 
 def test_claude_leads_the_chain_only_with_a_key(monkeypatch):
-    from atulya.mastishk import AnthropicProvider, ProviderRouter
+    from atulya.brain import AnthropicProvider, ProviderRouter
 
     router = ProviderRouter()
     assert isinstance(router.providers[0], AnthropicProvider)
@@ -331,7 +331,7 @@ def test_claude_leads_the_chain_only_with_a_key(monkeypatch):
 def test_claude_provider_calls_messages_api(monkeypatch):
     import urllib.request
 
-    from atulya.mastishk import AnthropicProvider
+    from atulya.brain import AnthropicProvider
 
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
     seen = {}
@@ -349,7 +349,7 @@ def test_claude_provider_calls_messages_api(monkeypatch):
 
 
 def test_openrouter_skips_busy_and_empty_free_models(monkeypatch):
-    from atulya.mastishk import OpenRouterProvider
+    from atulya.brain import OpenRouterProvider
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
     monkeypatch.setenv("ATULYA_OPENROUTER_MODEL", "a:free,b:free,c:free")
@@ -371,9 +371,9 @@ def test_openrouter_skips_busy_and_empty_free_models(monkeypatch):
 # ── no emoji in speech ───────────────────────────────────────────────────
 
 def test_emoji_are_never_spoken():
-    from atulya.adhar import strip_emoji
-    from atulya.shruti import speakable
-    from atulya.vani import TextToSpeech
+    from atulya.settings import strip_emoji
+    from atulya.ambient import speakable
+    from atulya.voice import TextToSpeech
 
     assert strip_emoji("Hello! \U0001F60A How are you? \u2764\ufe0f") == "Hello! How are you?"
     assert strip_emoji("नमस्ते \U0001F44B") == "नमस्ते"
@@ -388,14 +388,14 @@ def test_emoji_are_never_spoken():
 def test_what_can_you_do_is_answered_by_a_tool_not_a_model(text):
     routed = route_intent(text)
     assert routed is not None and routed.tool == "what_can_you_do"
-    from atulya import kriya as tools
+    from atulya import actions as tools
 
     answer = run(tools.execute_tool("what_can_you_do"))
     assert "reminders" in answer and "music" in answer
 
 
 def test_safety_classifier_labels_are_not_answers():
-    from atulya.mastishk import _looks_like_safety_label
+    from atulya.brain import _looks_like_safety_label
 
     assert _looks_like_safety_label("Harassment")
     assert _looks_like_safety_label("safe")
@@ -408,8 +408,8 @@ def test_safety_classifier_labels_are_not_answers():
 
 @pytest.fixture
 def two_users(tmp_path, monkeypatch):
-    import atulya.dwar as users_mod
-    from atulya import dwar as helpers
+    import atulya.api as users_mod
+    from atulya import api as helpers
 
     monkeypatch.setattr(users_mod, "USERS_FILE", tmp_path / "users.json")
     monkeypatch.setattr(users_mod, "SESSIONS_FILE", tmp_path / "sessions.json")
@@ -439,7 +439,7 @@ def test_bootstrap_hides_models_from_normal_users(two_users):
 
 
 def test_chat_replies_hide_model_details_from_normal_users():
-    from atulya.dwar import redact_for
+    from atulya.api import redact_for
 
     reply = {"response": "Hi", "provider": "Claude (haiku)", "model_id": "x", "steps": [{"tool": "t"}],
              "trace": [{"stage": "think"}], "needs_approval": False}
@@ -462,19 +462,19 @@ def test_ensure_build_rebuilds_when_source_content_changes(tmp_path, monkeypatch
     import time
     from pathlib import Path
 
-    spec = importlib.util.spec_from_file_location("web_build", Path(__file__).resolve().parents[1] / "frontend" / "build.py")
+    spec = importlib.util.spec_from_file_location("web_build", Path(__file__).resolve().parents[1] / "webui" / "build.py")
     eb = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(eb)
 
-    (tmp_path / "frontend").mkdir()
-    src = tmp_path / "frontend" / "main.jsx"
+    (tmp_path / "webui").mkdir()
+    src = tmp_path / "webui" / "main.jsx"
     src.write_text("x")
     dist = tmp_path / "dist" / "index.html"
     dist.parent.mkdir()
     dist.write_text("built")
     monkeypatch.setattr(eb, "DIST", dist)
     monkeypatch.setattr(eb, "STAMP", tmp_path / "dist" / ".source-hash")
-    monkeypatch.setattr(eb, "SOURCES", [tmp_path / "frontend"])
+    monkeypatch.setattr(eb, "SOURCES", [tmp_path / "webui"])
     assert eb.needs_build()                      # built, but never stamped: treat as stale
     eb.STAMP.write_text(eb.source_hash())
     assert not eb.needs_build()                  # up to date
@@ -488,7 +488,7 @@ def test_ensure_build_rebuilds_when_source_content_changes(tmp_path, monkeypatch
 
 
 def test_busy_cloud_message_when_no_brain_answers(monkeypatch):
-    from atulya.mastishk import CLOUD_BUSY_MESSAGE, NO_BRAIN_MESSAGE, ProviderRouter
+    from atulya.brain import CLOUD_BUSY_MESSAGE, NO_BRAIN_MESSAGE, ProviderRouter
 
     router = ProviderRouter()
     router.providers = []  # nothing answers

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from atulya.bhava import EmotionReading, MoodState, build_emotional_directive, detect_emotion, emotion_to_tts
+from atulya.persona import EmotionReading, MoodState, build_emotional_directive, detect_emotion, emotion_to_tts
 
 # --- emotion detection ---------------------------------------------------
 
@@ -90,7 +90,7 @@ def test_emotion_to_tts_bounds():
 
 
 def test_local_model_skips_hidden_thinking_unless_asked(monkeypatch):
-    from atulya.mastishk import _with_think_switch
+    from atulya.brain import _with_think_switch
 
     monkeypatch.delenv("ATULYA_LOCAL_THINK", raising=False)
     assert _with_think_switch("hi").endswith("/no_think")

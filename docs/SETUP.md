@@ -35,14 +35,14 @@ capability detail and [ROADMAP.md](ROADMAP.md) for why the order is what it is.
 
 | Task | Linux | Windows |
 |---|---|---|
-| Start | `. .venv/bin/activate && python -m atulya.sevak` or `./start.sh` | `python -m atulya.sevak` or `start.bat` |
+| Start | `. .venv/bin/activate && python -m atulya.server` or `./start.sh` | `python -m atulya.server` or `start.bat` |
 | Start at boot | `sudo systemctl enable --now atulya` | `python install.py --service` |
 | Status | `systemctl status atulya` | Task Manager |
 | Logs | `journalctl -u atulya -f` | console window |
 | Health | `curl -i http://127.0.0.1:8501/api/health` | `Invoke-WebRequest http://127.0.0.1:8501/api/health` |
 | Open the UI | http://localhost:8501 | http://localhost:8501 (Chrome/Edge, allow mic) |
 | Update | `cd ~/Atulya-Tantra && git pull && bash install.sh --yes` | `git pull; python install.py --doctor` |
-| Rebuild the web UI | `python frontend/build.py` | `python frontend/build.py` |
+| Rebuild the web UI | `python webui/build.py` | `python webui/build.py` |
 
 > **Behind nginx/Caddy?** Set `ATULYA_HOST=127.0.0.1`. On a phone-only LAN set
 > `ATULYA_HOST=0.0.0.0`. Changing it needs a restart.
@@ -54,42 +54,42 @@ capability detail and [ROADMAP.md](ROADMAP.md) for why the order is what it is.
 | Folder | What lives in it | In git? |
 |---|---|---|
 | `atulya/` | The assistant. 21 top-level modules | ✅ |
-| `atulya/mastishk/` | **Brain** — tiers, provider catalogue, router, safety rules, tool belt, local model | ✅ |
-| `atulya/kriya/` | **Actions** — money, calendar, news, MQTT, reminders, media, the action engine | ✅ |
-| `atulya/dwar/` | **Web/API** — routes, agent routes, channel webhooks, system routes | ✅ |
-| `atulya/kosh/` | Storage layer shared by the modules above | ✅ |
+| `atulya/brain/` | **Brain** — tiers, provider catalogue, router, safety rules, tool belt, local model | ✅ |
+| `atulya/actions/` | **Actions** — money, calendar, news, MQTT, reminders, media, the action engine | ✅ |
+| `atulya/api/` | **Web/API** — routes, agent routes, channel webhooks, system routes | ✅ |
+| `atulya/data/` | Storage layer shared by the modules above | ✅ |
 | `atulya/runtime/` | In-process runtime pieces | ✅ |
-| `atulya/dut.py` | CLI — talk to Atulya from a terminal | ✅ |
-| `atulya/sevak.py` | The server: FastAPI app, static mount, startup | ✅ |
-| `kosh/` | **Your data.** Everything Atulya learns about you | ❌ gitignored |
+| `atulya/companion.py` | CLI — talk to Atulya from a terminal | ✅ |
+| `atulya/server.py` | The server: FastAPI app, static mount, startup | ✅ |
+| `data/` | **Your data.** Everything Atulya learns about you | ❌ gitignored |
 | `runtime/` | Models, scratch, downloaded weights | ❌ gitignored |
 | `assets/` | `ATULYA_DATA_DIR` — data shipped with the project | ✅ |
-| `frontend/` | Web UI source + build (**planned rename → `webui/`**) | ✅ |
+| `webui/` | Web UI source + build (**planned rename → `webui/`**) | ✅ |
 | `docs/` | This file, STATUS, ROADMAP, DEPLOYMENT, RECIPES, DEVICES, CONTRIBUTING | ✅ |
 | `tests/` | 981 tests | ✅ |
 | `examples/` | Termux phone helper, GPU/Colab route (**planned removal**) | ✅ |
 | `tools/` | Repo maintenance — the personal-value audit | ✅ |
 | `.venv/` | Python environment | ❌ |
-| `frontend/node_modules/` | Web build tools | ❌ |
+| `webui/node_modules/` | Web build tools | ❌ |
 
-### Inside `kosh/` — your memory
+### Inside `data/` — your memory
 
 | Path | Holds |
 |---|---|
-| `kosh/chat_history.json` | Conversation log |
-| `kosh/users.json` | Accounts |
-| `kosh/jwt_secret.key` | Sign-in key, created once |
-| `kosh/identity.json` | Persona — missing means "using defaults" |
-| `kosh/agent/profiles/` | What it has learned about each person |
-| `kosh/agent/routines.json` | Multi-step plans ("movie mode") |
-| `kosh/agent/triggers.json` | Proactive triggers ("tell me when…") |
-| `kosh/agent/audit.jsonl` | Every action the brain took, hash-chained |
-| `kosh/agent/money.json` | Spend, budgets, bills — local file only |
-| `kosh/memory/vector_atulya_memory.json` | Vector memory |
-| `kosh/memory/session_search.db` | Searchable sessions |
-| `kosh/state/mood.json` | Current mood |
-| `kosh/channels/` | Per-channel state |
-| `kosh/audio/{stt,tts}/` | Voice cache |
+| `data/chat_history.json` | Conversation log |
+| `data/users.json` | Accounts |
+| `data/jwt_secret.key` | Sign-in key, created once |
+| `data/identity.json` | Persona — missing means "using defaults" |
+| `data/agent/profiles/` | What it has learned about each person |
+| `data/agent/routines.json` | Multi-step plans ("movie mode") |
+| `data/agent/triggers.json` | Proactive triggers ("tell me when…") |
+| `data/agent/audit.jsonl` | Every action the brain took, hash-chained |
+| `data/agent/money.json` | Spend, budgets, bills — local file only |
+| `data/memory/vector_atulya_memory.json` | Vector memory |
+| `data/memory/session_search.db` | Searchable sessions |
+| `data/state/mood.json` | Current mood |
+| `data/channels/` | Per-channel state |
+| `data/audio/{stt,tts}/` | Voice cache |
 
 ---
 
@@ -102,16 +102,16 @@ capability detail and [ROADMAP.md](ROADMAP.md) for why the order is what it is.
 | `install.sh` | Linux: software → clone → settings → build | only to change the installer |
 | `install.py` | Windows installer + `--doctor` | only to change the installer |
 | `start.sh` / `start.bat` | Daily launcher (Linux / Windows) | rarely |
-| `atulya/setu_servers.json` | **MCP servers** — enable/disable | ✅ yes |
+| `atulya/mcp_servers.json` | **MCP servers** — enable/disable | ✅ yes |
 | `mqtt_config.json` | **MQTT broker** connection | created by `mqtt_configure` |
-| `kosh/agent/triggers.json` | Your proactive triggers | ✅ or just ask it |
-| `kosh/agent/routines.json` | Your routines | ✅ or just ask it |
+| `data/agent/triggers.json` | Your proactive triggers | ✅ or just ask it |
+| `data/agent/routines.json` | Your routines | ✅ or just ask it |
 | `cloudflared-config.yml.example` | Cloudflare tunnel template | copy, then edit |
 | `docker-compose.yml` / `Dockerfile` | Container path (**unverified — F1**) | only if you use Docker |
 | `tools/.personal-values` | Your domain/IP/ids, for the audit | ✅ yours, gitignored |
-| `atulya/setu.py` | The MCP client | rarely |
-| `atulya/mastishk/suchi.py` | The 22-provider catalogue | when adding a provider |
-| `frontend/build.py` | Builds the web UI | rarely |
+| `atulya/mcp.py` | The MCP client | rarely |
+| `atulya/brain/catalog.py` | The 22-provider catalogue | when adding a provider |
+| `webui/build.py` | Builds the web UI | rarely |
 
 ---
 
@@ -146,7 +146,7 @@ name wins**.
 | 21 | GitHub Models | `GITHUB_MODELS_TOKEN` | `ATULYA_GITHUB_MODEL` | **free tier** | github.com/settings/tokens |
 | 22 | Your own (LM Studio, vLLM, any OpenAI-style URL) | `ATULYA_CUSTOM_KEY` | `ATULYA_CUSTOM_MODEL` | local | — |
 
-Catalogue lives in **`atulya/mastishk/suchi.py`**. Adding a provider is one `Spec(...)` line.
+Catalogue lives in **`atulya/brain/catalog.py`**. Adding a provider is one `Spec(...)` line.
 
 ### Brain size — one setting
 
@@ -175,6 +175,42 @@ need a model.
 | Cloudflare tunnel | `CF_TUNNEL_TOKEN` |
 | Voice in/out | `pip install -e ".[voice]"` |
 
+### Voice, microphone and camera: first-run check
+
+The installer configures the server; microphone and camera access must also be allowed on each
+device that opens the app. After starting Atulya, sign in and run this short check:
+
+1. Open the Atulya page on the device you want to use. For another computer or phone, use the
+   server's HTTPS address (`ATULYA_HTTPS=on` for the built-in certificate, or your own HTTPS
+   proxy). Browsers block microphone and camera access on a remote plain-HTTP page.
+2. Tap the orb and allow microphone access. Ask “What time is it?” Check that the recognized words
+   appear and that Atulya replies aloud. By default recognition and speech playback use the device's
+   browser. If its browser has no speech recognition, choose **Atulya server Whisper** in Settings;
+   that option uploads the recorded audio and requires `.[voice]` (`faster-whisper`). Device speech
+   synthesis is the default. **Use server neural voice** sends the reply text to the server for
+   `edge-tts` instead.
+3. In **Settings**, turn on **Let Atulya see me (webcam)** and allow camera access. Check that the
+   live preview appears, then move in frame: the orb should react to motion and follow the moving
+   area. This is not eye tracking. The preview runs in that browser. A frame is sent to the server
+   only when you ask Atulya to inspect what the camera sees.
+4. To use cameras attached to the server (USB, RTSP, or Home Assistant) for person detection/OCR,
+   install `.[vision]` and add the camera in **Menu → Senses**. This is separate from the webcam
+   attached to your phone or laptop.
+
+**Limits to know before testing:** the browser recognizer may use a browser/OS speech service; its
+offline and privacy behavior depends on that device. The recognized text goes to the Atulya server
+for reasoning and actions. Raw microphone audio stays on the device unless you select **Atulya
+server Whisper**. Hand-gesture recognition (for example, waving to issue a command) and face/eye
+identification are not implemented. The webcam currently estimates motion and brightness and uses
+the moving area to steer the hologram. The web app's wake-word loop starts after you tap to enable it
+and is not a reliable Android background service; closing or backgrounding the app can stop
+listening. The Android APK is a client for a reachable Atulya server, not a native phone-control
+agent. For an always-on desktop listener use `.[ambient]`; the Android Termux listener is a separate
+setup and needs a compatible wake-word model.
+
+The installer does not request camera or microphone permission itself: those prompts belong to the
+browser/Android app, and permission must be granted on the device during this check.
+
 **Easiest route:** the web UI → **Menu → Brains & keys** → paste key, pick model, **Test**,
 Remove. Saved to `.env`, owner-only, never shown again.
 
@@ -182,7 +218,7 @@ Remove. Saved to `.env`, owner-only, never shown again.
 
 ## 5. MCP servers
 
-Ten are declared in **`atulya/setu_servers.json`**; four ship enabled. They all shell out to
+Ten are declared in **`atulya/mcp_servers.json`**; four ship enabled. They all shell out to
 `npx`, so **Node.js is required**.
 
 | Server | Enabled | Package | What it gives Atulya | Needs |
@@ -211,7 +247,7 @@ Two independent paths; you can use either or both.
 
 | | Native watcher | MCP server |
 |---|---|---|
-| File | `atulya/kriya/mqtt.py` | `atulya/setu_servers.json` → `mqtt` |
+| File | `atulya/actions/mqtt.py` | `atulya/mcp_servers.json` → `mqtt` |
 | What it does | Subscribes and republishes each message as an **event** the brain can react to | Exposes publish/subscribe as **tools** the brain can call |
 | Default | broker unset → **idles** | disabled |
 | Port | `1883` | `1883` |
@@ -233,7 +269,7 @@ plugs — anything that publishes on a topic.
 
 ## 7. Channels — where messages come from and go
 
-Sixteen channel types are declared in `atulya/sandesh.py`.
+Sixteen channel types are declared in `atulya/channels.py`.
 
 | Channel | State | Notes |
 |---|---|---|
@@ -244,7 +280,7 @@ Sixteen channel types are declared in `atulya/sandesh.py`.
 | **WhatsApp** | **Built** | Cloud API webhook — `POST /api/channels/whatsapp`, signature-checked with `ATULYA_WHATSAPP_APP_SECRET` |
 | **Slack** | **Built** | `POST /api/channels/slack` |
 | **Discord** | **Built** | `POST /api/channels/discord`, Ed25519 with `ATULYA_DISCORD_PUBLIC_KEY` |
-| **Console** | **Live** | `python -m atulya.dut` from a terminal |
+| **Console** | **Live** | `python -m atulya.companion` from a terminal |
 | Twilio (calls/SMS) | **Built** | A5 — needs a real Twilio account |
 | Signal, Matrix, iMessage, Teams, IRC, Feishu, Line, QQ | **Planned** | Declared in the enum, no wiring |
 | Generic webhook | **Built** | `POST` anything in |
@@ -265,10 +301,10 @@ that spends, sends or deletes **asks first**.
 | Channel | File | State |
 |---|---|---|
 | Phone pairing + inbox | `atulya/phone.py` | Built |
-| Android listener | `atulya/shruti_phone.py` | Built, unverified on hardware |
+| Android listener | `atulya/phone_listener.py` | Built, unverified on hardware |
 | Termux companion | `examples/termux_phone.sh` | Needs `ATULYA_SERVER` |
-| TV / Android / smart home | `atulya/upakaran.py` | Built, 52 tests, no real hardware |
-| PC control | `atulya/kriya/` | Built, gated by confirmation |
+| TV / Android / smart home | `atulya/devices.py` | Built, 52 tests, no real hardware |
+| PC control | `atulya/actions/` | Built, gated by confirmation |
 
 ---
 
@@ -308,10 +344,10 @@ Straight from [ROADMAP.md](ROADMAP.md). **Order matters: each row needs the one 
 | B1 | Telegram `409 Conflict` — a second Atulya is still running on your PC | **Needs you** to stop it |
 | B2 | All four enabled MCP servers fail to connect | Open — not yet diagnosed |
 | B3 | HTTPS not re-verified after the server rebuild | Open — one `curl` |
-| B4 | `kosh/identity.json` missing → default persona | Open |
+| B4 | `data/identity.json` missing → default persona | Open |
 | B5 | `release.yml` — keep or delete? | **Needs your answer** |
 | B6 | DeepSeek key returns 401 | **Needs a working key** |
-| B7 | `ROADMAP.md` names `providers_catalog.py`; the real file is `atulya/mastishk/suchi.py`. `adesh.py` says "eleven other providers" — there are eight | Open, docs drift |
+| B7 | `ROADMAP.md` names `providers_catalog.py`; the real file is `atulya/brain/catalog.py`. `cli.py` says "eleven other providers" — there are eight | Open, docs drift |
 
 ---
 
@@ -324,15 +360,15 @@ actually exists from what would have to be built.
 
 | Capability | Where | How it works |
 |---|---|---|
-| **Learns your facts** | `kosh/agent/profiles/` | Account-scoped preferences and profile facts, fed back into replies |
-| **Remembers the conversation** | `kosh/chat_history.json`, `kosh/memory/` | Session search DB + vector memory + a live memory tree in the UI |
+| **Learns your facts** | `data/agent/profiles/` | Account-scoped preferences and profile facts, fed back into replies |
+| **Remembers the conversation** | `data/chat_history.json`, `data/memory/` | Session search DB + vector memory + a live memory tree in the UI |
 | **Feedback loop** | chat UI | Thumbs up/down and "that was wrong"; recent corrections guide later replies |
-| **Self-authored triggers** | `kosh/agent/triggers.json` | You say "whenever X, do Y" and it writes the rule |
-| **Learns routines** | `kosh/agent/routines.json` | Multi-step plans it can chain and call |
+| **Self-authored triggers** | `data/agent/triggers.json` | You say "whenever X, do Y" and it writes the rule |
+| **Learns routines** | `data/agent/routines.json` | Multi-step plans it can chain and call |
 | **Acts on a schedule** | cron runner | Persists status, supports cancel, 5-minute bound, marks interrupted work after restart instead of replaying it |
-| **Self-audit** | `kosh/agent/audit.jsonl` | Every tool call the brain made, hash-chained so tampering is visible |
-| **Refuses its own unsafe actions** | `atulya/mastishk/` | Safety rules sit **outside** the model — approval, never pay, never order, never delete silently |
-| **Picks its own brain** | `atulya/mastishk/vahak.py` | Measures each provider, tries the fastest, falls through on failure |
+| **Self-audit** | `data/agent/audit.jsonl` | Every tool call the brain made, hash-chained so tampering is visible |
+| **Refuses its own unsafe actions** | `atulya/brain/` | Safety rules sit **outside** the model — approval, never pay, never order, never delete silently |
+| **Picks its own brain** | `atulya/brain/providers.py` | Measures each provider, tries the fastest, falls through on failure |
 | **Notices when it is failing** | router | All models down → says so plainly instead of looping |
 | **Improves with hardware** | `ATULYA_MAX_TOOL_SCHEMAS` | Fewer tools shown to small models; measured 2,100 → 350 prompt tokens |
 
@@ -377,10 +413,10 @@ actually exists from what would have to be built.
 | 5 | Diagnose the four failing MCP servers (B2) | Me |
 | 6 | Re-verify HTTPS after rebuild (B3) | Me |
 | 7 | `install.ps1` one-liner | Me |
-| 8 | `frontend/` → `webui/` | Me |
+| 8 | `webui/` → `webui/` | Me |
 | 9 | Webui reorganise + HUD | Me |
 | 10 | Remove `examples/` | Me |
-| 11 | `kosh/` → `data/` (deliberately last) | Me |
+| 11 | `data/` → `data/` (deliberately last) | Me |
 | 12 | Docs drift: `providers_catalog.py`, "eleven providers" (B7) | Me |
 | 13 | Docker build verification (F1) | Me |
 | 14 | G5 self-measurement, then G3 self-review | Me, in that order |

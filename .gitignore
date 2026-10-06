@@ -33,16 +33,16 @@ tools/.personal-values
 # Data / outputs
 *.model
 *.bin
-!frontend/hologram-points.bin
+!webui/hologram-points.bin
 *.gguf
 *.safetensors
 checkpoints/
 
-# Node / frontend
+# Node / webui
 node_modules/
-frontend/dist/
-frontend/android/
-frontend/.vite/
+webui/dist/
+webui/android/
+webui/.vite/
 
 # OS / editor
 .DS_Store
@@ -62,11 +62,11 @@ tmp/
 .claude/
 
 # Everything Atulya learns and stores on your machine (memory, accounts, logs, tokens)
-kosh/
+data/
 # Generated invoices may contain private financial details.
 assets/invoices/
-# the old name of kosh/ (moved automatically on first start)
-data/
+# the old name of data/, moved to data/ automatically on first start
+kosh/
 outputs/
 
 # examples: downloaded models and your own measurements

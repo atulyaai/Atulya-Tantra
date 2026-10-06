@@ -1,7 +1,7 @@
 """Shared JSON storage and short-lived command queues for paired devices.
 
-The paired-computer companion (dut), the paired-phone inbox (phone) and
-the web-push subscriptions in sandesh each kept a private copy of the same
+The paired-computer companion (companion), the paired-phone inbox (phone) and
+the web-push subscriptions in channels each kept a private copy of the same
 file-backed store; this is the one implementation they share.
 """
 from __future__ import annotations
@@ -15,10 +15,10 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from atulya import raksha
+from atulya import security
 
 AGENT_DATA_DIR = "ATULYA_AGENT_DATA_DIR"
-DEFAULT_AGENT_DATA_DIR = "kosh/agent"
+DEFAULT_AGENT_DATA_DIR = "data/agent"
 
 
 def store_path(filename: str) -> Path:
@@ -32,7 +32,7 @@ def read_store(path: Path, default: dict[str, Any], invalid: str = "") -> dict[s
     ``invalid`` names the error raised when the file holds a non-object.
     """
     try:
-        value = json.loads(raksha.read_text(path))
+        value = json.loads(security.read_text(path))
     except FileNotFoundError:
         return default
     if not isinstance(value, dict):
@@ -44,7 +44,7 @@ def read_store(path: Path, default: dict[str, Any], invalid: str = "") -> dict[s
 
 def write_store(path: Path, value: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    raksha.write_text(path, json.dumps(value, ensure_ascii=False, separators=(",", ":")))
+    security.write_text(path, json.dumps(value, ensure_ascii=False, separators=(",", ":")))
 
 
 class CommandQueue:

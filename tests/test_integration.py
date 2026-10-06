@@ -37,8 +37,8 @@ def mock_llm():
 async def test_dashboard_health_endpoint():
     from fastapi.testclient import TestClient
 
-    from atulya.dwar import ADMIN_TOKEN
-    from atulya.sevak import app
+    from atulya.api import ADMIN_TOKEN
+    from atulya.server import app
     client = TestClient(app)
     resp = client.get("/api/health", headers={"X-Atulya-Token": ADMIN_TOKEN})
     assert resp.status_code == 200
@@ -52,7 +52,7 @@ async def test_dashboard_health_endpoint():
 async def test_dashboard_health_no_auth():
     from fastapi.testclient import TestClient
 
-    from atulya.sevak import app
+    from atulya.server import app
     client = TestClient(app)
     resp = client.get("/api/health")
     assert resp.status_code == 401
@@ -60,7 +60,7 @@ async def test_dashboard_health_no_auth():
 
 @pytest.mark.asyncio
 async def test_jwt_token_flow():
-    from atulya.dwar import _jwt_decode, _jwt_encode
+    from atulya.api import _jwt_decode, _jwt_encode
     token = _jwt_encode({"sub": "testuser", "role": "user", "name": "Test"})
     assert token.count(".") == 2
     payload = _jwt_decode(token)
@@ -71,7 +71,7 @@ async def test_jwt_token_flow():
 
 @pytest.mark.asyncio
 async def test_jwt_expired_token():
-    from atulya.dwar import _jwt_decode, _jwt_encode
+    from atulya.api import _jwt_decode, _jwt_encode
     token = _jwt_encode({"sub": "test"}, expires_in=-1)
     payload = _jwt_decode(token)
     assert payload is None
@@ -79,14 +79,14 @@ async def test_jwt_expired_token():
 
 @pytest.mark.asyncio
 async def test_jwt_tampered_token():
-    from atulya.dwar import _jwt_decode
+    from atulya.api import _jwt_decode
     payload = _jwt_decode("header.payload.tampered")
     assert payload is None
 
 
 @pytest.mark.asyncio
 async def test_rate_limiter_exceeded():
-    from atulya.sevak import _RATE_LIMIT_MAX, _RATE_STORE, _rate_limiter
+    from atulya.server import _RATE_LIMIT_MAX, _RATE_STORE, _rate_limiter
     _RATE_STORE.clear()
     client_ip = "192.168.1.1"
     now = __import__("time").time()
@@ -100,7 +100,7 @@ async def test_rate_limiter_exceeded():
 
 @pytest.mark.asyncio
 async def test_rate_limiter_expires_idle_clients_and_bounds_store(monkeypatch):
-    import atulya.sevak as server
+    import atulya.server as server
 
     server._RATE_STORE.clear()
     monkeypatch.setattr(server, "_RATE_STORE_MAX_CLIENTS", 1)
@@ -124,7 +124,7 @@ async def test_rate_limiter_expires_idle_clients_and_bounds_store(monkeypatch):
 async def test_shutdown_cancels_and_awaits_background_task():
     import asyncio
 
-    from atulya.sevak import _cancel_task
+    from atulya.server import _cancel_task
 
     cleaned_up = asyncio.Event()
 
@@ -147,7 +147,7 @@ def test_server_includes_each_api_route_once():
 
     from fastapi.routing import APIRoute
 
-    from atulya.sevak import app
+    from atulya.server import app
 
     counts = Counter(
         (route.path, tuple(sorted(route.methods or ())))
@@ -162,8 +162,8 @@ def test_server_includes_each_api_route_once():
 async def test_dashboard_telemetry_endpoint():
     from fastapi.testclient import TestClient
 
-    from atulya.dwar import ADMIN_TOKEN
-    from atulya.sevak import app
+    from atulya.api import ADMIN_TOKEN
+    from atulya.server import app
     client = TestClient(app)
     resp = client.get("/api/telemetry", headers={"X-Atulya-Token": ADMIN_TOKEN})
     assert resp.status_code == 200
@@ -175,7 +175,7 @@ async def test_dashboard_telemetry_endpoint():
 
 @pytest.mark.asyncio
 async def test_jwt_auth_header_accepted():
-    from atulya.dwar import _jwt_encode, _require_auth
+    from atulya.api import _jwt_encode, _require_auth
     token = _jwt_encode({"sub": "jwtuser", "role": "user", "name": "JWT"})
     result = _require_auth(token=token)
     assert result["username"] == "jwtuser"
@@ -202,19 +202,19 @@ class _Event:
 
 def _arm(monkeypatch, channel, targets):
     """Point the proactive channel the way the lifespan does when Telegram is configured."""
-    from atulya import sevak
+    from atulya import server
 
-    monkeypatch.setitem(sevak._PROACTIVE, "channel", channel)
-    monkeypatch.setitem(sevak._PROACTIVE, "targets", targets)
-    return sevak
+    monkeypatch.setitem(server._PROACTIVE, "channel", channel)
+    monkeypatch.setitem(server._PROACTIVE, "targets", targets)
+    return server
 
 
 @pytest.mark.asyncio
 async def test_a_due_reminder_reaches_the_phone_not_only_the_browser(monkeypatch):
     channel = _FakeTelegram()
-    sevak = _arm(monkeypatch, channel, ["123456789"])
+    server = _arm(monkeypatch, channel, ["123456789"])
 
-    await sevak._relay_notification(_Event({"title": "Reminder", "message": "Call Mum"}))
+    await server._relay_notification(_Event({"title": "Reminder", "message": "Call Mum"}))
 
     assert channel.sent == [("123456789", "Reminder: Call Mum")]
 
@@ -222,10 +222,10 @@ async def test_a_due_reminder_reaches_the_phone_not_only_the_browser(monkeypatch
 @pytest.mark.asyncio
 async def test_telegram_can_be_switched_off_without_stopping_the_relay(monkeypatch):
     channel = _FakeTelegram()
-    sevak = _arm(monkeypatch, channel, ["123456789"])
+    server = _arm(monkeypatch, channel, ["123456789"])
     monkeypatch.setenv("ATULYA_TELEGRAM_PUSH", "off")
 
-    await sevak._relay_notification(_Event({"title": "Reminder", "message": "Call Mum"}))
+    await server._relay_notification(_Event({"title": "Reminder", "message": "Call Mum"}))
 
     assert channel.sent == []
 
@@ -233,9 +233,9 @@ async def test_telegram_can_be_switched_off_without_stopping_the_relay(monkeypat
 @pytest.mark.asyncio
 async def test_an_announcement_with_nothing_to_say_is_not_sent(monkeypatch):
     channel = _FakeTelegram()
-    sevak = _arm(monkeypatch, channel, ["123456789"])
+    server = _arm(monkeypatch, channel, ["123456789"])
 
-    await sevak._relay_notification(_Event({"title": "Reminder", "message": ""}))
+    await server._relay_notification(_Event({"title": "Reminder", "message": ""}))
 
     assert channel.sent == []
 
@@ -244,9 +244,9 @@ async def test_an_announcement_with_nothing_to_say_is_not_sent(monkeypatch):
 async def test_one_chat_that_refuses_the_bot_does_not_stop_the_others(monkeypatch):
     """A phone that has blocked the bot must not silence everybody else."""
     channel = _FakeTelegram(refuse={"blocked"})
-    sevak = _arm(monkeypatch, channel, ["blocked", "good"])
+    server = _arm(monkeypatch, channel, ["blocked", "good"])
 
-    await sevak._relay_notification(_Event({"title": "Reminder", "message": "Call Mum"}))
+    await server._relay_notification(_Event({"title": "Reminder", "message": "Call Mum"}))
 
     assert channel.sent == [("good", "Reminder: Call Mum")]
 
@@ -254,17 +254,17 @@ async def test_one_chat_that_refuses_the_bot_does_not_stop_the_others(monkeypatc
 @pytest.mark.asyncio
 async def test_with_no_telegram_configured_the_websocket_still_hears_it(monkeypatch):
     """Arming is optional: a machine with no bot must not raise."""
-    sevak = _arm(monkeypatch, None, [])
+    server = _arm(monkeypatch, None, [])
 
-    await sevak._relay_notification(_Event({"title": "Reminder", "message": "Call Mum"}))
+    await server._relay_notification(_Event({"title": "Reminder", "message": "Call Mum"}))
 
 
 @pytest.mark.asyncio
 async def test_the_title_is_only_repeated_when_it_adds_something(monkeypatch):
     channel = _FakeTelegram()
-    sevak = _arm(monkeypatch, channel, ["123456789"])
+    server = _arm(monkeypatch, channel, ["123456789"])
 
-    await sevak._relay_notification(_Event({"title": "done", "message": "done"}))
+    await server._relay_notification(_Event({"title": "done", "message": "done"}))
 
     assert channel.sent[0][1] == "done"
 
@@ -275,7 +275,7 @@ async def test_a_login_gets_far_fewer_attempts_than_a_page_load():
     """The global bucket is sized for a busy client, not a brute force."""
     import time as _time
 
-    from atulya.sevak import (
+    from atulya.server import (
         _CREDENTIAL_MAX,
         _CREDENTIAL_STORE,
         _RATE_STORE,
@@ -304,7 +304,7 @@ async def test_a_login_gets_far_fewer_attempts_than_a_page_load():
 async def test_guessing_one_path_does_not_spend_another_paths_budget():
     import time as _time
 
-    from atulya.sevak import (
+    from atulya.server import (
         _CREDENTIAL_MAX,
         _CREDENTIAL_STORE,
         _RATE_STORE,
@@ -328,7 +328,7 @@ def test_a_password_cannot_be_guessed_one_hundred_times_a_minute():
     """End to end: the tenth attempt is answered, the eleventh is not."""
     from fastapi.testclient import TestClient
 
-    from atulya.sevak import app
+    from atulya.server import app
 
     client = TestClient(app)
     codes = [

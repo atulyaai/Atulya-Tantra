@@ -22,7 +22,7 @@ DEFAULT_HEALTH_URL = "http://127.0.0.1:8501/api/health"
 DEFAULT_INTERVAL = 30
 DEFAULT_TIMEOUT = 5
 DEFAULT_MAX_FAILURES = 3
-DEFAULT_START_CMD = "python -m atulya.sevak"
+DEFAULT_START_CMD = "python -m atulya.server"
 DEFAULT_CWD = str(Path(__file__).resolve().parent.parent)
 
 

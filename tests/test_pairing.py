@@ -2,9 +2,9 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from atulya import dwar as users
-from atulya import raksha as vault
-from atulya.sevak import app
+from atulya import api as users
+from atulya import security as vault
+from atulya.server import app
 
 
 @pytest.fixture()
@@ -73,7 +73,7 @@ def test_paired_device_keeps_owner_profile_identity_without_owner_privileges(cli
 def test_telegram_link_code_shares_owner_profile_by_explicit_pairing(client):
     import asyncio
 
-    from atulya.sandesh import ChannelMessage, TelegramChannel
+    from atulya.channels import ChannelMessage, TelegramChannel
 
     code = client.post("/api/pairing/telegram/code", headers=ADMIN).json()["code"]
     channel = TelegramChannel()
@@ -102,9 +102,9 @@ def test_telegram_link_code_shares_owner_profile_by_explicit_pairing(client):
 def test_linked_telegram_replies_use_the_owner_profile_context(client, monkeypatch):
     import asyncio
 
-    from atulya import buddhi
-    from atulya.raksha import paired_devices
-    from atulya.sandesh import ChannelMessage, TelegramChannel
+    from atulya import pipeline
+    from atulya.security import paired_devices
+    from atulya.channels import ChannelMessage, TelegramChannel
 
     code = client.post("/api/pairing/telegram/code", headers=ADMIN).json()["code"]
     paired_devices().link_telegram(code, "123")
@@ -128,7 +128,7 @@ def test_linked_telegram_replies_use_the_owner_profile_context(client, monkeypat
                 provider = "fake"
             return Response()
 
-    monkeypatch.setattr(buddhi, "get_kernel", lambda _llm: Kernel())
+    monkeypatch.setattr(pipeline, "get_kernel", lambda _llm: Kernel())
 
     async def run():
         channel = TelegramChannel()
@@ -167,7 +167,7 @@ def test_permission_can_be_changed_and_must_be_valid(client):
 
 
 def test_pairing_is_recorded_in_the_activity_log(client):
-    from atulya.kriya import recent, verify_audit
+    from atulya.actions import recent, verify_audit
 
     pair(client)
     assert any(e["event"] == "pairing.enrolled" for e in recent(10)) and verify_audit()["ok"]

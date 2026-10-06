@@ -8,7 +8,7 @@ __pycache__
 *.md
 tests/
 docs/
-frontend/dist/
+webui/dist/
 *.yml
 *.yaml
 Dockerfile

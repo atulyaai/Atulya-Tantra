@@ -8,7 +8,7 @@ class TestHeartbeatSystem:
     """Tests for HeartbeatSystem (non-async parts)."""
 
     def test_initialization(self):
-        from atulya.adhar import HeartbeatSystem
+        from atulya.settings import HeartbeatSystem
         with tempfile.TemporaryDirectory() as tmp:
             hb = HeartbeatSystem(data_dir=tmp)
             assert hb.data_dir.exists()
@@ -22,7 +22,7 @@ class TestHeartbeatSystem:
 
         import psutil
 
-        from atulya.adhar import HeartbeatSystem
+        from atulya.settings import HeartbeatSystem
         monkeypatch.setattr(psutil, "virtual_memory", lambda: SimpleNamespace(percent=40.0))
         with tempfile.TemporaryDirectory() as tmp:
             hb = HeartbeatSystem(data_dir=tmp)
@@ -33,7 +33,7 @@ class TestHeartbeatSystem:
     def test_disk_check(self):
         import asyncio
 
-        from atulya.adhar import HeartbeatSystem
+        from atulya.settings import HeartbeatSystem
         with tempfile.TemporaryDirectory() as tmp:
             hb = HeartbeatSystem(data_dir=tmp)
             result = asyncio.run(hb._disk_check())
@@ -43,7 +43,7 @@ class TestHeartbeatSystem:
     def test_maintenance_check(self):
         import asyncio
 
-        from atulya.adhar import HeartbeatSystem
+        from atulya.settings import HeartbeatSystem
         with tempfile.TemporaryDirectory() as tmp:
             hb = HeartbeatSystem(data_dir=tmp)
             result = asyncio.run(hb._maintenance_check())
@@ -53,7 +53,7 @@ class TestHeartbeatSystem:
     def test_save_status_creates_file(self):
         import asyncio
 
-        from atulya.adhar import HeartbeatSystem
+        from atulya.settings import HeartbeatSystem
         with tempfile.TemporaryDirectory() as tmp:
             hb = HeartbeatSystem(data_dir=tmp)
             asyncio.run(hb._run_checks())
@@ -65,7 +65,7 @@ class TestHeartbeatSystem:
             assert "checks" in data
 
     def test_healthcheck_dataclass(self):
-        from atulya.adhar import HealthCheck
+        from atulya.settings import HealthCheck
         hc = HealthCheck(name="test", status="ok", message="all good")
         assert hc.name == "test"
         assert hc.status == "ok"
@@ -74,7 +74,7 @@ class TestHeartbeatSystem:
 
     def test_get_status_empty(self):
         """get_status returns default when no file exists."""
-        from atulya.adhar import HeartbeatSystem
+        from atulya.settings import HeartbeatSystem
         with tempfile.TemporaryDirectory() as tmp:
             hb = HeartbeatSystem(data_dir=tmp)
             status = hb.get_status()
@@ -85,7 +85,7 @@ class TestHeartbeatSystem:
         """_task_check should handle missing kanban directory."""
         import asyncio
 
-        from atulya.adhar import HeartbeatSystem
+        from atulya.settings import HeartbeatSystem
         with tempfile.TemporaryDirectory() as tmp:
             hb = HeartbeatSystem(data_dir=tmp)
             result = asyncio.run(hb._task_check())
@@ -94,7 +94,7 @@ class TestHeartbeatSystem:
     def test_start_stop(self):
         import asyncio
 
-        from atulya.adhar import HeartbeatSystem
+        from atulya.settings import HeartbeatSystem
         with tempfile.TemporaryDirectory() as tmp:
             hb = HeartbeatSystem(data_dir=tmp)
             hb._interval = 0.1
@@ -119,7 +119,7 @@ class TestIdentity:
 
     def test_default_config(self):
         """When no config file exists, Identity uses sensible defaults."""
-        from atulya.bhava import Persona
+        from atulya.persona import Persona
         with tempfile.TemporaryDirectory() as tmp:
             ident = Persona(os.path.join(tmp, "identity.json"))
             assert ident.name == "Atulya"
@@ -127,7 +127,7 @@ class TestIdentity:
             assert "what_i_am" in ident.self_knowledge
 
     def test_load_from_config(self):
-        from atulya.bhava import Persona
+        from atulya.persona import Persona
         cfg = {
             "name": "TestBot",
             "personality": {"tone": "cheerful"},
@@ -151,7 +151,7 @@ class TestIdentity:
             assert ident.self_knowledge["what_i_am"] == "A test bot."
 
     def test_get_profile_user(self):
-        from atulya.bhava import Persona
+        from atulya.persona import Persona
         with tempfile.TemporaryDirectory() as tmp:
             ident = Persona(os.path.join(tmp, "identity.json"))
             # get_system_prompt generates a role-appropriate identity string
@@ -160,7 +160,7 @@ class TestIdentity:
             assert "Atulya" in prompt or "You are" in prompt
 
     def test_get_profile_superuser(self):
-        from atulya.bhava import Persona
+        from atulya.persona import Persona
         with tempfile.TemporaryDirectory() as tmp:
             ident = Persona(os.path.join(tmp, "identity.json"))
             prompt = ident.get_system_prompt(role="superuser")
@@ -169,14 +169,14 @@ class TestIdentity:
             assert "Architecture" in prompt
 
     def test_privacy_rules_property(self):
-        from atulya.bhava import Persona
+        from atulya.persona import Persona
         with tempfile.TemporaryDirectory() as tmp:
             ident = Persona(os.path.join(tmp, "identity.json"))
             rules = ident.privacy_rules
             assert isinstance(rules, list)
 
     def test_format_for_training(self):
-        from atulya.bhava import Persona
+        from atulya.persona import Persona
         with tempfile.TemporaryDirectory() as tmp:
             ident = Persona(os.path.join(tmp, "identity.json"))
             samples = ident.format_for_training()
@@ -186,7 +186,7 @@ class TestIdentity:
             assert "output" in samples[0]
 
     def test_self_knowledge_languages(self):
-        from atulya.bhava import Persona
+        from atulya.persona import Persona
         with tempfile.TemporaryDirectory() as tmp:
             ident = Persona(os.path.join(tmp, "identity.json"))
             sk = ident.self_knowledge
@@ -194,7 +194,7 @@ class TestIdentity:
             assert "languages" in sk
 
     def test_name_from_config(self):
-        from atulya.bhava import Persona
+        from atulya.persona import Persona
         cfg = {"name": "CustomAI", "personality": {}, "self_knowledge": {}}
         with tempfile.TemporaryDirectory() as tmp:
             cfg_path = os.path.join(tmp, "identity.json")
@@ -203,7 +203,7 @@ class TestIdentity:
             assert ident.name == "CustomAI"
 
     def test_markdown_fallback(self):
-        from atulya.bhava import Persona
+        from atulya.persona import Persona
         with tempfile.TemporaryDirectory() as tmp:
             soul = os.path.join(tmp, "SOUL.md")
             with open(soul, "w") as f:

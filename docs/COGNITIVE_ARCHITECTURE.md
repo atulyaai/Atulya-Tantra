@@ -8,7 +8,7 @@ Earlier versions had the right organs but no single nervous system. Chat and
 voice used one tool registry and brain loop, the CLI and automations used
 another, the intent router only served the CLI, risky actions bypassed the
 approval gate, and the event bus had no subscribers. The cognition layer
-(`atulya/buddhi.py` and the files named in the README) gives every entry point one pipeline:
+(`atulya/pipeline.py` and the files named in the README) gives every entry point one pipeline:
 
 ```
  perceive ──► understand ──► decide ──► act ──► remember ──► react
@@ -44,22 +44,22 @@ flowchart LR
 
 | Organ | Role | Module |
 |---|---|---|
-| Kernel | The one pipeline every request goes through | `atulya/buddhi.py` |
-| Understanding | Clear command → concrete tool + arguments, no model needed | `atulya/kriya/` |
-| Planning | Goals → checked multi-step plans (routines, groups, compound commands, the brain) | `atulya/buddhi.py` |
-| Knowing you | Facts, habits, which confirmations to stop asking (opt-in) | `atulya/buddhi.py` |
-| Brain | Open conversation, reasoning, native tool calls, provider failover | `atulya/mastishk/` |
-| Brain size | `ATULYA_BRAIN` tiers: tiny / balanced / power / cloud | `atulya/mastishk/` |
-| Conscience | Which actions run vs. wait for confirmation | `atulya/mastishk/` |
-| Hands | One tool surface: files, web, office, ERP + home, reminders, weather, email, calendar | `atulya/mastishk/` |
-| Real-world reach | Home Assistant (Zigbee, Z-Wave, Wi-Fi, Matter…) | `atulya/upakaran.py` |
-| Memory | Remembers conversations and the actions it took | `atulya/smriti.py` |
-| Nervous system | Publish/subscribe events | `atulya/adhar.py` |
-| Reflexes | Event → rule → notify and/or act | `atulya/buddhi.py` |
-| Interoception | Self-monitoring; publishes health *changes* | `atulya/adhar.py` |
-| Senses | Cameras (motion, people) and Home Assistant sensors → events | `atulya/indriya.py` |
-| Ears everywhere | Always-listening app: wake word, tray icon, speaks notifications | `atulya/shruti.py` |
-| Personal accounts | Google sign-in: Gmail and Calendar per user | `atulya/jaal.py` |
+| Kernel | The one pipeline every request goes through | `atulya/pipeline.py` |
+| Understanding | Clear command → concrete tool + arguments, no model needed | `atulya/actions/` |
+| Planning | Goals → checked multi-step plans (routines, groups, compound commands, the brain) | `atulya/pipeline.py` |
+| Knowing you | Facts, habits, which confirmations to stop asking (opt-in) | `atulya/pipeline.py` |
+| Brain | Open conversation, reasoning, native tool calls, provider failover | `atulya/brain/` |
+| Brain size | `ATULYA_BRAIN` tiers: tiny / balanced / power / cloud | `atulya/brain/` |
+| Conscience | Which actions run vs. wait for confirmation | `atulya/brain/` |
+| Hands | One tool surface: files, web, office, ERP + home, reminders, weather, email, calendar | `atulya/brain/` |
+| Real-world reach | Home Assistant (Zigbee, Z-Wave, Wi-Fi, Matter…) | `atulya/devices.py` |
+| Memory | Remembers conversations and the actions it took | `atulya/memory.py` |
+| Nervous system | Publish/subscribe events | `atulya/settings.py` |
+| Reflexes | Event → rule → notify and/or act | `atulya/pipeline.py` |
+| Interoception | Self-monitoring; publishes health *changes* | `atulya/settings.py` |
+| Senses | Cameras (motion, people) and Home Assistant sensors → events | `atulya/vision.py` |
+| Ears everywhere | Always-listening app: wake word, tray icon, speaks notifications | `atulya/ambient.py` |
+| Personal accounts | Google sign-in: Gmail and Calendar per user | `atulya/web.py` |
 
 ## A request's life
 

@@ -72,7 +72,7 @@ detect_pkg_mgr() {
 
 pkg_install() {   # pkg_install pkg1 pkg2 ...
     case "$PKG_MGR" in
-        apt-get) as_root apt-get update -qq && as_root DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$@" ;;
+        apt-get) as_root apt-get update -qq && as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$@" ;;
         dnf)     as_root dnf install -y -q "$@" ;;
         yum)     as_root yum install -y -q "$@" ;;
         pacman)  as_root pacman -S --noconfirm --needed "$@" ;;
@@ -185,7 +185,7 @@ stage_software() {
         else
             bad "no Node.js the dashboard can be built with"
             hint "the four MCP tool servers still run — they only need some node"
-            hint "but frontend/dist cannot be rebuilt, so whatever dist exists is what serves"
+            hint "but webui/dist cannot be rebuilt, so whatever dist exists is what serves"
             hint "install Node 20.19+ from nodejs.org, then re-run this script"
         fi
     fi
@@ -196,7 +196,7 @@ DEST="$SCRIPT_DIR"
 
 stage_code() {
     # Running from inside a checkout: use it rather than fetching a second copy.
-    if [ -f "$SCRIPT_DIR/atulya/sevak.py" ] && [ -d "$SCRIPT_DIR/.git" ]; then
+    if [ -f "$SCRIPT_DIR/atulya/server.py" ] && [ -d "$SCRIPT_DIR/.git" ]; then
         DEST="$SCRIPT_DIR"
         ok "using the code next to this script ($DEST)"
         return 0
@@ -342,18 +342,18 @@ stage_build() {
 
     if command -v node >/dev/null 2>&1 && node_version_ok; then
         say "  building the dashboard"
-        if python frontend/build.py > /tmp/atulya_dist_build.log 2>&1; then
+        if python webui/build.py > /tmp/atulya_dist_build.log 2>&1; then
             ok "dashboard built"
         else
             warn "dashboard build failed — whatever dist already exists is what serves"
             hint "reason: $(grep -v '^[[:space:]]*$' /tmp/atulya_dist_build.log | tail -1)"
-            hint "run it yourself for the full trace:  cd frontend && npm run build"
+            hint "run it yourself for the full trace:  cd webui && npm run build"
         fi
     else
-        if [ -f frontend/dist/index.html ]; then
-            warn "no node — using the existing frontend/dist as-is"
+        if [ -f webui/dist/index.html ]; then
+            warn "no node — using the existing webui/dist as-is"
         else
-            bad "no node and no frontend/dist — there will be no web UI"
+            bad "no node and no webui/dist — there will be no web UI"
         fi
     fi
     ok "packages installed into .venv"
@@ -380,14 +380,14 @@ report_only() {
     say "  python3      $(command -v python3 >/dev/null 2>&1 && python3 --version 2>&1 || echo missing)"
     say "  git          $(command -v git >/dev/null 2>&1 && git --version 2>&1 || echo missing)"
     say "  node/npm     $(command -v node >/dev/null 2>&1 && node --version || echo 'missing — tool servers will not start')"
-    say "  code         $([ -f "$SCRIPT_DIR/atulya/sevak.py" ] && echo "here ($SCRIPT_DIR)" || echo "not cloned yet")"
+    say "  code         $([ -f "$SCRIPT_DIR/atulya/server.py" ] && echo "here ($SCRIPT_DIR)" || echo "not cloned yet")"
     if [ -f "$SCRIPT_DIR/.env" ]; then
         say "  .env         $(grep -c '=' "$SCRIPT_DIR/.env") settings"
     else
         say "  .env         not written yet"
     fi
     say "  .venv        $([ -d "$SCRIPT_DIR/.venv" ] && echo present || echo 'not created yet')"
-    say "  dist         $([ -f "$SCRIPT_DIR/frontend/dist/index.html" ] && echo built || echo 'not built yet')"
+    say "  dist         $([ -f "$SCRIPT_DIR/webui/dist/index.html" ] && echo built || echo 'not built yet')"
     say ""
     say "  ${DIM}Run 'bash install.sh' to do it. This changed nothing.${RESET}"
 }
@@ -420,7 +420,7 @@ say ""
 say "  ${GREEN}${BOLD}Done.${RESET} Start Atulya with:"
 say ""
 say "      cd $DEST"
-say "      ${BOLD}. .venv/bin/activate && python -m atulya.sevak${RESET}"
+say "      ${BOLD}. .venv/bin/activate && python -m atulya.server${RESET}"
 say ""
 say "  ${DIM}Make it start by itself:  python install.py --service   (systemd, at boot)${RESET}"
 say "  ${DIM}Same thing, in a terminal: ./start.sh${RESET}"

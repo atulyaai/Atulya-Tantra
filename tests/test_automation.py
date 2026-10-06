@@ -10,21 +10,21 @@ import pytest
 class TestAutomationRoutes:
     @pytest.fixture
     def mock_admin(self):
-        with patch("atulya.dwar._require_admin") as m:
+        with patch("atulya.api._require_admin") as m:
             m.return_value = {"username": "admin", "role": "admin"}
             yield m
 
     def test_list_jobs_empty(self, tmp_path, mock_admin):
-        import atulya.dwar as auto_mod
-        from atulya.dwar import api_cron_jobs
+        import atulya.api as auto_mod
+        from atulya.api import api_cron_jobs
         auto_mod.JOBS_FILE = tmp_path / "jobs.json"
 
         result = api_cron_jobs(_admin=mock_admin.return_value)
         assert result["jobs"] == []
 
     def test_list_jobs_with_data(self, tmp_path, mock_admin):
-        import atulya.dwar as auto_mod
-        from atulya.dwar import api_cron_jobs
+        import atulya.api as auto_mod
+        from atulya.api import api_cron_jobs
         jobs_file = tmp_path / "jobs.json"
         auto_mod.JOBS_FILE = jobs_file
         jobs_file.write_text(json.dumps([{"id": "1", "name": "test"}]))
@@ -33,8 +33,8 @@ class TestAutomationRoutes:
         assert len(result["jobs"]) == 1
 
     def test_add_job(self, tmp_path, mock_admin):
-        import atulya.dwar as auto_mod
-        from atulya.dwar import api_cron_add_job
+        import atulya.api as auto_mod
+        from atulya.api import api_cron_add_job
         auto_mod.JOBS_FILE = tmp_path / "jobs.json"
 
         with patch("time.time", return_value=1000):
@@ -44,8 +44,8 @@ class TestAutomationRoutes:
         assert result["job"]["name"] == "myjob"
 
     def test_add_job_rejects_invalid_schedule(self, tmp_path, mock_admin):
-        import atulya.dwar as auto_mod
-        from atulya.dwar import api_cron_add_job
+        import atulya.api as auto_mod
+        from atulya.api import api_cron_add_job
         auto_mod.JOBS_FILE = tmp_path / "jobs.json"
 
         with pytest.raises(Exception) as exc:
@@ -53,8 +53,8 @@ class TestAutomationRoutes:
         assert getattr(exc.value, "status_code", None) == 400
 
     def test_delete_job(self, tmp_path, mock_admin):
-        import atulya.dwar as auto_mod
-        from atulya.dwar import api_cron_delete_job
+        import atulya.api as auto_mod
+        from atulya.api import api_cron_delete_job
         jobs_file = tmp_path / "jobs.json"
         auto_mod.JOBS_FILE = jobs_file
         jobs_file.write_text(json.dumps([{"id": "1", "name": "a"}, {"id": "2", "name": "b"}]))
@@ -65,8 +65,8 @@ class TestAutomationRoutes:
         assert len(remaining) == 1
 
     def test_update_job(self, tmp_path, mock_admin):
-        import atulya.dwar as auto_mod
-        from atulya.dwar import api_cron_update_job
+        import atulya.api as auto_mod
+        from atulya.api import api_cron_update_job
         jobs_file = tmp_path / "jobs.json"
         auto_mod.JOBS_FILE = jobs_file
         jobs_file.write_text(json.dumps([{"id": "1", "name": "old", "schedule": "3600"}]))
@@ -76,16 +76,16 @@ class TestAutomationRoutes:
         assert result["job"]["name"] == "new"
 
     def test_update_job_not_found(self, tmp_path, mock_admin):
-        import atulya.dwar as auto_mod
-        from atulya.dwar import api_cron_update_job
+        import atulya.api as auto_mod
+        from atulya.api import api_cron_update_job
         auto_mod.JOBS_FILE = tmp_path / "jobs.json"
 
         result = api_cron_update_job("nonexistent", {"name": "x"}, _admin=mock_admin.return_value)
         assert result["ok"] is False
 
     def test_run_job(self, tmp_path, mock_admin):
-        import atulya.dwar as auto_mod
-        from atulya.dwar import api_cron_run_job
+        import atulya.api as auto_mod
+        from atulya.api import api_cron_run_job
         jobs_file = tmp_path / "jobs.json"
         auto_mod.JOBS_FILE = jobs_file
         jobs_file.write_text(json.dumps([{"id": "1", "name": "test", "command": "say hi"}]))
@@ -93,8 +93,8 @@ class TestAutomationRoutes:
         mock_request = MagicMock()
         mock_request.app.state.automation_runner = None
 
-        with patch("atulya.mastishk.get_default_llm"):
-            with patch("atulya.dwar.AutomationRunner") as runner_cls:
+        with patch("atulya.brain.get_default_llm"):
+            with patch("atulya.api.AutomationRunner") as runner_cls:
                 runner = MagicMock()
                 runner.run_job = AsyncMock()
                 runner.start_job = AsyncMock(return_value={"id": "1", "name": "test", "command": "say hi"})
@@ -109,7 +109,7 @@ class TestAutomationLifecycle:
     @pytest.mark.asyncio
     async def test_job_completion_is_persisted(self, tmp_path):
         from types import SimpleNamespace
-        from atulya.dwar import AutomationRunner
+        from atulya.api import AutomationRunner
 
         jobs_file = tmp_path / "jobs.json"
         jobs_file.write_text(json.dumps([{"id": "job-1", "name": "test", "command": "say hi"}]))
@@ -118,7 +118,7 @@ class TestAutomationLifecycle:
         kernel = SimpleNamespace(handle=AsyncMock(return_value=SimpleNamespace(
             text="finished", provider="fake", needs_approval=False, pending_tool=None)))
 
-        with patch("atulya.buddhi.get_kernel", return_value=kernel):
+        with patch("atulya.pipeline.get_kernel", return_value=kernel):
             await runner.run_job({"id": "job-1", "name": "test", "command": "say hi"})
 
         saved = json.loads(jobs_file.read_text())[0]
@@ -131,7 +131,7 @@ class TestAutomationLifecycle:
     async def test_cancelled_job_persists_cancelled_state(self, tmp_path):
         import asyncio
         from types import SimpleNamespace
-        from atulya.dwar import AutomationRunner
+        from atulya.api import AutomationRunner
 
         jobs_file = tmp_path / "jobs.json"
         jobs_file.write_text(json.dumps([{"id": "job-2", "name": "test", "command": "wait"}]))
@@ -144,7 +144,7 @@ class TestAutomationLifecycle:
             await asyncio.Future()
 
         kernel = SimpleNamespace(handle=wait_forever)
-        with patch("atulya.buddhi.get_kernel", return_value=kernel):
+        with patch("atulya.pipeline.get_kernel", return_value=kernel):
             await runner.start_job({"id": "job-2", "name": "test", "command": "wait"})
             await started.wait()
             saved = await runner.cancel_job("job-2")
@@ -153,7 +153,7 @@ class TestAutomationLifecycle:
         assert saved["last_error"] == "Cancelled by owner"
 
     def test_expired_run_metadata_is_removed_but_job_is_kept(self, tmp_path, monkeypatch):
-        import atulya.dwar as auto_mod
+        import atulya.api as auto_mod
 
         jobs_file = tmp_path / "jobs.json"
         jobs_file.write_text(json.dumps([{
@@ -169,7 +169,7 @@ class TestAutomationLifecycle:
 
     @pytest.mark.asyncio
     async def test_restart_marks_running_job_interrupted_without_replaying(self, tmp_path):
-        from atulya.dwar import AutomationRunner
+        from atulya.api import AutomationRunner
 
         jobs_file = tmp_path / "jobs.json"
         jobs_file.write_text(json.dumps([{
@@ -187,8 +187,8 @@ class TestAutomationLifecycle:
         assert saved.get("run_count", 0) == 0
 
     def test_seed_default_jobs(self, tmp_path):
-        import atulya.dwar as auto_mod
-        from atulya.dwar import _seed_default_jobs
+        import atulya.api as auto_mod
+        from atulya.api import _seed_default_jobs
         jobs_file = tmp_path / "jobs.json"
         auto_mod.JOBS_FILE = jobs_file
 
@@ -199,8 +199,8 @@ class TestAutomationLifecycle:
         assert all(job.get("command") for job in seeded)
 
     def test_seed_default_jobs_idempotent(self, tmp_path):
-        import atulya.dwar as auto_mod
-        from atulya.dwar import _seed_default_jobs
+        import atulya.api as auto_mod
+        from atulya.api import _seed_default_jobs
         jobs_file = tmp_path / "jobs.json"
         auto_mod.JOBS_FILE = jobs_file
         jobs_file.write_text(json.dumps([{"id": "custom", "name": "mine"}]))
