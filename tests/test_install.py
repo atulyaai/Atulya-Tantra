@@ -142,7 +142,7 @@ class TestInterview:
         item = next(i for i in installer.ITEMS if i.key == "ATULYA_BRIEFING_AT")
         assert (item.validate(value) is None) is good
 
-    @pytest.mark.parametrize("value,good", [("1484854122", True), ("-1001234", True), ("abc", False), ("12 34", False)])
+    @pytest.mark.parametrize("value,good", [("123456789", True), ("-1001234", True), ("abc", False), ("12 34", False)])
     def test_telegram_id_validator(self, value, good):
         item = next(i for i in installer.ITEMS if i.key == "ATULYA_TELEGRAM_ALLOWLIST")
         assert (item.validate(value) is None) is good

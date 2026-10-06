@@ -18,7 +18,7 @@ The production path itself is [DEPLOYMENT.md](DEPLOYMENT.md).
 
 This guide targets Oracle Cloud's Always Free eligible compute in your chosen home region. Oracle
 capacity and eligibility vary; check the console's displayed cost before creating anything. The
-public app is `https://atulya.atulvij.com`. Keep the VM firewall closed to inbound web traffic:
+public app is `https://atulya.example.com`. Keep the VM firewall closed to inbound web traffic:
 cloudflared makes an outbound tunnel.
 
 > Docker is used throughout this recipe. See the warning at the top of
@@ -53,7 +53,7 @@ cloudflared makes an outbound tunnel.
 ### 3. Configure secrets and start Atulya
 
 1. Copy `.env.example` to `.env`; edit it on the VM. Set `ATULYA_HOST=0.0.0.0`,
-   `ATULYA_HTTPS=off`, `ATULYA_PC_CONTROL=off`, and `ATULYA_PUBLIC_URL=https://atulya.atulvij.com`.
+   `ATULYA_HTTPS=off`, `ATULYA_PC_CONTROL=off`, and `ATULYA_PUBLIC_URL=https://atulya.example.com`.
    **Leave `ATULYA_JWT_SECRET_FILE` unset** so Atulya creates its persistent signing key in the
    mounted `kosh/` directory. Leave Telegram values blank unless you intentionally configure
    Telegram. **PASS:** these names and values are present; no secrets have been pasted into chat
@@ -71,12 +71,12 @@ cloudflared makes an outbound tunnel.
    → Create a tunnel**, select **Cloudflared**, name it `atulya-oracle`, and follow the Linux
    connector instructions. **PASS:** the tunnel status is **Healthy** after the connector is
    running.
-2. In the tunnel's **Public hostnames** page, add hostname `atulya.atulvij.com`, service type
+2. In the tunnel's **Public hostnames** page, add hostname `atulya.example.com`, service type
    **HTTP**, URL `atulya:8501` when using the Compose connector (or `http://127.0.0.1:8501` for the
    systemd/host connector). **PASS:** the hostname appears and the tunnel reports Healthy.
 3. Put the tunnel token in `.env` as `CF_TUNNEL_TOKEN=...`, then run `docker compose up -d
    cloudflared`; never paste the token into chat or commit it. Cloudflare's hostname setup creates
-   the DNS record. **PASS:** DNS shows the tunnel CNAME and `https://atulya.atulvij.com` reaches
+   the DNS record. **PASS:** DNS shows the tunnel CNAME and `https://atulya.example.com` reaches
    the app. **FAIL:** check the tunnel connector logs and hostname target.
 4. Optional config-file deployment: copy `cloudflared-config.yml.example` to
    `/etc/cloudflared/config.yml`, replace both UUID placeholders, install the credentials JSON at
@@ -86,7 +86,7 @@ cloudflared makes an outbound tunnel.
 ### 5. Require Cloudflare Access login
 
 1. In Zero Trust, open **Access → Applications → Add an application → Self-hosted**. Set the
-   application domain to `atulya.atulvij.com`. **PASS:** the application is listed.
+   application domain to `atulya.example.com`. **PASS:** the application is listed.
 2. Add an **Allow** policy with **Include → Emails →** only the owner's email address. Do not use a
    broad email-domain rule. **PASS:** only that exact email appears in the Include rule.
 3. Add exact path policies before the catch-all: `/api/pairing/enroll`, `/api/phone/*`, and
@@ -220,7 +220,7 @@ WebSocket alerts continue and the app says background delivery is not configured
 4. Download the helper: `curl -fsSL
    https://raw.githubusercontent.com/atulyaai/Atulya-Tantra/main/examples/termux_phone.sh -o
    termux_phone.sh`. **PASS:** `test -s termux_phone.sh` succeeds.
-5. In the same Termux window, type `export ATULYA_SERVER=https://atulya.atulvij.com` (or your
+5. In the same Termux window, type `export ATULYA_SERVER=https://atulya.example.com` (or your
    local server address), then `export ATULYA_PAIR_CODE=000000` with the code shown by Atulya,
    then `export ATULYA_SYNC_SMS=off ATULYA_SYNC_NOTIFICATIONS=off ATULYA_SYNC_LOCATION=off`, then
    `bash termux_phone.sh`. The helper securely stores the paired token in Termux's private home
@@ -245,7 +245,7 @@ WebSocket alerts continue and the app says background delivery is not configured
    Pair another computer**. Keep the six-digit code private. **PASS:** an unexpired code is
    visible.
 2. On the computer to pair, clone the project, install its Python dependencies with `python -m
-   pip install -e .`, and run `python -m atulya.dut --server https://atulya.atulvij.com --name "My
+   pip install -e .`, and run `python -m atulya.dut --server https://atulya.example.com --name "My
    laptop"`. Enter the pairing code when prompted. **PASS:** the companion confirms it paired and
    saves its device token in the current user's private config folder; the token is never shown in
    the command line.

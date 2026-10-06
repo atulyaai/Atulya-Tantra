@@ -26,6 +26,9 @@ secrets/
 *.pem
 *.key
 *.crt
+# The maintainer's own addresses, for tools/audit_personal_values.py only.
+# It looks for them in this checkout; nothing else may ever carry them.
+tools/.personal-values
 
 # Data / outputs
 *.model

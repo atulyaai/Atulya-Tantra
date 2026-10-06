@@ -1027,7 +1027,7 @@ class TestAdminTokenSync:
 
 # ── test_miniapp ─────────────────────────────────────────────────────────────────
 BOT = "123456:TEST-BOT-TOKEN"
-ALLOWED_ID = 1484854122
+ALLOWED_ID = 123456789
 
 
 def _genuine_init_data(bot_token: str = BOT, user_id: int = ALLOWED_ID, auth_date: int | None = None) -> str:

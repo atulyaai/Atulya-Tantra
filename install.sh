@@ -92,6 +92,40 @@ pkg_names_for() {
     esac
 }
 
+# Vite's own gate: it refuses to run below 20.19/22.12 and says so. Ubuntu 24.04
+# ships 18 through apt, so a check for mere presence reports a healthy install
+# and the build still dies with "CustomEvent is not defined". Checking that a
+# tool exists and checking that it works are two different questions.
+node_version_ok() {
+    local v major minor
+    v="$(node --version 2>/dev/null | sed 's/^v//')" || return 1
+    [ -n "$v" ] || return 1
+    major="${v%%.*}"
+    minor="${v#*.}"
+    minor="${minor%%.*}"
+    case "$major" in ''|*[!0-9]*) return 1 ;; esac
+    case "$minor" in ''|*[!0-9]*) return 1 ;; esac
+    [ "$major" -ge 23 ] && return 0
+    { [ "$major" -eq 22 ] && [ "$minor" -ge 12 ]; } && return 0
+    { [ "$major" -eq 20 ] && [ "$minor" -ge 19 ]; } && return 0
+    return 1
+}
+
+# apt cannot take Debian or Ubuntu past 18. NodeSource can, and it is the
+# upstream-recommended way on a box like this. It only runs on apt: every other
+# package manager above already carries a current Node.
+install_node_22() {
+    detect_pkg_mgr || return 1
+    [ "$PKG_MGR" = "apt-get" ] || return 1
+    pkg_install curl ca-certificates gnupg >/dev/null 2>&1 || true
+    local setup=/tmp/nodesource_setup.sh
+    curl -fsSL https://deb.nodesource.com/setup_22.x -o "$setup" 2>/dev/null || return 1
+    as_root bash "$setup" >/dev/null 2>&1 || { rm -f "$setup"; return 1; }
+    as_root apt-get install -y -qq nodejs >/dev/null 2>&1 || { rm -f "$setup"; return 1; }
+    rm -f "$setup"
+    node_version_ok
+}
+
 stage_software() {
     say "  checking what this machine already has"
 
@@ -129,18 +163,30 @@ stage_software() {
     fi
     ok "git $(git --version | awk '{print $3}')"
 
-    # Node is not optional in practice: the MCP tool servers (filesystem, git,
-    # playwright, fetch) shell out to npx, and the dashboard is built with it.
-    if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
-        ok "node $(node --version) + npm $(npm --version)"
+    # Node serves two different jobs, so it gets checked twice for two reasons.
+    # The MCP tool servers (filesystem, git, playwright, fetch) shell out to npx
+    # and run on almost anything. The web UI is built with Vite, which will not
+    # start below 20.19/22.12 — so a node that is merely present reports a
+    # healthy setup and still fails at the build.
+    if node_version_ok; then
+        ok "node $(node --version) + npm $(npm --version 2>/dev/null || echo '?')"
     else
-        warn "node/npm missing — installing it (needed by the tool servers and the dashboard build)"
-        if detect_pkg_mgr && pkg_install nodejs npm 2>/dev/null; then
-            ok "node $(node --version 2>/dev/null || echo '?') + npm installed"
+        if command -v node >/dev/null 2>&1; then
+            warn "node $(node --version 2>/dev/null) is too old for Vite (which needs 20.19+ or 22.12+)"
+            hint "apt on Debian/Ubuntu only offers 18: the tool servers would work, the web UI would not"
         else
-            bad "node/npm not installed"
-            hint "the MCP tool servers will not start and the web UI cannot be rebuilt"
-            hint "install Node.js 18+ from nodejs.org or your package manager, then re-run"
+            warn "node/npm missing — installing it (needed by the tool servers and the dashboard build)"
+            detect_pkg_mgr && pkg_install nodejs npm >/dev/null 2>&1 || true
+        fi
+        if node_version_ok; then
+            ok "node $(node --version) + npm $(npm --version 2>/dev/null || echo '?')"
+        elif install_node_22; then
+            ok "node $(node --version) installed from NodeSource (apt only carries 18)"
+        else
+            bad "no Node.js the dashboard can be built with"
+            hint "the four MCP tool servers still run — they only need some node"
+            hint "but frontend/dist cannot be rebuilt, so whatever dist exists is what serves"
+            hint "install Node 20.19+ from nodejs.org, then re-run this script"
         fi
     fi
 }
@@ -227,7 +273,7 @@ ask_value() {  # ask_value KEY "label" "prompt" "default" [validator]
 }
 
 is_bot_token()    { printf '%s' "$1" | grep -Eq '^[0-9]{6,12}:[A-Za-z0-9_-]{30,}$' || { say "      that does not look like a Telegram bot token (digits:letters)"; return 1; }; }
-is_chat_id()      { printf '%s' "$1" | grep -Eq '^-?[0-9]{4,20}$' || { say "      a Telegram user id is a number like 1484854122"; return 1; }; }
+is_chat_id()      { printf '%s' "$1" | grep -Eq '^-?[0-9]{4,20}$' || { say "      a Telegram user id is a number like 123456789"; return 1; }; }
 is_http_url()     { case "$1" in http://*|https://*) return 0 ;; *) say "      start with http:// or https://"; return 1 ;; esac; }
 is_port()         { printf '%s' "$1" | grep -Eq '^[0-9]{2,5}$' || { say "      a port is a number like 8501"; return 1; }; }
 
@@ -294,9 +340,15 @@ stage_build() {
     python -m pip install --upgrade pip -q
     python -m pip install -e ".[serve]" -q || die "pip install failed"
 
-    if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+    if command -v node >/dev/null 2>&1 && node_version_ok; then
         say "  building the dashboard"
-        if python frontend/build.py >/dev/null 2>&1; then ok "dashboard built"; else warn "dashboard build failed — using any existing dist"; fi
+        if python frontend/build.py > /tmp/atulya_dist_build.log 2>&1; then
+            ok "dashboard built"
+        else
+            warn "dashboard build failed — whatever dist already exists is what serves"
+            hint "reason: $(grep -v '^[[:space:]]*$' /tmp/atulya_dist_build.log | tail -1)"
+            hint "run it yourself for the full trace:  cd frontend && npm run build"
+        fi
     else
         if [ -f frontend/dist/index.html ]; then
             warn "no node — using the existing frontend/dist as-is"

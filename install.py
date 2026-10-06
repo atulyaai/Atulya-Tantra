@@ -112,7 +112,7 @@ def _bot_token(value: str) -> str | None:
 
 
 def _chat_id(value: str) -> str | None:
-    return None if re.fullmatch(r"-?\d{4,20}", value) else "A Telegram user id is a number like 1484854122."
+    return None if re.fullmatch(r"-?\d{4,20}", value) else "A Telegram user id is a number like 123456789."
 
 
 def _http_url(value: str) -> str | None:

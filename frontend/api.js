@@ -95,7 +95,7 @@ export function getServerUrl() {
 export function setServerUrl(value) {
   const parsed = new URL(value);
   if (!['http:', 'https:'].includes(parsed.protocol) || parsed.pathname !== '/' || parsed.search || parsed.hash) {
-    throw new Error('Enter a server address such as https://atulya.atulvij.com');
+    throw new Error('Enter a server address such as https://your-server.example.com');
   }
   if (parsed.protocol === 'http:' && !['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname)) {
     throw new Error('Use HTTPS for any non-local server so your sign-in stays private.');

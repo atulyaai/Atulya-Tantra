@@ -212,17 +212,17 @@ def _arm(monkeypatch, channel, targets):
 @pytest.mark.asyncio
 async def test_a_due_reminder_reaches_the_phone_not_only_the_browser(monkeypatch):
     channel = _FakeTelegram()
-    sevak = _arm(monkeypatch, channel, ["1484854122"])
+    sevak = _arm(monkeypatch, channel, ["123456789"])
 
     await sevak._relay_notification(_Event({"title": "Reminder", "message": "Call Mum"}))
 
-    assert channel.sent == [("1484854122", "Reminder: Call Mum")]
+    assert channel.sent == [("123456789", "Reminder: Call Mum")]
 
 
 @pytest.mark.asyncio
 async def test_telegram_can_be_switched_off_without_stopping_the_relay(monkeypatch):
     channel = _FakeTelegram()
-    sevak = _arm(monkeypatch, channel, ["1484854122"])
+    sevak = _arm(monkeypatch, channel, ["123456789"])
     monkeypatch.setenv("ATULYA_TELEGRAM_PUSH", "off")
 
     await sevak._relay_notification(_Event({"title": "Reminder", "message": "Call Mum"}))
@@ -233,7 +233,7 @@ async def test_telegram_can_be_switched_off_without_stopping_the_relay(monkeypat
 @pytest.mark.asyncio
 async def test_an_announcement_with_nothing_to_say_is_not_sent(monkeypatch):
     channel = _FakeTelegram()
-    sevak = _arm(monkeypatch, channel, ["1484854122"])
+    sevak = _arm(monkeypatch, channel, ["123456789"])
 
     await sevak._relay_notification(_Event({"title": "Reminder", "message": ""}))
 
@@ -262,7 +262,7 @@ async def test_with_no_telegram_configured_the_websocket_still_hears_it(monkeypa
 @pytest.mark.asyncio
 async def test_the_title_is_only_repeated_when_it_adds_something(monkeypatch):
     channel = _FakeTelegram()
-    sevak = _arm(monkeypatch, channel, ["1484854122"])
+    sevak = _arm(monkeypatch, channel, ["123456789"])
 
     await sevak._relay_notification(_Event({"title": "done", "message": "done"}))
 

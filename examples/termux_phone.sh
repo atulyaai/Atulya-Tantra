@@ -2,7 +2,7 @@
 # Optional Termux companion. Grant Android permissions only for features you use.
 set -euo pipefail
 
-SERVER=${ATULYA_SERVER:-${ATULYA_SERVER_URL:-https://atulya.atulvij.com}}
+SERVER=${ATULYA_SERVER:-${ATULYA_SERVER_URL:-}}
 TOKEN=${ATULYA_DEVICE_TOKEN:-}
 POLL_SECONDS=${ATULYA_POLL_SECONDS:-15}
 RINGTONE=${ATULYA_RINGTONE:-}
@@ -37,7 +37,7 @@ case "${1:-}" in
 esac
 
 if [[ "$SERVER" != https://* ]]; then
-  echo "Use an https:// ATULYA_SERVER." >&2
+  echo "Set ATULYA_SERVER to where your own Atulya runs, e.g. https://your-server.example.com" >&2
   exit 2
 fi
 for command in curl jq; do

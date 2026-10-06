@@ -5,7 +5,7 @@ The companion uses the phone device token issued by Atulya's pairing screen. It 
 1. Install Termux and Termux:API from the same trusted source. In Termux run `pkg install termux-api curl jq`. **PASS:** `termux-sms-list -l 1` runs after granting the SMS permission. **FAIL:** install the matching Termux:API app and grant only the permissions for features you plan to use.
 2. In Atulya, open the Devices or Pairing screen and create a one-time phone pairing code. **PASS:** a short-lived code is shown. **FAIL:** sign in as the admin and check that device pairing is enabled.
 3. In Termux, set the server address and pairing code, then start the helper:
-   `export ATULYA_SERVER=https://atulya.atulvij.com`
+   `export ATULYA_SERVER=https://your-server.example.com`
    `export ATULYA_PAIR_CODE='your-one-time-code'`
    `bash examples/termux_phone.sh`
    **PASS:** it reports that the companion is connected and saves its token under `$HOME/.config/atulya/`. **FAIL:** check the server URL, code expiry, and network connection; create a fresh pairing code if needed.
