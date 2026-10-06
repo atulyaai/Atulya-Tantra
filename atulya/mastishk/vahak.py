@@ -218,10 +218,12 @@ class OpenRouterProvider(IntelligenceProvider):
     """
 
     URL = "https://openrouter.ai/api/v1/chat/completions"
+    # Checked against https://openrouter.ai/api/v1/models: the qwen slug that
+    # used to lead this list no longer exists, so the very first request 404'd.
     DEFAULT_MODELS = (
-        "qwen/qwen3.8-27b:free",
         "google/gemma-4-31b-it:free",
         "nvidia/nemotron-3-super-120b-a12b:free",
+        "google/gemma-4-26b-a4b-it:free",
     )
 
     def name(self) -> str:
@@ -262,13 +264,8 @@ class OpenRouterProvider(IntelligenceProvider):
         # Some reasoning models wrap their thinking in <think>…</think>.
         return re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
 
-    async def chat_stream(self, prompt: str, system_prompt: str = "") -> AsyncIterator[str]:
-        """Stream text tokens from the first configured OpenRouter model."""
-        if not self._key():
-            raise ValueError("OPENROUTER_API_KEY is not configured")
-        model = self.models()[0]
-        messages = ([{"role": "system", "content": system_prompt}] if system_prompt else []) + [
-            {"role": "user", "content": prompt}]
+    def _open_stream(self, model: str, messages: list[dict[str, str]]) -> tuple[asyncio.Queue, object]:
+        """Start one model streaming into a queue. Returns (queue, sentinel)."""
         payload = {"model": model, "messages": messages, "max_tokens": 1024, "stream": True}
         req = urllib.request.Request(
             self.URL, data=json.dumps(payload).encode("utf-8"), method="POST",
@@ -299,10 +296,36 @@ class OpenRouterProvider(IntelligenceProvider):
                 loop.call_soon_threadsafe(queue.put_nowait, done)
 
         threading.Thread(target=pump, daemon=True).start()
-        while (piece := await queue.get()) is not done:
-            if isinstance(piece, Exception):
-                raise piece
-            yield piece
+        return queue, done
+
+    async def chat_stream(self, prompt: str, system_prompt: str = "") -> AsyncIterator[str]:
+        """Stream from the first configured model that actually answers.
+
+        This used to take ``models()[0]`` and give up, so one slug that had been
+        removed or renamed sank the whole provider while two working models sat
+        behind it — the user saw "my brain isn't loaded" with every key set.
+        A model is only abandoned once it fails *before* saying anything; once
+        tokens have been handed over the answer belongs to that model.
+        """
+        if not self._key():
+            raise ValueError("OPENROUTER_API_KEY is not configured")
+        messages = ([{"role": "system", "content": system_prompt}] if system_prompt else []) + [
+            {"role": "user", "content": prompt}]
+        last_error: Exception | None = None
+        for model in self.models():
+            queue, done = self._open_stream(model, messages)
+            sent_any = False
+            while (piece := await queue.get()) is not done:
+                if isinstance(piece, Exception):
+                    if sent_any:
+                        raise piece
+                    last_error = piece
+                    break
+                sent_any = True
+                yield piece
+            else:
+                return  # this model ran to the end
+        raise last_error or RuntimeError("no OpenRouter model answered")
 
     def _ask_image(self, model: str, prompt: str, image_bytes: bytes, mime_type: str) -> str:
         """Ask one OpenRouter model to interpret a private image from a data URL."""
@@ -550,7 +573,7 @@ CLOUD_BUSY_MESSAGE = (
 
 NO_BRAIN_MESSAGE = (
     "My brain isn't loaded yet, so I can only do simple commands like the time or reminders. "
-    "Run start.bat again to install the local model, then ask me again."
+    "Run python install.py to add a brain key (it works on Windows and on Linux), then ask me again."
 )
 
 

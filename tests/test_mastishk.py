@@ -693,6 +693,76 @@ def test_openrouter_image_analysis_skips_models_without_image_support(monkeypatc
     assert all(call[1:] == ("What is this?", b"image-bytes", "image/png") for call in calls)
 
 
+def test_chat_stream_falls_through_to_the_next_model(monkeypatch):
+    """One removed slug must not sink the provider.
+
+    chat_stream took models()[0] and gave up, so a model OpenRouter had deleted
+    made every request 404 while two working models sat behind it. The user had
+    every key set and still got "my brain isn't loaded".
+    """
+    import io
+    import urllib.error
+
+    from atulya.mastishk import OpenRouterProvider
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("ATULYA_OPENROUTER_MODEL", "gone/model,working/model")
+    provider = OpenRouterProvider()
+    tried: list[str] = []
+
+    def fake_open_stream(model, messages):
+        tried.append(model)
+        queue: asyncio.Queue = asyncio.Queue()
+        done = object()
+        if model == "gone/model":
+            queue.put_nowait(urllib.error.HTTPError("https://x", 404, "Not Found", {}, io.StringIO()))
+        else:
+            queue.put_nowait("Hello ")
+            queue.put_nowait("there")
+        queue.put_nowait(done)
+        return queue, done
+
+    monkeypatch.setattr(provider, "_open_stream", fake_open_stream)
+
+    async def run():
+        return "".join([piece async for piece in provider.chat_stream("hi")])
+
+    assert asyncio.run(run()) == "Hello there"
+    assert tried == ["gone/model", "working/model"]
+
+
+def test_chat_stream_raises_once_every_model_has_failed(monkeypatch):
+    """With no model left it must raise, so the router moves to the next provider."""
+    import io
+    import urllib.error
+
+    import pytest
+
+    from atulya.mastishk import OpenRouterProvider
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("ATULYA_OPENROUTER_MODEL", "gone/a,gone/b")
+    provider = OpenRouterProvider()
+    tried: list[str] = []
+
+    def fake_open_stream(model, messages):
+        tried.append(model)
+        queue: asyncio.Queue = asyncio.Queue()
+        done = object()
+        queue.put_nowait(urllib.error.HTTPError("https://x", 404, "Not Found", {}, io.StringIO()))
+        queue.put_nowait(done)
+        return queue, done
+
+    monkeypatch.setattr(provider, "_open_stream", fake_open_stream)
+
+    async def run():
+        return [piece async for piece in provider.chat_stream("hi")]
+
+    with pytest.raises(urllib.error.HTTPError):
+        asyncio.run(run())
+    assert tried == ["gone/a", "gone/b"]
+
+
 def test_telegram_photo_download_uses_largest_photo(monkeypatch):
     from atulya.sandesh import ChannelMessage, TelegramChannel
 

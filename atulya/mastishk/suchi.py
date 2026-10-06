@@ -33,7 +33,7 @@ CATALOG: list[Spec] = [
     Spec("nvidia", "NVIDIA NIM", "NVIDIA_API_KEY", "ATULYA_NVIDIA_MODEL", "meta/llama-3.1-8b-instruct",
          free="free tier", docs="https://build.nvidia.com/", builtin=True),
     Spec("openrouter", "OpenRouter (many models, free ones)", "OPENROUTER_API_KEY", "ATULYA_OPENROUTER_MODEL",
-         "qwen/qwen3.8-27b:free", free="free tier", docs="https://openrouter.ai/keys", builtin=True),
+         "google/gemma-4-31b-it:free", free="free tier", docs="https://openrouter.ai/keys", builtin=True),
     Spec("opencode", "OpenCode Go", "OPENCODE_API_KEY", "ATULYA_OPENCODE_MODEL", "deepseek-v4-flash",
          free="paid", docs="https://opencode.ai/auth", builtin=True),
     # One generic class, many providers
