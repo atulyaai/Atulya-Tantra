@@ -68,24 +68,21 @@ post_items() {
 }
 
 sync_sms() {
-  termux-sms-list -l 100 | jq '{items: [.[] | {address, body, date, type}]}' | {
-    read -r payload
-    post_items sms "$payload"
-  }
+  local payload
+  payload=$(termux-sms-list -l 100 | jq -c '{items: [.[] | {address, body, date, type}]}')
+  post_items sms "$payload"
 }
 
 sync_notifications() {
-  termux-notification-list | jq '{items: [.[] | {packageName:(.packageName // "" | tostring | .[0:100]), id, title:(.title // "" | tostring | .[0:500]), content:(.content // "" | tostring | .[0:2500]), postedTime}] | .[:100]}' | {
-    read -r payload
-    post_items notifications "$payload"
-  }
+  local payload
+  payload=$(termux-notification-list | jq -c '{items: [.[]? | {packageName:(.packageName // "" | tostring | .[0:100]), id, title:(.title // "" | tostring | .[0:500]), content:(.content // "" | tostring | .[0:2500]), postedTime}] | .[:100]}')
+  post_items notifications "$payload"
 }
 
 sync_location() {
-  termux-location -p network -r once | jq '{items: [. | {latitude, longitude, accuracy, altitude, bearing, speed, elapsedMs, provider}]}' | {
-    read -r payload
-    post_items location "$payload"
-  }
+  local payload
+  payload=$(termux-location -p network -r once | jq -c '{items: [. | {latitude, longitude, accuracy, altitude, bearing, speed, elapsedMs, provider}]}')
+  post_items location "$payload"
 }
 
 run_command() {

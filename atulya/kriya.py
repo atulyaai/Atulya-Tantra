@@ -2906,13 +2906,15 @@ async def clipboard(action: str, text: str = "") -> str:
 
 
 @tool("screen", "See and use the screen: read what is on it, list or switch windows, click, move or scroll the mouse", {
-    "action": {"type": "string", "description": "read, windows, focus, click, double_click, right_click, move, scroll"},
+    "action": {"type": "string", "description": "read, windows, focus, click_text, click, double_click, right_click, move, scroll"},
     "title": {"type": "string", "description": "focus: part of the window title", "default": ""},
+    "text": {"type": "string", "description": "click_text: exact visible label to click", "default": ""},
     "x": {"type": "integer", "description": "click/move: pixels from the left", "default": 0},
     "y": {"type": "integer", "description": "click/move: pixels from the top", "default": 0},
     "amount": {"type": "integer", "description": "scroll: positive up, negative down", "default": 0},
 })
-async def screen(action: str, title: str = "", x: int = 0, y: int = 0, amount: int = 0) -> str:
+async def screen(action: str, title: str = "", x: int = 0, y: int = 0, amount: int = 0,
+                 text: str = "") -> str:
     from atulya import sharir as s
 
     act = (action or "").strip().lower()
@@ -2922,6 +2924,8 @@ async def screen(action: str, title: str = "", x: int = 0, y: int = 0, amount: i
         return await _on_computer("screen.windows", {}, s.window_list)
     if act == "focus":
         return await _on_computer("screen.focus", {"title": title}, s.window_focus, title)
+    if act == "click_text":
+        return await _on_computer("screen.click_text", {"text": text}, s.click_text, text)
     return await _on_computer(f"screen.{act}", {"x": x, "y": y, "amount": amount}, s.mouse, act, x, y, amount)
 
 
@@ -3398,6 +3402,13 @@ async def twilio_sms(to: str, body: str) -> str:
         return f"SMS failed: {exc}"
 
 
+def _twilio_say_twiml(text: str) -> str:
+    """Build a TwiML Say response without allowing text to inject XML verbs."""
+    from xml.sax.saxutils import escape as xml_escape
+
+    return f"<Response><Say>{xml_escape(text)}</Say></Response>"
+
+
 @tool("twilio_call", "Make a voice call via Twilio (TTS or recorded)", {
     "to": {"type": "string", "description": "Destination phone number in E.164 format"},
     "text": {"type": "string", "description": "Text to speak (TTS)", "default": ""},
@@ -3418,7 +3429,7 @@ async def twilio_call(to: str, text: str = "", url: str = "") -> str:
         client = Client(account_sid, auth_token)
         call = client.calls.create(
             to=to, from_=from_number,
-            twiml=f"<Response><Say>{text}</Say></Response>" if text else None,
+            twiml=_twilio_say_twiml(text) if text else None,
             url=url if url else None,
         )
         return f"Call started to {to} (SID: {call.sid})"
@@ -3427,10 +3438,17 @@ async def twilio_call(to: str, text: str = "", url: str = "") -> str:
 
 
 # ── Home Assistant ───────────────────────────────────────────────────────────
+_HA_ENTITY_ID_RE = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
+_HA_SERVICE_PART_RE = re.compile(r"^[a-z0-9_]+$")
+
+
 @tool("ha_state", "Get the state of a Home Assistant entity", {
     "entity_id": {"type": "string", "description": "Entity ID (e.g. binary_sensor.front_door)"},
 })
 async def ha_state(entity_id: str) -> str:
+    entity_id = str(entity_id).strip()
+    if not _HA_ENTITY_ID_RE.fullmatch(entity_id):
+        return "Entity ID must look like domain.object (for example light.kitchen)."
     url = os.environ.get("HOME_ASSISTANT_URL", "").rstrip("/")
     token = os.environ.get("HOME_ASSISTANT_TOKEN", "")
     if not url or not token:
@@ -3460,6 +3478,13 @@ async def ha_state(entity_id: str) -> str:
     "data": {"type": "object", "description": "Service data (JSON)", "default": {}},
 })
 async def ha_call_service(domain: str, service: str, entity_id: str, data: dict = None) -> str:
+    domain, service, entity_id = (str(value).strip() for value in (domain, service, entity_id))
+    if not _HA_SERVICE_PART_RE.fullmatch(domain) or not _HA_SERVICE_PART_RE.fullmatch(service):
+        return "Home Assistant domain and service must contain only letters, numbers, and underscores."
+    if not _HA_ENTITY_ID_RE.fullmatch(entity_id):
+        return "Entity ID must look like domain.object (for example light.kitchen)."
+    if data is not None and not isinstance(data, dict):
+        return "Service data must be an object."
     url = os.environ.get("HOME_ASSISTANT_URL", "").rstrip("/")
     token = os.environ.get("HOME_ASSISTANT_TOKEN", "")
     if not url or not token:
@@ -3469,7 +3494,7 @@ async def ha_call_service(domain: str, service: str, entity_id: str, data: dict 
             resp = await client.post(
                 f"{url}/api/services/{domain}/{service}",
                 headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-                json={"entity_id": entity_id, **(data or {})},
+                json={**(data or {}), "entity_id": entity_id},
             )
         resp.raise_for_status()
         return f"Service {domain}.{service} called on {entity_id}"
@@ -3481,6 +3506,9 @@ async def ha_call_service(domain: str, service: str, entity_id: str, data: dict 
     "domain": {"type": "string", "description": "Filter by domain (e.g. binary_sensor, sensor)", "default": ""},
 })
 async def ha_entities(domain: str = "") -> str:
+    domain = str(domain).strip()
+    if domain and not _HA_SERVICE_PART_RE.fullmatch(domain):
+        return "Domain must contain only letters, numbers, and underscores."
     url = os.environ.get("HOME_ASSISTANT_URL", "").rstrip("/")
     token = os.environ.get("HOME_ASSISTANT_TOKEN", "")
     if not url or not token:

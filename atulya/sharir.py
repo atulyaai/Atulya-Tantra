@@ -388,6 +388,96 @@ def read_screen() -> str:
     return text[:MAX_READ] or "I couldn't find any text on the screen."
 
 
+
+def _read_ocr_data(path: str) -> tuple[dict, int, int]:
+    """Return word boxes and the screenshot dimensions, using local Tesseract."""
+    from PIL import Image
+    import pytesseract
+
+    image = Image.open(path)
+    data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
+    return data, int(image.width), int(image.height)
+
+
+def _normalize_ocr_text(value: str) -> str:
+    import unicodedata
+
+    kept = "".join(
+        char if (char.isalnum() or char.isspace() or unicodedata.category(char)[0] == "M") else " "
+        for char in (value or "").casefold()
+    )
+    return " ".join(kept.split())
+
+
+def _find_ocr_box(data: dict, target: str) -> tuple[int, int]:
+    """Find one exact, contiguous OCR label; refuse missing or ambiguous matches."""
+    wanted = _normalize_ocr_text(target).split()
+    if not wanted:
+        raise Refused("Tell me the exact text to click.")
+    count = len(data.get("text", []))
+    groups: dict[tuple[str, str, str], list[dict]] = {}
+    for index in range(count):
+        word = _normalize_ocr_text(str(data["text"][index]))
+        if not word:
+            continue
+        try:
+            confidence = float(data.get("conf", [100] * count)[index])
+        except (TypeError, ValueError, IndexError):
+            confidence = 0.0
+        if confidence < 30:
+            continue
+        key = tuple(str(data.get(name, [0] * count)[index]) for name in ("block_num", "par_num", "line_num"))
+        groups.setdefault(key, []).append({
+            "words": word.split(),
+            "left": int(data["left"][index]),
+            "top": int(data["top"][index]),
+            "width": int(data["width"][index]),
+            "height": int(data["height"][index]),
+        })
+
+    matches: list[tuple[int, int]] = []
+    for rows in groups.values():
+        tokens = [token for row in rows for token in row["words"]]
+        for start in range(len(tokens) - len(wanted) + 1):
+            if tokens[start:start + len(wanted)] != wanted:
+                continue
+            left = min(row["left"] for row in rows[start:start + len(wanted)])
+            top = min(row["top"] for row in rows[start:start + len(wanted)])
+            right = max(row["left"] + row["width"] for row in rows[start:start + len(wanted)])
+            bottom = max(row["top"] + row["height"] for row in rows[start:start + len(wanted)])
+            matches.append(((left + right) // 2, (top + bottom) // 2))
+    if not matches:
+        raise Refused(f"I couldn't find the exact screen text {target!r}.")
+    if len(matches) != 1:
+        raise Refused(f"I found {len(matches)} matches for {target!r}; give me a more specific label.")
+    return matches[0]
+
+
+def click_text(target: str) -> str:
+    """Click a unique exact label found by local OCR; confirmation is required by the caller."""
+    require("full")
+    target = str(target or "").strip()
+    if not target:
+        raise Refused("Tell me the exact text to click.")
+    shot = screenshot()
+    try:
+        data, image_width, image_height = _read_ocr_data(shot)
+        x, y = _find_ocr_box(data, target)
+    except Refused:
+        raise
+    except Exception as exc:  # noqa: BLE001 - OCR is optional and can fail on a local machine
+        raise Refused(f"I couldn't read the screen; install Tesseract and pytesseract. ({type(exc).__name__})") from exc
+    if image_width <= 0 or image_height <= 0:
+        raise Refused("The screen image has invalid dimensions.")
+    gui = _gui()
+    screen_width, screen_height = gui.size()
+    x = round(x * screen_width / image_width)
+    y = round(y * screen_height / image_height)
+    if not (0 <= x < screen_width and 0 <= y < screen_height):
+        raise Refused(f"The text location is outside the screen ({screen_width}x{screen_height}).")
+    gui.click(x, y)
+    return f"Clicked the text {target!r}."
+
 def mouse(action: str, x: int = 0, y: int = 0, amount: int = 0) -> str:
     require("full")
     g = _gui()

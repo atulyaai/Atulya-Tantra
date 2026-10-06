@@ -20,7 +20,7 @@ dependencies = [
     "python-dotenv>=1.0",
     "python-multipart>=0.0.6",
     "websockets>=11.0",
-    "duckduckgo-search>=6.0",
+    "ddgs>=9.0",
     "feedparser>=6.0",
     "python-dateutil>=2.8",
     "croniter>=2.0",
@@ -75,11 +75,11 @@ voice_id = [
     "pyannote.audio>=3.0",
 ]
 # Termux wake word listener (optional extra for phone).
-termux_wake = [
+shruti_phone = [
     "openwakeword>=0.6",
     "onnxruntime>=1.16",
-    "webrtcvad>=2.0",
-    "soundfile>=0.12",
+    "numpy>=1.24",
+    "sounddevice>=0.4",
 ]
 # Cameras: motion + person detection for "someone is at the door".
 vision = [
@@ -122,7 +122,7 @@ dev = [
 atulya = "atulya.adesh:main"
 atulya-listen = "atulya.shruti:main"
 atulya-watchdog = "atulya.watchdog:main"
-atulya-termux-wake = "atulya.termux_wake:main"
+atulya-shruti-phone = "atulya.shruti_phone:main"
 
 [tool.setuptools.dynamic]
 version = {attr = "atulya.__version__"}

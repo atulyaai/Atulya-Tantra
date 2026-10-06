@@ -151,6 +151,16 @@ Atulya never reads out emoji and answers "what can you do" with a real list.
 5. Add to the home screen: **iOS** Share, Add to Home Screen; **Android** menu, Install app.
 6. Away from home: install Tailscale on the PC and phone and use the private address (`http://100.x.y.z:8501`). Avoid exposing the port to the internet.
 
+### Hands-free listening in Termux
+
+Install Termux and its matching Termux:API app from the same trusted source. Install the phone listener with `pip install -e ".[shruti_phone]"`, pair the phone in Atulya, then run:
+
+```sh
+atulya-shruti-phone --server https://YOUR_SERVER:8501 --token YOUR_DEVICE_TOKEN --model /path/to/wake-model.onnx
+```
+
+The listener reuses `श्रुति` audio segmentation, authenticated speech recognition, chat, and local Android text-to-speech. Wake detection runs on the phone; provide a compatible OpenWakeWord model with `--model` or `ATULYA_WAKE_MODEL`. Atulya does not ship a trained Hindi wake-word model yet, and microphone behavior still needs verification on a real Termux phone. The phone sends audio only after local wake detection; keep device pairing scoped to the permissions it needs.
+
 ## Devices
 
 TV, phone, lights, plugs, PCs: say "scan for devices", "add number 1 as living room TV", then "turn off the TV" or "volume up 5 on the TV". Works through HTTP profiles (Roku, Kodi, Tasmota, WLED, Shelly and more), Android over ADB, Wake-on-LAN, and Home Assistant (thousands of brands). Atulya can also draft a profile for a device it doesn't know. See [granth/DEVICES.md](granth/DEVICES.md) for what is and isn't covered.
