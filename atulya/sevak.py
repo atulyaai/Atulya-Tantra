@@ -182,13 +182,15 @@ async def lifespan(app: FastAPI):
     from atulya.kriya import AgentCore
     from atulya.mastishk import get_default_llm
 
-    app.state.llm = get_default_llm()
-    # One manager for the whole process: the brain reads its tools from here
-    # via build_unified_registry(), so an entry enabled in setu_servers.json
-    # actually reaches the model instead of being discovered and dropped.
+    # One manager for the whole process, and it must be connected BEFORE the
+    # brain is built: get_default_llm() is an lru_cache singleton, and
+    # AtulyaLLM.__init__ snapshots the tool list via build_unified_registry().
+    # Building the brain first handed the model an empty MCP tool set for the
+    # life of the process -- servers were connected and then never looked at.
     app.state.mcp_manager = _mcp_manager()
     app.state.mcp_errors = app.state.mcp_manager.errors  # same list, readable either way
     await _connect_mcp_servers(app)
+    app.state.llm = get_default_llm()
     api._seed_default_jobs()
     app.state.automation_runner = AutomationRunner(api.JOBS_FILE, app.state.llm)
     app.state.automation_task = asyncio.create_task(app.state.automation_runner.start())

@@ -231,16 +231,23 @@ class TelegramChannel(ChannelBase):
         except Exception as exc:
             lines.append(f"🧠 Brain: error ({exc})")
 
-        # MCP servers
+        # MCP servers. Report what reaches the brain, not what the manager
+        # holds: a server that connected but whose tools were never handed to
+        # the model is not connected as far as the conversation is concerned.
         try:
+            from atulya.mastishk import get_default_llm
             from atulya.setu import get_manager
             mgr = get_manager()
             errs = mgr.errors if hasattr(mgr, "errors") else []
-            tool_count = len(mgr.all_tools()) if hasattr(mgr, "all_tools") else 0
+            brain_tools = {str(t.get("name") or "") for t in get_default_llm().tools.list_tools()}
+            reachable = sum(1 for n in brain_tools if n.startswith("mcp_"))
+            offered = len(mgr.all_tools()) if hasattr(mgr, "all_tools") else 0
+            detail = f"{reachable} tools reaching the brain"
+            if offered != reachable:
+                detail += f" of {offered} offered"
             if errs:
-                lines.append(f"🔌 MCP: {tool_count} tools, {len(errs)} server error(s)")
-            else:
-                lines.append(f"🔌 MCP: {tool_count} tools connected")
+                detail += f", {len(errs)} server error(s)"
+            lines.append(f"🔌 MCP: {detail}")
         except Exception:
             lines.append("🔌 MCP: not started")
 

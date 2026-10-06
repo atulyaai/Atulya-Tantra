@@ -34,8 +34,8 @@
     },
     {
       "name": "fetch",
-      "enabled": false,
-      "timeout": 5,
+      "enabled": true,
+      "timeout": 10,
       "transport": "stdio",
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-fetch"]
@@ -76,25 +76,6 @@
       "transport": "stdio",
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-memory"]
-    },
-    {
-      "name": "fetch",
-      "enabled": true,
-      "timeout": 10,
-      "transport": "stdio",
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-fetch"]
-    },
-    {
-      "name": "brave-search",
-      "enabled": false,
-      "timeout": 10,
-      "transport": "stdio",
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
-      "env": {
-        "BRAVE_API_KEY": ""
-      }
     },
     {
       "name": "google_drive",

@@ -344,6 +344,10 @@ def test_mcp_config_enables_only_what_can_work_unattended():
     data = json.loads(open("atulya/setu_servers.json", encoding="utf-8").read())
     assert all("enabled" in server for server in data["servers"])
     assert all("timeout" in server for server in data["servers"])
+    # A name twice is not a second server: it is the same one connected twice,
+    # which spends a timeout and logs a spurious failure on every boot.
+    names = [server["name"] for server in data["servers"]]
+    assert len(names) == len(set(names)), "duplicate server name in setu_servers.json"
     by_name = {server["name"]: server for server in data["servers"]}
     assert set(by_name) == {"filesystem", "git", "playwright", "mqtt", "fetch", "brave-search", "memory", "google_drive", "twilio", "home-assistant"}
     assert {name for name, s in by_name.items() if s["enabled"]} == {"filesystem", "git", "playwright", "fetch"}
