@@ -1,4 +1,4 @@
-"""Tests for atulya/dwar.py."""
+"""Tests for atulya/dwar/."""
 from __future__ import annotations
 
 import json
@@ -14,6 +14,27 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from atulya.dwar import build_dashboard
+
+
+def _fresh_dwar(name: str):
+    """Load an isolated copy of the ``atulya.dwar`` package.
+
+    A copy rather than the shared import keeps each test's module globals to
+    itself: several of them reassign ``HISTORY_FILE`` and must not leak that into
+    the rest of the suite. The package moved from one file to a directory, so the
+    loader points at ``dwar/__init__.py`` and must be told it is a package.
+    """
+    import importlib.util
+    import sys
+
+    root = Path(__file__).resolve().parents[1] / "atulya" / "dwar"
+    spec = importlib.util.spec_from_file_location(
+        name, str(root / "__init__.py"), submodule_search_locations=[str(root)]
+    )
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return mod
 
 
 # ── test_openai_route ────────────────────────────────────────────────────────────
@@ -413,45 +434,21 @@ class TestSpiritChatPanel:
     """
 
     def test_voice_chat_endpoint_structure(self):
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "voice",
-            str(Path(__file__).resolve().parents[1] / "atulya" / "dwar.py"),
-        )
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
+        mod = _fresh_dwar("voice")
         assert hasattr(mod, "router")
 
     def test_voice_chat_endpoint_exists(self):
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "voice",
-            str(Path(__file__).resolve().parents[1] / "atulya" / "dwar.py"),
-        )
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
+        mod = _fresh_dwar("voice")
         routes = [route.path for route in mod.router.routes]
         assert "/api/voice/chat" in routes
 
     def test_tts_endpoint_exists(self):
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "voice",
-            str(Path(__file__).resolve().parents[1] / "atulya" / "dwar.py"),
-        )
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
+        mod = _fresh_dwar("voice")
         routes = [route.path for route in mod.router.routes]
         assert "/api/voice/tts" in routes
 
     def test_voices_endpoint_exists(self):
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "voice",
-            str(Path(__file__).resolve().parents[1] / "atulya" / "dwar.py"),
-        )
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
+        mod = _fresh_dwar("voice")
         routes = [route.path for route in mod.router.routes]
         assert "/api/voice/voices" in routes
 
@@ -718,14 +715,7 @@ class TestIntentClassification:
 # ── test_chat_history_integration ────────────────────────────────────────────────────────────
 class TestChatHistoryMerge:
     def _import_merge(self):
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "chat",
-            str(Path(__file__).resolve().parents[1] / "atulya" / "dwar.py"),
-        )
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        return mod._merge_history
+        return _fresh_dwar("chat")._merge_history
 
     def test_merge_empty_histories(self):
         merge_fn = self._import_merge()
@@ -806,14 +796,7 @@ class TestChatHistoryMerge:
 
 class TestChatHistoryPersistence:
     def _get_module(self):
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "chat_history",
-            str(Path(__file__).resolve().parents[1] / "atulya" / "dwar.py"),
-        )
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        return mod
+        return _fresh_dwar("chat_history")
 
     def test_append_and_list(self, tmp_path):
         mod = self._get_module()

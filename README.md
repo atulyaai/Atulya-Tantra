@@ -210,7 +210,7 @@ Current Python module names (legacy names; English responsibilities):
 | `sandesh.py` | Messaging channels | Telegram, Discord, Slack, email and web push |
 | `queue.py` | Paired-device queues | Shared JSON store and short-lived command queues for paired computers and phones |
 | `sevak.py` | Server lifecycle | FastAPI application startup and shutdown |
-| `dwar.py` | API routes | Accounts, chat, voice, automation, devices and dashboard routes |
+| `dwar/` | API routes | Accounts, sessions, chat history and auth in `__init__.py`; auth, system, chat, voice, notification, device, fabric, automation and agent routes in `routes_*.py` |
 | `raksha.py` | Security | Vault, HTTPS certificates and security helpers |
 | `sharir.py` | Computer control | Files, clipboard, windows, mouse, screen and commands |
 | `bhava.py` | Persona | Assistant identity and response style |
