@@ -197,7 +197,7 @@ Current Python module names (legacy names; English responsibilities):
 | Current module | Responsibility | What it holds |
 |---|---|---|
 | `buddhi.py` | Agent orchestration | Request flow, planning, routines, reflexes and user learning |
-| `mastishk.py` | Brain and providers | Model tiers, provider catalog, tool selection, failover and local inference |
+| `mastishk/` | Brain and providers | Model tiers, provider catalog, policy, tool selection, failover and local inference; tiers, catalog, policy and providers each in their own module |
 | `kriya/` | Actions | Assistant tools, intent routing, money, media, PC control and audit log; skills in `*.py`, registry and state in `__init__.py` |
 | `jaal.py` | Web integrations | Browser automation, web search, Gmail and Google Calendar |
 | `kaushal.py` | Capabilities | Document, spreadsheet, chart and content creation |

@@ -142,7 +142,7 @@ If either Google server is enabled without credentials, readiness reports `produ
 
 - **Login:** API routes need a session token or the admin token (`X-Atulya-Token`), compared in constant time. On the computer Atulya runs on, `/api/auth/local` signs you in without a password; it refuses proxied and remote requests, and `ATULYA_REQUIRE_LOGIN=on` turns it off.
 - **Admin-only details:** normal users never see which model or provider answers, tool traces, server health, telemetry, the audit log, the model list, or the Brains & keys, Reflexes, Routines and Senses pop-ups. The server enforces this (403), and replies to normal users carry no model details. Normal users can chat, talk, see their own history and the About you pop-up.
-- **Risky actions ask first:** sending email, deleting events or reminders, unlocking doors, running code, and all PC control need your confirmation (`atulya/mastishk.py`). `ATULYA_AUTO_APPROVE` can pre-approve specific ones.
+- **Risky actions ask first:** sending email, deleting events or reminders, unlocking doors, running code, and all PC control need your confirmation (`atulya/mastishk/`). `ATULYA_AUTO_APPROVE` can pre-approve specific ones.
 - **PC control is off by default:** `ATULYA_PC_CONTROL=on` enables it; it only opens apps from a fixed list and blocks dangerous shortcuts.
 - **Audit log:** every tool call is appended to `kosh/agent/audit.jsonl` with passwords and tokens masked; admins can read it at `GET /api/audit`.
 - **Triggers cannot be hijacked:** event data never becomes a command, and risky trigger commands are refused unless the rule allows them.

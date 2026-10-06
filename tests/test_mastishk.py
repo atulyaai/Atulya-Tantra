@@ -1,4 +1,4 @@
-"""Tests for atulya/mastishk.py."""
+"""Tests for atulya/mastishk/."""
 
 import asyncio
 import os

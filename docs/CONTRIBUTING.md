@@ -49,7 +49,7 @@ The repository root has `atulya/`, `frontend/`, `docs/`, `tests/`, `examples/`, 
 - New assistant tool: a function with `@tool(...)` in the skill module of `atulya/kriya/` that it belongs to.
 - New device brand: a JSON profile in `upakaran_profiles.json` (or learn it with the brain); a new connection method goes in `upakaran.py`.
 - New API route: in `atulya/dwar/`, next to the routes of the same kind (`routes_auth.py`, `routes_chat.py`, …); shared state and helpers belong in `atulya/dwar/__init__.py`. Anything the tests patch through `atulya.dwar` (config paths, auth helpers) must be read as `_d.<name>` inside a route module, otherwise the patch lands on the package but the route still reads its own copy.
-- A new brain provider: a row in the catalogue in `mastishk.py`.
+- A new brain provider: a row in the catalogue in `atulya/mastishk/suchi.py`.
 - Do not combine unrelated responsibilities just to lower the file count. Split large modules by API, actions, channels, integrations, memory, voice and runtime responsibility.
 
 The NP-DNA research model was removed. Custom model work belongs in a separate repository.

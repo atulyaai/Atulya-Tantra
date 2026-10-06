@@ -11,7 +11,7 @@ from typing import Any
 from atulya import kriya as _d
 
 # ── contacts and messages ────────────────────────────────────────────────────
-# "tell Mum I'm late": a small contact book plus one send tool. Sending always asks first (see mastishk.py), and
+# "tell Mum I'm late": a small contact book plus one send tool. Sending always asks first (see mastishk/), and
 # only reaches a person you saved: Atulya never guesses a recipient or looks one up.
 _CHANNEL_WORDS = {"telegram": "telegram", "whatsapp": "whatsapp", "email": "email", "mail": "email", "slack": "slack",
                   "discord": "discord", "signal": "signal", "sms": "sms"}

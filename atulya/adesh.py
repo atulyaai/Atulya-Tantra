@@ -498,7 +498,9 @@ def run_readiness_checks(root: str | Path = ".") -> dict[str, Any]:
 
 
 def _check_llm_bridge(root: Path) -> ReadinessCheck:
-    return _file_check(root / "atulya" / "llm.py", "LLM bridge", "atulya/mastishk.py is present")
+    # Was atulya/llm.py -- a path that has not existed for a while, so the
+    # readiness report could never grade above "production-candidate".
+    return _file_check(root / "atulya" / "mastishk" / "__init__.py", "LLM bridge", "atulya/mastishk/ is present")
 
 
 def _free_provider_keys() -> list[str]:
