@@ -22,6 +22,7 @@ import urllib.parse
 import urllib.request
 import uuid
 import webbrowser
+import httpx
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from functools import wraps
@@ -3423,6 +3424,81 @@ async def twilio_call(to: str, text: str = "", url: str = "") -> str:
         return f"Call started to {to} (SID: {call.sid})"
     except Exception as exc:  # noqa: BLE001
         return f"Call failed: {exc}"
+
+
+# ── Home Assistant ───────────────────────────────────────────────────────────
+@tool("ha_state", "Get the state of a Home Assistant entity", {
+    "entity_id": {"type": "string", "description": "Entity ID (e.g. binary_sensor.front_door)"},
+})
+async def ha_state(entity_id: str) -> str:
+    url = os.environ.get("HOME_ASSISTANT_URL", "").rstrip("/")
+    token = os.environ.get("HOME_ASSISTANT_TOKEN", "")
+    if not url or not token:
+        return "Home Assistant not configured (set HOME_ASSISTANT_URL and HOME_ASSISTANT_TOKEN)."
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f"{url}/api/states/{entity_id}",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        if resp.status_code == 404:
+            return f"Entity not found: {entity_id}"
+        resp.raise_for_status()
+        data = resp.json()
+        state = data.get("state", "unknown")
+        attrs = data.get("attributes", {})
+        friendly = attrs.get("friendly_name", entity_id)
+        return f"{friendly}: {state}"
+    except Exception as exc:  # noqa: BLE001
+        return f"HA request failed: {exc}"
+
+
+@tool("ha_call_service", "Call a Home Assistant service", {
+    "domain": {"type": "string", "description": "Service domain (e.g. light, switch, climate)"},
+    "service": {"type": "string", "description": "Service name (e.g. turn_on, set_temperature)"},
+    "entity_id": {"type": "string", "description": "Target entity ID"},
+    "data": {"type": "object", "description": "Service data (JSON)", "default": {}},
+})
+async def ha_call_service(domain: str, service: str, entity_id: str, data: dict = None) -> str:
+    url = os.environ.get("HOME_ASSISTANT_URL", "").rstrip("/")
+    token = os.environ.get("HOME_ASSISTANT_TOKEN", "")
+    if not url or not token:
+        return "Home Assistant not configured."
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                f"{url}/api/services/{domain}/{service}",
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                json={"entity_id": entity_id, **(data or {})},
+            )
+        resp.raise_for_status()
+        return f"Service {domain}.{service} called on {entity_id}"
+    except Exception as exc:  # noqa: BLE001
+        return f"HA service call failed: {exc}"
+
+
+@tool("ha_entities", "List Home Assistant entities (optionally filtered)", {
+    "domain": {"type": "string", "description": "Filter by domain (e.g. binary_sensor, sensor)", "default": ""},
+})
+async def ha_entities(domain: str = "") -> str:
+    url = os.environ.get("HOME_ASSISTANT_URL", "").rstrip("/")
+    token = os.environ.get("HOME_ASSISTANT_TOKEN", "")
+    if not url or not token:
+        return "Home Assistant not configured."
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f"{url}/api/states",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        resp.raise_for_status()
+        entities = resp.json()
+        if domain:
+            entities = [e for e in entities if e["entity_id"].startswith(f"{domain}.")]
+        lines = [f"{e['entity_id']}: {e['state']}" for e in entities[:50]]
+        return "\n".join(lines) if lines else "No entities found."
+    except Exception as exc:  # noqa: BLE001
+        return f"HA request failed: {exc}"
 
 
 from atulya import jaal  # noqa: E402,F401  (registers the web tools; jaal needs the tool registry above)
