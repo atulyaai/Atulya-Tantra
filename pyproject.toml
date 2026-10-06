@@ -114,6 +114,11 @@ dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.23",
     "pytest-benchmark>=4.0",
+    # tests/test_examples.py reads the notebooks in examples/; it was never
+    # listed, so `pip install -e ".[dev]" && pytest` died at collection on a
+    # fresh machine while working everywhere the module happened to be
+    # installed already.
+    "nbformat>=5.0",
     "ruff>=0.1",
     "twilio>=9.0",
 ]
