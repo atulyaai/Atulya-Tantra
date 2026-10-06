@@ -48,12 +48,23 @@ async def _post_json(url: str, payload: dict[str, Any], timeout: float = 10.0) -
 
 async def _get_json(url: str, params: dict[str, Any], timeout: float = 10.0) -> tuple[int, dict[str, Any]]:
     import asyncio
+    import urllib.error
+
+    def parse_response(body: str) -> dict[str, Any]:
+        try:
+            result = json.loads(body or "{}")
+        except json.JSONDecodeError:
+            return {}
+        return result if isinstance(result, dict) else {}
 
     def request() -> tuple[int, dict[str, Any]]:
         query = urllib.parse.urlencode(params)
-        with urllib.request.urlopen(f"{url}?{query}", timeout=timeout) as response:
-            body = response.read().decode("utf-8") or "{}"
-            return response.status, json.loads(body)
+        try:
+            with urllib.request.urlopen(f"{url}?{query}", timeout=timeout) as response:
+                body = response.read().decode("utf-8")
+                return response.status, parse_response(body)
+        except urllib.error.HTTPError as exc:
+            return exc.code, parse_response(exc.read().decode("utf-8"))
 
     return await asyncio.to_thread(request)
 
@@ -366,10 +377,18 @@ class TelegramChannel(ChannelBase):
             # Telegram may hold a long-poll for 30 seconds; the HTTP client
             # must wait longer or updates such as /start are silently lost.
             status, payload = await _get_json(url, {"offset": offset, "timeout": 30}, timeout=35)
-            if status >= 400:
-                return []
-        except Exception:
-            logger.warning("Telegram receive failed")
+        except Exception as exc:
+            # Do not include the exception text: urllib errors can contain the
+            # request URL, which embeds the bot token.
+            logger.warning("Telegram receive failed (%s)", type(exc).__name__)
+            return []
+        if status >= 400 or not payload.get("ok", True):
+            description = str(payload.get("description") or "Telegram returned an unspecified API error")
+            token = str(self.config.get("bot_token") or self.config.get("token")
+                        or os.environ.get("ATULYA_TELEGRAM_BOT_TOKEN") or "")
+            if token:
+                description = description.replace(token, "[redacted]")
+            logger.error("Telegram getUpdates rejected (HTTP %s): %s", status, description)
             return []
         messages: list[ChannelMessage] = []
         for update in payload.get("result", []):
