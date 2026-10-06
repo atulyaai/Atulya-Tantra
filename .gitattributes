@@ -1,0 +1,19 @@
+# Store text as LF; checkouts use the platform's native endings (core.autocrlf).
+* text=auto
+
+# Never convert, merge or renormalize these.
+*.bin binary
+*.gguf binary
+*.safetensors binary
+*.onnx binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.mp3 binary
+*.mp4 binary
+*.pdf binary
