@@ -93,8 +93,19 @@ docker compose -f docker-compose.yml up -d
 ```
 
 The container serves the built `frontend/dist/` app and API from port 8501 and keeps `kosh/` on
-your disk. For internet deployment, use a Cloudflare Tunnel ([RECIPES.md](RECIPES.md)) so no
-public inbound web port is required.
+your disk.
+
+```bash
+cp .env.example .env          # then set a dashboard token
+docker compose up -d --build
+```
+
+- It publishes **`127.0.0.1:8501`** by default. Set `ATULYA_DOCKER_BIND=0.0.0.0` only when you
+  need LAN access from other devices.
+- The JWT signing key is created in the persistent `kosh/` volume on first start. Leave
+  `ATULYA_JWT_SECRET_FILE` unset unless you manage the key yourself (for example a Docker secret).
+- For public hosting, put it behind HTTPS or a Cloudflare Tunnel
+  ([RECIPES.md](RECIPES.md#run-it-on-an-oracle-free-vm-behind-cloudflare)).
 
 ### Start at boot on Linux
 
@@ -122,6 +133,9 @@ spaces and a Windows Notepad BOM are all handled — you do not need `start.bat`
 | `ATULYA_ENCRYPTION_KEY` | No | Data encryption key |
 | `ATULYA_TELEGRAM_BOT_TOKEN` | No | Telegram bot |
 | `ATULYA_TELEGRAM_ALLOWLIST` | No | Comma-separated Telegram user ids allowed to talk to Atulya (and to open the Mini App). Empty means nobody |
+| `ATULYA_PUBLIC_URL` | For the Mini App | Public HTTPS origin of this server, e.g. `https://atulya.example.com`. Registered once with @BotFather via `/newapp`; see [RECIPES.md](RECIPES.md#telegram-mini-app-the-hologram-on-your-phone) |
+| `ATULYA_DOCKER_BIND` | Docker only | Bind address for the container. Defaults to `127.0.0.1`; set `0.0.0.0` only when you need LAN access |
+| `ATULYA_JWT_SECRET_FILE` | Docker/secrets | Where to persist the JWT signing key. Leave unset and Atulya creates it in the mounted `kosh/` volume |
 | `ATULYA_TANTRUM_ALLOW_MODEL` | No | Enable local on-device model |
 | `GOOGLE_SERVICE_ACCOUNT_KEY` | No | Google Drive MCP |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GMAIL_REFRESH_TOKEN` | No | Gmail MCP |

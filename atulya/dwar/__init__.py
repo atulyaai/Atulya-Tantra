@@ -94,25 +94,30 @@ def _load_jwt_secret() -> str:
         return os.environ["ATULYA_JWT_SECRET"]
     # Never derive the signing key from the dashboard token: that token appears
     # in logs and examples, so a JWT signed with it would be forgeable.
-    path = Path(os.environ.get("ATULYA_JWT_SECRET_FILE") or _ROOT / "kosh" / "jwt_secret.key")
-    for _ in range(2):
-        try:
-            existing = path.read_text(encoding="utf-8").strip()
-            if existing:
-                return existing
-        except OSError:
-            pass
-        secret = secrets.token_urlsafe(48)
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        except FileExistsError:
-            continue  # another worker created it first: read theirs
-        except OSError:
-            return secret  # read-only disk: tokens last until restart
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(secret)
-        return secret
+    configured = os.environ.get("ATULYA_JWT_SECRET_FILE")
+    paths = [Path(configured)] if configured else []
+    fallback = _ROOT / "kosh" / "jwt_secret.key"
+    if fallback not in paths:
+        paths.append(fallback)
+    for path in paths:
+        for _ in range(2):
+            try:
+                existing = path.read_text(encoding="utf-8").strip()
+                if existing:
+                    return existing
+            except OSError:
+                pass
+            secret = secrets.token_urlsafe(48)
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            except FileExistsError:
+                continue  # another worker created it first: read theirs
+            except OSError:
+                break  # this path is read-only; try the persistent kosh fallback
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(secret)
+            return secret
     return secrets.token_urlsafe(48)
 
 

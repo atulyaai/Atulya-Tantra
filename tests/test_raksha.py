@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 import httpx
 import pytest
@@ -331,6 +332,26 @@ class TestJwtSecret:
         assert secret != "dashboard-token"
         assert len(secret) >= 32
         assert state._load_jwt_secret() == secret  # still stable across restarts
+
+    def test_unwritable_override_falls_back_to_persistent_kosh_key(self, tmp_path, monkeypatch):
+        from atulya import dwar as state
+
+        monkeypatch.delenv("ATULYA_JWT_SECRET", raising=False)
+        override = tmp_path / "read-only" / "jwt.key"
+        monkeypatch.setenv("ATULYA_JWT_SECRET_FILE", str(override))
+        monkeypatch.setattr(state, "_ROOT", tmp_path)
+        original_open = os.open
+
+        def deny_override(path, *args, **kwargs):
+            if Path(path) == override:
+                raise PermissionError("read-only secret mount")
+            return original_open(path, *args, **kwargs)
+
+        monkeypatch.setattr(os, "open", deny_override)
+        secret = state._load_jwt_secret()
+        fallback = tmp_path / "kosh" / "jwt_secret.key"
+        assert fallback.read_text(encoding="utf-8") == secret
+        assert state._load_jwt_secret() == secret
 
 
 # ── CORS ──────────────────────────────────────────────────────────────────

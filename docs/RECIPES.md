@@ -53,14 +53,13 @@ cloudflared makes an outbound tunnel.
 ### 3. Configure secrets and start Atulya
 
 1. Copy `.env.example` to `.env`; edit it on the VM. Set `ATULYA_HOST=0.0.0.0`,
-   `ATULYA_HTTPS=off`, `ATULYA_JWT_SECRET_FILE=/run/secrets/atulya_jwt_secret`,
-   `ATULYA_PC_CONTROL=off`, and `ATULYA_PUBLIC_URL=https://atulya.atulvij.com`. Leave Telegram
-   values blank unless you intentionally configure Telegram. **PASS:** these names and values are
-   present; no secrets have been pasted into chat or committed.
-2. Create `secrets/jwt_secret` using `mkdir -p secrets && openssl rand -hex 32 > secrets/jwt_secret
-   && chmod 600 secrets/jwt_secret && chmod 600 .env`. Add `CF_TUNNEL_TOKEN=` to `.env`; fill it
-   after creating the tunnel. **PASS:** `test -s secrets/jwt_secret` succeeds and its file mode is
-   600.
+   `ATULYA_HTTPS=off`, `ATULYA_PC_CONTROL=off`, and `ATULYA_PUBLIC_URL=https://atulya.atulvij.com`.
+   **Leave `ATULYA_JWT_SECRET_FILE` unset** so Atulya creates its persistent signing key in the
+   mounted `kosh/` directory. Leave Telegram values blank unless you intentionally configure
+   Telegram. **PASS:** these names and values are present; no secrets have been pasted into chat
+   or committed.
+2. Add `CF_TUNNEL_TOKEN=` to `.env`; fill it after creating the tunnel. Protect `.env` with
+   `chmod 600 .env`. **PASS:** the tunnel token stays only in `.env` and is not committed.
 3. Start only Atulya first: `docker compose up -d --build atulya`. This avoids Compose requiring
    the tunnel token before Cloudflare has issued it. **PASS:** `docker compose ps atulya` shows
    Atulya running. **FAIL:** inspect `docker compose logs atulya` and correct the reported
@@ -133,6 +132,23 @@ is a tap away, and the account that signs you in comes from Telegram instead of 
    both; the allowlist is a comma-separated list of numeric Telegram user ids, and
    `atulya doctor` fails while it is empty). An **empty allowlist admits nobody** — deliberately,
    because this endpoint hands out sessions.
+3. `ATULYA_PUBLIC_URL` set to that same public HTTPS origin (the installer prompts for it, or add
+   it to `.env` yourself). It is what the Mini App and the bot menu button point at.
+
+### Extra bot accounts (Bot Management Mode)
+
+For the hologram Mini App you only need the one bot above. If you want **additional** bot
+accounts:
+
+1. Enable **Bot Management Mode** for the main bot in the @BotFather Mini App, once.
+2. Send `/newbot` to Atulya and tap **Create an Atulya bot**. Telegram creates the managed bot;
+   Atulya stores its token in the local `.env`, restricts it to the creating Telegram account, and
+   starts it automatically.
+3. `/deletebot` lists bots. `/removebot ID`, then `/removebot ID confirm`, disconnects and revokes
+   one. Permanently deleting the Telegram account still requires confirmation in @BotFather.
+
+Other channels (WhatsApp, Discord, Slack …) need the account's own credentials, OAuth consent or
+device pairing. Atulya cannot bypass those provider-controlled steps.
 
 ### Register it with BotFather
 

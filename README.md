@@ -91,6 +91,8 @@ One command: it shows what is already configured, asks only for what is missing,
 extras, builds the dashboard and checks that everything works. Secrets are never shown in full —
 only `set (last 4)`.
 
+Other invocations:
+
 | Command | What it does |
 |---|---|
 | `python install.py --doctor` | Report only — changes nothing |
@@ -101,6 +103,9 @@ only `set (last 4)`.
 Manual equivalent: copy `.env.example` to `.env`, add a brain (see below), double-click
 **`start.bat`**, then open http://localhost:8501 in Chrome or Edge and allow the microphone. On the
 computer Atulya runs on there is no login.
+
+The dashboard token is generated for you if you do not have one; it is written only to
+your local `.env`, which is git-ignored.
 
 First start takes a minute. Full detail, including Docker and hardening:
 **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
@@ -197,6 +202,9 @@ ruff check .                 # lint (unused imports are errors)
 cd frontend; npm run dev     # web dev server, proxies /api and /ws to :8501
 python -m atulya.adesh doctor # readiness report
 ```
+
+Docker: see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#4-run) — it covers `.env`, the bind address,
+the persistent `kosh/` volume and the JWT signing key.
 
 ## API
 
