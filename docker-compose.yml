@@ -4,14 +4,13 @@ services:
     env_file: .env
     environment:
       ATULYA_HOST: 0.0.0.0
+      ATULYA_PORT: "8501"
       ATULYA_HTTPS: "off"
-      ATULYA_JWT_SECRET_FILE: /run/secrets/atulya_jwt_secret
-    secrets:
-      - atulya_jwt_secret
+      ATULYA_JWT_SECRET_FILE: /app/kosh/jwt_secret.key
     volumes:
       - ./kosh:/app/kosh
-    expose:
-      - "8501"
+    ports:
+      - "${ATULYA_DOCKER_BIND:-127.0.0.1}:${ATULYA_PORT:-8501}:8501"
     restart: unless-stopped
 
   cloudflared:
@@ -23,7 +22,3 @@ services:
     depends_on:
       - atulya
     restart: unless-stopped
-
-secrets:
-  atulya_jwt_secret:
-    file: ./secrets/jwt_secret

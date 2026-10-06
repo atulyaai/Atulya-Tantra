@@ -1,6 +1,6 @@
 import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { api, apiUrl, boostAudio, clearToken, getToken, setToken, getUser, setUser, getServerUrl, setServerUrl, maybeInTelegram, telegramInitData } from './api.js';
+import { api, apiUrl, boostAudio, clearToken, getToken, setToken, getUser, setUser, getServerUrl, setServerUrl, maybeInTelegram, telegramInitData, connectTelegramOrigin } from './api.js';
 import { Orb } from './Orb.jsx';
 import { MenuPopover, Panel } from './Panel.jsx';
 import { selectSectionByText } from './sections.js';
@@ -717,7 +717,9 @@ function UpdateToast() {
 function ServerAddressGate({ children }) {
   const saved = (() => { try { return localStorage.getItem('atulya-server-url'); } catch { return null; } })();
   const [address, setAddress] = useState(saved || getServerUrl());
-  const [ready, setReady] = useState(Boolean(saved));
+  // Telegram loaded this page from the Atulya server itself. Connect to that
+  // origin and discard a dashboard token remembered for a different server.
+  const [ready, setReady] = useState(() => connectTelegramOrigin() || Boolean(saved));
   const [error, setError] = useState('');
   if (ready) return children;
   return (

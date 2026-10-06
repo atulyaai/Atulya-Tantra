@@ -155,6 +155,29 @@ class TestInterview:
         item = next(i for i in installer.ITEMS if i.key == "ATULYA_TELEGRAM_BOT_TOKEN")
         assert (item.validate(value) is None) is good
 
+    @pytest.mark.parametrize("value,good", [
+        ("https://atulya.example.com", True),
+        ("https://atulya.example.com/", True),
+        ("http://atulya.example.com", False),
+        ("https://atulya.example.com/path", False),
+        ("https://user:secret@atulya.example.com", False),
+    ])
+    def test_telegram_miniapp_public_url_validator(self, value, good):
+        item = next(i for i in installer.ITEMS if i.key == "ATULYA_PUBLIC_URL")
+        assert (item.validate(value) is None) is good
+
+    def test_dashboard_builder_checks_even_an_existing_build(self, tmp_path, monkeypatch):
+        web = tmp_path / "drishti"
+        (web / "dist").mkdir(parents=True)
+        (web / "dist" / "index.html").write_text("stale", encoding="utf-8")
+        monkeypatch.setattr(installer, "ROOT", tmp_path)
+        monkeypatch.setattr(installer.shutil, "which", lambda name: f"/{name}")
+        calls = []
+        monkeypatch.setattr(installer.subprocess, "call", lambda cmd, cwd=None: calls.append((cmd, cwd)) or 0)
+        ready, out = capture(installer.build_dashboard, False)
+        assert ready and "current" in out
+        assert calls and calls[0][0][-1] == str(web / "build.py")
+
 
 class TestPreflightAndDoctor:
     def test_preflight_reports_python_and_pip(self):
@@ -193,8 +216,11 @@ class TestSummaryLine:
 class TestCommandLine:
     """--doctor must exit 0 and never mutate anything."""
 
-    def test_doctor_exits_zero(self):
+    def test_doctor_exits_zero(self, monkeypatch):
         import subprocess
+        # This test describes the no-server case. Use an unused port instead
+        # of probing a real Atulya service the developer may run on port 8501.
+        monkeypatch.setenv("ATULYA_PORT", "0")
 
         proc = subprocess.run(
             [sys.executable, "install.py", "--doctor"],

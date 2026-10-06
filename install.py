@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import sys
 import urllib.error
+from urllib.parse import urlsplit
 import urllib.request
 from pathlib import Path
 from typing import Callable
@@ -112,6 +113,17 @@ def _http_url(value: str) -> str | None:
     return None if value.startswith(("http://", "https://")) else "Start with http:// or https://."
 
 
+def _https_origin(value: str) -> str | None:
+    try:
+        parsed = urlsplit(value)
+        valid = (parsed.scheme == "https" and parsed.hostname and parsed.path in {"", "/"}
+                 and not parsed.username and not parsed.password and not parsed.query and not parsed.fragment)
+        parsed.port  # validate a supplied port
+    except ValueError:
+        valid = False
+    return None if valid else "Use a public HTTPS address such as https://atulya.example.com (no path)."
+
+
 ITEMS: list[Item] = [
     Item(
         "ATULYA_DASHBOARD_TOKEN",
@@ -134,6 +146,13 @@ ITEMS: list[Item] = [
         ask="Your Telegram numeric user id (blank to skip)",
         hint="message @userinfobot in Telegram — it replies with your id",
         validate=_chat_id,
+    ),
+    Item(
+        "ATULYA_PUBLIC_URL",
+        "Public HTTPS address for the Telegram Mini App",
+        ask="Public HTTPS URL for this Atulya server (blank to skip)\n  Set up BotFather /newapp and a public HTTPS tunnel first",
+        hint="for example https://your-domain.example — needed for Telegram /app and its menu button",
+        validate=_https_origin,
     ),
     Item(
         "OPENROUTER_API_KEY",
@@ -341,21 +360,15 @@ def pip_install(extras: str, quiet: bool) -> bool:
 
 
 def build_dashboard(quiet: bool) -> bool:
-    dist = ROOT / "drishti" / "dist"
-    if (dist / "index.html").exists():
-        say(f"  {OK} dashboard build already present")
-        return True
     if not (shutil.which("node") and shutil.which("npm")):
         say(f"  {WARN} Node.js not found — skipping the web UI build ({DIM}the API and Telegram still work{RESET})")
         return False
-    say("  npm install && npm run build (first run only, a couple of minutes)")
-    if subprocess.call(["npm", "install"], cwd=ROOT / "drishti") != 0:
-        say(f"  {RED}npm install failed{RESET}")
-        return False
-    if subprocess.call(["npm", "run", "build"], cwd=ROOT / "drishti") != 0:
+    say("  Checking and building the dashboard when its source has changed...")
+    result = subprocess.call([sys.executable, str(ROOT / "drishti" / "build.py")], cwd=ROOT)
+    if result != 0:
         say(f"  {RED}dashboard build failed{RESET}")
         return False
-    say(f"  {OK} dashboard built")
+    say(f"  {OK} dashboard is current")
     return True
 
 

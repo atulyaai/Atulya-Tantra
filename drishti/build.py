@@ -68,7 +68,9 @@ def main() -> int:
         return 0
     if needs_install():
         print("  Installing web app tools (first time only)...")
-        if run(["install", "--silent", "--no-audit", "--no-fund"]) != 0:
+        lockfile = WEB / "package-lock.json"
+        install_cmd = "ci" if lockfile.exists() else "install"
+        if run([install_cmd, "--silent", "--no-audit", "--no-fund"]) != 0:
             return 1
     print("  Building the web app...")
     if DIST.exists():
