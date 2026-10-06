@@ -41,43 +41,55 @@
 
 ---
 
-A local-first personal AI assistant. You talk to a glowing hologram: it listens in English or Hindi, thinks with a cloud or local brain, remembers you, and does things for you: music, reminders, email, calendar, price tracking, a morning briefing, smart home, and (if you turn it on) your PC.
+A local-first personal AI assistant. You talk to a glowing hologram: it listens in English or
+Hindi, thinks with a cloud or local brain, remembers you, and does things for you — music,
+reminders, email, calendar, price tracking, a morning briefing, smart home, and (if you turn it
+on) your PC.
 
 <p align="center">
   <img src="docs/orb-home.png" alt="Atulya: one animated screen" width="420">
   <img src="docs/orb-popup.jpg" alt="A pop-up opens over the orb" width="420">
 </p>
 
-<p align="center"><img src="docs/orb_live.jpg" alt="The floating orb" width="60%"/></p>
-
-**One screen.** There are no pages. Ask for something ("show my routines", "open the dashboard", "chat history") or tap the menu, and a pop-up slides in over the orb. Esc or a tap outside closes it. Replies appear in a caption card under the head. Admin-only details (models, health, audit log) are hidden from normal users.
+**One screen.** There are no pages. Ask for something ("show my routines", "open the dashboard",
+"chat history") or tap the menu, and a pop-up slides in over the orb. Esc or a tap outside closes
+it. Replies appear in a caption card under the head. Admin-only details (models, health, audit log)
+are hidden from normal users.
 
 ![Atulya Tantra architecture](docs/architecture.svg)
+
+---
+
+## Where things stand
+
+| I want to… | Read |
+|---|---|
+| Know what actually works today, and what is only proven in tests | **[docs/STATUS.md](docs/STATUS.md)** |
+| Know what is left and what comes next | **[docs/ROADMAP.md](docs/ROADMAP.md)** |
+| Deploy it for real | **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** |
+| Run it on a VM, put it in Telegram, pair a phone | **[docs/RECIPES.md](docs/RECIPES.md)** |
+| Understand how it thinks | **[docs/COGNITIVE_ARCHITECTURE.md](docs/COGNITIVE_ARCHITECTURE.md)** |
+| Hit the API | **[docs/API_REFERENCE.md](docs/API_REFERENCE.md)** |
+| Control TVs, phones and lights | **[docs/DEVICES.md](docs/DEVICES.md)** |
+| Work on the code | **[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)** |
+
+> **Honest status:** the test suite is strong and the hardware coverage is weak. Almost everything
+> below is implemented and unit-tested but has **never been run on a real microphone, camera, TV,
+> phone or mailbox**. See [STATUS.md](docs/STATUS.md) for the exact split.
+
+---
 
 ## Quick start (Windows)
 
 You need Python 3.10+ and Node.js 18+.
 
-**One command.** `install.py` shows what is already configured, asks only for what is
-missing, installs the extras, builds the dashboard and checks that everything works:
-
 ```powershell
 python install.py
 ```
 
-It prints a table like this — secrets are never shown in full, only `set (last 4)`:
-
-```
-  Setting                                    State       How to get it
-  ------------------------------------------- ----------- -------------------------
-  Dashboard sign-in token                    ok          set (HiCm)
-  Telegram bot token                         missing     message @BotFather, send /newbot
-  Telegram user allowed to talk to Atulya    missing     message @userinfobot for your id
-  Brain key — OpenRouter                     ok          set (21ca)
-  Morning briefing time                      missing     for example 08:00
-```
-
-Other invocations:
+One command: it shows what is already configured, asks only for what is missing, installs the
+extras, builds the dashboard and checks that everything works. Secrets are never shown in full —
+only `set (last 4)`.
 
 | Command | What it does |
 |---|---|
@@ -86,24 +98,14 @@ Other invocations:
 | `python install.py --profile full` | `basic` / `voice` / `full` / `server` — pick up front, no prompts |
 | `python install.py --no-start` | Configure and check, but do not offer to start |
 
-The dashboard token is generated for you if you do not have one; it is written only to
-your local `.env`, which is git-ignored.
+Manual equivalent: copy `.env.example` to `.env`, add a brain (see below), double-click
+**`start.bat`**, then open http://localhost:8501 in Chrome or Edge and allow the microphone. On the
+computer Atulya runs on there is no login.
 
-Manual equivalent:
+First start takes a minute. Full detail, including Docker and hardening:
+**[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
 
-1. Copy `.env.example` to `.env` and add a brain (see [Brains](#brains)). A free OpenRouter key is enough.
-2. Double-click **`start.bat`**. It installs what is missing, builds the web app only when it changed, and starts the server.
-3. Open http://localhost:8501 in **Chrome or Edge**, click once, and allow the microphone. On the computer Atulya runs on there is no login.
-
-First start takes a minute. Manual start instead of `start.bat`:
-
-```powershell
-python -m pip install -e ".[serve]"
-cd frontend; npm install; npm run build; cd ..
-python -m atulya.sevak
-```
-
-Optional extras: `.[ambient]` (always-on listener: `atulya listen`), `.[control]` (PC control), `.[vision]` (camera, OCR), `.[brain]` (a local model), `.[wake]` (wake-word model, Piper voice), `.[docs]` (document tools), `.[browser]` (browser automation).
+---
 
 ## Brains
 
@@ -119,22 +121,25 @@ Atulya asks the first brain that is set up and falls back to the next. Put keys 
 | 6 | Gemini | `GEMINI_API_KEY` | Free tier; also describes pictures |
 | 7 | OpenAI, NVIDIA NIM | `OPENAI_API_KEY`, `NVIDIA_API_KEY` | Optional |
 
-Want a bigger model? See `examples/README.md`: try one locally (`examples/try_model.py`) or use a free Colab GPU (`examples/connect_remote.py`).
+22 providers are catalogued in one table — see **Menu → Brains & keys** in the app.
+`ATULYA_BRAIN=cloud` puts the cloud brains first. Every cloud brain sends your questions to that
+company; only the local model keeps them on your PC.
 
-`ATULYA_BRAIN=cloud` puts the cloud brains first. With no local model installed (`ATULYA_AUTO_DOWNLOAD_MODEL=false`), if every cloud brain is busy Atulya says so and you try again. Every cloud brain sends your questions to that company; only the local model keeps them on your PC.
+---
 
-## What Atulya can do
+## What it can do
 
-What is done, tested, planned and still missing: [docs/STATUS.md](docs/STATUS.md).
+Highlights — the full capability table with per-item test state is
+**[docs/STATUS.md](docs/STATUS.md)**.
 
-| Ability | Status |
+| Ability | State |
 |---|---|
-| Hologram head with lip sync, blink and breathing; volume boost up to 300% | Working |
-| Listening in English and Hindi; "stop" interrupts; works without a wake word in the web app | Working. The always-on listener (`atulya listen`) uses "Hey Atulya" / "हे अतुल्य" |
+| Hologram head with lip sync, blink and breathing; volume boost to 300% | Working |
+| Listening in English and Hindi; "stop" interrupts; no wake word needed in the web app | Working. `atulya listen` uses "Hey Atulya" / "हे अतुल्य" |
 | Reminders, calendar, email, weather, open websites, time | Working |
 | Play music (YouTube, Spotify), media keys and volume (Windows) | Working |
 | Price watchlist, morning briefing (`ATULYA_BRIEFING_AT=08:00`) | Working |
-| Memory that learns facts about you; recalled when you ask about the past | Working |
+| Memory that learns facts about you and recalls them when you ask about the past | Working |
 | Camera motion and person detection, reading text in pictures | Working; scene description needs `ollama pull moondream` or a Gemini key |
 | Smart home (Home Assistant, MQTT), messaging channels | Needs your hardware or accounts to verify |
 | Control the PC (open apps, type, shortcuts) | Off until `ATULYA_PC_CONTROL=on`; asks before each action; audited |
@@ -142,146 +147,79 @@ What is done, tested, planned and still missing: [docs/STATUS.md](docs/STATUS.md
 
 Atulya never reads out emoji and answers "what can you do" with a real list.
 
-## Phone and other devices
+### Money
 
-1. In `.env` set `ATULYA_HOST=0.0.0.0`, then restart. (`ATULYA_LOCKDOWN=on` does the opposite: this computer only.)
-2. Find your PC's address (for example `192.168.1.15`) and open `http://192.168.1.15:8501` on the phone.
-3. Log in with username `admin` and the password you set in `ATULYA_DASHBOARD_TOKEN` (or the one written to `kosh/admin_token.txt` the first time). Other devices always need a login; only this computer skips it (`ATULYA_REQUIRE_LOGIN=on` turns that off).
-4. **Camera and microphone on the phone need https.** Browsers only allow them on `https://` pages or on `http://localhost`. Set `ATULYA_HTTPS=on` in `.env` and restart: Atulya then serves `https://192.168.1.15:8501` with a certificate made for this computer. The browser warns once (the certificate is your own); choose Advanced, then Continue. If your PC's address changes, a new certificate is made automatically.
-5. Add to the home screen: **iOS** Share, Add to Home Screen; **Android** menu, Install app.
-6. Away from home: install Tailscale on the PC and phone and use the private address (`http://100.x.y.z:8501`). Avoid exposing the port to the internet.
+"I spent 500 on groceries", "how much did I spend this month", "set a budget for food of 5000",
+"what bills are due". Everything stays in `kosh/agent/money.json` — **Atulya never connects to a
+bank and never pays anything.** Bank alerts can come from email, from an SMS-forwarding app on your
+phone, or a pasted statement CSV; OTPs and offers are ignored and duplicates are counted once.
 
-### Hands-free listening in Termux
+### Devices
 
-Install Termux and its matching Termux:API app from the same trusted source. Install the phone listener with `pip install -e ".[shruti_phone]"`, pair the phone in Atulya, then run:
+TV, phone, lights, plugs, PCs: say "scan for devices", "add number 1 as living room TV", then
+"turn off the TV". Works through HTTP profiles (Roku, Kodi, Tasmota, WLED, Shelly), Android over
+ADB, Wake-on-LAN, and Home Assistant. See **[docs/DEVICES.md](docs/DEVICES.md)**.
 
-```sh
-atulya-shruti-phone --server https://YOUR_SERVER:8501 --token YOUR_DEVICE_TOKEN --model /path/to/wake-model.onnx
-```
+### On your phone
 
-The listener reuses `श्रुति` audio segmentation, authenticated speech recognition, chat, and local Android text-to-speech. Wake detection runs on the phone; provide a compatible OpenWakeWord model with `--model` or `ATULYA_WAKE_MODEL`. Atulya does not ship a trained Hindi wake-word model yet, and microphone behavior still needs verification on a real Termux phone. The phone sends audio only after local wake detection; keep device pairing scoped to the permissions it needs.
+Set `ATULYA_HOST=0.0.0.0`, open `http://<your-pc>:8501` on the phone, log in, and (for camera and
+mic) set `ATULYA_HTTPS=on`. Away from home, use Tailscale rather than exposing the port. Pairing a
+phone or a second computer is in **[docs/RECIPES.md](docs/RECIPES.md)**.
 
-## Devices
-
-TV, phone, lights, plugs, PCs: say "scan for devices", "add number 1 as living room TV", then "turn off the TV" or "volume up 5 on the TV". Works through HTTP profiles (Roku, Kodi, Tasmota, WLED, Shelly and more), Android over ADB, Wake-on-LAN, and Home Assistant (thousands of brands). Atulya can also draft a profile for a device it doesn't know. See [docs/DEVICES.md](docs/DEVICES.md) for what is and isn't covered.
-
-## Money
-
-Say "I spent 500 on groceries", "how much did I spend this month", "set a budget for food of 5000", "add bill electricity 2300 due on 18", "what bills are due". Everything stays in `kosh/agent/money.json`; Atulya never connects to a bank and never pays anything.
-
-Automatic recording of bank alerts (open **Action engine → Money** to set this up):
-
-- **Email:** say "check my email for bank transactions" (needs Google connected, or `configure_email`).
-- **SMS from your phone:** an SMS-forwarding app on the phone posts each bank SMS to your PC. Atulya gives you the address and a key that can only add bank alerts. The phone must reach the PC (see [Phone and other devices](#phone-and-other-devices)).
-- **Bank statement:** put the CSV in `kosh/` and say "import statement.csv".
-
-OTPs, offers and due reminders are ignored, and the same transaction arriving by SMS and email is counted once. Bank messages vary, so check the totals the first week.
+---
 
 ## Layout
 
-Project folders now use standard English engineering names. The Python package still has legacy transliterated module names; those need an import-compatible migration before they can be renamed safely. Generated frontend dependencies and build output are not source files.
+Project folders use standard English engineering names. Generated frontend dependencies and build
+output are not source files.
 
-| Folder | Purpose | What lives here |
-|---|---|---|---|
-| `atulya/` | Python application package | API, reasoning, memory, tools, channels, devices and voice; 24 modules |
-| `frontend/` | Web and mobile UI | React/Vite dashboard, PWA assets and Capacitor config; `dist/` is generated, `node_modules/` is disposable |
-| `docs/` | Documentation | Architecture, deployment, API and device guides |
-| `tests/` | Automated checks | Unit and integration tests, grouped by subsystem |
-| `examples/` | Examples and experiments | Termux companion and optional model experiments |
-| `kosh/` | Local user data | Private memory, credentials and settings; retained as a legacy-compatible data path (कोश, store/vault) |
-| `runtime/` | Downloaded runtime assets | Local model files; optional and not source code |
-| `.github/` | CI and releases | Build, lint and release workflows |
+| Folder | Purpose |
+|---|---|
+| `atulya/` | Python application package — API, reasoning, memory, tools, channels, devices and voice |
+| `frontend/` | React/Vite dashboard, PWA assets and Capacitor config; `dist/` is generated, `node_modules/` is disposable |
+| `docs/` | Documentation: status, roadmap, deployment, recipes, architecture, API, devices |
+| `tests/` | Unit and integration tests, grouped by subsystem |
+| `examples/` | Termux companion and optional model experiments |
+| `kosh/` | Local user data — private memory, credentials and settings (कोश, store/vault); git-ignored |
+| `runtime/` | Downloaded model files; optional and not source code |
+| `.github/` | CI and release workflows |
 
-Current Python module names (legacy names; English responsibilities):
+The module-by-module map (which file holds what) is in
+**[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#module-map)**.
 
-| Current module | Responsibility | What it holds |
-|---|---|---|
-| `buddhi.py` | Agent orchestration | Request flow, planning, routines, reflexes and user learning |
-| `mastishk/` | Brain and providers | Model tiers, provider catalog, policy, tool selection, failover and local inference; tiers, catalog, policy and providers each in their own module |
-| `kriya/` | Actions | Assistant tools, intent routing, money, media, PC control and audit log; skills in `*.py`, registry and state in `__init__.py` |
-| `jaal.py` | Web integrations | Browser automation, web search, Gmail and Google Calendar |
-| `kaushal.py` | Capabilities | Document, spreadsheet, chart and content creation |
-| `setu.py` | MCP integration | MCP client/server and `setu_servers.json` configuration |
-| `upakaran.py` | Device integrations | Home Assistant, TVs, phones, discovery and `upakaran_profiles.json` |
-| `indriya.py` | Sensors | Camera, motion, home sensors and image reading |
-| `shruti.py` | Voice listener | Microphone, wake word, interruption and tray listener |
-| `vani.py` | Speech | Text-to-speech and speech pipeline |
-| `smriti.py` | Memory | Vector store, profile and session search |
-| `sandesh.py` | Messaging channels | Telegram, Discord, Slack, email and web push |
-| `queue.py` | Paired-device queues | Shared JSON store and short-lived command queues for paired computers and phones |
-| `sevak.py` | Server lifecycle | FastAPI application startup and shutdown |
-| `dwar/` | API routes | Accounts, sessions, chat history and auth in `__init__.py`; auth, system, chat, voice, notification, device, fabric, automation and agent routes in `routes_*.py` |
-| `raksha.py` | Security | Vault, HTTPS certificates and security helpers |
-| `sharir.py` | Computer control | Files, clipboard, windows, mouse, screen and commands |
-| `bhava.py` | Persona | Assistant identity and response style |
-| `adhar.py` | Configuration | `.env`, settings, migrations and shared helpers |
-| `adesh.py` | CLI | Commands and readiness checks |
-
-```text
-Atulya-Tantra/
-|-- atulya/       # Python application package
-|-- frontend/     # React/Vite app; dist/ is generated
-|-- docs/         # engineering and user documentation
-|-- tests/        # automated checks
-|-- examples/     # optional examples and experiments
-|-- kosh/         # private local data; deliberately preserved
-|-- runtime/      # downloaded models and other runtime-only assets
-|-- .github/      # CI and release pipelines
-`-- root config   # pyproject.toml, Dockerfile, installer, service files
-```
-
-## How a request flows
-
-```mermaid
-flowchart LR
-    You["You: voice or text"] --> Web["frontend/ (the orb)"]
-    Web --> Server["atulya.sevak"]
-    Server --> Kernel["cognition kernel"]
-    Kernel --> Tools["tools: agent/, capabilities/"]
-    Kernel --> Brain["brain: cloud or local"]
-    Kernel --> Memory["memory"]
-    Tools --> Safety["safety: risky actions ask first"]
-```
-
-Assistant tools live in `atulya/kriya/` and register themselves with `@tool`. Risky ones (sending email, deleting events, PC control) ask first by default (`ATULYA_AUTO_APPROVE` can pre-approve specific ones), and every call is appended to `kosh/agent/audit.jsonl`.
-
-## Memory
-
-Atulya's memory is in `atulya/smriti.py`: a vector store and session search, which is what the brain uses. A small local model copies recalled answers back, so with it memory is only shown when you ask about the past. Your profile (facts it learned, habits, what you trust it to do without asking) is under the **About you** pop-up. Identity and prompt rules are in `atulya/bhava.py`; an optional override goes in `kosh/identity.json`.
+---
 
 ## Development
 
 ```powershell
-python -m pytest -q       # tests
-ruff check .              # lint (unused imports are errors)
-cd frontend; npm run dev       # web dev server, proxies /api and /ws to :8501
-python -m atulya.adesh doctor
+python -m pytest -q          # tests
+ruff check .                 # lint (unused imports are errors)
+cd frontend; npm run dev     # web dev server, proxies /api and /ws to :8501
+python -m atulya.adesh doctor # readiness report
 ```
-
-Docker: `docker compose up --build` (builds the web app, serves on port 8501, keeps `kosh/` on your disk). Not yet tried on a real server.
 
 ## API
 
-Token-protected routes expect `X-Atulya-Token`. Full list: [docs/API_REFERENCE.md](docs/API_REFERENCE.md).
+Token-protected routes expect `X-Atulya-Token`. Full list:
+**[docs/API_REFERENCE.md](docs/API_REFERENCE.md)**.
 
 | Route | Who | What |
 |---|---|---|
 | `GET /api/auth/local` | this computer only | sign in without a password |
 | `POST /api/auth/login` | everyone | username and password |
 | `POST /api/chat`, `/api/chat/stream`, `/api/voice/chat` | signed in | talk to Atulya |
-| `GET/DELETE /api/chat/history` | signed in | your conversation |
-| `POST /api/voice/stt`, `/api/voice/tts` | signed in | speech to text and back |
-| `GET /api/profile` and friends | signed in | what Atulya knows about you |
-| `GET /api/brain`, `/api/health`, `/api/telemetry`, `/api/system`, `/api/audit` | admin | models, server health, audit log |
-| `/api/users`, `/api/routines`, `/api/senses`, `/api/triggers`, `/api/fabric`, `/api/agent/tools` | admin | management |
-| `GET /v1/models` | admin | OpenAI-style model list |
+| `GET /api/brain`, `/api/health`, `/api/audit` | admin | models, server health, audit log |
+| `/api/users`, `/api/routines`, `/api/senses`, `/api/triggers`, `/api/fabric` | admin | management |
 
 ## Notes
 
 - Do not commit `.env` or `kosh/`; they hold your keys, accounts and memory.
-- `frontend/dist` is built by `start.bat`; `frontend/node_modules` is only needed while building and can be deleted any time.
-- Custom model training does not belong here; keep it in a separate repository and connect it as a provider.
-- Before exposing Atulya beyond your own network, read the hardening checklist and the security model in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+- `frontend/dist` is built by `start.bat`; `frontend/node_modules` is only needed while building
+  and can be deleted any time. **A clean checkout has no web app until the build runs.**
+- Custom model training does not belong here; keep it in a separate repository and connect it as a
+  provider.
+- Before exposing Atulya beyond your own network, read
+  [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#7-hardening-checklist).
 
 ---
 
@@ -294,7 +232,9 @@ Contributions, bug reports, and ideas are welcome!
 3. **Commit** your changes: `git commit -m "feat: add your feature"`
 4. **Push** and open a **Pull Request**
 
-Please keep PRs focused and include tests where relevant. For major changes, open an issue first. See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for the project rules and where things go, and [docs/STATUS.md](docs/STATUS.md) for what is done and planned.
+Please keep PRs focused and include tests where relevant. For major changes, open an issue first.
+See **[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)** for the project rules, where things go, and
+the safety rules every new tool must obey.
 
 > All contributions are released under the [MIT License](LICENSE).
 
