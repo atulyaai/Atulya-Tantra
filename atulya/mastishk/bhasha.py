@@ -139,8 +139,10 @@ def clean_history(history: list[dict[str, str]], keep: int = 10) -> list[dict[st
     """Conversation turns safe to show a small model.
 
     A tiny model copies whatever it sees repeated, so a reply that only echoes
-    its question, or repeats an earlier reply word for word, is dropped together
-    with the question it answered. Only the last ``keep`` turns are used.
+    its question, or repeats an earlier reply word for word, is dropped. The
+    question it answered is kept: what the user said *is* the context, and
+    discarding it alongside a bad answer is how a conversation comes to forget
+    itself one greeting at a time. Only the last ``keep`` messages are used.
     """
     cleaned: list[dict[str, str]] = []
     seen: set[str] = set()
@@ -158,7 +160,11 @@ def clean_history(history: list[dict[str, str]], keep: int = 10) -> list[dict[st
             continue
         key = _words(content)
         if is_echo(last_user, content) or key in seen:
-            pending_user = None  # drop the question and its bad answer
+            # Drop the reply only. Clearing pending_user here would take the
+            # user's message with it, which is the context we are trying to keep.
+            if pending_user is not None:
+                cleaned.append(pending_user)
+                pending_user = None
             continue
         seen.add(key)
         if pending_user is not None:

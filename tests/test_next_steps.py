@@ -270,17 +270,43 @@ def test_clean_history_drops_parroted_and_repeated_replies():
 
     history = [
         {"role": "user", "content": "who are you"},
-        {"role": "assistant", "content": "Who are you?"},                 # echo: dropped with its question
+        {"role": "assistant", "content": "Who are you?"},                 # echo: reply dropped, question kept
         {"role": "user", "content": "tell me a joke"},
         {"role": "assistant", "content": "I am Atulya, an assistant."},
         {"role": "user", "content": "what time is it"},
-        {"role": "assistant", "content": "I am Atulya, an assistant."},   # repeat of an earlier reply: dropped
+        {"role": "assistant", "content": "I am Atulya, an assistant."},   # repeat: reply dropped, question kept
         {"role": "user", "content": "capital of France"},
     ]
     cleaned = clean_history(history)
     assert [m["content"] for m in cleaned] == [
-        "tell me a joke", "I am Atulya, an assistant.", "capital of France"]
+        "who are you", "tell me a joke", "I am Atulya, an assistant.",
+        "what time is it", "capital of France"]
     assert "Who are you?" not in AtulyaLLM._compose_prompt("hi", history)
+
+
+def test_clean_history_never_erases_what_the_user_said():
+    """Context-loss regression.
+
+    When the model repeats the same greeting back, only the reply may be
+    discarded. Erasing the question with it deleted 20 of 25 user messages
+    from a real Telegram thread, leaving the model with no memory of the
+    conversation and the user with identical replies to every message.
+    """
+    from atulya.mastishk import clean_history
+
+    greeting = "Good evening! I am here to help."
+    history = [{"role": "user", "content": "Hi"}]
+    for _ in range(5):
+        history.append({"role": "assistant", "content": greeting})
+        history.append({"role": "user", "content": "Hi"})
+
+    cleaned = clean_history(history)
+    users = [m["content"] for m in cleaned if m["role"] == "user"]
+    assistants = [m for m in cleaned if m["role"] == "assistant"]
+
+    assert users.count("Hi") == len(users)          # not one user message was erased
+    assert len(assistants) == 1                     # the repeated greeting is shown once
+    assert len(users) >= 4                          # the conversation still has its questions
 
 
 # ── Claude brain ─────────────────────────────────────────────────────────
