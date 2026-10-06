@@ -2239,6 +2239,11 @@ async def ask(prompt: str, history: list[dict[str, str]] | None = None) -> LLMRe
     return await get_default_llm().ask(prompt, history=history)
 
 
+async def ask_without_tools(prompt: str) -> str:
+    """Ask the default brain for plain text without advertising tool calls."""
+    return (await get_default_llm().ask(prompt, tools_enabled=False)).text
+
+
 async def stream(
     prompt: str,
     history: list[dict[str, str]] | None = None,

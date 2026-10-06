@@ -430,7 +430,7 @@ def test_ensure_build_rebuilds_when_source_content_changes(tmp_path, monkeypatch
     import time
     from pathlib import Path
 
-    spec = importlib.util.spec_from_file_location("web_build", Path(__file__).resolve().parents[1] / "drishti" / "build.py")
+    spec = importlib.util.spec_from_file_location("web_build", Path(__file__).resolve().parents[1] / "frontend" / "build.py")
     eb = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(eb)
 

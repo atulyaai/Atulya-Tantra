@@ -135,7 +135,7 @@ include = ["atulya*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["pariksha"]
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 120

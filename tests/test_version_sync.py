@@ -10,8 +10,8 @@ def test_python_is_the_authoritative_package_and_frontend_version():
     init = (ROOT / "atulya" / "__init__.py").read_text(encoding="utf-8")
     version = re.search(r'^__version__\s*=\s*["\']([^"\']+)["\']', init, re.MULTILINE).group(1)
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    frontend = json.loads((ROOT / "drishti" / "package.json").read_text(encoding="utf-8"))
-    lock = json.loads((ROOT / "drishti" / "package-lock.json").read_text(encoding="utf-8"))
+    frontend = json.loads((ROOT / "frontend" / "package.json").read_text(encoding="utf-8"))
+    lock = json.loads((ROOT / "frontend" / "package-lock.json").read_text(encoding="utf-8"))
     assert project["project"]["dynamic"] == ["version"]
     assert project["tool"]["setuptools"]["dynamic"]["version"]["attr"] == "atulya.__version__"
     assert frontend["version"] == version
@@ -19,7 +19,7 @@ def test_python_is_the_authoritative_package_and_frontend_version():
 
 
 def test_android_debug_apk_versions_follow_the_python_package(tmp_path):
-    from drishti.build_apk import apply_version
+    from frontend.build_apk import apply_version
 
     gradle = tmp_path / "build.gradle"
     gradle.write_text("defaultConfig {\n    versionCode 1\n    versionName '1.0'\n}\n", encoding="utf-8")

@@ -341,7 +341,7 @@ def pip_install(extras: str, quiet: bool) -> bool:
 
 
 def build_dashboard(quiet: bool) -> bool:
-    dist = ROOT / "drishti" / "dist"
+    dist = ROOT / "frontend" / "dist"
     if (dist / "index.html").exists():
         say(f"  {OK} dashboard build already present")
         return True
@@ -349,10 +349,10 @@ def build_dashboard(quiet: bool) -> bool:
         say(f"  {WARN} Node.js not found — skipping the web UI build ({DIM}the API and Telegram still work{RESET})")
         return False
     say("  npm install && npm run build (first run only, a couple of minutes)")
-    if subprocess.call(["npm", "install"], cwd=ROOT / "drishti") != 0:
+    if subprocess.call(["npm", "install"], cwd=ROOT / "frontend") != 0:
         say(f"  {RED}npm install failed{RESET}")
         return False
-    if subprocess.call(["npm", "run", "build"], cwd=ROOT / "drishti") != 0:
+    if subprocess.call(["npm", "run", "build"], cwd=ROOT / "frontend") != 0:
         say(f"  {RED}dashboard build failed{RESET}")
         return False
     say(f"  {OK} dashboard built")

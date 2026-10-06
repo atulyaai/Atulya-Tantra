@@ -401,10 +401,9 @@ async def _open_page() -> PlaywrightPage:
 
 
 async def _brain_ask(prompt: str) -> str:
-    from atulya.mastishk import get_default_llm
+    from atulya.mastishk import ask_without_tools
 
-    response = await get_default_llm().ask(prompt, tools_enabled=False)
-    return response.text
+    return await ask_without_tools(prompt)
 
 
 @tool("web_task", "Do a task on a website in a visible browser (search, add to cart, fill a form). Stops before paying or confirming", {

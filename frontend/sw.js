@@ -1,6 +1,6 @@
 // Atulya service worker: offline shell + push notifications.
 //
-// Lives in drishti/ and the build copies it to the site root, where
+// Lives in frontend/ and the build copies it to the site root, where
 // index.html registers it as /sw.js.
 //
 // Strategy: network-first. Online, you always get the latest app; each

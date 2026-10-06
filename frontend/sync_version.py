@@ -17,7 +17,7 @@ def sync(check: bool = False) -> bool:
     version = match.group(1)
     changed = False
     for filename in ("package.json", "package-lock.json"):
-        path = ROOT / "drishti" / filename
+        path = ROOT / "frontend" / filename
         data = json.loads(path.read_text(encoding="utf-8"))
         data["version"] = version
         if filename == "package-lock.json" and isinstance(data.get("packages", {}).get(""), dict):
@@ -36,4 +36,4 @@ if __name__ == "__main__":
     parser.add_argument("--check", action="store_true", help="fail if frontend versions are out of sync")
     args = parser.parse_args()
     if not sync(args.check):
-        raise SystemExit("Frontend package version does not match atulya.__version__; run python drishti/sync_version.py")
+        raise SystemExit("Frontend package version does not match atulya.__version__; run python frontend/sync_version.py")

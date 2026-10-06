@@ -68,15 +68,15 @@ echo   [3/4] Building the web app...
 rem Builds only when the source changed; installs the web tools only when missing (so node_modules can be deleted).
 where node >nul 2>&1
 if errorlevel 1 (
-    if exist "drishti\dist\index.html" (
+    if exist "frontend\dist\index.html" (
         echo   Node.js not found - using the existing build, which may be out of date.
     ) else (
         echo   WARNING: Node.js not found. Install Node.js 18+ from https://nodejs.org
     )
     goto :start_backend
 )
-python drishti\build.py
-if not exist "drishti\dist\index.html" (
+python frontend\build.py
+if not exist "frontend\dist\index.html" (
     echo   WARNING: The web app failed to build, so there is no web UI.
 )
 

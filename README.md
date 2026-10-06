@@ -1,6 +1,6 @@
 <!-- Hero Banner -->
 <div align="center">
-  <img src="granth/banner_animated.gif" alt="Atulya Tantra - JARVIS-Class Personal AI" width="100%"/>
+  <img src="docs/banner_animated.gif" alt="Atulya Tantra - JARVIS-Class Personal AI" width="100%"/>
 </div>
 
 <div align="center">
@@ -27,7 +27,7 @@
  +--------------------------------------------------------------------------+
  |                         HOW ATULYA WORKS                                 |
  |                                                                          |
- |  Your voice or text --> hologram screen (drishti/) --> server (atulya/sevak)|
+ |  Your voice or text --> hologram screen (frontend/) --> server (atulya/sevak)|
  |                                  |                                       |
  |                                  v                                       |
  |                 thinking kernel (atulya/buddhi)                       |
@@ -44,15 +44,15 @@
 A local-first personal AI assistant. You talk to a glowing hologram: it listens in English or Hindi, thinks with a cloud or local brain, remembers you, and does things for you: music, reminders, email, calendar, price tracking, a morning briefing, smart home, and (if you turn it on) your PC.
 
 <p align="center">
-  <img src="granth/orb-home.png" alt="Atulya: one animated screen" width="420">
-  <img src="granth/orb-popup.jpg" alt="A pop-up opens over the orb" width="420">
+  <img src="docs/orb-home.png" alt="Atulya: one animated screen" width="420">
+  <img src="docs/orb-popup.jpg" alt="A pop-up opens over the orb" width="420">
 </p>
 
-<p align="center"><img src="granth/orb_live.jpg" alt="The floating orb" width="60%"/></p>
+<p align="center"><img src="docs/orb_live.jpg" alt="The floating orb" width="60%"/></p>
 
 **One screen.** There are no pages. Ask for something ("show my routines", "open the dashboard", "chat history") or tap the menu, and a pop-up slides in over the orb. Esc or a tap outside closes it. Replies appear in a caption card under the head. Admin-only details (models, health, audit log) are hidden from normal users.
 
-![Atulya Tantra architecture](granth/architecture.svg)
+![Atulya Tantra architecture](docs/architecture.svg)
 
 ## Quick start (Windows)
 
@@ -99,7 +99,7 @@ First start takes a minute. Manual start instead of `start.bat`:
 
 ```powershell
 python -m pip install -e ".[serve]"
-cd drishti; npm install; npm run build; cd ..
+cd frontend; npm install; npm run build; cd ..
 python -m atulya.sevak
 ```
 
@@ -119,13 +119,13 @@ Atulya asks the first brain that is set up and falls back to the next. Put keys 
 | 6 | Gemini | `GEMINI_API_KEY` | Free tier; also describes pictures |
 | 7 | OpenAI, NVIDIA NIM | `OPENAI_API_KEY`, `NVIDIA_API_KEY` | Optional |
 
-Want a bigger model? See `prayog/README.md`: try one locally (`prayog/try_model.py`) or use a free Colab GPU (`prayog/connect_remote.py`).
+Want a bigger model? See `examples/README.md`: try one locally (`examples/try_model.py`) or use a free Colab GPU (`examples/connect_remote.py`).
 
 `ATULYA_BRAIN=cloud` puts the cloud brains first. With no local model installed (`ATULYA_AUTO_DOWNLOAD_MODEL=false`), if every cloud brain is busy Atulya says so and you try again. Every cloud brain sends your questions to that company; only the local model keeps them on your PC.
 
 ## What Atulya can do
 
-What is done, tested, planned and still missing: [granth/STATUS.md](granth/STATUS.md).
+What is done, tested, planned and still missing: [docs/STATUS.md](docs/STATUS.md).
 
 | Ability | Status |
 |---|---|
@@ -163,7 +163,7 @@ The listener reuses `श्रुति` audio segmentation, authenticated speec
 
 ## Devices
 
-TV, phone, lights, plugs, PCs: say "scan for devices", "add number 1 as living room TV", then "turn off the TV" or "volume up 5 on the TV". Works through HTTP profiles (Roku, Kodi, Tasmota, WLED, Shelly and more), Android over ADB, Wake-on-LAN, and Home Assistant (thousands of brands). Atulya can also draft a profile for a device it doesn't know. See [granth/DEVICES.md](granth/DEVICES.md) for what is and isn't covered.
+TV, phone, lights, plugs, PCs: say "scan for devices", "add number 1 as living room TV", then "turn off the TV" or "volume up 5 on the TV". Works through HTTP profiles (Roku, Kodi, Tasmota, WLED, Shelly and more), Android over ADB, Wake-on-LAN, and Home Assistant (thousands of brands). Atulya can also draft a profile for a device it doesn't know. See [docs/DEVICES.md](docs/DEVICES.md) for what is and isn't covered.
 
 ## Money
 
@@ -179,58 +179,61 @@ OTPs, offers and due reminders are ignored, and the same transaction arriving by
 
 ## Layout
 
-Every file has a Sanskrit/Hindi name that says what it does, in plain letters so editors and Windows handle them (the Devanagari is beside each name). The layout is flat: every folder below holds files only, and `atulya/` has just 19 Python files.
+Project folders now use standard English engineering names. The Python package still has legacy transliterated module names; those need an import-compatible migration before they can be renamed safely. Generated frontend dependencies and build output are not source files.
 
-| Folder | Name | Meaning | What lives here |
+| Folder | Purpose | What lives here |
 |---|---|---|---|
-| `atulya/` | | | All the Python, 19 files (table below) |
-| `drishti/` | दृष्टि | sight, what you see | The animated screen (React + Vite), all files side by side: `Orb.jsx`, `Dashboard.jsx`, `MemoryTree.jsx`, `Hologram.js` ... plus `index.html`, `vite.config.js`, `build.py` |
-| `granth/` | ग्रंथ | book, text | Guides, architecture, security, features, status and the pictures |
-| `pariksha/` | परीक्षा | examination, test | The test suite: one `test_*.py` per part |
-| `prayog/` | प्रयोग | experiment | Try a bigger brain: download and benchmark local models, or use a free Colab GPU |
-| `kosh/` | कोश | treasury | Everything Atulya stores on your computer (git-ignored). An old `data/` folder is moved here automatically the first time you start |
+| `atulya/` | Python application package | API, reasoning, memory, tools, channels, devices and voice; 27 modules |
+| `frontend/` | Web and mobile UI | React/Vite dashboard, PWA assets and Capacitor config; `dist/` is generated, `node_modules/` is disposable |
+| `docs/` | Documentation | Architecture, deployment, API and device guides |
+| `tests/` | Automated checks | Unit and integration tests, grouped by subsystem |
+| `examples/` | Examples and experiments | Termux companion and optional model experiments |
+| `kosh/` | Local user data | Private memory, credentials and settings; retained as a legacy-compatible data path (कोश, store/vault) |
+| `runtime/` | Downloaded runtime assets | Local model files; optional and not source code |
+| `.github/` | CI and releases | Build, lint and release workflows |
 
-Files in `atulya/`:
+Current Python module names (legacy names; English responsibilities):
 
-| File | Name | Meaning | What it holds |
-|---|---|---|---|
-| `buddhi.py` | बुद्धि | intellect | The pipeline every request goes through (perceive, understand, decide, act, remember, react), routines, reflexes (triggers) and what Atulya learns about you |
-| `mastishk.py` | मस्तिष्क | brain | Brain tiers (`ATULYA_BRAIN`), the 22-provider catalogue, safety rules (what must ask first), the tool belt, the provider failover router, the local model and the language-model layer |
-| `kriya.py` | क्रिया | action | Everything Atulya can *do*: assistant tools (reminders, calendar, email, weather, websites), the intent router, money, music and media, price tracking, the morning briefing, PC control, device tools, the agent loop and the audit log |
-| `jaal.py` | जाल | web | Browser automation, web tasks, web search, Gmail and Google Calendar |
-| `kaushal.py` | कौशल | skill | The heavier capabilities and creation tools, documents, spreadsheets, charts, business automation |
-| `setu.py` | सेतु | bridge | MCP server and client for outside tools (`setu_servers.json`) |
-| `upakaran.py` | उपकरण | devices | TVs, phones, lights, PCs: JSON profiles (`upakaran_profiles.json`), ADB, Samsung, Wake-on-LAN, Home Assistant, discovery, learn-a-device, the hub |
-| `indriya.py` | इन्द्रिय | the senses | Camera, motion, home sensors, reading pictures |
-| `shruti.py` | श्रुति | hearing | The always-on listener: microphone, wake word (English and Hindi), barge-in, tray (`python -m atulya.shruti`) |
-| `vani.py` | वाणी | speech | The voice pipeline |
-| `smriti.py` | स्मृति | memory | The memory manager, vector store and session search |
-| `sandesh.py` | संदेश | message | Telegram, Discord, Slack, email and other messaging channels |
-| `sevak.py` | सेवक | servant | The web server app (`python -m atulya.sevak`) |
-| `dwar.py` | द्वार | gate | The server's API: accounts and sessions, chat history, sign-in, brains and keys, chat and voice, automation, home and dashboard |
-| `raksha.py` | रक्षा | protection | Encryption at rest (vault), HTTPS certificates, security helpers, lockdown |
-| `sharir.py` | शरीर | body | What Atulya can do on a computer: files (inside the folders you allow, deletes go to a trash), clipboard, windows, mouse, screen, commands, installing software, printing, health check, with permission levels for paired devices |
-| `bhava.py` | भाव | feeling | Mood, persona and identity |
-| `adhar.py` | आधार | foundation | Settings, `.env` reading, the `data` -> `kosh` move, text helpers, safe maths, the event bus, the heartbeat |
-| `adesh.py` | आदेश | command | The command line (`python -m atulya.adesh doctor`) and the readiness checks |
+| Current module | Responsibility | What it holds |
+|---|---|---|
+| `buddhi.py` | Agent orchestration | Request flow, planning, routines, reflexes and user learning |
+| `mastishk.py` | Brain and providers | Model tiers, provider catalog, tool selection, failover and local inference |
+| `kriya.py` | Actions | Assistant tools, intent routing, money, media, PC control and audit log |
+| `jaal.py` | Web integrations | Browser automation, web search, Gmail and Google Calendar |
+| `kaushal.py` | Capabilities | Document, spreadsheet, chart and content creation |
+| `setu.py` | MCP integration | MCP client/server and `setu_servers.json` configuration |
+| `upakaran.py` | Device integrations | Home Assistant, TVs, phones, discovery and `upakaran_profiles.json` |
+| `indriya.py` | Sensors | Camera, motion, home sensors and image reading |
+| `shruti.py` | Voice listener | Microphone, wake word, interruption and tray listener |
+| `vani.py` | Speech | Text-to-speech and speech pipeline |
+| `smriti.py` | Memory | Vector store, profile and session search |
+| `sandesh.py` | Messaging channels | Telegram, Discord, Slack, email and web push |
+| `sevak.py` | Server lifecycle | FastAPI application startup and shutdown |
+| `dwar.py` | API routes | Accounts, chat, voice, automation, devices and dashboard routes |
+| `raksha.py` | Security | Vault, HTTPS certificates and security helpers |
+| `sharir.py` | Computer control | Files, clipboard, windows, mouse, screen and commands |
+| `bhava.py` | Persona | Assistant identity and response style |
+| `adhar.py` | Configuration | `.env`, settings, migrations and shared helpers |
+| `adesh.py` | CLI | Commands and readiness checks |
 
 ```text
 Atulya-Tantra/
-|-- atulya/        # all the Python: 19 flat files (table above)
-|-- drishti/       # the animated screen, flat: the source, index.html, vite.config.js, build.py
-|-- granth/        # guides, architecture and pictures
-|-- pariksha/      # tests
-|-- prayog/        # experiments: bigger local models, Colab GPU brain
-|-- kosh/          # everything Atulya stores locally (git-ignored)
-|-- pyproject.toml, start.bat, Dockerfile, docker-compose.yml
-`-- .env           # your keys (git-ignored)
+|-- atulya/       # Python application package
+|-- frontend/     # React/Vite app; dist/ is generated
+|-- docs/         # engineering and user documentation
+|-- tests/        # automated checks
+|-- examples/     # optional examples and experiments
+|-- kosh/         # private local data; deliberately preserved
+|-- runtime/      # downloaded models and other runtime-only assets
+|-- .github/      # CI and release pipelines
+`-- root config   # pyproject.toml, Dockerfile, installer, service files
 ```
 
 ## How a request flows
 
 ```mermaid
 flowchart LR
-    You["You: voice or text"] --> Web["drishti/ (the orb)"]
+    You["You: voice or text"] --> Web["frontend/ (the orb)"]
     Web --> Server["atulya.sevak"]
     Server --> Kernel["cognition kernel"]
     Kernel --> Tools["tools: agent/, capabilities/"]
@@ -250,7 +253,7 @@ Atulya's memory is in `atulya/smriti.py`: a vector store and session search, whi
 ```powershell
 python -m pytest -q       # tests
 ruff check .              # lint (unused imports are errors)
-cd drishti; npm run dev       # web dev server, proxies /api and /ws to :8501
+cd frontend; npm run dev       # web dev server, proxies /api and /ws to :8501
 python -m atulya.adesh doctor
 ```
 
@@ -258,7 +261,7 @@ Docker: `docker compose up --build` (builds the web app, serves on port 8501, ke
 
 ## API
 
-Token-protected routes expect `X-Atulya-Token`. Full list: [granth/API_REFERENCE.md](granth/API_REFERENCE.md).
+Token-protected routes expect `X-Atulya-Token`. Full list: [docs/API_REFERENCE.md](docs/API_REFERENCE.md).
 
 | Route | Who | What |
 |---|---|---|
@@ -275,9 +278,9 @@ Token-protected routes expect `X-Atulya-Token`. Full list: [granth/API_REFERENCE
 ## Notes
 
 - Do not commit `.env` or `kosh/`; they hold your keys, accounts and memory.
-- `drishti/dist` is built by `start.bat`; `drishti/node_modules` is only needed while building and can be deleted any time.
+- `frontend/dist` is built by `start.bat`; `frontend/node_modules` is only needed while building and can be deleted any time.
 - Custom model training does not belong here; keep it in a separate repository and connect it as a provider.
-- Before exposing Atulya beyond your own network, read the hardening checklist and the security model in [granth/DEPLOYMENT.md](granth/DEPLOYMENT.md).
+- Before exposing Atulya beyond your own network, read the hardening checklist and the security model in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ---
 
@@ -290,7 +293,7 @@ Contributions, bug reports, and ideas are welcome!
 3. **Commit** your changes: `git commit -m "feat: add your feature"`
 4. **Push** and open a **Pull Request**
 
-Please keep PRs focused and include tests where relevant. For major changes, open an issue first. See [granth/CONTRIBUTING.md](granth/CONTRIBUTING.md) for the project rules and where things go, and [granth/STATUS.md](granth/STATUS.md) for what is done and planned.
+Please keep PRs focused and include tests where relevant. For major changes, open an issue first. See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for the project rules and where things go, and [docs/STATUS.md](docs/STATUS.md) for what is done and planned.
 
 > All contributions are released under the [MIT License](LICENSE).
 

@@ -774,9 +774,9 @@ def _prompt(host: str, prints: list[dict[str, Any]], notes: str) -> str:
 
 
 async def _brain(prompt: str) -> str:
-    from atulya.mastishk import get_default_llm
+    from atulya.mastishk import ask_without_tools
 
-    return (await get_default_llm().ask(prompt, tools_enabled=False)).text
+    return await ask_without_tools(prompt)
 
 
 async def draft_profile(host: str, notes: str, proposals_dir: Path, ask: Any = None, prints: list[dict[str, Any]] | None = None) -> dict[str, Any]:

@@ -1,8 +1,8 @@
 FROM node:20-slim AS screen
 WORKDIR /screen
-COPY drishti/package.json drishti/package-lock.json ./
+COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
-COPY drishti/ ./
+COPY frontend/ ./
 RUN npm run build
 
 FROM python:3.11-slim
@@ -18,7 +18,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY . .
-COPY --from=screen /screen/dist ./drishti/dist
+COPY --from=screen /screen/dist ./frontend/dist
 RUN pip install -e ".[serve,push]"
 
 VOLUME /app/kosh

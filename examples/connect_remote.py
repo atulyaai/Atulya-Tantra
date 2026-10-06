@@ -1,8 +1,8 @@
 """Connect Atulya to a bigger model running somewhere else (Colab, a GPU server, LM Studio on another PC ...).
 
-    python prayog/connect_remote.py --url https://abc.trycloudflare.com/v1 --key SECRET
-    python prayog/connect_remote.py --url http://192.168.1.50:1234/v1 --model qwen3-8b
-    python prayog/connect_remote.py --remove           # go back to the other brains
+    python examples/connect_remote.py --url https://abc.trycloudflare.com/v1 --key SECRET
+    python examples/connect_remote.py --url http://192.168.1.50:1234/v1 --model qwen3-8b
+    python examples/connect_remote.py --remove           # go back to the other brains
 
 It tests the server first, then saves ATULYA_CUSTOM_URL / ATULYA_CUSTOM_KEY / ATULYA_CUSTOM_MODEL in .env (the same
 settings as Menu > Brains & keys > "Your own"). Restart start.bat afterwards. Atulya tries the fastest working brain first,

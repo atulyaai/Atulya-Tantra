@@ -375,7 +375,7 @@ app.middleware("http")(_rate_limiter)
 app.include_router(api.router)
 
 
-dist = Path(__file__).resolve().parents[1] / "drishti" / "dist"
+dist = Path(__file__).resolve().parents[1] / "frontend" / "dist"
 if dist.exists():
     app.mount("/", StaticFiles(directory=str(dist), html=True), name="web")
 

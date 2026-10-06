@@ -1,6 +1,6 @@
 """Build the web app only when it is out of date, so node_modules can be deleted and rebuilt on demand.
 
-Run by start.bat. Exit code 0 means ``drishti/dist/index.html`` is ready.
+Run by start.bat. Exit code 0 means ``frontend/dist/index.html`` is ready.
 """
 from __future__ import annotations
 
@@ -74,7 +74,7 @@ def main() -> int:
     if DIST.exists():
         DIST.unlink()  # a failed build must never leave an out-of-date app behind
     if run(["run", "build", "--silent"]) != 0 or not DIST.exists():
-        print("  WARNING: the web app failed to build. Try: cd drishti && npm run build")
+        print("  WARNING: the web app failed to build. Try: cd frontend && npm run build")
         return 1
     STAMP.write_text(source_hash())
     return 0

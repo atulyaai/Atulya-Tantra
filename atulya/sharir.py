@@ -359,7 +359,7 @@ def clipboard_set(text: str) -> str:
 
 
 # ── screen, mouse, windows ────────────────────────────────────────────────────────────────────────────────
-def _gui():
+def get_gui():
     import pyautogui
 
     pyautogui.FAILSAFE = True  # slam the mouse into a corner to abort
@@ -370,7 +370,7 @@ def screenshot(path: str = "") -> str:
     require("read")
     out = Path(path) if path else Path(os.environ.get("ATULYA_AGENT_DATA_DIR", "kosh/agent")) / "screenshot.png"
     out.parent.mkdir(parents=True, exist_ok=True)
-    _gui().screenshot(str(out))
+    get_gui().screenshot(str(out))
     return str(out)
 
 
@@ -469,7 +469,7 @@ def click_text(target: str) -> str:
         raise Refused(f"I couldn't read the screen; install Tesseract and pytesseract. ({type(exc).__name__})") from exc
     if image_width <= 0 or image_height <= 0:
         raise Refused("The screen image has invalid dimensions.")
-    gui = _gui()
+    gui = get_gui()
     screen_width, screen_height = gui.size()
     x = round(x * screen_width / image_width)
     y = round(y * screen_height / image_height)
@@ -480,7 +480,7 @@ def click_text(target: str) -> str:
 
 def mouse(action: str, x: int = 0, y: int = 0, amount: int = 0) -> str:
     require("full")
-    g = _gui()
+    g = get_gui()
     w, h = g.size()
     if action in ("click", "double_click", "right_click", "move"):
         if not (0 <= int(x) < w and 0 <= int(y) < h):

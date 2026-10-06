@@ -32,7 +32,7 @@ from atulya.upakaran import (
     magic_packet,
     validate_profile,
 )
-from pariksha import sims
+from tests import sims
 
 
 # ── test_upakaran_profile_driver ────────────────────────────────────────────────────────────

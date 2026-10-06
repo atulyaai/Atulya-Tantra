@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from './api.js';
 
-// Events the backend publishes (see granth/COGNITIVE_ARCHITECTURE.md).
+// Events the backend publishes (see docs/COGNITIVE_ARCHITECTURE.md).
 const KNOWN_EVENTS = [
   ['reminder.due', 'A reminder comes due'],
   ['health.warning', 'A system check turns to warning'],

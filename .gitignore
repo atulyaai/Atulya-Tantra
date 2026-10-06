@@ -30,16 +30,16 @@ secrets/
 # Data / outputs
 *.model
 *.bin
-!drishti/hologram-points.bin
+!frontend/hologram-points.bin
 *.gguf
 *.safetensors
 checkpoints/
 
 # Node / frontend
 node_modules/
-drishti/dist/
-drishti/android/
-drishti/.vite/
+frontend/dist/
+frontend/android/
+frontend/.vite/
 
 # OS / editor
 .DS_Store
@@ -66,6 +66,6 @@ assets/invoices/
 data/
 outputs/
 
-# prayog: downloaded models and your own measurements
-prayog/models/
-prayog/results.md
+# examples: downloaded models and your own measurements
+examples/models/
+examples/results.md

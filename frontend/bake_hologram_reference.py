@@ -1,7 +1,7 @@
 ﻿"""Bake hologram scanline points from the user's reference video.
 
-Usage: python drishti/bake_hologram_reference.py path/to/reference.mp4 [time-seconds]
-Requires OpenCV and NumPy. Writes drishti/hologram-points.bin.
+Usage: python frontend/bake_hologram_reference.py path/to/reference.mp4 [time-seconds]
+Requires OpenCV and NumPy. Writes frontend/hologram-points.bin.
 """
 from __future__ import annotations
 import struct

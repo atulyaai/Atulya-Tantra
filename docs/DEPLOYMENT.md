@@ -42,7 +42,7 @@ Edit `atulya/setu_servers.json` to enable integrations (filesystem, git, browser
 docker compose -f docker-compose.yml up -d
 ```
 
-The current container serves the built `drishti/dist/` app and API from port 8501. The Oracle guide below uses a Cloudflare Tunnel; no nginx container or public inbound web port is required.
+The current container serves the built `frontend/dist/` app and API from port 8501. The Oracle guide below uses a Cloudflare Tunnel; no nginx container or public inbound web port is required.
 
 ## Testing
 
@@ -247,7 +247,7 @@ Run `git pull` followed by `docker compose up -d --build atulya` and `docker com
 
 ## Local verification before any public deployment
 
-From the repository root, run `python -m pytest -q`, then `ruff check atulya pariksha`, then `cd drishti && npm ci && npm run build`. **PASS:** every command exits successfully. Also start the local app and sign in before creating the Oracle VM or exposing a hostname. Phone and remote-computer companions still need real-device verification; until then, treat those paths as unverified on hardware.
+From the repository root, run `python -m pytest -q`, then `ruff check atulya tests`, then `cd frontend && npm ci && npm run build`. **PASS:** every command exits successfully. Also start the local app and sign in before creating the Oracle VM or exposing a hostname. Phone and remote-computer companions still need real-device verification; until then, treat those paths as unverified on hardware.
 
 ## Pair a phone with Termux
 
@@ -258,7 +258,7 @@ For background browser notifications, install the optional `push` extra (the Doc
 1. On Android, install **Termux** and **Termux:API** from the same source. The official Termux installation guide lists supported sources; do not mix APK sources because the add-on signatures must match. **PASS:** both apps install and open. [Official Termux installation guide](https://github.com/termux/termux-app#installation)
 2. In Atulya, open **Menu → Action engine → Paired phones and computers → Pair a phone**. Keep the six-digit code private and use it within ten minutes. **PASS:** the code and expiry appear on screen.
 3. Open Termux and type `pkg update -y && pkg install -y termux-api jq curl`. When Android asks, allow only the permissions for the features you intend to use. For notifications, open Android **Settings → Apps → Special app access → Notification access**, select **Termux:API**, and enable access. **PASS:** `termux-sms-list -l 1`, `termux-notification-list`, and `termux-location -p network -r once` return data for permitted categories. **FAIL:** reopen the Android permission page and check Termux:API is installed from the same source as Termux.
-4. Download the helper after this branch is merged: `curl -fsSL https://raw.githubusercontent.com/atulyaai/Atulya-Tantra/main/prayog/termux_phone.sh -o termux_phone.sh`. **PASS:** `test -s termux_phone.sh` succeeds.
+4. Download the helper after this branch is merged: `curl -fsSL https://raw.githubusercontent.com/atulyaai/Atulya-Tantra/main/examples/termux_phone.sh -o termux_phone.sh`. **PASS:** `test -s termux_phone.sh` succeeds.
 5. In the same Termux window, type `export ATULYA_SERVER=https://atulya.atulvij.com` (or your local server address), then `export ATULYA_PAIR_CODE=000000` with the code shown by Atulya, then `export ATULYA_SYNC_SMS=off ATULYA_SYNC_NOTIFICATIONS=off ATULYA_SYNC_LOCATION=off`, then `bash termux_phone.sh`. The helper securely stores the paired token in Termux's private home folder. **PASS:** it says the companion is connected, and the phone appears under Paired phones and computers. **FAIL:** check that the code has not expired and that `/api/pairing/enroll` is reachable.
 6. To enable a data category, stop the helper with Ctrl+C, set only the relevant flag to `on` (for example `export ATULYA_SYNC_NOTIFICATIONS=on`), and run it again. To verify a ring request, select the paired phone in Atulya and request **ring**; keep the app open and confirm the phone vibrates. **PASS:** the phone inbox receives only enabled categories and the phone responds to a queued command. **FAIL:** turn the category back off and check Android permissions and network access.
 7. To stop sharing, turn the flags off and stop the helper. To revoke access, open **Paired phones and computers → Disconnect** next to that phone. **PASS:** the device disappears from active pairings and its old token no longer works.

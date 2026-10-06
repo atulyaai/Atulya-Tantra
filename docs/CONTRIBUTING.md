@@ -22,42 +22,35 @@
 - ❌ Never add GPU-only dependencies to `pyproject.toml`
 - ❌ Never commit model weights to git (use GitHub Releases or HF Hub)
 - Never commit `__pycache__/`, `.egg-info/`, or generated `outputs/` artifacts
-- ❌ Never break the flat `atulya/` package layout — no `src/` directory
+- ❌ Do not rename/move user data or break public imports without a migration plan
 
 ---
 
 ## Project Map
 
-This is the current ownership map after the package cleanup.
-
-The repo root intentionally has two product directories: `atulya/` (the Python) and `drishti/` (the screen). Shared support files live inside the product folder
-that owns them.
-
-Allowed root support directories:
-
-- `kosh/`: runtime-local app state such as generated voice audio, temp uploads, and scheduler state.
-- `granth/` (ग्रंथ, text): guides, architecture, security, features and images (the one place for documentation).
-
-Do not add new root directories unless they are documented here. New implementation should go into the owning product package.
+The repository uses purpose-first English names for source and support directories. Product code stays in `atulya/` and `frontend/`; tests, docs, and examples stay separate.
 
 ### Folders
 
-The repo root has `atulya/` (all the Python), `drishti/` (the screen, दृष्टि), `granth/` (guides, ग्रंथ), `pariksha/` (tests, परीक्षा) `prayog/` (experiments) and one local-data folder, `kosh/` (an old `data/` folder is moved there automatically).
+The repository root has `atulya/`, `frontend/`, `docs/`, `tests/`, `examples/`, `.github/`, and runtime-only `kosh/` and `runtime/` directories.
 
 - `kosh/`: everything Atulya stores on your machine (memory, accounts, sessions, chat history, audit log, tokens). Git-ignored. Override the agent part with `ATULYA_AGENT_DATA_DIR`.
-- `granth/` (ग्रंथ, text): guides, architecture, security, features and images (the one place for documentation).
-- `drishti/` (दृष्टि, sight): the animated screen, all files side by side (`Orb.jsx` the orb, `Hologram.js` the head, `Panel.jsx` the pop-up shell, `index.html`, `vite.config.js`). `build.py` builds only when the source changed. `dist/` is generated. `android_*` are Capacitor files to copy into `android/` after `npx cap add android`.
+- `docs/`: guides, architecture, security, feature status and diagrams.
+- `frontend/`: React/Vite UI and Capacitor configuration. `dist/` is generated; `node_modules/` is disposable and restored by the build when needed.
+- `tests/`: pytest suites, grouped by subsystem. Tests are intentionally not mixed with application code.
+- `examples/`: optional experiments and the Termux companion.
+- `runtime/`: downloaded models; never commit model binaries.
 - `atulya/`: all the Python.
 
 ### Inside `atulya/`
 
-`atulya/` is 19 flat files, each named in Sanskrit/Hindi (Latin letters). The full table (file, Devanagari, meaning, what it holds) is in the [README](../README.md#layout). Rules of thumb:
+`atulya/` currently has 27 flat modules. Many old module names are Sanskrit/Hindi transliterations; new modules and directories should use clear English names. Rename old modules only with all imports, entry points, docs and compatibility paths updated together. Rules of thumb:
 
 - New assistant tool: a function with `@tool(...)` in `kriya.py`.
 - New device brand: a JSON profile in `upakaran_profiles.json` (or learn it with the brain); a new connection method goes in `upakaran.py`.
 - New API route: in `dwar.py`, next to the routes of the same kind.
 - A new brain provider: a row in the catalogue in `mastishk.py`.
-- Keep the layout flat: no sub-folders. If a file grows past a few thousand lines, split it by theme and name the new file in Sanskrit/Hindi, then add it to the README table.
+- Do not combine unrelated responsibilities just to lower the file count. Split large modules by API, actions, channels, integrations, memory, voice and runtime responsibility.
 
 The NP-DNA research model was removed. Custom model work belongs in a separate repository.
 
@@ -70,7 +63,7 @@ New code goes into the folder above that owns it. Do not add duplicate compatibi
 | Artifact | Location | Git? |
 |---|---|---|
 | Source code | `atulya/` | ✅ Yes |
-| Tests | `pariksha/` | ✅ Yes |
+| Tests | `tests/` | ✅ Yes |
 | Model weights | separate model repo / HF Hub | ❌ Never in git |
 
 ---
@@ -81,7 +74,7 @@ New code goes into the folder above that owns it. Do not add duplicate compatibi
 ```
 1. Assistant tool: add a function with `@tool(...)` in `atulya/kriya.py` (or a themed file) and import its module at the bottom of `atulya/kriya.py`; if it acts on the outside world, add it to `_CONFIRM_TOOLS` in `buddhi/safety.py`.
    Heavier capability: add it in `atulya/kaushal.py`.
-2. Add tests under pariksha/
+2. Add tests under tests/
 3. Run: python -m pytest -q
 ```
 
@@ -115,5 +108,5 @@ Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`
 ## Release Process
 
 1. Run all tests: `python -m pytest -q`
-2. Build the frontend: `cd drishti && npm run build`
+2. Build the frontend: `cd frontend && npm run build`
 3. Tag release: `git tag v0.3.1 && git push --tags`

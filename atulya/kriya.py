@@ -2338,9 +2338,9 @@ def _numbers(text: str) -> set[float]:
 
 
 async def _brain_ask(prompt: str) -> str:
-    from atulya.mastishk import get_default_llm
+    from atulya.mastishk import ask_without_tools
 
-    return (await get_default_llm().ask(prompt, tools_enabled=False)).text
+    return await ask_without_tools(prompt)
 
 
 async def ai_alert(text: str, now: datetime | None = None, ask: Any = None) -> dict[str, Any] | None:
@@ -2786,10 +2786,9 @@ def _not_allowed(level: str = "full") -> str | None:
 
 
 def _gui():
-    import pyautogui
+    from atulya.sharir import get_gui
 
-    pyautogui.FAILSAFE = True  # slam the mouse into a corner to abort
-    return pyautogui
+    return get_gui()
 
 
 @tool("pc_open_app", "Open an application on this computer (from a safe list)", {
