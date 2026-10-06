@@ -269,7 +269,7 @@ class AtulyaClient:
 
     async def transcribe(self, wav: bytes) -> str:
         data = await self._post("/api/voice/stt", files={"file": ("speech.wav", wav, "audio/wav")},
-                                data={"language": "en"})
+                                data={"language": "auto"})
         return str(data.get("text") or "")
 
     async def heartbeat(self, info: dict[str, Any]) -> None:
@@ -490,6 +490,14 @@ def to_wav(audio: Any, rate: int = SAMPLE_RATE) -> bytes:
     return buf.getvalue()
 
 
+def _offer_audio_frame(queue: asyncio.Queue, frame: Any) -> None:
+    """Drop an overloaded microphone frame without raising in the event loop."""
+    try:
+        queue.put_nowait(frame)
+    except asyncio.QueueFull:
+        logger.debug("microphone queue full; dropping an audio frame")
+
+
 class WakeGate:
     """Optional wake-word *model* in front of speech-to-text (openWakeWord).
 
@@ -560,8 +568,8 @@ class Microphone:
             if status:
                 logger.debug("audio status: %s", status)
             try:
-                loop.call_soon_threadsafe(frames.put_nowait, indata[:, 0].copy())
-            except (asyncio.QueueFull, RuntimeError):
+                loop.call_soon_threadsafe(_offer_audio_frame, frames, indata[:, 0].copy())
+            except RuntimeError:  # event loop already shut down
                 pass
 
         with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="float32", blocksize=FRAME_SAMPLES,
@@ -690,6 +698,8 @@ class Speaker:
             return backend
         if os.environ.get("ATULYA_PIPER_MODEL") and shutil.which("piper"):
             return "piper"  # natural offline neural voice
+        if os.environ.get("TERMUX_VERSION") and shutil.which("termux-tts-speak"):
+            return "termux"  # Android's local TTS engine via Termux:API
         try:
             import pyttsx3  # noqa: F401
 
@@ -721,6 +731,8 @@ class Speaker:
             self._engine = None
         elif self.backend == "say":
             self._run(["say", text])
+        elif self.backend == "termux":
+            self._run(["termux-tts-speak", text])
         elif self.backend == "windows":
             # The text travels in an environment variable, never inside the script.
             script = ("Add-Type -AssemblyName System.Speech; "

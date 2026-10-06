@@ -3064,10 +3064,40 @@ async def api_fire_hook(name: str, token: str, request: Request):
 
 
 # ───── Twilio webhooks (inbound SMS / call status) ───────────────────────────
+def _validate_twilio_webhook(request: Request, form: Any) -> None:
+    """Reject forged Twilio callbacks using Twilio's SDK signature validator.
+
+    Set ATULYA_TWILIO_PUBLIC_BASE_URL to the externally visible origin when
+    TLS terminates at a reverse proxy (for example, ``https://bot.example``).
+    The incoming path and query string are appended unchanged.
+    """
+    auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "").strip()
+    if not auth_token:
+        raise HTTPException(status_code=503, detail="Twilio webhooks are not configured")
+
+    signature = request.headers.get("X-Twilio-Signature", "")
+    if not signature:
+        raise HTTPException(status_code=403, detail="Invalid Twilio signature")
+
+    public_base = os.environ.get("ATULYA_TWILIO_PUBLIC_BASE_URL", "").strip().rstrip("/")
+    if public_base:
+        url = f"{public_base}{request.url.path}"
+        if request.url.query:
+            url += f"?{request.url.query}"
+    else:
+        url = str(request.url)
+
+    from twilio.request_validator import RequestValidator
+
+    if not RequestValidator(auth_token).validate(url, form, signature):
+        raise HTTPException(status_code=403, detail="Invalid Twilio signature")
+
+
 @router.post("/api/twilio/sms")
 async def api_twilio_sms(request: Request):
     """Twilio inbound SMS webhook. Emits ``twilio.sms`` with from/to/body."""
     form = await request.form()
+    _validate_twilio_webhook(request, form)
     payload = dict(form)
     from atulya.adhar import default_bus
     event = await default_bus.emit("twilio.sms", payload)
@@ -3078,6 +3108,7 @@ async def api_twilio_sms(request: Request):
 async def api_twilio_voice(request: Request):
     """Twilio call status webhook. Emits ``twilio.call_status``."""
     form = await request.form()
+    _validate_twilio_webhook(request, form)
     payload = dict(form)
     from atulya.adhar import default_bus
     event = await default_bus.emit("twilio.call_status", payload)
@@ -3088,6 +3119,7 @@ async def api_twilio_voice(request: Request):
 async def api_twilio_recording(request: Request):
     """Twilio recording webhook. Emits ``twilio.recording`` with recording URL."""
     form = await request.form()
+    _validate_twilio_webhook(request, form)
     payload = dict(form)
     from atulya.adhar import default_bus
     event = await default_bus.emit("twilio.recording", payload)

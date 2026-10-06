@@ -11,6 +11,7 @@ import logging
 import os
 import signal
 import sys
+import subprocess
 from pathlib import Path
 
 import httpx
@@ -45,15 +46,21 @@ class Watchdog:
         self.process: asyncio.subprocess.Process | None = None
         self.failures = 0
         self._shutdown = False
+        self._shutdown_event = asyncio.Event()
 
     async def start_server(self) -> None:
         """Start the Atulya server as a subprocess."""
         logger.info("Starting server: %s", self.start_cmd)
+        process_options = {}
+        if os.name == "nt":
+            process_options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            process_options["start_new_session"] = True
         self.process = await asyncio.create_subprocess_shell(
-            self.start_cmd,
-            cwd=self.cwd,
+            self.start_cmd, cwd=self.cwd,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
+            **process_options,
         )
         # Give it time to start
         await asyncio.sleep(5)
@@ -62,12 +69,29 @@ class Watchdog:
         """Stop the Atulya server gracefully."""
         if self.process and self.process.returncode is None:
             logger.info("Stopping server (PID %s)", self.process.pid)
-            self.process.terminate()
+            try:
+                if os.name == "nt":
+                    self.process.send_signal(signal.CTRL_BREAK_EVENT)
+                else:
+                    os.killpg(self.process.pid, signal.SIGTERM)
+            except (ProcessLookupError, OSError):
+                self.process.terminate()
             try:
                 await asyncio.wait_for(self.process.wait(), timeout=10)
             except asyncio.TimeoutError:
                 logger.warning("Server did not stop gracefully, killing")
-                self.process.kill()
+                if os.name == "nt":
+                    killer = await asyncio.create_subprocess_exec(
+                        "taskkill", "/PID", str(self.process.pid), "/T", "/F",
+                        stdout=asyncio.subprocess.DEVNULL,
+                        stderr=asyncio.subprocess.DEVNULL,
+                    )
+                    await killer.wait()
+                else:
+                    try:
+                        os.killpg(self.process.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
                 await self.process.wait()
         self.process = None
 
@@ -91,7 +115,11 @@ class Watchdog:
         logger.info("Watchdog started, monitoring %s", self.health_url)
 
         while not self._shutdown:
-            await asyncio.sleep(self.interval)
+            try:
+                await asyncio.wait_for(self._shutdown_event.wait(), timeout=self.interval)
+                break
+            except asyncio.TimeoutError:
+                pass
 
             healthy = await self.check_health()
             if healthy:
@@ -109,6 +137,7 @@ class Watchdog:
 
     def shutdown(self) -> None:
         self._shutdown = True
+        self._shutdown_event.set()
 
 
 async def _run(args) -> None:
@@ -177,6 +206,7 @@ After=network.target
 Type=simple
 User=atulya
 WorkingDirectory={args.cwd}
+EnvironmentFile=-{args.cwd}/.env
 ExecStart={sys.executable} -m atulya.watchdog --url {args.url} --interval {args.interval} --timeout {args.timeout} --max-failures {args.max_failures} --cmd "{args.cmd}"
 Restart=always
 RestartSec=10

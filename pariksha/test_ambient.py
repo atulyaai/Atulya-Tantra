@@ -262,6 +262,79 @@ def test_wav_encoding():
         assert wav.getnframes() == 8000
 
 
+def test_full_microphone_queue_drops_frame_without_raising():
+    import asyncio
+    import numpy as np
+
+    from atulya.shruti import _offer_audio_frame
+
+    queue = asyncio.Queue(maxsize=1)
+    first = np.zeros(10, dtype="float32")
+    second = np.ones(10, dtype="float32")
+    _offer_audio_frame(queue, first)
+    _offer_audio_frame(queue, second)
+
+    assert queue.qsize() == 1 and queue.get_nowait() is first
+
+
+def test_termux_uses_local_android_tts_when_available(monkeypatch):
+    import shutil
+
+    from atulya.shruti import Speaker
+
+    monkeypatch.delenv("ATULYA_PIPER_MODEL", raising=False)
+    monkeypatch.setenv("TERMUX_VERSION", "0.118")
+    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/termux-tts-speak" if name == "termux-tts-speak" else None)
+    speaker = Speaker()
+    commands = []
+
+    def record_command(cmd, env=None):
+        commands.append(cmd)
+
+    speaker._run = record_command
+
+    speaker.say("नमस्ते")
+
+    assert speaker.backend == "termux"
+    assert commands == [["termux-tts-speak", "नमस्ते"]]
+
+
+def test_server_stt_requests_automatic_language_and_uses_atulya_header(monkeypatch):
+    import asyncio
+    import httpx
+
+    from atulya.shruti import AtulyaClient, to_wav
+
+    class Reply:
+        status_code = 200
+
+        def json(self):
+            return {"text": "नमस्ते", "language": "hi"}
+
+        def raise_for_status(self):
+            pass
+
+    class Client:
+        def __init__(self, **_kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_exc):
+            return None
+
+        async def post(self, _url, *, headers, **kwargs):
+            assert headers == {"X-Atulya-Token": "device-token"}
+            assert kwargs["data"] == {"language": "auto"}
+            return Reply()
+
+    monkeypatch.setattr(httpx, "AsyncClient", Client)
+    text = asyncio.run(AtulyaClient("https://server", "device-token").transcribe(to_wav(tone(0.1))))
+
+    assert text == "नमस्ते"
+
+
 def test_print_speaker(capsys):
     from atulya.shruti import Speaker
 
