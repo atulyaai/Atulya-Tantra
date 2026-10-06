@@ -782,3 +782,10 @@ def test_the_native_gate_is_unchanged():
     assert assess("file_write", {}).needs_confirmation
     assert not assess("file_read", {}).needs_confirmation
     assert assess("files", {"action": "delete"}).needs_confirmation
+
+
+def test_external_calls_and_home_assistant_changes_need_confirmation():
+    from atulya.mastishk import assess
+
+    for name in ("twilio_sms", "twilio_call", "ha_call_service"):
+        assert assess(name, {}).needs_confirmation, name

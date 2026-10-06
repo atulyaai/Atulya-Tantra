@@ -102,6 +102,43 @@ async def _poll_telegram(channel, llm) -> None:
         await asyncio.sleep(2)
 
 
+async def _poll_all_channels(registry, llm) -> None:
+    """Poll every configured channel (WhatsApp, Signal, Email, Slack, Discord …).
+
+    Only channels that have a config in kosh/channels/channels.json are
+    connected; the rest are silently skipped.  Inbound messages go through
+    ``channel.handle_message`` so the same brain and tools answer on any surface.
+    """
+    from atulya.sandesh import ChannelMessage
+
+    while True:
+        try:
+            for name in list(registry._channels):
+                if name == "telegram":
+                    continue  # has its own dedicated poll task
+                ch = registry._channels[name]
+                cfg = registry._configs.get(name, {})
+                if not cfg:
+                    continue  # not configured for this user
+                try:
+                    if not ch.connected:
+                        await ch.connect(cfg)
+                    if not ch.connected:
+                        continue
+                    for msg in await ch.receive():
+                        if isinstance(msg, ChannelMessage):
+                            await ch.handle_message(msg, llm=llm)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logger.debug("channel %s poll failed", name, exc_info=True)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("multi-channel polling failed")
+        await asyncio.sleep(3)
+
+
 async def _cancel_task(task: asyncio.Task | None) -> None:
     """Cancel a background task and wait for its cleanup to finish."""
     if task is None:
@@ -144,6 +181,33 @@ async def lifespan(app: FastAPI):
         logger.info("Telegram bot polling enabled for the configured allowlist")
     elif bot_token:
         logger.warning("Telegram bot token is set but ATULYA_TELEGRAM_ALLOWLIST is empty; polling is disabled")
+
+    # ── Every other channel (WhatsApp, Signal, Email, Slack, Discord …) ──────
+    # The classes exist in sandesh.py; start the registry poller so any channel
+    # the user configured in kosh/channels/channels.json is actually reached.
+    app.state.channel_registry = None
+    app.state.channel_task = None
+    try:
+        from atulya.sandesh import create_default_registry as _create_channels
+
+        app.state.channel_registry = _create_channels(
+            os.environ.get("ATULYA_CHANNELS_DIR", "kosh/channels")
+        )
+        # Telegram has its own long-poll task above; including it here would
+        # deliver every message twice.
+        configured = [
+            n for n, cfg in app.state.channel_registry._configs.items()
+            if cfg and n != "telegram"
+        ]
+        if configured:
+            app.state.channel_task = asyncio.create_task(
+                _poll_all_channels(app.state.channel_registry, app.state.llm)
+            )
+            logger.info("multi-channel polling enabled: %s", ", ".join(configured))
+        else:
+            logger.info("no extra channels configured (WhatsApp/Signal/Email … idle)")
+    except Exception:
+        logger.exception("multi-channel setup failed")
 
     # Initialize Atulya Agent
     agent_core = AgentCore(llm_provider=app.state.llm)
@@ -200,6 +264,9 @@ async def lifespan(app: FastAPI):
         app.state.news_task.cancel()
         app.state.mqtt_task.cancel()
         app.state.watchdog_task.cancel()
+        if getattr(app.state, "channel_task", None):
+            app.state.channel_task.cancel()
+            await asyncio.gather(app.state.channel_task, return_exceptions=True)
         await app.state.senses.stop()
         await app.state.automation_runner.stop()
         app.state.automation_task.cancel()

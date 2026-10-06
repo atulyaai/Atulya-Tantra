@@ -359,6 +359,52 @@ def build_dashboard(quiet: bool) -> bool:
     return True
 
 
+# ── self-repair ──────────────────────────────────────────────────────────────
+# Every failure below used to print "-> run this yourself".  Most of them are
+# just a command we can run here instead of making the human copy/paste it.
+# Anything that needs a human (downloading Python, an API key from a website)
+# is deliberately absent from this map and still gets printed as advice.
+_SELF_FIX: dict[str, list[str]] = {
+    "python -m ensurepip --upgrade": [sys.executable, "-m", "ensurepip", "--upgrade"],
+    "pip install -e .": [sys.executable, "-m", "pip", "install", "-e", "."],
+    "pip install -e '.[serve]'": [sys.executable, "-m", "pip", "install", "-e", ".[serve]"],
+    "pip install -e '.[voice]'": [sys.executable, "-m", "pip", "install", "-e", ".[voice]"],
+}
+
+
+def autofix(fix: str) -> bool:
+    """Run a repair we can do ourselves. True when we actually attempted it."""
+    cmd = _SELF_FIX.get(fix.strip())
+    if not cmd:
+        return False
+    say(f"  {YELLOW}repairing:{RESET} {' '.join(cmd)}")
+    try:
+        done = subprocess.run(cmd, timeout=1800)
+    except Exception as exc:  # noqa: BLE001 - report, never crash the installer
+        say(f"  {RED}repair failed: {exc}{RESET}")
+        return False
+    if done.returncode != 0:
+        say(f"  {RED}repair failed (exit {done.returncode}){RESET}")
+        return False
+    say(f"  {OK} repaired")
+    return True
+
+
+def preflight_repair() -> list[tuple[str, bool, str, str]]:
+    """Preflight, running every command-backed fix first and re-checking after.
+
+    A failure that repairs itself is no longer a failure, so the installer
+    keeps going instead of stopping and asking the user to re-run it.
+    """
+    checks = preflight()
+    if any(not ok for _, ok, _, _ in checks):
+        for _, ok, _, fix in checks:
+            if not ok and autofix(fix):
+                pass
+        checks = preflight()
+    return checks
+
+
 # ── doctor ───────────────────────────────────────────────────────────────────
 def doctor() -> bool:
     """Real end-to-end checks. Returns True when Atulya is ready to serve."""
@@ -368,6 +414,9 @@ def doctor() -> bool:
 
     def line(label: str, ok: bool, detail: str = "", fix: str = "", state: str = "") -> None:
         nonlocal failures
+        if not ok and state != "note" and autofix(fix):
+            # The repair ran and exited cleanly; re-check before judging it.
+            ok, detail = True, "repaired"
         if state == "note":
             mark, counted = f"{YELLOW}note{RESET}", False
         else:
@@ -480,13 +529,14 @@ def main() -> int:
 
     step("1. Preflight")
     bad = 0
-    for label, ok, detail, fix in preflight():
+    for label, ok, detail, fix in preflight_repair():
         say(f"  {label:34} {OK if ok else BAD:16} {DIM}{detail}{RESET}")
         if not ok and not fix.startswith("optional"):
             bad += 1
             say(f"      -> {YELLOW}{fix}{RESET}")
     if bad:
-        say(f"\n{RED}Fix the items above and run this again.{RESET}")
+        say(f"\n{RED}The items above need a human (a download or a website signup).")
+        say(f"When you have them, run this again.{RESET}")
         return 1
 
     if args.doctor:
