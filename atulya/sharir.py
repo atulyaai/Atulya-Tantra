@@ -1,7 +1,7 @@
 """Sharir (शरीर, "body"): what Atulya can do on a computer, as plain functions.
 
 Files, clipboard, windows, mouse, screen, commands, software, printing. It knows nothing about the brain: the
-assistant's tools (kriya.py) and the helper that runs on your other computers (dut.py) both call it, so the rules
+assistant's tools (kriya/) and the helper that runs on your other computers (dut.py) both call it, so the rules
 live in one place:
 
 * files stay inside the folders you allow (default: Documents, Downloads, Desktop, Pictures, Music, Videos), and a few

@@ -45,7 +45,7 @@ flowchart LR
 | Organ | Role | Module |
 |---|---|---|
 | Kernel | The one pipeline every request goes through | `atulya/buddhi.py` |
-| Understanding | Clear command → concrete tool + arguments, no model needed | `atulya/kriya.py` |
+| Understanding | Clear command → concrete tool + arguments, no model needed | `atulya/kriya/` |
 | Planning | Goals → checked multi-step plans (routines, groups, compound commands, the brain) | `atulya/buddhi.py` |
 | Knowing you | Facts, habits, which confirmations to stop asking (opt-in) | `atulya/buddhi.py` |
 | Brain | Open conversation, reasoning, native tool calls, provider failover | `atulya/mastishk.py` |

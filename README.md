@@ -198,7 +198,7 @@ Current Python module names (legacy names; English responsibilities):
 |---|---|---|
 | `buddhi.py` | Agent orchestration | Request flow, planning, routines, reflexes and user learning |
 | `mastishk.py` | Brain and providers | Model tiers, provider catalog, tool selection, failover and local inference |
-| `kriya.py` | Actions | Assistant tools, intent routing, money, media, PC control and audit log |
+| `kriya/` | Actions | Assistant tools, intent routing, money, media, PC control and audit log; skills in `*.py`, registry and state in `__init__.py` |
 | `jaal.py` | Web integrations | Browser automation, web search, Gmail and Google Calendar |
 | `kaushal.py` | Capabilities | Document, spreadsheet, chart and content creation |
 | `setu.py` | MCP integration | MCP client/server and `setu_servers.json` configuration |
@@ -243,7 +243,7 @@ flowchart LR
     Tools --> Safety["safety: risky actions ask first"]
 ```
 
-Assistant tools live in `atulya/kriya.py` and register themselves with `@tool`. Risky ones (sending email, deleting events, PC control) ask first by default (`ATULYA_AUTO_APPROVE` can pre-approve specific ones), and every call is appended to `kosh/agent/audit.jsonl`.
+Assistant tools live in `atulya/kriya/` and register themselves with `@tool`. Risky ones (sending email, deleting events, PC control) ask first by default (`ATULYA_AUTO_APPROVE` can pre-approve specific ones), and every call is appended to `kosh/agent/audit.jsonl`.
 
 ## Memory
 

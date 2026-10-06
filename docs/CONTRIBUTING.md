@@ -46,7 +46,7 @@ The repository root has `atulya/`, `frontend/`, `docs/`, `tests/`, `examples/`, 
 
 `atulya/` currently has 27 flat modules. Many old module names are Sanskrit/Hindi transliterations; new modules and directories should use clear English names. Rename old modules only with all imports, entry points, docs and compatibility paths updated together. Rules of thumb:
 
-- New assistant tool: a function with `@tool(...)` in `kriya.py`.
+- New assistant tool: a function with `@tool(...)` in the skill module of `atulya/kriya/` that it belongs to.
 - New device brand: a JSON profile in `upakaran_profiles.json` (or learn it with the brain); a new connection method goes in `upakaran.py`.
 - New API route: in `atulya/dwar/`, next to the routes of the same kind (`routes_auth.py`, `routes_chat.py`, …); shared state and helpers belong in `atulya/dwar/__init__.py`. Anything the tests patch through `atulya.dwar` (config paths, auth helpers) must be read as `_d.<name>` inside a route module, otherwise the patch lands on the package but the route still reads its own copy.
 - A new brain provider: a row in the catalogue in `mastishk.py`.
@@ -72,7 +72,7 @@ New code goes into the folder above that owns it. Do not add duplicate compatibi
 
 ### 1. New Tool or Capability
 ```
-1. Assistant tool: add a function with `@tool(...)` in `atulya/kriya.py` (or a themed file) and import its module at the bottom of `atulya/kriya.py`; if it acts on the outside world, add it to `_CONFIRM_TOOLS` in `buddhi/safety.py`.
+1. Assistant tool: add a function with `@tool(...)` in the matching skill module of `atulya/kriya/` (every module is imported and star-exported by `__init__.py`, so nothing else needs wiring up); if it acts on the outside world, add it to `_CONFIRM_TOOLS` in `buddhi/safety.py`.
    Heavier capability: add it in `atulya/kaushal.py`.
 2. Add tests under tests/
 3. Run: python -m pytest -q

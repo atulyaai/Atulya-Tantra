@@ -1,4 +1,4 @@
-"""Tests for atulya/kriya.py."""
+"""Tests for atulya/kriya/."""
 from __future__ import annotations
 
 import asyncio
