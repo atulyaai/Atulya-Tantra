@@ -9,6 +9,12 @@
 
   Everything this file adds beyond the template is the permissions block and
   android:usesCleartextTraffic.
+
+  Cleartext is permitted because Atulya's server is one you host yourself and
+  it speaks plain http by default (ATULYA_HOST=127.0.0.1, ATULYA_PORT=8501, no
+  ATULYA_PUBLIC_URL). With it false the app cannot reach that server at all.
+  Tighten this by shipping an android:networkSecurityConfig that allows only
+  your own hosts once the deployment is https everywhere.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Beyond Capacitor's own INTERNET: voice and camera input, push
@@ -26,7 +32,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
-        android:usesCleartextTraffic="false">
+        android:usesCleartextTraffic="true">
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation"
             android:name=".MainActivity"
