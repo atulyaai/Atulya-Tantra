@@ -29,7 +29,7 @@ capability detail and [ROADMAP.md](ROADMAP.md) for why the order is what it is.
 | Windows, unattended | `python install.py --yes` | cPanel, VPS, CI |
 | Either, pin the profile | `python install.py --profile full` | `basic` / `voice` / `full` / `server` — no prompts |
 | Either, start by itself | `python install.py --service` | systemd unit on Linux, sign-in shortcut on Windows |
-| **Planned** `install.ps1` | `irm https://raw.githubusercontent.com/atulyaai/Atulya-Tantra/main/install.ps1 \| iex` | Not written. Today's Windows path needs git + Python already present. This would make Windows a true one-liner |
+| **Windows PowerShell** | `git clone https://github.com/atulyaai/Atulya-Tantra.git; cd Atulya-Tantra; python install.py` | Requires Git and Python to be installed first; the guided installer handles project dependencies and setup |
 
 ### Day-to-day commands
 
@@ -57,16 +57,15 @@ capability detail and [ROADMAP.md](ROADMAP.md) for why the order is what it is.
 | `atulya/brain/` | **Brain** — tiers, provider catalogue, router, safety rules, tool belt, local model | ✅ |
 | `atulya/actions/` | **Actions** — money, calendar, news, MQTT, reminders, media, the action engine | ✅ |
 | `atulya/api/` | **Web/API** — routes, agent routes, channel webhooks, system routes | ✅ |
-| `atulya/data/` | Storage layer shared by the modules above | ✅ |
-| `atulya/runtime/` | In-process runtime pieces | ✅ |
-| `atulya/companion.py` | CLI — talk to Atulya from a terminal | ✅ |
+| `atulya/cli.py` | The CLI — `python -m atulya.cli doctor` and the readiness checks | ✅ |
+| `atulya/companion.py` | Outbound paired computer companion, for remote use of the shared computer rules | ✅ |
 | `atulya/server.py` | The server: FastAPI app, static mount, startup | ✅ |
 | `data/` | **Your data.** Everything Atulya learns about you | ❌ gitignored |
 | `runtime/` | Models, scratch, downloaded weights | ❌ gitignored |
-| `assets/` | `ATULYA_DATA_DIR` — data shipped with the project | ✅ |
-| `webui/` | Web UI source + build (**planned rename → `webui/`**) | ✅ |
-| `docs/` | This file, STATUS, ROADMAP, DEPLOYMENT, RECIPES, DEVICES, CONTRIBUTING | ✅ |
-| `tests/` | 981 tests | ✅ |
+| `assets/` | `ATULYA_DATA_DIR` — where generated output lands (invoices, reports, CLI sessions) | ❌ gitignored |
+| `webui/` | React/Vite web UI source and build configuration | ✅ |
+| `docs/` | Documentation: status, roadmap, setup, deployment, recipes, architecture, API, devices | ✅ |
+| `tests/` | Python test suite; collected case count varies with parametrized tests and dependencies | ✅ |
 | `examples/` | Termux phone helper, GPU/Colab route (**planned removal**) | ✅ |
 | `tools/` | Repo maintenance — the personal-value audit | ✅ |
 | `.venv/` | Python environment | ❌ |
@@ -404,19 +403,21 @@ actually exists from what would have to be built.
 
 ## 10. Left to build
 
+Closed by this release: the English rename of every identifier, path and folder; `frontend/` → `webui/`; `kosh/` → `data/`; data paths pointed at the project root instead of the package; and HTTPS re-checked against the live domain (`/` → 200, `/api/health` → 401).
+
 | # | Item | Owner |
 |---|---|---|
-| 1 | Stop your PC instance so Telegram replies (B1) | **You** |
+| 1 | Stop your PC instance so Telegram replies (409 conflict) | **You** |
 | 2 | `release.yml` keep or delete (B5) | **You** |
 | 3 | Working DeepSeek key (B6) | **You** |
 | 4 | Real-hardware pass — mic, camera, TV, phone | **You** |
 | 5 | Diagnose the four failing MCP servers (B2) | Me |
-| 6 | Re-verify HTTPS after rebuild (B3) | Me |
-| 7 | `install.ps1` one-liner | Me |
-| 8 | `webui/` → `webui/` | Me |
-| 9 | Webui reorganise + HUD | Me |
-| 10 | Remove `examples/` | Me |
-| 11 | `data/` → `data/` (deliberately last) | Me |
-| 12 | Docs drift: `providers_catalog.py`, "eleven providers" (B7) | Me |
-| 13 | Docker build verification (F1) | Me |
-| 14 | G5 self-measurement, then G3 self-review | Me, in that order |
+| 6 | `install.ps1` one-liner | Me |
+| 7 | Webui reorganise + HUD | Me |
+| 8 | Remove `examples/` | Me |
+| 9 | Docs drift: `providers_catalog.py`, "eleven providers" (B7) | Me |
+| 10 | Docker build verification (F1) | Me |
+| 11 | Restore `data/identity.json` — the server logs "Persona config not found" | Me |
+| 12 | G5 self-measurement, then G3 self-review | Me, in that order |
+
+`ROADMAP.md` says why the order is what it is. `STATUS.md` says what is proven today.

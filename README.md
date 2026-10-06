@@ -67,6 +67,7 @@ are hidden from normal users.
 | Know what actually works today, and what is only proven in tests | **[docs/STATUS.md](docs/STATUS.md)** |
 | Know what is left and what comes next | **[docs/ROADMAP.md](docs/ROADMAP.md)** |
 | Deploy it for real | **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** |
+| Set it up and understand its folders and options | **[docs/SETUP.md](docs/SETUP.md)** |
 | Run it on a VM, put it in Telegram, pair a phone | **[docs/RECIPES.md](docs/RECIPES.md)** |
 | Understand how it thinks | **[docs/COGNITIVE_ARCHITECTURE.md](docs/COGNITIVE_ARCHITECTURE.md)** |
 | Hit the API | **[docs/API_REFERENCE.md](docs/API_REFERENCE.md)** |
@@ -192,7 +193,7 @@ output are not source files.
 |---|---|
 | `atulya/` | Python application package — API, reasoning, memory, tools, channels, devices and voice |
 | `webui/` | React/Vite dashboard, PWA assets and Capacitor config; `dist/` is generated, `node_modules/` is disposable |
-| `docs/` | Documentation: status, roadmap, deployment, recipes, architecture, API, devices |
+| `docs/` | Documentation: status, roadmap, setup, deployment, recipes, architecture, API, devices |
 | `tests/` | Unit and integration tests, grouped by subsystem |
 | `examples/` | Termux companion and optional model experiments |
 | `data/` | Local user data — private memory, credentials and settings (store/vault); git-ignored |
