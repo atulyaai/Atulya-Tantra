@@ -1203,6 +1203,7 @@ NotifyChannel = ChannelType
 # browser push below -- lives in one module instead of a sibling file.
 
 
+from atulya import queue as agent_queue
 from atulya import raksha as vault
 
 _LOCK = threading.RLock()
@@ -1219,7 +1220,7 @@ def configured() -> bool:
 
 
 def _path() -> Path:
-    return Path(os.environ.get("ATULYA_AGENT_DATA_DIR", "kosh/agent")) / "push_subscriptions.json"
+    return agent_queue.store_path("push_subscriptions.json")
 
 
 def _legacy_path() -> Path:
@@ -1241,9 +1242,7 @@ def _read() -> dict[str, list[dict[str, Any]]]:
 
 
 def _write(data: dict[str, list[dict[str, Any]]]) -> None:
-    path = _path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    vault.write_text(path, json.dumps(data, separators=(",", ":")))
+    agent_queue.write_store(_path(), data)
     _legacy_path().unlink(missing_ok=True)
 
 

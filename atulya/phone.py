@@ -3,43 +3,36 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
-import threading
 import time
 import uuid
-from pathlib import Path
 from typing import Any
 
-from atulya import raksha as vault
+from atulya import queue as agent_queue
 
 MAX_ITEMS_PER_POST = 100
 MAX_STORED_ITEMS = 500
 MAX_ITEM_CHARS = 4_000
 MAX_BATCH_CHARS = 512_000
 _COMMAND_TTL = 120
-_LOCK = threading.RLock()
+_MAX_COMMANDS = 100
+_STORE_KEYS = ("sms", "notifications", "location", "commands")
 
-
-def _path() -> Path:
-    return Path(os.environ.get("ATULYA_AGENT_DATA_DIR", "kosh/agent")) / "phone_inbox.json"
+_commands = agent_queue.CommandQueue(
+    "phone_inbox.json", ttl=_COMMAND_TTL, limit=_MAX_COMMANDS,
+    pending_only=True, invalid="Phone store must be a JSON object.")
 
 
 def _read() -> dict[str, Any]:
-    try:
-        value = json.loads(vault.read_text(_path()))
-    except FileNotFoundError:
-        return {"sms": [], "notifications": [], "location": [], "commands": []}
-    if not isinstance(value, dict):
-        raise ValueError("Phone store must be a JSON object.")
-    for key in ("sms", "notifications", "location", "commands"):
-        value.setdefault(key, [])
-    return value
+    store = agent_queue.read_store(
+        _commands.path, {key: [] for key in _STORE_KEYS},
+        invalid="Phone store must be a JSON object.")
+    for key in _STORE_KEYS:
+        store.setdefault(key, [])
+    return store
 
 
 def _write(value: dict[str, Any]) -> None:
-    path = _path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    vault.write_text(path, json.dumps(value, ensure_ascii=False, separators=(",", ":")))
+    agent_queue.write_store(_commands.path, value)
 
 
 def _normalise(item: Any) -> dict[str, Any]:
@@ -64,7 +57,7 @@ def add_items(kind: str, device_id: str, items: list[Any]) -> dict[str, int]:
     if sum(len(json.dumps(item, ensure_ascii=False)) for item in clean) > MAX_BATCH_CHARS:
         raise ValueError("Phone sync batches must be 512 KB or smaller.")
     added = 0
-    with _LOCK:
+    with _commands.lock:
         store = _read()
         rows = store[kind]
         known = {row.get("digest") for row in rows if isinstance(row, dict)}
@@ -88,7 +81,7 @@ def list_items(kind: str = "all", limit: int = 100) -> list[dict[str, Any]]:
     if kind not in ("all", "sms", "notifications", "location"):
         raise ValueError("Unknown phone inbox type.")
     limit = max(1, min(int(limit), 500))
-    with _LOCK:
+    with _commands.lock:
         store = _read()
     keys = ("sms", "notifications", "location") if kind == "all" else (kind,)
     result = [dict(row, kind=key) for key in keys for row in store[key]]
@@ -100,7 +93,7 @@ def clear_items(kind: str = "all") -> int:
     if kind not in ("all", "sms", "notifications", "location"):
         raise ValueError("Unknown phone inbox type.")
     keys = ("sms", "notifications", "location") if kind == "all" else (kind,)
-    with _LOCK:
+    with _commands.lock:
         store = _read()
         removed = sum(len(store[key]) for key in keys)
         for key in keys:
@@ -113,41 +106,19 @@ def enqueue(device_id: str, action: str) -> dict[str, Any]:
     """Queue a short-lived command for a paired phone companion."""
     if action not in ("ring", "locate"):
         raise ValueError("Phone command must be ring or locate.")
-    command = {"id": uuid.uuid4().hex, "device_id": device_id, "action": action,
-               "created_at": time.time(), "expires_at": time.time() + _COMMAND_TTL,
-               "status": "pending"}
-    with _LOCK:
-        store = _read()
-        store["commands"] = [c for c in store["commands"]
-                              if c.get("status") == "pending" and c.get("expires_at", 0) > time.time()][-100:]
-        store["commands"].append(command)
-        _write(store)
+    command = _commands.enqueue(device_id, action=action)
     return {key: value for key, value in command.items() if key != "device_id"}
 
 
 def poll(device_id: str) -> list[dict[str, Any]]:
     """Claim pending commands for this device; expired commands are discarded."""
-    now = time.time()
-    with _LOCK:
-        store = _read()
-        commands = store["commands"]
-        ready = []
-        for command in commands:
-            if command.get("expires_at", 0) <= now:
-                command["status"] = "expired"
-            elif command.get("device_id") == device_id and command.get("status") == "pending":
-                command["status"] = "sent"
-                ready.append({key: command[key] for key in ("id", "action", "expires_at")})
-        store["commands"] = [c for c in commands if c.get("expires_at", 0) > now][-100:]
-        _write(store)
-    return ready
+    return _commands.poll(device_id, ("id", "action", "expires_at"))
 
 
 def acknowledge(device_id: str, command_id: str, result: dict[str, Any]) -> bool:
     """Record the bounded result of a phone command if it belongs to this device."""
     safe = _normalise(result)
-    with _LOCK:
-        store = _read()
+    def record(store: dict[str, Any]) -> bool:
         for command in store["commands"]:
             if command.get("id") == command_id and command.get("device_id") == device_id:
                 if command.get("status") not in ("sent", "pending"):
@@ -155,6 +126,7 @@ def acknowledge(device_id: str, command_id: str, result: dict[str, Any]) -> bool
                 command["status"] = "done"
                 command["result"] = safe
                 command["completed_at"] = time.time()
-                _write(store)
                 return True
-    return False
+        return False
+
+    return _commands.update(record)

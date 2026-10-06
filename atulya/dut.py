@@ -4,39 +4,19 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import threading
 import time
-import uuid
 from pathlib import Path
 from typing import Any
 
 import httpx
 
+from atulya import queue as agent_queue
 from atulya import raksha
 
 _TTL = 180
 _MAX_PENDING = 50
-_LOCK = threading.RLock()
 
-
-def _path() -> Path:
-    return Path(os.environ.get("ATULYA_AGENT_DATA_DIR", "kosh/agent")) / "dut_queue.json"
-
-
-def _read() -> dict[str, list[dict[str, Any]]]:
-    try:
-        value = json.loads(raksha.read_text(_path()))
-    except FileNotFoundError:
-        return {"commands": [], "results": []}
-    if not isinstance(value, dict):
-        return {"commands": [], "results": []}
-    return {key: value.get(key, []) for key in ("commands", "results")}
-
-
-def _write(value: dict[str, list[dict[str, Any]]]) -> None:
-    path = _path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    raksha.write_text(path, json.dumps(value, separators=(",", ":")))
+_commands = agent_queue.CommandQueue("dut_queue.json", ttl=_TTL, limit=_MAX_PENDING)
 
 
 def enqueue(device_id: str, operation: str, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -44,55 +24,39 @@ def enqueue(device_id: str, operation: str, arguments: dict[str, Any]) -> dict[s
         raise ValueError("That remote computer operation is not supported.")
     if not isinstance(arguments, dict) or len(json.dumps(arguments, ensure_ascii=False)) > 8000:
         raise ValueError("Remote task arguments are invalid or too large.")
-    command = {"id": uuid.uuid4().hex, "device_id": device_id, "operation": operation,
-               "arguments": arguments, "created_at": time.time(), "expires_at": time.time() + _TTL,
-               "status": "pending"}
-    with _LOCK:
-        data = _read()
-        data["commands"] = [row for row in data["commands"] if row.get("expires_at", 0) > time.time()][-_MAX_PENDING:]
-        data["commands"].append(command)
-        _write(data)
+    command = _commands.enqueue(device_id, operation=operation, arguments=arguments)
     return {"id": command["id"], "operation": operation, "expires_at": command["expires_at"]}
 
 
 def poll(device_id: str, permission: str = "read") -> list[dict[str, Any]]:
-    with _LOCK:
-        data = _read()
-        now = time.time()
-        ready = []
-        for row in data["commands"]:
-            if row.get("expires_at", 0) <= now:
-                row["status"] = "expired"
-            elif row.get("device_id") == device_id and row.get("status") == "pending":
-                row["status"] = "sent"
-                ready.append({key: row[key] for key in ("id", "operation", "arguments", "expires_at")})
-                ready[-1]["permission"] = permission
-        data["commands"] = [row for row in data["commands"] if row.get("expires_at", 0) > now]
-        _write(data)
-        return ready
+    ready = _commands.poll(device_id, ("id", "operation", "arguments", "expires_at"))
+    for row in ready:
+        row["permission"] = permission
+    return ready
 
 
 def result(device_id: str, command_id: str, value: dict[str, Any]) -> bool:
     encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
     if len(encoded) > 20_000:
         value = {"ok": False, "error": "Remote result exceeded 20 KB."}
-    with _LOCK:
-        data = _read()
-        row = next((item for item in data["commands"] if item.get("id") == command_id
+    def record(store: dict[str, list[dict[str, Any]]]) -> bool:
+        row = next((item for item in store["commands"] if item.get("id") == command_id
                     and item.get("device_id") == device_id and item.get("status") == "sent"), None)
         if not row:
             return False
         row["status"] = "done"
-        data["results"].append({"id": command_id, "device_id": device_id, "result": value, "at": time.time()})
-        data["results"] = data["results"][-100:]
-        _write(data)
+        store.setdefault("results", []).append(
+            {"id": command_id, "device_id": device_id, "result": value, "at": time.time()})
+        store["results"] = store["results"][-100:]
         return True
+
+    return _commands.update(record)
 
 
 def recent_results(device_id: str, limit: int = 20) -> list[dict[str, Any]]:
-    with _LOCK:
-        data = _read()
-        return [row for row in data["results"] if row.get("device_id") == device_id][-max(1, min(limit, 50)):]
+    store = _commands.read()
+    return [row for row in store.get("results", [])
+            if row.get("device_id") == device_id][-max(1, min(limit, 50)):]
 
 
 def execute(operation: str, arguments: dict[str, Any], permission: str = "read") -> dict[str, Any]:

@@ -183,7 +183,7 @@ Project folders now use standard English engineering names. The Python package s
 
 | Folder | Purpose | What lives here |
 |---|---|---|---|
-| `atulya/` | Python application package | API, reasoning, memory, tools, channels, devices and voice; 27 modules |
+| `atulya/` | Python application package | API, reasoning, memory, tools, channels, devices and voice; 24 modules |
 | `frontend/` | Web and mobile UI | React/Vite dashboard, PWA assets and Capacitor config; `dist/` is generated, `node_modules/` is disposable |
 | `docs/` | Documentation | Architecture, deployment, API and device guides |
 | `tests/` | Automated checks | Unit and integration tests, grouped by subsystem |
@@ -208,6 +208,7 @@ Current Python module names (legacy names; English responsibilities):
 | `vani.py` | Speech | Text-to-speech and speech pipeline |
 | `smriti.py` | Memory | Vector store, profile and session search |
 | `sandesh.py` | Messaging channels | Telegram, Discord, Slack, email and web push |
+| `queue.py` | Paired-device queues | Shared JSON store and short-lived command queues for paired computers and phones |
 | `sevak.py` | Server lifecycle | FastAPI application startup and shutdown |
 | `dwar.py` | API routes | Accounts, chat, voice, automation, devices and dashboard routes |
 | `raksha.py` | Security | Vault, HTTPS certificates and security helpers |

@@ -64,7 +64,7 @@ class TestNotifications:
             yield m
 
     def test_subscribe(self, tmp_path, monkeypatch, mock_auth):
-        from atulya import push
+        from atulya import sandesh as push
         from atulya.dwar import subscribe
         monkeypatch.setenv("ATULYA_AGENT_DATA_DIR", str(tmp_path))
         subscription = {"endpoint": "https://push.test", "keys": {"p256dh": "p", "auth": "a"}}
@@ -83,7 +83,7 @@ class TestNotifications:
             subscribe({}, token="t")
 
     def test_unsubscribe(self, tmp_path, monkeypatch, mock_auth):
-        from atulya import push
+        from atulya import sandesh as push
         from atulya.dwar import unsubscribe
         monkeypatch.setenv("ATULYA_AGENT_DATA_DIR", str(tmp_path))
         subscription = {"endpoint": "https://push.test", "keys": {"p256dh": "p", "auth": "a"}}

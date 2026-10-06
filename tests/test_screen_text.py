@@ -50,7 +50,7 @@ def test_click_text_scales_ocr_location_to_screen_coordinates(monkeypatch):
     monkeypatch.setattr(sharir, "require", lambda _permission: None)
     monkeypatch.setattr(sharir, "screenshot", lambda: "screen.png")
     monkeypatch.setattr(sharir, "_read_ocr_data", lambda _path: (data, 100, 100))
-    monkeypatch.setattr(sharir, "_gui", lambda: Gui())
+    monkeypatch.setattr(sharir, "get_gui", lambda: Gui())
     assert "Clicked the text" in sharir.click_text("Save")
     assert clicks == [(60, 52)]
 
