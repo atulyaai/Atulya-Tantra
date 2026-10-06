@@ -26,6 +26,7 @@ dependencies = [
     "croniter>=2.0",
     "paho-mqtt>=2.0",
     "watchdog>=4.0",
+    "twilio>=9.0",
 ]
 
 [project.optional-dependencies]

@@ -3375,4 +3375,54 @@ async def voice_list() -> str:
     return f"Enrolled voices: {', '.join(names) if names else '(none)'}"
 
 
+# ── Twilio Calls/SMS ────────────────────────────────────────────────────────
+@tool("twilio_sms", "Send an SMS via Twilio", {
+    "to": {"type": "string", "description": "Destination phone number in E.164 format (+15551234567)"},
+    "body": {"type": "string", "description": "Message text"},
+})
+async def twilio_sms(to: str, body: str) -> str:
+    if not to.startswith("+"):
+        return "Phone number must be in E.164 format (e.g. +15551234567)."
+    account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
+    auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
+    from_number = os.environ.get("TWILIO_FROM_NUMBER", "")
+    if not all([account_sid, auth_token, from_number]):
+        return "Twilio not configured (set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER)."
+    try:
+        from twilio.rest import Client
+        client = Client(account_sid, auth_token)
+        msg = client.messages.create(body=body, from_=from_number, to=to)
+        return f"SMS sent to {to} (SID: {msg.sid})"
+    except Exception as exc:  # noqa: BLE001
+        return f"SMS failed: {exc}"
+
+
+@tool("twilio_call", "Make a voice call via Twilio (TTS or recorded)", {
+    "to": {"type": "string", "description": "Destination phone number in E.164 format"},
+    "text": {"type": "string", "description": "Text to speak (TTS)", "default": ""},
+    "url": {"type": "string", "description": "Twilio TwiML URL for custom call flow", "default": ""},
+})
+async def twilio_call(to: str, text: str = "", url: str = "") -> str:
+    if not to.startswith("+"):
+        return "Phone number must be in E.164 format (e.g. +15551234567)."
+    account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
+    auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
+    from_number = os.environ.get("TWILIO_FROM_NUMBER", "")
+    if not all([account_sid, auth_token, from_number]):
+        return "Twilio not configured."
+    if not text and not url:
+        return "Provide either 'text' (for TTS) or 'url' (TwiML)."
+    try:
+        from twilio.rest import Client
+        client = Client(account_sid, auth_token)
+        call = client.calls.create(
+            to=to, from_=from_number,
+            twiml=f"<Response><Say>{text}</Say></Response>" if text else None,
+            url=url if url else None,
+        )
+        return f"Call started to {to} (SID: {call.sid})"
+    except Exception as exc:  # noqa: BLE001
+        return f"Call failed: {exc}"
+
+
 from atulya import jaal  # noqa: E402,F401  (registers the web tools; jaal needs the tool registry above)

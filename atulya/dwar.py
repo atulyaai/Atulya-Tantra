@@ -3063,7 +3063,39 @@ async def api_fire_hook(name: str, token: str, request: Request):
 
 
 
-# ── routines ────────────────────────────────────────────────────────────
+# ───── Twilio webhooks (inbound SMS / call status) ───────────────────────────
+@router.post("/api/twilio/sms")
+async def api_twilio_sms(request: Request):
+    """Twilio inbound SMS webhook. Emits ``twilio.sms`` with from/to/body."""
+    form = await request.form()
+    payload = dict(form)
+    from atulya.adhar import default_bus
+    event = await default_bus.emit("twilio.sms", payload)
+    return {"ok": True, "event": event.type}
+
+
+@router.post("/api/twilio/voice")
+async def api_twilio_voice(request: Request):
+    """Twilio call status webhook. Emits ``twilio.call_status``."""
+    form = await request.form()
+    payload = dict(form)
+    from atulya.adhar import default_bus
+    event = await default_bus.emit("twilio.call_status", payload)
+    return {"ok": True, "event": event.type}
+
+
+@router.post("/api/twilio/recording")
+async def api_twilio_recording(request: Request):
+    """Twilio recording webhook. Emits ``twilio.recording`` with recording URL."""
+    form = await request.form()
+    payload = dict(form)
+    from atulya.adhar import default_bus
+    event = await default_bus.emit("twilio.recording", payload)
+    return {"ok": True, "event": event.type}
+
+
+# ───── routines ─────────────────────────────
+
 def _kernel(request: Request):
     from atulya.buddhi import get_kernel
     from atulya.mastishk import get_default_llm

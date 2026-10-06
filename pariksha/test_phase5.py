@@ -338,19 +338,21 @@ def test_mcp_config_enables_only_what_can_work_unattended():
 
     filesystem, git, playwright and fetch spawn, connect and list tools with
     nothing configured. google_drive needs a service account; mqtt/brave-search/
-    memory need a broker or API keys. All are present so the owner can flip one
-    switch.
+    memory need a broker or API keys. twilio and home-assistant need creds/URL.
+    All are present so the owner can flip one switch.
     """
     data = json.loads(open("atulya/setu_servers.json", encoding="utf-8").read())
     assert all("enabled" in server for server in data["servers"])
     assert all("timeout" in server for server in data["servers"])
     by_name = {server["name"]: server for server in data["servers"]}
-    assert set(by_name) == {"filesystem", "git", "playwright", "mqtt", "fetch", "brave-search", "memory", "google_drive"}
+    assert set(by_name) == {"filesystem", "git", "playwright", "mqtt", "fetch", "brave-search", "memory", "google_drive", "twilio", "home-assistant"}
     assert {name for name, s in by_name.items() if s["enabled"]} == {"filesystem", "git", "playwright", "fetch"}
     assert not by_name["google_drive"]["enabled"]
     assert not by_name["mqtt"]["enabled"]
     assert not by_name["brave-search"]["enabled"]
     assert not by_name["memory"]["enabled"]
+    assert not by_name["twilio"]["enabled"]
+    assert not by_name["home-assistant"]["enabled"]
     assert by_name["google_drive"]["env"]["MCP_MODE"] == "stdio"
     assert by_name["google_drive"]["env"]["DISABLE_CONSOLE_OUTPUT"] == "true"
 

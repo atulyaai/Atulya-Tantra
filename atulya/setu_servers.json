@@ -52,6 +52,24 @@
       }
     },
     {
+      "name": "twilio",
+      "enabled": false,
+      "timeout": 5,
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-twilio"]
+    },
+    {
+      "name": "home-assistant",
+      "enabled": false,
+      "timeout": 10,
+      "transport": "http",
+      "url": "http://127.0.0.1:8123/mcp",
+      "env": {
+        "HOME_ASSISTANT_TOKEN": ""
+      }
+    },
+    {
       "name": "memory",
       "enabled": false,
       "timeout": 5,
