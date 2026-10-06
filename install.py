@@ -389,11 +389,13 @@ def doctor() -> bool:
     except Exception as exc:
         line("brain module imports", False, str(exc)[:60], "pip install -e '.[serve]'")
 
+    cloud_or_named_model = brain_ready()
     line(
         "at least one brain key",
-        brain_ready(),
-        "configured" if brain_ready() else "none",
-        "add OPENROUTER_API_KEY / GEMINI_API_KEY / GROQ_API_KEY to .env",
+        cloud_or_named_model,
+        "configured" if cloud_or_named_model else "none; local fallback may be used",
+        "add a cloud key for hosted brains, or install/configure a local model",
+        state="" if cloud_or_named_model else "note",
     )
     line(
         "dashboard token",
@@ -401,13 +403,15 @@ def doctor() -> bool:
         next((i.shown() for i in ITEMS if i.key == "ATULYA_DASHBOARD_TOKEN"), ""),
         "python install.py (it generates one)",
     )
+    telegram_ready = bool(os.environ.get("ATULYA_TELEGRAM_BOT_TOKEN")) and bool(
+        os.environ.get("ATULYA_TELEGRAM_ALLOWLIST")
+    )
     line(
         "Telegram bot",
-        bool(os.environ.get("ATULYA_TELEGRAM_BOT_TOKEN")) and bool(os.environ.get("ATULYA_TELEGRAM_ALLOWLIST")),
-        "token + allowlist set"
-        if os.environ.get("ATULYA_TELEGRAM_BOT_TOKEN") and os.environ.get("ATULYA_TELEGRAM_ALLOWLIST")
-        else "optional",
+        telegram_ready,
+        "token + allowlist set" if telegram_ready else "optional",
         "add ATULYA_TELEGRAM_BOT_TOKEN and ATULYA_TELEGRAM_ALLOWLIST",
+        state="" if telegram_ready else "note",
     )
 
     # Voice stack: import only, no model download.
@@ -416,7 +420,8 @@ def doctor() -> bool:
 
         line("text-to-speech (edge-tts)", True)
     except Exception:
-        line("text-to-speech (edge-tts)", False, "", "pip install -e '.[voice]'")
+        line("text-to-speech (edge-tts)", False, "optional; local/system speech may still work",
+             "pip install -e '.[voice]'", state="note")
 
     # Live server probe: only if something is already listening.
     port = os.environ.get("ATULYA_PORT", "8501")

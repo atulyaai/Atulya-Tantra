@@ -184,6 +184,9 @@ _CONFIRM_TOOLS = {
     **{name: "runs code or changes files" for name in RISKY_TOOLS},
     "send_email": "sends a message on your behalf",
     "message_send": "sends a message to someone on your behalf",
+    "twilio_sms": "sends an SMS using your phone service",
+    "twilio_call": "places a phone call using your phone service",
+    "ha_call_service": "runs a Home Assistant service that may change your home",
     "contact_remove": "forgets a contact",
     "calendar_remove": "permanently deletes a calendar event",
     "cancel_reminder": "deletes a reminder",
@@ -208,7 +211,7 @@ _CONFIRM_ACTIONS = {
     **{("files", a): "changes or opens your files" for a in ("move", "delete", "write", "edit", "open", "print")},
     ("clipboard", "set"): "changes your clipboard",
     ("screen", "read"): "reads what is on your screen",
-    **{("screen", a): "controls your screen" for a in ("focus", "click", "double_click", "right_click", "move", "scroll")},
+    **{("screen", a): "controls your screen" for a in ("focus", "click", "click_text", "double_click", "right_click", "move", "scroll")},
 }
 
 # Outside MCP servers name their own tools, and `assess` matches on the exact
@@ -356,7 +359,8 @@ def describe_action(tool: str, arguments: dict[str, Any] | None = None) -> str:
     if tool == "screen":
         act = str(args.get("action", "")).lower()
         return {"read": "read what is on your screen", "windows": "list your open windows",
-                "focus": f"switch to the {args.get('title', '')} window"}.get(act, f"{act.replace('_', ' ')} on your screen")
+                "focus": f"switch to the {args.get('title', '')} window",
+                "click_text": f"click the {args.get('text', 'labeled')} text on your screen"}.get(act, f"{act.replace('_', ' ')} on your screen")
     if tool == "run_command":
         return f"run this on your computer: {str(args.get('command', ''))[:80]}"
     if tool == "install_software":

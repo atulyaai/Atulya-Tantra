@@ -237,11 +237,11 @@ class WebSearchTool(Tool):
     description = "Search the web"
     async def execute(self, query: str, **kwargs: Any) -> ToolResult:
         try:
-            from duckduckgo_search import DDGS
+            from ddgs import DDGS
             results = DDGS().text(query, max_results=5)
             return ToolResult(success=True, output=json.dumps(results, indent=2))
         except ImportError:
-            return ToolResult(success=False, error="duckduckgo_search not installed")
+            return ToolResult(success=False, error="ddgs not installed")
         except Exception as e:
             return ToolResult(success=False, error=str(e))
 

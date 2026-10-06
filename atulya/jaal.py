@@ -452,7 +452,7 @@ class MultiProviderSearch:
 
         # Try DuckDuckGo first
         try:
-            from duckduckgo_search import DDGS
+            from ddgs import DDGS
             ddg_results = DDGS().text(query, max_results=max_results)
             for r in ddg_results:
                 results.append(SearchResult(
