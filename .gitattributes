@@ -1,6 +1,10 @@
 # Store text as LF; checkouts use the platform's native endings (core.autocrlf).
 * text=auto
 
+# Shell scripts are executed by sh/bash, which treat a stray CR as part of the
+# command ("$'\r': command not found"). Keep them LF on every platform.
+*.sh text eol=lf
+
 # Never convert, merge or renormalize these.
 *.bin binary
 *.gguf binary

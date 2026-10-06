@@ -79,9 +79,18 @@ are hidden from normal users.
 
 ---
 
-## Quick start (Windows)
+## Quick start
 
-You need Python 3.10+ and Node.js 18+.
+**Linux** — one command. It installs Python, git and Node when they are missing, clones the code
+into `Atulya-Tantra/`, then asks for your settings one at a time:
+
+```bash
+bash install.sh
+```
+
+`bash install.sh --check` reports without changing anything; `--yes` takes every default.
+
+**Windows** — you need Python 3.10+ and Node.js 18+:
 
 ```powershell
 python install.py
@@ -98,11 +107,12 @@ Other invocations:
 | `python install.py --doctor` | Report only — changes nothing |
 | `python install.py --yes` | Unattended, accepts defaults (cPanel, VPS, CI) |
 | `python install.py --profile full` | `basic` / `voice` / `full` / `server` — pick up front, no prompts |
+| `python install.py --service` | Also start by itself: a systemd unit on Linux, a sign-in shortcut on Windows |
 | `python install.py --no-start` | Configure and check, but do not offer to start |
 
-Manual equivalent: copy `.env.example` to `.env`, add a brain (see below), double-click
-**`start.bat`**, then open http://localhost:8501 in Chrome or Edge and allow the microphone. On the
-computer Atulya runs on there is no login.
+Manual equivalent: copy `.env.example` to `.env`, add a brain (see below), then run
+**`start.bat`** on Windows or **`./start.sh`** on Linux, and open http://localhost:8501 in Chrome
+or Edge. On the computer Atulya runs on there is no login.
 
 The dashboard token is generated for you if you do not have one; it is written only to
 your local `.env`, which is git-ignored.
@@ -222,7 +232,7 @@ Token-protected routes expect `X-Atulya-Token`. Full list:
 ## Notes
 
 - Do not commit `.env` or `kosh/`; they hold your keys, accounts and memory.
-- `frontend/dist` is built by `start.bat`; `frontend/node_modules` is only needed while building
+- `frontend/dist` is built by `start.bat` / `start.sh`; `frontend/node_modules` is only needed while building
   and can be deleted any time. **A clean checkout has no web app until the build runs.**
 - Custom model training does not belong here; keep it in a separate repository and connect it as a
   provider.

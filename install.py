@@ -12,6 +12,7 @@ Nothing secret is ever printed: keys are shown as "set (last 4)" only.
 from __future__ import annotations
 
 import argparse
+import getpass
 import os
 import re
 import secrets
@@ -29,6 +30,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 IS_WINDOWS = os.name == "nt"
+# Debian/Ubuntu ship ensurepip in a separate package, so on a fresh box
+# `python -m ensurepip` fails with "ensurepip is not available" and the fix is
+# apt, not Python. Detected rather than guessed so the advice is correct.
+IS_DEBIAN = Path("/etc/debian_version").exists()
+PIP_FIX = "sudo apt install python3-venv python3-pip" if IS_DEBIAN else "python -m ensurepip --upgrade"
 GREEN, RED, YELLOW, CYAN, DIM, BOLD, RESET = (
     "\033[32m",
     "\033[31m",
@@ -235,7 +241,7 @@ def preflight() -> list[tuple[str, bool, str, str]]:
 
         checks.append(("pip", True, "available", ""))
     except Exception:
-        checks.append(("pip", False, "missing", "python -m ensurepip --upgrade"))
+        checks.append(("pip", False, "missing", PIP_FIX))
     try:
         import fastapi  # noqa: F401
 
@@ -249,14 +255,19 @@ def preflight() -> list[tuple[str, bool, str, str]]:
             nv = subprocess.run(["node", "--version"], capture_output=True, text=True, timeout=15).stdout.strip()
         except Exception:
             nv = "found"
-        checks.append(("Node.js (dashboard build)", True, nv, ""))
+        checks.append(("Node.js (tool servers, web UI)", True, nv, ""))
     else:
         checks.append(
             (
-                "Node.js (dashboard build)",
+                "Node.js (tool servers, web UI)",
                 False,
                 "not found",
-                "optional — the API runs without it; install from nodejs.org to build the web UI",
+                # Still starts with "optional" because a server with a prebuilt
+                # webui works without it - but the consequence is now stated,
+                # because four MCP servers silently die without npx.
+                "optional — but without it the MCP tool servers (filesystem, git, "
+                "playwright, fetch) cannot start and the web UI cannot be built; "
+                "install Node.js 18+ from nodejs.org or your package manager",
             )
         )
     return checks
@@ -361,7 +372,11 @@ def pip_install(extras: str, quiet: bool) -> bool:
 
 def build_dashboard(quiet: bool) -> bool:
     if not (shutil.which("node") and shutil.which("npm")):
-        say(f"  {WARN} Node.js not found — skipping the web UI build ({DIM}the API and Telegram still work{RESET})")
+        say(
+            f"  {WARN} Node.js not found — skipping the web UI build "
+            f"({DIM}an existing frontend/dist is used as-is, and the MCP tool servers "
+            f"filesystem/git/playwright/fetch will not start{RESET})"
+        )
         return False
     say("  Checking and building the dashboard when its source has changed...")
     result = subprocess.call([sys.executable, str(ROOT / "frontend" / "build.py")], cwd=ROOT)
@@ -383,6 +398,10 @@ _SELF_FIX: dict[str, list[str]] = {
     "pip install -e '.[serve]'": [sys.executable, "-m", "pip", "install", "-e", ".[serve]"],
     "pip install -e '.[voice]'": [sys.executable, "-m", "pip", "install", "-e", ".[voice]"],
 }
+if IS_DEBIAN:
+    # `sudo -n` never prompts: if a password is needed the repair exits at once
+    # and the advice is printed, instead of hanging on a prompt we cannot answer.
+    _SELF_FIX[PIP_FIX] = ["sudo", "-n", "apt", "install", "-y", "python3-venv", "python3-pip"]
 
 
 def autofix(fix: str) -> bool:
@@ -443,6 +462,19 @@ def doctor() -> bool:
     say(f"  config file: {env_path()}")
     for label, ok, detail, fix in preflight():
         line(label, ok, detail, fix)
+
+    # Four MCP servers shell out to npx. Reported here rather than only in
+    # preflight because this is the report people actually read when a tool
+    # mysteriously does nothing. A note, not a failure: a server with a
+    # prebuilt webui and no tool servers is still a working server.
+    node_here = bool(shutil.which("node") and shutil.which("npm"))
+    line(
+        "MCP tool servers (need Node)",
+        node_here,
+        "node found" if node_here else "filesystem, git, playwright and fetch will not start",
+        "install Node.js 18+ from nodejs.org or your package manager",
+        state="" if node_here else "note",
+    )
 
     try:
         from atulya import mastishk  # noqa: F401
@@ -525,6 +557,92 @@ def doctor() -> bool:
     return failures == 0
 
 
+# ── service install ──────────────────────────────────────────────────────────
+# "Make it work on its own" is the part a plain pip install never does. On
+# Linux that is a systemd unit; on Windows there is no equivalent a script may
+# create without elevation, so a shortcut in the sign-in Startup folder does it.
+SERVICE_NAME = "atulya.service"
+
+
+def _service_unit() -> str:
+    """The unit runs the interpreter that ran the installer, so a venv sticks."""
+    return f"""[Unit]
+Description=Atulya Tantra assistant
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={getpass.getuser()}
+WorkingDirectory={ROOT}
+ExecStart={sys.executable} -m atulya.sevak
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
+"""
+
+
+def _install_systemd_unit() -> bool:
+    if not shutil.which("systemctl"):
+        say(f"  {YELLOW}no systemctl here{RESET} (macOS, WSL or a container) — add the unit by hand:")
+        say(f"  {DIM}see docs/DEPLOYMENT.md, then point ExecStart at {sys.executable}{RESET}")
+        return False
+    script = (
+        f"tee /etc/systemd/system/{SERVICE_NAME} <<'ATEOF'\n"
+        f"{_service_unit()}"
+        "ATEOF\n"
+        "systemctl daemon-reload\n"
+        f"systemctl enable {SERVICE_NAME}\n"
+    )
+    say(f"  writing /etc/systemd/system/{SERVICE_NAME}")
+    try:
+        # -n: never prompt for a sudo password we cannot type into.
+        done = subprocess.run(["sudo", "-n", "bash", "-s"], input=script, text=True, capture_output=True)
+    except Exception as exc:  # noqa: BLE001 - report, never crash the installer
+        say(f"  {RED}could not run sudo: {exc}{RESET}")
+        return False
+    if done.returncode != 0:
+        say(f"  {RED}{(done.stderr or done.stdout).strip()[:200] or 'sudo failed'}{RESET}")
+        say(f"  {YELLOW}run `sudo -v` first so sudo knows your password, then re-run this.{RESET}")
+        return False
+    say(f"  {OK} installed and enabled at boot")
+    say(f"      start now:  {BOLD}sudo systemctl start {SERVICE_NAME}{RESET}")
+    say(f"      is it up:   {BOLD}sudo systemctl status {SERVICE_NAME}{RESET}")
+    return True
+
+
+def _install_startup_shortcut() -> bool:
+    appdata = os.environ.get("APPDATA", "")
+    if not appdata:
+        say(f"  {RED}APPDATA is not set, so the sign-in folder is unknown{RESET}")
+        return False
+    startup = Path(appdata) / "Microsoft/Windows/Start Menu/Programs/Startup"
+    try:
+        startup.mkdir(parents=True, exist_ok=True)
+        # CRLF because cmd.exe reads this at every sign-in.
+        (startup / "Atulya.bat").write_text(
+            "@echo off\r\n"
+            f'cd /d "{ROOT}"\r\n'
+            f'start "" /min "{sys.executable}" -m atulya.sevak\r\n',
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        say(f"  {RED}could not write the Startup folder: {exc}{RESET}")
+        return False
+    say(f"  {OK} starts by itself when you sign in to Windows")
+    say(f"      {DIM}stop it starting: delete {startup / 'Atulya.bat'}{RESET}")
+    return True
+
+
+def install_service() -> bool:
+    """--service: run Atulya without anyone opening a terminal."""
+    say("  " + ("sign-in Startup shortcut" if IS_WINDOWS else "systemd unit"))
+    return _install_startup_shortcut() if IS_WINDOWS else _install_systemd_unit()
+
+
 # ── main ─────────────────────────────────────────────────────────────────────
 def main() -> int:
     parser = argparse.ArgumentParser(description="Install and configure Atulya Tantra")
@@ -534,6 +652,11 @@ def main() -> int:
         "--profile", choices=sorted(PROFILE_EXTRAS), default="", help="which optional features to install"
     )
     parser.add_argument("--no-start", action="store_true", help="do not offer to start Atulya")
+    parser.add_argument(
+        "--service",
+        action="store_true",
+        help="also make Atulya start on its own (systemd unit on Linux, sign-in shortcut on Windows)",
+    )
     args = parser.parse_args()
 
     say(f"\n{BOLD}  ATULYA TANTRA — setup{RESET}")
@@ -601,12 +724,23 @@ def main() -> int:
     step("6. Health check")
     ready = doctor()
 
+    serviced = False
+    if args.service:
+        step("7. Start by itself")
+        serviced = install_service()
+
     say("")
     if ready:
         say(f"  {GREEN}{BOLD}Ready.{RESET} Start Atulya with:")
     else:
         say(f"  {YELLOW}Mostly ready — the items marked above still need attention.{RESET} Start with:")
-    say(f"\n    {BOLD}python -m atulya.sevak{RESET}    (or double-click start.bat)\n")
+    # The answer used to be "double-click start.bat" on every platform, which is
+    # advice a Linux server cannot follow.
+    start_hint = "double-click start.bat" if IS_WINDOWS else "./start.sh"
+    say(f"\n    {BOLD}python -m atulya.sevak{RESET}    (or {start_hint})")
+    if serviced:
+        say(f"    {BOLD}sudo systemctl start {SERVICE_NAME}{RESET}    (installed, so it starts at boot)")
+    say("")
     if not args.no_start and not args.yes and sys.stdin.isatty():
         if ask("Start Atulya now?", "y").lower().startswith("y"):
             return subprocess.call([sys.executable, "-m", "atulya.sevak"], cwd=ROOT)
