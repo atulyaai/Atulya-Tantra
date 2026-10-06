@@ -717,17 +717,26 @@ function UpdateToast() {
 function ServerAddressGate({ children }) {
   const saved = (() => { try { return localStorage.getItem('atulya-server-url'); } catch { return null; } })();
   const [address, setAddress] = useState(saved || getServerUrl());
-  const [ready, setReady] = useState(Boolean(saved));
+  const hostedByServer = (() => {
+    try {
+      const { protocol, hostname, origin } = window.location;
+      const local = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(hostname);
+      return !window.Capacitor?.isNativePlatform?.()
+        && (protocol === 'https:' || (protocol === 'http:' && local))
+        && origin !== 'null';
+    } catch { return false; }
+  })();
+  const [ready, setReady] = useState(Boolean(saved || hostedByServer));
   const [error, setError] = useState('');
   if (ready) return children;
   return (
     <main className="recover">
       <h1>Connect to your Atulya server</h1>
-      <p>Enter the server address to connect this app to your Atulya server.</p>
+      <p>Choose the Atulya server this app should connect to. Local and hosted servers both work; a separate website is not required.</p>
       <form onSubmit={(event) => {
         event.preventDefault();
         try { setServerUrl(address.trim()); setError(''); setReady(true); }
-        catch { setError('Enter a valid server address, such as https://atulya.atulvij.com'); }
+        catch { setError('Enter a valid server address, such as https://your-server:8501'); }
       }}>
         <label htmlFor="server-address">Server address</label>
         <input id="server-address" type="url" required value={address} onChange={(event) => setAddress(event.target.value)} />

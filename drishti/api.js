@@ -1,7 +1,22 @@
 const TOKEN_KEY = 'atulya-dashboard-token';
 const LEGACY_TOKEN_KEY = 'ai-dashboard-token';
 const SERVER_URL_KEY = 'atulya-server-url';
-const DEFAULT_SERVER_URL = 'https://atulya.atulvij.com';
+
+function currentServerOrigin() {
+  try {
+    // The UI is normally served by the Atulya API itself. Use that origin for
+    // local, LAN, and hosted installs instead of silently sending requests to
+    // one hard-coded public server. Native shells must select a reachable host.
+    if (window.Capacitor?.isNativePlatform?.()) return '';
+    const { protocol, hostname, origin } = window.location;
+    const local = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(hostname);
+    return (protocol === 'https:' || (protocol === 'http:' && local)) && origin !== 'null'
+      ? origin.replace(/\/$/, '')
+      : '';
+  } catch {
+    return '';
+  }
+}
 
 // ── Telegram Mini App ─────────────────────────────────────────────────────────
 // A Mini App is this same dashboard opened inside Telegram. Telegram signs the
@@ -65,8 +80,16 @@ export function getServerUrl() {
       if (origin && origin !== 'null') return origin.replace(/\/$/, '');
     }
   } catch {}
-  try { return (localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL).replace(/\/$/, ''); }
-  catch { return DEFAULT_SERVER_URL; }
+  // A browser-loaded dashboard is served by the same Atulya instance it must
+  // call. This also repairs stale URLs saved by older installs. Native apps
+  // have no backend at their bundle origin, so they use the saved server URL.
+  const origin = currentServerOrigin();
+  if (origin) return origin;
+  try {
+    const saved = localStorage.getItem(SERVER_URL_KEY);
+    if (saved) return saved.replace(/\/$/, '');
+  } catch {}
+  return currentServerOrigin();
 }
 
 export function setServerUrl(value) {

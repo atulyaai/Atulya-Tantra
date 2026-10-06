@@ -535,8 +535,7 @@ def main() -> int:
             bad += 1
             say(f"      -> {YELLOW}{fix}{RESET}")
     if bad:
-        say(f"\n{RED}The items above need a human (a download or a website signup).")
-        say(f"When you have them, run this again.{RESET}")
+        say(f"\n{RED}Fix the required setup items listed above, then run the installer again.{RESET}")
         return 1
 
     if args.doctor:

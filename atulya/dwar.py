@@ -41,7 +41,7 @@ from atulya import dwar as chat_history
 from atulya import dwar as helpers
 from atulya import dwar as users
 from atulya import kriya as money
-from atulya import push as push_service
+from atulya import sandesh as push_service  # Web Push now lives in sandesh
 from atulya import dut as computer_agent
 from atulya import phone as phone_store
 from atulya import raksha as vault
