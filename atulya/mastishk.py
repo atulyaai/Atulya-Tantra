@@ -1715,25 +1715,25 @@ class LLMResponse:
 # Personal-assistant essentials lead; anything unranked keeps registry order.
 _TOOL_PRIORITY = {
     "home_control": 1,
-    "set_reminder": 2,
-    "get_weather": 3,
-    "current_time": 4,
-    "web_search": 5,
-    "memory_search": 6,
-    "memory_store": 7,
-    "calendar_list": 8,
-    "calendar_add": 9,
-    "fetch_emails": 10,
-    "send_email": 11,
-    "todo_create": 12,
-    "calculate": 13,
-    "web_fetch": 14,
-    "files": 15,
-    "screen": 16,
-    "run_command": 17,
-    "clipboard": 18,
-    "check_computer": 19,
-    "install_software": 20,
+    "get_system_status": 2,
+    "ha_entities": 3,
+    "ha_state": 4,
+    "ha_call_service": 5,
+    "set_reminder": 6,
+    "get_weather": 7,
+    "current_time": 8,
+    "web_search": 9,
+    "memory_search": 10,
+    "memory_store": 11,
+    "calendar_list": 12,
+    "calendar_add": 13,
+    "fetch_emails": 14,
+    "send_email": 15,
+    "todo_create": 16,
+    "calculate": 17,
+    "web_fetch": 18,
+    "files": 19,
+    "screen": 20,
 }
 
 
@@ -2152,11 +2152,11 @@ class AtulyaLLM:
         """Build OpenAI-style function schemas for the model's native tool loop.
 
         Small models degrade with long tool lists, so only the top
-        ``ATULYA_MAX_TOOL_SCHEMAS`` (default 20) are advertised, ranked
+        ``ATULYA_MAX_TOOL_SCHEMAS`` (default 24) are advertised, ranked
         assistant-first by ``_TOOL_PRIORITY``; unranked tools keep registry
         order. Tools that declare a JSON ``parameters`` schema expose it.
         """
-        limit = max(1, int(os.environ.get("ATULYA_MAX_TOOL_SCHEMAS", "20")))
+        limit = max(1, int(os.environ.get("ATULYA_MAX_TOOL_SCHEMAS", "24")))
         listed = self.tools.list_tools()
         ranked = sorted(
             enumerate(listed),

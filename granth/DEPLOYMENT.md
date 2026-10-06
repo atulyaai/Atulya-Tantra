@@ -189,8 +189,8 @@ This guide targets Oracle Cloud's Always Free eligible compute in your chosen ho
 
 ## 3. Configure secrets and start Atulya
 
-1. Copy `.env.example` to `.env`; edit it on the VM. Set `ATULYA_HOST=0.0.0.0`, `ATULYA_HTTPS=off`, `ATULYA_JWT_SECRET_FILE=/run/secrets/atulya_jwt_secret`, `ATULYA_PC_CONTROL=off`, and `ATULYA_PUBLIC_URL=https://atulya.atulvij.com`. Leave Telegram values blank unless you intentionally configure Telegram. **PASS:** these names and values are present; no secrets have been pasted into chat or committed.
-2. Create `secrets/jwt_secret` using `mkdir -p secrets && openssl rand -hex 32 > secrets/jwt_secret && chmod 600 secrets/jwt_secret && chmod 600 .env`. Add `CF_TUNNEL_TOKEN=` to `.env`; fill it after creating the tunnel. **PASS:** `test -s secrets/jwt_secret` succeeds and its file mode is 600.
+1. Copy `.env.example` to `.env`; edit it on the VM. Set `ATULYA_HOST=0.0.0.0`, `ATULYA_HTTPS=off`, `ATULYA_PC_CONTROL=off`, and `ATULYA_PUBLIC_URL=https://atulya.atulvij.com`. Leave `ATULYA_JWT_SECRET_FILE` unset so Atulya creates its persistent signing key in the mounted `kosh/` directory. Leave Telegram values blank unless you intentionally configure Telegram. **PASS:** these names and values are present; no secrets have been pasted into chat or committed.
+2. Add `CF_TUNNEL_TOKEN=` to `.env`; fill it after creating the tunnel. Protect `.env` with `chmod 600 .env`. **PASS:** the tunnel token stays only in `.env` and is not committed.
 3. Start only Atulya first: `docker compose up -d --build atulya`. This avoids Compose requiring the tunnel token before Cloudflare has issued it. **PASS:** `docker compose ps atulya` shows Atulya running. **FAIL:** inspect `docker compose logs atulya` and correct the reported configuration.
 
 ## 4. Create the Cloudflare Tunnel and DNS

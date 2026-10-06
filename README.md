@@ -73,6 +73,7 @@ It prints a table like this — secrets are never shown in full, only `set (last
   Dashboard sign-in token                    ok          set (HiCm)
   Telegram bot token                         missing     message @BotFather, send /newbot
   Telegram user allowed to talk to Atulya    missing     message @userinfobot for your id
+  Public HTTPS address for the Mini App      missing     needed only for Telegram hologram
   Brain key — OpenRouter                     ok          set (21ca)
   Morning briefing time                      missing     for example 08:00
 ```
@@ -85,6 +86,12 @@ Other invocations:
 | `python install.py --yes` | Unattended, accepts defaults (cPanel, VPS, CI) |
 | `python install.py --profile full` | `basic` / `voice` / `full` / `server` — pick up front, no prompts |
 | `python install.py --no-start` | Configure and check, but do not offer to start |
+
+### Telegram with minimal setup
+
+For the hologram Mini App, set `ATULYA_PUBLIC_URL` to your public HTTPS origin and register that URL once with @BotFather using `/newapp`. Then `/app` opens it in Telegram. For extra bot accounts, enable **Bot Management Mode** for the main bot in the @BotFather Mini App once, then send `/newbot` to Atulya and tap **Create an Atulya bot**. Telegram creates the managed bot; Atulya stores its token in the local `.env`, restricts it to the creating Telegram account, and starts it automatically. Use `/deletebot` to list bots and `/removebot ID`, then `/removebot ID confirm`, to disconnect and revoke one. Permanently deleting the Telegram account still requires confirmation in @BotFather.
+
+Other channels require the account's own credentials, OAuth consent, or device pairing. Atulya cannot bypass those provider-controlled steps.
 
 The dashboard token is generated for you if you do not have one; it is written only to
 your local `.env`, which is git-ignored.
@@ -254,7 +261,7 @@ cd drishti; npm run dev       # web dev server, proxies /api and /ws to :8501
 python -m atulya.adesh doctor
 ```
 
-Docker: `docker compose up --build` (builds the web app, serves on port 8501, keeps `kosh/` on your disk). Not yet tried on a real server.
+Docker: copy `.env.example` to `.env`, set a dashboard token, then run `docker compose up -d --build`. It publishes `127.0.0.1:8501` and keeps data in `kosh/`; set `ATULYA_DOCKER_BIND=0.0.0.0` only when you need LAN access. For public hosting, put it behind HTTPS or a configured Cloudflare Tunnel. The JWT signing key is created in the persistent `kosh/` volume on first start.
 
 ## API
 

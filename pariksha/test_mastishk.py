@@ -248,6 +248,222 @@ def test_telegram_start_replies_to_allowlisted_owner():
     asyncio.run(run())
 
 
+def test_telegram_routes_server_status_without_calling_the_brain(monkeypatch):
+    from atulya.sandesh import ChannelMessage, TelegramChannel
+
+    async def run():
+        channel = TelegramChannel()
+        await channel.connect({"allowlist": "123", "bot_token": "test-token"})
+        sent = []
+
+        async def fake_send(message, chat_id="", **kwargs):
+            sent.append((message, chat_id, kwargs))
+            return True
+
+        channel.send = fake_send
+        monkeypatch.setattr(channel, "_status_report", lambda: "CPU 12% | RAM 50% | Disk 80%")
+
+        class BrainMustNotRun:
+            async def ask(self, *args, **kwargs):
+                raise AssertionError("server status should not depend on provider APIs")
+
+        result = await channel.handle_message(
+            ChannelMessage("1", "telegram", "123", "server status", metadata={"chat_id": "456"}),
+            llm=BrainMustNotRun(),
+        )
+        assert result == "status"
+        assert "CPU 12%" in sent[0][0]
+        assert sent[0][1] == "456" and sent[0][2]["parse_mode"] == "HTML"
+
+        result = await channel.handle_message(
+            ChannelMessage("1", "telegram", "123", "सर्वर की स्थिति बताओ", metadata={"chat_id": "456"}),
+            llm=BrainMustNotRun(),
+        )
+        assert result == "status"
+
+    asyncio.run(run())
+
+
+def test_telegram_app_command_returns_web_app_button(monkeypatch):
+    from atulya.sandesh import ChannelMessage, TelegramChannel
+
+    async def run():
+        channel = TelegramChannel()
+        await channel.connect({"allowlist": "123", "bot_token": "test-token"})
+        sent = []
+
+        async def fake_send(message, chat_id="", **kwargs):
+            sent.append((message, chat_id, kwargs))
+            return True
+
+        channel.send = fake_send
+        monkeypatch.setenv("ATULYA_PUBLIC_URL", "https://atulya.example.com")
+        result = await channel.handle_message(
+            ChannelMessage("1", "telegram", "123", "/app", metadata={"chat_id": "456"}))
+        assert result == "app_link"
+        assert sent[0][2]["reply_markup"]["inline_keyboard"][0][0]["web_app"]["url"] == "https://atulya.example.com"
+
+    asyncio.run(run())
+
+
+def test_telegram_newbot_offers_managed_bot_request():
+    from atulya.sandesh import ChannelMessage, TelegramChannel
+
+    async def run():
+        channel = TelegramChannel()
+        await channel.connect({"allowlist": "123", "bot_token": "test-token"})
+        channel.managed_bot_enabled = True
+        sent = []
+
+        async def fake_send(message, chat_id="", **kwargs):
+            sent.append((message, kwargs))
+            return True
+
+        channel.send = fake_send
+        result = await channel.handle_message(
+            ChannelMessage("1", "telegram", "123", "/newbot", metadata={"chat_id": "456"}))
+        assert result == "managed_bot_request"
+        button = sent[0][1]["reply_markup"]["keyboard"][0][0]
+        assert button["request_managed_bot"]["request_id"] == 1
+
+    asyncio.run(run())
+
+
+def test_telegram_managed_bot_creation_update_is_parsed(monkeypatch):
+    from atulya import sandesh
+    from atulya.sandesh import TelegramChannel
+
+    async def fake_get(*_args, **_kwargs):
+        return 200, {"ok": True, "result": [{
+            "update_id": 42,
+            "message": {
+                "chat": {"id": 123},
+                "from": {"id": 123},
+                "managed_bot_created": {"bot": {"id": 789, "username": "family_bot"}},
+            },
+        }]}
+
+    async def run():
+        channel = TelegramChannel()
+        await channel.connect({"allowlist": "123", "bot_token": "manager-token"})
+        monkeypatch.setattr(sandesh, "_get_json", fake_get)
+        messages = await channel.receive()
+        assert len(messages) == 1
+        assert messages[0].metadata["managed_bot_created"] == {"id": 789, "username": "family_bot"}
+        assert messages[0].sender == "123"
+
+    asyncio.run(run())
+
+
+def test_telegram_profile_sets_miniapp_menu_and_detects_bot_management(monkeypatch):
+    from atulya import sandesh
+    from atulya.sandesh import TelegramChannel
+
+    async def run():
+        channel = TelegramChannel()
+        await channel.connect({"allowlist": "123", "bot_token": "manager-token"})
+        monkeypatch.setenv("ATULYA_PUBLIC_URL", "https://atulya.example.com")
+        calls = []
+
+        async def fake_call(method, payload):
+            calls.append((method, payload))
+            return True
+
+        async def fake_get(*_args, **_kwargs):
+            return 200, {"ok": True, "result": {"can_manage_bots": True}}
+
+        monkeypatch.setattr(channel, "_call", fake_call)
+        monkeypatch.setattr(sandesh, "_get_json", fake_get)
+        assert await channel.configure_profile()
+        assert channel.managed_bot_enabled
+        menu = next(payload for method, payload in calls if method == "setChatMenuButton")
+        assert menu["menu_button"]["web_app"]["url"] == "https://atulya.example.com"
+        commands = next(payload["commands"] for method, payload in calls if method == "setMyCommands")
+        assert {"app", "newbot", "deletebot"} <= {item["command"] for item in commands}
+
+    asyncio.run(run())
+
+
+def test_telegram_managed_bot_created_is_persisted_and_started(tmp_path, monkeypatch):
+    from atulya import adhar, sandesh
+    from atulya.sandesh import ChannelMessage, TelegramChannel
+
+    async def run():
+        channel = TelegramChannel()
+        await channel.connect({"allowlist": "123", "bot_token": "manager-token"})
+        channel.managed_bot_manager = True
+        async def fake_post(url, _payload):
+            result = True if url.endswith("/setManagedBotAccessSettings") else "456789:managed-secret"
+            return 200, {"ok": True, "result": result}
+
+        monkeypatch.setattr(sandesh, "_post_json", fake_post)
+        saved = {}
+        monkeypatch.setattr(adhar, "set_env_value", lambda key, value: saved.__setitem__(key, value))
+        started = []
+        channel.managed_bot_callback = lambda *args: asyncio.sleep(0, result=started.append(args))
+        sent = []
+
+        async def fake_send(message, chat_id="", **kwargs):
+            sent.append(message)
+            return True
+
+        channel.send = fake_send
+        result = await channel.handle_message(ChannelMessage(
+            "1", "telegram", "123", "/__managed_bot_created",
+            metadata={"chat_id": "999", "managed_bot_created": {"id": 789, "username": "family_bot"}},
+        ))
+        assert result == "managed_bot_started"
+        assert saved == {
+            "ATULYA_TELEGRAM_MANAGED_BOT_789_TOKEN": "456789:managed-secret",
+            "ATULYA_TELEGRAM_MANAGED_BOT_789_OWNER": "123",
+        }
+        assert started[0][0]["id"] == 789 and started[0][1] == "456789:managed-secret"
+        assert all("managed-secret" not in message for message in sent)
+
+    asyncio.run(run())
+
+
+def test_telegram_managed_bot_removal_requires_confirmation_and_revokes(monkeypatch):
+    from atulya import adhar, sandesh
+    from atulya.sandesh import ChannelMessage, TelegramChannel
+
+    async def run():
+        monkeypatch.setenv("ATULYA_TELEGRAM_MANAGED_BOT_789_TOKEN", "old-managed-token")
+        monkeypatch.setenv("ATULYA_TELEGRAM_MANAGED_BOT_789_OWNER", "123")
+        channel = TelegramChannel()
+        await channel.connect({"allowlist": "123", "bot_token": "manager-token"})
+        channel.managed_bot_manager = True
+        calls = []
+
+        async def fake_post(url, payload):
+            calls.append((url, payload))
+            return 200, {"ok": True, "result": "rotated-and-discarded-token"}
+
+        monkeypatch.setattr(sandesh, "_post_json", fake_post)
+        removed = []
+        channel.managed_bot_removed_callback = lambda bot_id: asyncio.sleep(0, result=removed.append(bot_id))
+        sent = []
+
+        async def fake_send(message, chat_id="", **kwargs):
+            sent.append(message)
+            return True
+
+        channel.send = fake_send
+        first = await channel.handle_message(ChannelMessage(
+            "1", "telegram", "123", "/removebot 789", metadata={"chat_id": "999"}))
+        assert first == "managed_bot_removal_confirmation_required" and not calls
+        monkeypatch.setattr(adhar, "set_env_value", lambda key, value: monkeypatch.delenv(key, raising=False))
+        second = await channel.handle_message(ChannelMessage(
+            "2", "telegram", "123", "/removebot 789 confirm", metadata={"chat_id": "999"}))
+        assert second == "managed_bot_removed"
+        assert calls[0][0].endswith("/replaceManagedBotToken")
+        assert removed == ["789"]
+        assert not any("rotated-and-discarded-token" in message for message in sent)
+        assert any("deletebot" in message for message in sent)
+
+    asyncio.run(run())
+
+
 def test_telegram_ask_routes_to_llm():
     from atulya.sandesh import ChannelMessage, TelegramChannel
 

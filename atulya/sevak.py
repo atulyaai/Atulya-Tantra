@@ -5,6 +5,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 from collections import OrderedDict
 from contextlib import asynccontextmanager
@@ -102,6 +103,34 @@ async def _poll_telegram(channel, llm) -> None:
         await asyncio.sleep(2)
 
 
+async def _start_managed_telegram_bot(app, bot: dict, token: str, owner_id: str, chat_id: str = "") -> None:
+    """Start an owner-isolated Telegram bot created through Telegram's managed-bot flow."""
+    from atulya.sandesh import TelegramChannel
+
+    bot_id = str(bot.get("id", ""))
+    if not bot_id.isdecimal():
+        raise ValueError("Telegram returned an invalid managed bot id")
+    tasks = app.state.managed_telegram_tasks
+    existing = tasks.get(bot_id)
+    if existing and not existing.done():
+        return
+    channel = TelegramChannel()
+    await channel.connect({"allowlist": owner_id, "bot_token": token})
+    if not await channel.configure_profile():
+        logger.warning("Managed Telegram bot %s profile setup was incomplete; replies remain enabled", bot_id)
+    app.state.managed_telegram_channels[bot_id] = channel
+    tasks[bot_id] = asyncio.create_task(_poll_telegram(channel, app.state.llm))
+    logger.info("Managed Telegram bot %s started for its owner", bot_id)
+
+
+async def _stop_managed_telegram_bot(app, bot_id: str) -> None:
+    task = app.state.managed_telegram_tasks.pop(str(bot_id), None)
+    app.state.managed_telegram_channels.pop(str(bot_id), None)
+    if task:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+
 async def _poll_all_channels(registry, llm) -> None:
     """Poll every configured channel (WhatsApp, Signal, Email, Slack, Discord …).
 
@@ -165,13 +194,20 @@ async def lifespan(app: FastAPI):
     app.state.automation_task = asyncio.create_task(app.state.automation_runner.start())
 
     app.state.telegram_task = None
+    app.state.managed_telegram_channels = {}
+    app.state.managed_telegram_tasks = {}
     bot_token = os.environ.get("ATULYA_TELEGRAM_BOT_TOKEN", "").strip()
     allowlist = os.environ.get("ATULYA_TELEGRAM_ALLOWLIST", "").strip()
     if bot_token and allowlist:
         from atulya.sandesh import TelegramChannel
 
         app.state.telegram = TelegramChannel()
+        app.state.telegram.managed_bot_manager = True
         await app.state.telegram.connect({"allowlist": allowlist})
+        app.state.telegram.managed_bot_callback = lambda bot, token, owner, chat: _start_managed_telegram_bot(
+            app, bot, token, owner, chat
+        )
+        app.state.telegram.managed_bot_removed_callback = lambda bot_id: _stop_managed_telegram_bot(app, bot_id)
         if not await app.state.telegram.configure_profile():
             logger.warning("Telegram profile setup was incomplete; bot replies remain enabled")
         app.state.telegram_task = asyncio.create_task(_poll_telegram(app.state.telegram, app.state.llm))
@@ -179,6 +215,15 @@ async def lifespan(app: FastAPI):
         _PROACTIVE["channel"] = app.state.telegram
         _PROACTIVE["targets"] = [t.strip() for t in allowlist.split(",") if t.strip()]
         logger.info("Telegram bot polling enabled for the configured allowlist")
+        # Managed bot credentials are stored in .env; start them after a restart too.
+        for key, managed_token in list(os.environ.items()):
+            match = re.fullmatch(r"ATULYA_TELEGRAM_MANAGED_BOT_(\d+)_TOKEN", key)
+            if not match or not managed_token:
+                continue
+            bot_id = match.group(1)
+            owner_id = os.environ.get(f"ATULYA_TELEGRAM_MANAGED_BOT_{bot_id}_OWNER", "").strip()
+            if owner_id:
+                await _start_managed_telegram_bot(app, {"id": int(bot_id)}, managed_token, owner_id)
     elif bot_token:
         logger.warning("Telegram bot token is set but ATULYA_TELEGRAM_ALLOWLIST is empty; polling is disabled")
 
@@ -274,6 +319,8 @@ async def lifespan(app: FastAPI):
         if app.state.telegram_task:
             app.state.telegram_task.cancel()
             await asyncio.gather(app.state.telegram_task, return_exceptions=True)
+        for bot_id in list(app.state.managed_telegram_tasks):
+            await _stop_managed_telegram_bot(app, bot_id)
         _PROACTIVE["channel"] = None  # the next startup decides again
         await app.state.mcp_manager.shutdown_all()
         await agent_core.shutdown()

@@ -175,6 +175,10 @@ class TelegramChannel(ChannelBase):
         # Deduplicate: Telegram can re-deliver the same update_id on retry.
         self._seen_ids: set[str] = set()
         self._lock = threading.Lock()
+        self.managed_bot_enabled = False
+        self.managed_bot_manager = False
+        self.managed_bot_callback = None
+        self.managed_bot_removed_callback = None
 
     async def send(self, message: str, chat_id: str = "", **kwargs: Any) -> bool:
         token = self.config.get("bot_token") or self.config.get("token") or os.environ.get("ATULYA_TELEGRAM_BOT_TOKEN")
@@ -255,28 +259,86 @@ class TelegramChannel(ChannelBase):
         # System resources
         try:
             import psutil
+            cpu_cores = psutil.cpu_count(logical=True) or 0
+            cpu_percent = psutil.cpu_percent(interval=0.1)
             mem = psutil.virtual_memory()
-            lines.append(f"💻 CPU {psutil.cpu_percent(interval=0.0)}% | RAM {mem.percent}%")
-        except Exception:
-            pass
+            disk = psutil.disk_usage(os.getcwd())
+            lines.append(f"💻 CPU: {cpu_percent:.0f}% ({cpu_cores} logical cores)")
+            lines.append(
+                f"🧠 RAM: {mem.percent:.0f}% ({mem.used / 1024**3:.1f}/"
+                f"{mem.total / 1024**3:.1f} GB; {mem.available / 1024**3:.1f} GB free)"
+            )
+            lines.append(
+                f"💽 Disk: {disk.percent:.0f}% used "
+                f"({disk.free / 1024**3:.1f} GB free / {disk.total / 1024**3:.1f} GB)"
+            )
+        except Exception as exc:
+            logger.debug("System resource details unavailable: %s", exc)
+            lines.append("💻 CPU/RAM/disk metrics unavailable")
 
         lines.append(f"🖥 Platform: {platform.system()} {platform.release()}")
         return "\n".join(lines)
 
+    @staticmethod
+    def _is_system_status_request(text: str) -> bool:
+        """Route server health questions directly, without depending on an LLM tool call."""
+        value = re.sub(r"[^\w\s\u0900-\u097f]", " ", (text or "").casefold()).strip()
+        words = set(value.split())
+        status_terms = {
+            "status", "health", "details", "detail", "usage", "resources", "performance", "uptime",
+            "specs", "स्थिती", "स्थिति", "स्टेटस", "स्वास्थ्य", "जानकारी", "उपयोग", "उपयोगिता", "हाल",
+            "कैसा", "कैसी", "बताओ", "दिखाओ",
+        }
+        system_terms = {
+            "server", "system", "computer", "pc", "machine", "cpu", "ram", "memory", "disk",
+            "सर्वर", "सिस्टम", "कंप्यूटर", "सीपीयू", "रैम", "मेमोरी", "डिस्क",
+        }
+        return bool(words & status_terms) and (bool(words & system_terms) or words <= {"status", "health", "स्थिति", "स्टेटस"})
+
+    @staticmethod
+    def _public_app_url() -> str:
+        value = os.environ.get("ATULYA_PUBLIC_URL", "").strip().rstrip("/")
+        try:
+            parsed = urllib.parse.urlsplit(value)
+            if parsed.scheme == "https" and parsed.netloc and parsed.path in {"", "/"} and not parsed.query and not parsed.fragment:
+                return value
+        except ValueError:
+            pass
+        return ""
+
     async def configure_profile(self) -> bool:
-        """Set the display name and helpful commands for Atulya OS."""
-        results = await asyncio.gather(
+        """Set the display name, menu button and helpful commands for Atulya OS."""
+        tasks = [
             self._call("setMyName", {"name": "Atulya OS"}),
             self._call("setMyDescription", {"description": "Your personal AI assistant. Ask questions, send voice notes, and share photos for analysis through your configured OpenRouter model."}),
             self._call("setMyShortDescription", {"short_description": "Your personal AI assistant"}),
             self._call("setMyCommands", {"commands": [
                 {"command": "start", "description": "Start chatting with Atulya"},
                 {"command": "ask", "description": "Ask Atulya a question"},
+                {"command": "app", "description": "Open the Atulya Mini App"},
+                {"command": "newbot", "description": "Create and connect a managed bot"},
+                {"command": "deletebot", "description": "List or remove connected bots"},
+                {"command": "removebot", "description": "Disconnect a managed bot"},
                 {"command": "send", "description": "Send a file from an allowed folder"},
                 {"command": "status", "description": "Check whether Atulya is online"},
                 {"command": "help", "description": "Show help"},
             ]}),
-        )
+        ]
+        app_url = self._public_app_url()
+        if app_url:
+            tasks.append(self._call("setChatMenuButton", {
+                "menu_button": {"type": "web_app", "text": "Open Atulya", "web_app": {"url": app_url}},
+            }))
+        elif os.environ.get("ATULYA_PUBLIC_URL", "").strip():
+            logger.warning("Telegram Mini App menu button not set: ATULYA_PUBLIC_URL must be an HTTPS origin")
+        results = await asyncio.gather(*tasks)
+        token = self.config.get("bot_token") or self.config.get("token") or os.environ.get("ATULYA_TELEGRAM_BOT_TOKEN")
+        if token:
+            try:
+                _, profile = await _get_json(f"https://api.telegram.org/bot{token}/getMe", {}, timeout=5)
+                self.managed_bot_enabled = bool((profile.get("result") or {}).get("can_manage_bots"))
+            except Exception as exc:
+                logger.debug("Telegram bot capability check unavailable: %s", type(exc).__name__)
         return all(results)
 
     async def _call(self, method: str, payload: dict[str, Any]) -> bool:
@@ -288,9 +350,13 @@ class TelegramChannel(ChannelBase):
             status, result = await _post_json(f"https://api.telegram.org/bot{token}/{method}", payload)
             if method == "editMessageText" and "message is not modified" in str(result.get("description", "")).casefold():
                 return True
-            return status < 400 and bool(result.get("ok", True))
-        except Exception:
-            logger.warning("Telegram %s failed", method)
+            ok = status < 400 and bool(result.get("ok", True))
+            if not ok:
+                description = str(result.get("description", "API error"))[:200].replace(token, "[redacted]")
+                logger.warning("Telegram %s failed (HTTP %s): %s", method, status, description)
+            return ok
+        except Exception as exc:
+            logger.warning("Telegram %s failed (%s)", method, type(exc).__name__)
             return False
 
     async def _send_text_with_id(self, text: str, chat_id: str) -> int | None:
@@ -470,8 +536,11 @@ class TelegramChannel(ChannelBase):
                     self._seen_ids.clear()
             msg = update.get("message") or {}
             text = msg.get("text", "") or msg.get("caption", "")
+            managed_bot_created = msg.get("managed_bot_created") or {}
+            if managed_bot_created:
+                text = "/__managed_bot_created"
             media = next((kind for kind in ("photo", "voice", "audio", "video", "document") if msg.get(kind)), "")
-            if not text and not media:
+            if not text and not media and not managed_bot_created:
                 continue
             chat = msg.get("chat", {})
             sender = msg.get("from", {})
@@ -480,9 +549,98 @@ class TelegramChannel(ChannelBase):
                 channel=self.type.value,
                 sender=str(sender.get("id", chat.get("id", ""))),
                 content=text,
-                metadata={"chat_id": chat.get("id"), "raw": update, "media_type": media},
+                metadata={"chat_id": chat.get("id"), "raw": update, "media_type": media,
+                          "managed_bot_created": managed_bot_created.get("bot")},
             ))
         return messages
+
+    @staticmethod
+    def _managed_bot_env_names(bot_id: Any) -> tuple[str, str] | None:
+        value = str(bot_id or "")
+        if not value.isdecimal() or len(value) > 20:
+            return None
+        prefix = f"ATULYA_TELEGRAM_MANAGED_BOT_{value}"
+        return f"{prefix}_TOKEN", f"{prefix}_OWNER"
+
+    def _managed_bot_ids(self, owner_id: str = "") -> list[str]:
+        ids = set()
+        for key, value in os.environ.items():
+            match = re.fullmatch(r"ATULYA_TELEGRAM_MANAGED_BOT_(\d+)_TOKEN", key)
+            if not match or not value:
+                continue
+            _, owner_key = self._managed_bot_env_names(match.group(1))
+            if not owner_id or os.environ.get(owner_key) == owner_id:
+                ids.add(match.group(1))
+        return sorted(ids)
+
+    async def _activate_managed_bot(self, bot: dict[str, Any], owner_id: str, chat_id: str) -> str:
+        bot_id = bot.get("id")
+        names = self._managed_bot_env_names(bot_id)
+        manager_token = self.config.get("bot_token") or self.config.get("token") or os.environ.get("ATULYA_TELEGRAM_BOT_TOKEN")
+        if not names or not manager_token:
+            await self.send("Telegram returned invalid bot details; I did not save a token.", chat_id)
+            return "managed_bot_invalid"
+        try:
+            status, payload = await _post_json(
+                f"https://api.telegram.org/bot{manager_token}/getManagedBotToken", {"user_id": int(bot_id)}
+            )
+            child_token = payload.get("result")
+            if status >= 400 or not isinstance(child_token, str) or not child_token:
+                logger.error("Could not retrieve the managed Telegram bot token (HTTP %s)", status)
+                await self.send("Telegram created the bot, but Atulya could not retrieve its token. Check that Bot Management Mode is enabled, then retry setup.", chat_id)
+                return "managed_bot_token_failed"
+            access_status, access_result = await _post_json(
+                f"https://api.telegram.org/bot{manager_token}/setManagedBotAccessSettings",
+                {"user_id": int(bot_id), "is_access_restricted": True},
+            )
+            if access_status >= 400 or access_result.get("result") is not True:
+                # The child bot still has Atulya's strict allowlist, but make a
+                # failed Telegram-side restriction visible so it can be fixed.
+                logger.warning("Managed Telegram bot %s access restriction was not accepted", bot_id)
+            from atulya.adhar import set_env_value
+
+            token_key, owner_key = names
+            set_env_value(token_key, child_token)
+            set_env_value(owner_key, str(owner_id))
+            if self.managed_bot_callback:
+                await self.managed_bot_callback(bot, child_token, str(owner_id), str(chat_id))
+            label = bot.get("username") or f"bot {bot_id}"
+            await self.send(f"Created @{label} and connected it to Atulya. Only your Telegram account can use it.", chat_id)
+            return "managed_bot_started"
+        except Exception as exc:
+            logger.error("Managed Telegram bot setup failed (%s)", type(exc).__name__)
+            await self.send("The bot was created, but Atulya could not finish connecting it. Check the server log for the setup error.", chat_id)
+            return "managed_bot_setup_failed"
+
+    async def _remove_managed_bot(self, bot_id: str, owner_id: str, chat_id: str) -> str:
+        names = self._managed_bot_env_names(bot_id)
+        if not names or not os.environ.get(names[0]) or os.environ.get(names[1]) != owner_id:
+            await self.send("I could not find a managed bot owned by this Telegram account.", chat_id)
+            return "managed_bot_not_found"
+        manager_token = self.config.get("bot_token") or self.config.get("token") or os.environ.get("ATULYA_TELEGRAM_BOT_TOKEN")
+        try:
+            status, payload = await _post_json(
+                f"https://api.telegram.org/bot{manager_token}/replaceManagedBotToken", {"user_id": int(bot_id)}
+            )
+            if status >= 400 or not isinstance(payload.get("result"), str):
+                logger.error("Could not revoke managed Telegram bot token (HTTP %s)", status)
+                await self.send("Telegram refused to revoke the bot token; the connection is unchanged.", chat_id)
+                return "managed_bot_revoke_failed"
+            from atulya.adhar import set_env_value
+
+            set_env_value(names[0], "")
+            set_env_value(names[1], "")
+            if self.managed_bot_removed_callback:
+                await self.managed_bot_removed_callback(bot_id)
+            await self.send(
+                f"Bot {bot_id} is disconnected and its old token is revoked. To permanently delete the bot account, confirm that separately in @BotFather: https://t.me/BotFather?start=deletebot",
+                chat_id,
+            )
+            return "managed_bot_removed"
+        except Exception as exc:
+            logger.error("Managed Telegram bot removal failed (%s)", type(exc).__name__)
+            await self.send("I could not remove that managed bot; the current connection is unchanged.", chat_id)
+            return "managed_bot_remove_failed"
 
     def is_allowed(self, sender_id: str) -> bool:
         allowlist = self.config.get("allowlist") or self.config.get("allowed_users") or os.environ.get("ATULYA_TELEGRAM_ALLOWLIST", "")
@@ -498,6 +656,9 @@ class TelegramChannel(ChannelBase):
         if not self.is_allowed(message.sender):
             await self.send("Access denied. Ask the owner to add your Telegram user id to ATULYA_TELEGRAM_ALLOWLIST.", chat_id)
             return "denied"
+        created_bot = message.metadata.get("managed_bot_created")
+        if isinstance(created_bot, dict):
+            return await self._activate_managed_bot(created_bot, str(message.sender), chat_id)
         telegram_user = self._telegram_identity(message)
         if text.startswith("/link"):
             code = text[5:].strip()
@@ -514,10 +675,76 @@ class TelegramChannel(ChannelBase):
             display = linked.get("display_name") or linked["username"]
             await self.send(html.escape(f"This Telegram account is linked to {display}'s Atulya profile and memory."), chat_id)
             return "telegram_linked"
+        if text == "/app":
+            app_url = self._public_app_url()
+            if not app_url:
+                await self.send("The Atulya Mini App is not published yet. Set ATULYA_PUBLIC_URL to this server's public HTTPS address, then restart Atulya.", chat_id)
+                return "app_not_configured"
+            await self.send("Open Atulya's hologram and dashboard:", chat_id, reply_markup={
+                "inline_keyboard": [[{"text": "Open Atulya", "web_app": {"url": app_url}}]],
+            })
+            return "app_link"
+        if text == "/newbot":
+            if not self.managed_bot_enabled:
+                await self.send(
+                    "Enable Bot Management Mode for this bot in the @BotFather Mini App, then restart Atulya. After that, /newbot opens Telegram's create-and-connect flow.",
+                    chat_id,
+                )
+                return "managed_bot_setup_required"
+            await self.send("Create a bot managed by Atulya:", chat_id, reply_markup={
+                "keyboard": [[{
+                    "text": "Create an Atulya bot",
+                    "request_managed_bot": {"request_id": 1, "suggested_name": "Atulya Assistant"},
+                }]],
+                "resize_keyboard": True,
+                "one_time_keyboard": True,
+            })
+            return "managed_bot_request"
+        if text == "/removebot":
+            if not self.managed_bot_manager:
+                await self.send("Manage bot connections from the original Atulya bot chat.", chat_id)
+                return "managed_bot_manager_only"
+            ids = self._managed_bot_ids(str(message.sender))
+            await self.send(
+                ("Your connected bots: " + ", ".join(ids) + ". Send /removebot ID to review a removal.")
+                if ids else "No managed Telegram bots are connected.",
+                chat_id,
+            )
+            return "managed_bot_list"
+        if text == "/deletebot":
+            if not self.managed_bot_manager:
+                await self.send("Manage bot connections from the original Atulya bot chat.", chat_id)
+                return "managed_bot_manager_only"
+            ids = self._managed_bot_ids(str(message.sender))
+            if ids:
+                await self.send(
+                    "Your connected bots: " + ", ".join(ids) + ". Disconnect one with /removebot ID; I will ask you to confirm before revoking its token. To delete a bot account, use @BotFather: https://t.me/BotFather?start=deletebot",
+                    chat_id,
+                )
+            else:
+                await self.send("No managed Telegram bots are connected. Use /newbot to create one.", chat_id)
+            return "managed_bot_list"
+        remove_match = re.fullmatch(r"/removebot\s+(\d+)(?:\s+(confirm))?", text, re.IGNORECASE)
+        if remove_match:
+            if not self.managed_bot_manager:
+                await self.send("Manage bot connections from the original Atulya bot chat.", chat_id)
+                return "managed_bot_manager_only"
+            bot_id, confirmed = remove_match.group(1), remove_match.group(2)
+            names = self._managed_bot_env_names(bot_id)
+            if not names or os.environ.get(names[1]) != str(message.sender) or not os.environ.get(names[0]):
+                await self.send("I could not find a managed bot owned by this Telegram account.", chat_id)
+                return "managed_bot_not_found"
+            if not confirmed:
+                await self.send(
+                    f"This revokes bot {bot_id}'s token and stops it in Atulya. The Telegram account remains until you delete it in @BotFather. To proceed, send /removebot {bot_id} confirm.",
+                    chat_id,
+                )
+                return "managed_bot_removal_confirmation_required"
+            return await self._remove_managed_bot(bot_id, str(message.sender), chat_id)
         if text in {"/start", "/help"}:
-            await self.send("Atulya OS is online. Text and voice chats are ready. Send photos, short videos, or common text files for analysis. Use /send \"path\" to send a file from an allowed folder, or /link CODE to connect your account profile. Commands: /ask, /status, /help.", chat_id)
+            await self.send("Atulya OS is online. Use /app for the hologram, /status for this server, /newbot or /deletebot to manage bot connections, /send to share an allowed file, or /link CODE to connect your profile. Commands: /ask, /app, /newbot, /deletebot, /status, /help.", chat_id)
             return "help"
-        if text == "/status":
+        if text == "/status" or self._is_system_status_request(text):
             await self.send(self._status_report(), chat_id, parse_mode="HTML")
             return "status"
         if text.startswith("/send"):

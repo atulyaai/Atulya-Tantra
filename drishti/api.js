@@ -85,6 +85,18 @@ export function setServerUrl(value) {
   return parsed.origin;
 }
 
+export function connectTelegramOrigin() {
+  if (!looksLikeTelegram()) return false;
+  try {
+    const origin = window.location.origin;
+    if (!origin || origin === 'null') return false;
+    setServerUrl(origin);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function apiUrl(path) {
   return new URL(path, `${getServerUrl()}/`).toString();
 }
