@@ -17,7 +17,7 @@ EXCLUDED_FROM_BRAIN = {"download_vision_model", "configure_email"}
 
 
 class AgentToolAdapter(Tool):
-    """Expose an ``atulya.kriya`` function tool through the yantra Tool API."""
+    """Expose an ``atulya.kriya`` function tool through ``atulya.kaushal``'s Tool API."""
 
     def __init__(self, name: str, info: dict[str, Any]):
         self.name = name
@@ -87,7 +87,7 @@ class MCPToolAdapter(Tool):
 
 
 def build_unified_registry(data_dir: str | Path = ".") -> ToolRegistry:
-    """Return the yantra default registry plus the personal-assistant tools."""
+    """Return the default ``atulya.kaushal`` registry plus the personal-assistant tools."""
     registry = create_default_registry(data_dir)
     from atulya import kriya as agent_tools  # lazy: avoids import cycles
 

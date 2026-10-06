@@ -194,7 +194,7 @@ class AtulyaLLM:
         memory_dir: str = "kosh/memory",
     ):
         if tools is None:
-            # One tool surface: yantra tools + personal-assistant tools.
+            # One tool surface: kaushal tools + personal-assistant tools.
             tools = _d.build_unified_registry()
         self.tools = tools
         self.max_tool_iterations = max_tool_iterations

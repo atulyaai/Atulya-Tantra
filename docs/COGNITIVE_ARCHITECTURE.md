@@ -29,7 +29,7 @@ flowchart LR
     K -->|open conversation| B[Brain: AtulyaLLM + ProviderRouter]
     R --> S{Safety policy}
     B -->|native tool call| S
-    S -->|allow| X[Unified toolbelt]
+    S -->|allow| X[Unified tool registry]
     S -->|confirm| H[Held action → 'yes' / 'no' / Approve]
     H --> X
     X --> M[(Memory)]

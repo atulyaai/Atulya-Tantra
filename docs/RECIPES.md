@@ -318,7 +318,8 @@ node install/generate_gmail_refresh_token.mjs
 ```
 
 9. Copy only the printed `GMAIL_REFRESH_TOKEN=...` line into `.env`.
-10. Set `gmail.enabled` to `true` in `atulya/setu_servers.json`.
+10. There is no `gmail` entry to flip: Gmail is a built-in tool (`send_email`, `fetch_emails` in
+    `atulya/kriya/email.py`), not an MCP server.
 
 ### Verify
 

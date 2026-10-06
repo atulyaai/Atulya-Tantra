@@ -146,8 +146,10 @@ spaces and a Windows Notepad BOM are all handled — you do not need `start.bat`
 
 ## 6. MCP servers
 
-Edit `atulya/setu_servers.json` to enable integrations (filesystem, git, browser, Google Drive,
-Gmail, etc.). **All start disabled by default.** A single manager is created for the whole process
+Edit `atulya/setu_servers.json` to enable integrations (Google Drive, Brave search, MQTT, local
+memory, Twilio, Home Assistant, ...). **Four ship enabled**: `filesystem`, `git`, `playwright` and
+`fetch` — the ones that need no credentials. Every other entry is listed but off until you add its
+keys. A single manager is created for the whole process
 and the brain reads its tools from `build_unified_registry()`, so an entry you enable here reaches
 the model on every surface — web UI and Telegram alike.
 

@@ -219,7 +219,7 @@ class AutomationRunner:
         """Emit a completion event for a finished automation job.
 
         Best-effort: broadcasts to WebSocket listeners and, when a notification
-        channel is configured, forwards to the `yantra` notification system.
+        channel is configured, forwards to the dashboard's own notifier.
         Never lets a notification failure abort the job itself.
         """
         name = job.get("name") or job.get("id") or "automation job"
