@@ -74,7 +74,10 @@ MODEL_URL = f"https://huggingface.co/{MODEL_REPO}/resolve/main/{MODEL_FILE}"
 # the whole system can be copied to another machine and just run. An explicit
 # ATULYA_MODEL_DIR env var still wins; the old ~/.cache location is kept as a
 # read fallback so existing installs don't re-download.
-_REPO_ROOT = Path(__file__).resolve().parents[1]
+# Two levels up from atulya/brain/local.py. One level is the package, which
+# would look for portable models in atulya/runtime instead of the project's
+# runtime/ folder that .env.example and the installer use.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 _PORTABLE_MODEL_DIR = _REPO_ROOT / "runtime" / "models"
 _LEGACY_MODEL_DIR = Path.home() / ".cache" / "atulya" / "models"
 _DEFAULT_MODEL_DIR = _PORTABLE_MODEL_DIR

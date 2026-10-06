@@ -53,7 +53,12 @@ from atulya.voice import VoicePipeline
 
 # ── account ────────────────────────────────────────────────────────────
 # ── state ────────────────────────────────────────────────────────────
-_ROOT = Path(__file__).resolve().parents[1]
+# Two levels up from atulya/api/__init__.py is the project root; one level is
+# the package itself. Landing inside the package put chat history, users and
+# the JWT secret in atulya/kosh — a folder no doc mentions and migrate() does
+# not manage — so the account lived somewhere migrate() never moved. One level
+# deeper than atulya/settings.py needs, which is why this is parents[2].
+_ROOT = Path(__file__).resolve().parents[2]
 # Dashboard runtime files (automation jobs). Git-ignored.
 OUTPUTS_DIR = _ROOT / "outputs"
 MAX_PROMPT_CHARS = 20_000

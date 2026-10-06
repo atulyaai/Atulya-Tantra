@@ -28,7 +28,9 @@ from atulya import api as _d
 
 # ── upload ────────────────────────────────────────────────────────────
 
-UPLOAD_DIR = Path(__file__).resolve().parents[1] / "data" / "uploads"
+# parents[2], not [1]: two levels up from atulya/api/ is the project root, and
+# uploads belong next to the rest of data/, not inside the package.
+UPLOAD_DIR = Path(__file__).resolve().parents[2] / "data" / "uploads"
 _MAX_SIZE = 50 * 1024 * 1024  # 50MB
 
 

@@ -63,10 +63,12 @@ tmp/
 
 # Everything Atulya learns and stores on your machine (memory, accounts, logs, tokens)
 data/
-# Generated invoices may contain private financial details.
-assets/invoices/
 # the old name of data/, moved to data/ automatically on first start
 kosh/
+# assets/ is the default ATULYA_DATA_DIR, so everything written into it is
+# generated and yours (invoices, reports, CLI sessions). Nothing in it is
+# tracked — add `!assets/whatever` if a file ever belongs in the repo.
+assets/
 outputs/
 
 # examples: downloaded models and your own measurements
