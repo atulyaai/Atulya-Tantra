@@ -111,6 +111,7 @@ dev = [
 [project.scripts]
 atulya = "atulya.adesh:main"
 atulya-listen = "atulya.shruti:main"
+atulya-watchdog = "atulya.watchdog:main"
 
 [tool.setuptools.dynamic]
 version = {attr = "atulya.__version__"}
