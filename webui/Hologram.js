@@ -2,6 +2,10 @@
 //
 // It opens as a comet-like stream of particles rising from a bright point,
 // then the particles fly into a glowing bust with contour lines and a warm face.
+// The opening is directed rather than animated: four hard camera cuts — the
+// chest point, a three-quarter, a close on the head, then a settle to front —
+// with an `ASSEMBLING... n%` readout counting the sequence off. Once she is
+// up, a `STATUS: <state> INTENSITY: <band>` line tracks the live signal.
 // Everything pulses with the live sound level (your voice while it
 // listens, its own voice while it speaks).
 import * as THREE from 'three';
@@ -206,6 +210,52 @@ const TINTS = {
   error: new THREE.Color(1.6, 0.55, 0.55),
 };
 
+const REDUCED = typeof window !== 'undefined'
+  && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+// The intro runs on this clock: comet first, then the figure assembles.
+const OPEN_SECONDS = 4.8;
+
+// Cut scenes. One entry is one shot — where the camera sits, what it looks at,
+// its field of view, and how long it holds. Switching between shots is
+// instantaneous: an edit, not a swoop. That is the difference between a
+// directed opening and a camera on rails, and it is the only way a cut reads
+// as a cut. `home: true` means the final framing computed by resize(), so the
+// sequence lands exactly where the resting view wants to be.
+const SHOTS = [
+  // The bright point at the chest, where the comet is born.
+  { at: 0.0, dur: 1.6, pos: [0.0, -1.16, 2.5], look: [0.0, -1.08, 0.0], fov: 36, drift: [0.04, 0.02] },
+  // Three-quarter from her right as the shoulders sweep out.
+  { at: 1.6, dur: 1.2, pos: [2.5, -0.55, 4.3], look: [0.0, -0.45, 0.0], fov: 33, drift: [-0.08, 0.05] },
+  // Close on the head from her left, the warm face core filling the frame.
+  { at: 2.8, dur: 1.1, pos: [-1.7, 0.72, 3.8], look: [0.0, 0.45, 0.0], fov: 31, drift: [0.06, -0.04] },
+  // Settle front. No drift: the resting view must be perfectly still.
+  { at: 3.9, dur: 0.9, home: true, fov: 35, drift: [0, 0] },
+];
+
+// The two readouts from the reference footage: assembly progress while she
+// forms, then a live status line once she is up.
+function makeOverlay() {
+  const el = document.createElement('div');
+  el.style.cssText = [
+    'position:absolute', 'right:14px', 'top:47%', 'pointer-events:none',
+    'font:11px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace',
+    'color:#3ae3ff', 'letter-spacing:0.12em',
+    'text-shadow:0 0 10px rgba(58,227,255,0.75)',
+    'white-space:pre', 'opacity:0', 'transition:opacity 0.4s ease',
+    'z-index:2',
+  ].join(';');
+  return el;
+}
+
+// Only touch the DOM when the text actually changes — this runs every frame.
+function setOverlay(el, text) {
+  if (el.__text === text) return;
+  el.__text = text;
+  el.textContent = text;
+  el.style.opacity = text ? '1' : '0';
+}
+
 // getSignal() -> { level: 0..1, state: 'idle' | 'listening' | 'thinking' | 'speaking' | 'error' }
 export async function createHologram(container, getSignal) {
   const reference = await loadReference();
@@ -213,6 +263,10 @@ export async function createHologram(container, getSignal) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setClearColor(0x000000, 1);
   container.appendChild(renderer.domElement);
+  const assembleEl = makeOverlay();
+  const statusEl = makeOverlay();
+  container.appendChild(assembleEl);
+  container.appendChild(statusEl);
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 50);
@@ -252,6 +306,20 @@ export async function createHologram(container, getSignal) {
   const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.28, 0.4, 0.62);
   composer.addPass(bloom);
 
+  // The resting framing: straight on, pulled back far enough that a tall phone
+  // still shows the whole bust. Every cut departs from here and returns to it.
+  const homePos = new THREE.Vector3(0, -0.15, 6);
+  const homeTarget = new THREE.Vector3();
+
+  // uScale turns a particle's size into screen pixels and depends on the field
+  // of view, so a cut that changes fov has to recompute it — otherwise the
+  // figure would appear to swell every time the camera moves in closer.
+  function applyProjection(w, h) {
+    camera.updateProjectionMatrix();
+    material.uniforms.uScale.value =
+      (h * renderer.getPixelRatio()) / (2 * Math.tan((camera.fov * Math.PI) / 360));
+  }
+
   function resize() {
     const w = container.clientWidth || 1;
     const h = container.clientHeight || 1;
@@ -259,9 +327,11 @@ export async function createHologram(container, getSignal) {
     composer.setSize(w, h);
     camera.aspect = w / h;
     // On a tall phone screen, step back so the whole bust fits.
-    camera.position.z = 6 * Math.max(1, 1.15 / camera.aspect);
-    camera.updateProjectionMatrix();
-    material.uniforms.uScale.value = (h * renderer.getPixelRatio()) / (2 * Math.tan((camera.fov * Math.PI) / 360));
+    homePos.z = 6 * Math.max(1, 1.15 / camera.aspect);
+    // Looking straight down -Z gives the camera exactly the orientation it had
+    // with no lookAt at all, so the resting view stays byte-for-byte unchanged.
+    homeTarget.set(homePos.x, homePos.y, homePos.z - 1);
+    applyProjection(w, h);
   }
   resize();
   const observer = new ResizeObserver(resize);
@@ -287,7 +357,7 @@ export async function createHologram(container, getSignal) {
     level += ((sig.level || 0) - level) * 0.2;
     spin += ((sig.state === 'thinking' ? 1 : 0) - spin) * 0.05;
     const since = (performance.now() - opened) / 1000;
-    const morph = smooth(1.6, 4.8, since); // comet first, then the humanoid forms
+    const morph = smooth(1.6, OPEN_SECONDS, since); // comet first, then the humanoid forms
     const u = material.uniforms;
     u.uTime.value = t;
     u.uMorph.value = morph;
@@ -319,6 +389,58 @@ export async function createHologram(container, getSignal) {
     bodyGlow.material.opacity = 0.05 + morph * 0.06 + level * 0.12;
     point.material.opacity = 0.9;
     point.scale.setScalar(0.17 + 0.05 * breathe + level * 0.2);
+
+    // ---- cut scenes: one shot at a time, switching instantly ----
+    // With reduced motion the shot list is never consulted and the camera just
+    // sits at its resting framing, so the intro stays a single still view.
+    let shot = null;
+    if (!REDUCED) {
+      for (let i = 0; i < SHOTS.length; i += 1) {
+        if (since >= SHOTS[i].at && since < SHOTS[i].at + SHOTS[i].dur) { shot = SHOTS[i]; break; }
+      }
+    }
+    if (shot) {
+      const held = (since - shot.at) / shot.dur; // 0..1 across this shot
+      if (shot.home) {
+        camera.position.copy(homePos);
+        camera.lookAt(homeTarget);
+      } else {
+        camera.position.set(
+          shot.pos[0] + shot.drift[0] * held,
+          shot.pos[1] + shot.drift[1] * held,
+          shot.pos[2],
+        );
+        camera.lookAt(shot.look[0], shot.look[1], shot.look[2]);
+      }
+      if (camera.fov !== shot.fov) {
+        camera.fov = shot.fov;
+        applyProjection(container.clientWidth || 1, container.clientHeight || 1);
+      }
+    } else {
+      camera.position.copy(homePos);
+      camera.lookAt(homeTarget);
+      if (camera.fov !== 35) {
+        camera.fov = 35;
+        applyProjection(container.clientWidth || 1, container.clientHeight || 1);
+      }
+    }
+
+    // ---- readouts ----
+    if (since < OPEN_SECONDS) {
+      // Progress through the assembly sequence — which is exactly what the
+      // number claims to be. It is deliberately not a count of particles
+      // placed, because nothing measures that.
+      const pct = Math.min(100, Math.round((since / OPEN_SECONDS) * 100));
+      setOverlay(assembleEl, `ASSEMBLING... ${pct}%`);
+      setOverlay(statusEl, '');
+    } else {
+      setOverlay(assembleEl, '');
+      const busy = sig.state && sig.state !== 'idle';
+      setOverlay(statusEl, busy
+        ? `STATUS: ${sig.state.toUpperCase()} INTENSITY: ${level > 0.6 ? 'HIGH' : level > 0.25 ? 'MED' : 'LOW'}`
+        : '');
+    }
+
     bloom.strength = 0.35 + level * 0.25;
     composer.render();
   }
@@ -328,7 +450,7 @@ export async function createHologram(container, getSignal) {
     setMood(m) { if (m) { feel.valence = Number(m.valence) || 0; feel.energy = Number(m.energy) || 0.5; } },
     setAmbient(level) { feel.room = Math.max(0, Math.min(1, Number(level) || 0)); },
     setGaze(x, y) { feel.gx = Math.max(-1, Math.min(1, x || 0)); feel.gy = Math.max(-1, Math.min(1, y || 0)); },
-    isOpening() { return (performance.now() - opened) / 1000 < 4.8; },
+    isOpening() { return (performance.now() - opened) / 1000 < OPEN_SECONDS; },
     dispose() {
       cancelAnimationFrame(raf);
       observer.disconnect();
