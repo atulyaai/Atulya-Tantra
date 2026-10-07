@@ -335,8 +335,13 @@ export async function createHologram(container, getSignal) {
   const bodyGlow = glowSprite('60,150,255', 2.4, 0, 0.2, -0.4);
   // The reference's chest point is a saturated blue bloom, not a white one,
   // and it spreads wide rather than sitting as a bead.
-  const point = glowSprite('80,175,255', 0.35, CHEST_POINT.x, CHEST_POINT.y, 0.3, true);
-  scene.add(bodyGlow, coreGlow, lipGlow, point, mouthLine, ...eyeGlows);
+  // The reference's chest node is a white-hot core inside a cyan halo with rays
+  // coming off it -- one mid-alpha disc cannot be both, and trying made it a
+  // flat grey ball. Two sprites do: a small near-white core, and a wide halo
+  // kept faint enough (see frame()) that it never lifts the chest rows.
+  const point = glowSprite('215,246,255', 0.07, CHEST_POINT.x, CHEST_POINT.y, 0.3, true);
+  const pointHalo = glowSprite('60,170,255', 0.3, CHEST_POINT.x, CHEST_POINT.y, 0.3, true);
+  scene.add(bodyGlow, coreGlow, lipGlow, point, pointHalo, mouthLine, ...eyeGlows);
 
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
@@ -457,11 +462,15 @@ export async function createHologram(container, getSignal) {
     lipGlow.material.opacity = morph * (0.1 + (speaking ? Math.min(1, level * 1.6) * 0.85 : 0));
     lipGlow.scale.setScalar(0.07 + (speaking ? level * 0.1 : 0));
     bodyGlow.material.opacity = 0.025 + morph * 0.035 + level * 0.06;
-    point.material.opacity = 0.9;
-    // Sized against the bust rather than a fixed screen fraction: at the fitted
-    // distance it lands at roughly an eighth of the figure's width, which is
-    // how large the bloom reads in the reference footage.
-    point.scale.setScalar(0.32 + 0.07 * breathe + level * 0.22);
+    // Hot core stays compact: the sprite's screen radius is scale * 168px at the
+    // fitted distance, so 0.07..0.14 is a ~25px white centre. The halo is five
+    // times wider but under a fifth of the opacity the old single sprite used --
+    // measured before at mean sat 53 against the rings' 102, i.e. it greyed out
+    // the chest; at 0.16 it adds a tint instead of a wash.
+    point.material.opacity = 0.95;
+    point.scale.setScalar(0.07 + 0.02 * breathe + level * 0.05);
+    pointHalo.material.opacity = 0.16 + level * 0.1;
+    pointHalo.scale.setScalar(0.3 + 0.05 * breathe + level * 0.12);
 
     // Keep a fixed frontal composition like the storyboard; animate the layers,
     // not the camera, so the HUD and figure never jump between shots.
@@ -513,7 +522,7 @@ export async function createHologram(container, getSignal) {
       observer.disconnect();
       points.geometry.dispose();
       material.dispose();
-      [coreGlow, bodyGlow, lipGlow, point, ...eyeGlows].forEach((s) => { s.material.map?.dispose(); s.material.dispose(); });
+      [coreGlow, bodyGlow, lipGlow, point, pointHalo, ...eyeGlows].forEach((s) => { s.material.map?.dispose(); s.material.dispose(); });
       mouthGeometry.dispose();
       mouthMaterial.dispose();
       composer.dispose?.();
