@@ -81,7 +81,7 @@ function buildParticles(reference) {
     const blue = reference.data[o + 5];
     // Reveal real spatial layers: shoulders first, then neck, head contour,
     // and the warm facial core. These are particle start times, not labels.
-    const startsAt = y < -0.35 ? 1.5 : y < 0.08 ? 2.8 : red > blue * 1.2 ? 5.0 : 3.8;
+    const startsAt = y < -0.35 ? 0.9 : y < 0.08 ? 1.6 : red > blue * 1.2 ? 3.9 : 2.4;
     add([reference.data[o], y, reference.data[o + 2]],
       [red, reference.data[o + 4], blue],
       reference.data[o + 6], KIND.body, i / reference.count, startsAt);
@@ -234,20 +234,27 @@ const TINTS = {
 };
 
 // Give the full formation enough time to read: gather, form the face and
-// shoulders, then settle into the live view (matching the reference clip).
-const OPEN_SECONDS = 8.4;
+// shoulders, then settle into the live view. The storyboard table is the
+// authority here and it totals 10.8s -- not the 8.4s this used to say, which
+// cut the sequence off during the final caption and left the last phase
+// unreadable. Every other timing in this file is measured against this one.
+const OPEN_SECONDS = 10.8;
 
 // The resting field of view. Kept as a named constant because three different
 // places have to agree on it: the camera and the height the resize() fit solves.
 const HOME_FOV = 35;
 
 // The two readouts from the reference footage: assembly progress while she
-// forms, then a live status line once she is up.
-function makeOverlay(position) {
+// forms, then a live status line once she is up. They never show at the same
+// time, so they share one slot. The reference sets its caption small, right of
+// the head at roughly jaw height -- centring it ran the words straight through
+// the figure, where half of them were unreadable, and putting it at the top
+// put it over the face and the orbit area.
+function makeOverlay() {
   const el = document.createElement('div');
   el.style.cssText = [
-    'position:absolute', 'left:50%', 'pointer-events:none', 'transform:translateX(-50%)', 'text-align:center',
-    position === 'assembly' ? 'top:68px' : 'bottom:132px',
+    'position:absolute', 'right:5%', 'pointer-events:none', 'text-align:right',
+    'top:56%',
     'font:11px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace',
     'color:#3ae3ff', 'letter-spacing:0.12em',
     'text-shadow:0 0 10px rgba(58,227,255,0.75)',
@@ -273,8 +280,8 @@ export async function createHologram(container, getSignal) {
   // Keep the WebGL layer transparent so the HUD's CSS grid/background can sit behind the figure.
   renderer.setClearColor(0x000000, 0);
   container.appendChild(renderer.domElement);
-  const assembleEl = makeOverlay('assembly');
-  const statusEl = makeOverlay('status');
+  const assembleEl = makeOverlay();
+  const statusEl = makeOverlay();
   container.appendChild(assembleEl);
   container.appendChild(statusEl);
 
@@ -304,24 +311,6 @@ export async function createHologram(container, getSignal) {
   });
   const points = new THREE.Points(buildParticles(reference), material);
   scene.add(points);
-
-  // The storyboard's orbit halo is a separate, true 3D layer. It fades in as
-  // the head forms and stays subtle enough to leave the particle contours clear.
-  const orbitRings = [
-    { radius: 0.48, color: 0x4bcdf2, tilt: 0.18 },
-    { radius: 0.68, color: 0x238fcb, tilt: 0.82 },
-    { radius: 0.9, color: 0xc18b58, tilt: 1.28 },
-  ].map(({ radius, color, tilt }, index) => {
-    const ringMaterial = new THREE.MeshBasicMaterial({
-      color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false,
-    });
-    const mesh = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.0025, 4, 144), ringMaterial);
-    mesh.position.set(HEAD.x, HEAD.y, -0.12 - index * 0.015);
-    mesh.rotation.set(tilt, 0, index * 0.34);
-    mesh.scale.y = 0.62;
-    scene.add(mesh);
-    return { mesh, material: ringMaterial, index };
-  });
 
   const coreGlow = glowSprite('255,120,30', 0.3, HEAD.x, 0.04, -0.2);
   const eyeGlows = [-1, 1].map((side) => glowSprite('90,215,255', 0.075, side * 0.12, 0.52, 0.24, true));
@@ -375,7 +364,11 @@ export async function createHologram(container, getSignal) {
     // shoulders reached x=+-3; with the corrected bake that left the figure
     // floating small in the middle of the frame.)
     const tan = Math.tan((HOME_FOV * Math.PI) / 360);
-    homePos.z = Math.max((0.971 * 1.06) / tan, (0.47 * 1.12) / (tan * camera.aspect));
+    // The factors are 1.26 / 1.30 rather than a snug fit of 1.06: filling the
+    // frame edge to edge read as oversized next to the reference, where the
+    // crown sits well down from the top edge and the bust is given room. It
+    // still over-runs the bottom on purpose -- the reference does too.
+    homePos.z = Math.max((0.971 * 1.26) / tan, (0.47 * 1.3) / (tan * camera.aspect));
     // Looking straight down -Z gives the camera the same orientation it has
     // with no lookAt at all; only the distance is being solved here.
     homeTarget.set(homePos.x, homePos.y, homePos.z - 1);
@@ -406,7 +399,11 @@ export async function createHologram(container, getSignal) {
     level += ((sig.level || 0) - level) * 0.2;
     spin += ((sig.state === 'thinking' ? 1 : 0) - spin) * 0.05;
     const since = (performance.now() - opened) / 1000;
-    const morph = smooth(2.2, OPEN_SECONDS, since); // gather first, then form the humanoid in stages
+    // Gather first, then form the humanoid in stages. Ending at 5.8 rather than
+    // at OPEN_SECONDS ties the shape's completion to the end of the AWAKENING
+    // caption: the face core is fully lit by the time that phase rolls over, and
+    // the remaining time is left for the closing readout.
+    const morph = smooth(0.8, 5.8, since);
     const u = material.uniforms;
     u.uTime.value = t;
     u.uMorph.value = morph;
@@ -438,17 +435,15 @@ export async function createHologram(container, getSignal) {
     u.uTint.value.lerp(goalTint, 0.08);
     const eyesOn = since >= 5.2;
     eyeGlows.forEach((eye) => { eye.material.opacity = morph * (eyesOn ? (speaking ? 0.78 : 0.44) : 0); });
-    orbitRings.forEach(({ mesh, material: ringMaterial, index }) => {
-      ringMaterial.opacity = morph * (0.1 + (speaking ? level * 0.12 : level * 0.035));
-      mesh.rotation.y = Math.sin(t * 0.16 + index) * 0.08;
-      mesh.rotation.z = index * 0.34 + t * (0.018 + index * 0.006);
-    });
     feel.ry += (feel.gx * 0.22 - feel.ry) * 0.06;
     feel.rx += (feel.gy * 0.1 - feel.rx) * 0.06;
     points.rotation.y = feel.ry;
     points.rotation.x = feel.rx;
     const breathe = 0.5 + 0.5 * Math.sin(t * 1.3);
-    coreGlow.material.opacity = morph * (0.34 + 0.08 * breathe + level * 0.08);
+    // The baked face glow is an additive disc laid over the warm contours. At
+    // 0.34 it buried them, so the face read as one opaque gold shape instead of
+    // the reference's gradient with lines showing through it.
+    coreGlow.material.opacity = morph * (0.25 + 0.07 * breathe + level * 0.07);
     coreGlow.scale.setScalar(0.72 + level * 0.12);
     lipGlow.material.opacity = morph * (0.1 + (speaking ? Math.min(1, level * 1.6) * 0.85 : 0));
     lipGlow.scale.setScalar(0.07 + (speaking ? level * 0.1 : 0));
@@ -474,10 +469,16 @@ export async function createHologram(container, getSignal) {
       // number claims to be. It is deliberately not a count of particles
       // placed, because nothing measures that.
       const pct = Math.min(100, Math.round((since / OPEN_SECONDS) * 100));
-      const label = since < 1.5 ? 'GATHERING PARTICLES'
-        : since < 3.8 ? 'FORMING SHOULDERS'
-          : since < 5.0 ? 'FORMING FACE'
-            : since < 6.9 ? 'LIGHTING NEURAL CORE' : 'CALIBRATING';
+      // Six phases, with the copy taken from the storyboard artwork and the
+      // boundaries placed so each phase starts as its layer finishes forming:
+      // mesh at 1.4, shoulders by 3.2, security by 4.6, awakening ends at 5.8
+      // (the same instant morph completes), then the greeting, then the tail.
+      const label = since < 1.4 ? 'SYSTEM BOOT'
+        : since < 3.2 ? 'ASSEMBLING CYBERNETIC MESH'
+          : since < 4.6 ? 'SECURITY: ACTIVE'
+            : since < 5.8 ? 'AWAKENING ATULYA'
+              : since < 8.4 ? 'HELLO, I AM ATULYA. HOW CAN I ASSIST?'
+                : 'CALIBRATING NEURAL CORE';
       setOverlay(assembleEl, `${label} · ${pct}%`);
       setOverlay(statusEl, '');
     } else {
@@ -506,7 +507,6 @@ export async function createHologram(container, getSignal) {
       [coreGlow, bodyGlow, lipGlow, point, ...eyeGlows].forEach((s) => { s.material.map?.dispose(); s.material.dispose(); });
       mouthGeometry.dispose();
       mouthMaterial.dispose();
-      orbitRings.forEach(({ mesh, material: ringMaterial }) => { mesh.geometry.dispose(); ringMaterial.dispose(); });
       composer.dispose?.();
       renderer.dispose();
       container.replaceChildren();
