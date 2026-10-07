@@ -132,7 +132,11 @@ const vertexShader = /* glsl */`
       vec3 dir = normalize(vec3(sin(aPhase * 91.0), cos(aPhase * 57.0), sin(aPhase * 23.0)) + 0.001);
       p += dir * uScatter * (0.35 + aPhase * 0.6) + dir * uScatter * 0.08 * sin(uTime * 1.5 + aPhase * 30.0);
       p.xy += 0.004 * vec2(sin(uTime * 2.1 + aPhase * 60.0), cos(uTime * 1.7 + aPhase * 40.0)) * (1.0 + uLevel * 5.0);
-      alpha = smoothstep(-1.45, -1.2, position.y) * smoothstep(1.55, 1.2, abs(position.x));
+      // The bust reaches x=+-1.081, so the side fade has to begin well inside
+      // that or the shoulder tips end on a hard edge. Dissolving them over
+      // 0.90..1.15 matches how the reference feathers its outer shoulders away
+      // into loose particles rather than cutting them off.
+      alpha = smoothstep(-1.45, -1.2, position.y) * smoothstep(1.15, 0.9, abs(position.x));
     } else if (aKind < 1.5) {     // rings: ripple outward, faster with sound
       vec2 d = p.xy - HEAD;
       float r = length(d);
@@ -180,22 +184,34 @@ const fragmentShader = /* glsl */`
   }
 `;
 
-function glowTexture(rgb) {
+// `soft` trades the shared gradient's bright plateau for a fast decay: the core
+// still reads hot, but the halo spreads four times further. The chest point
+// needs that or it renders as a small opaque disc; the wide body wash and the
+// face glow are better served by the plateau.
+function glowTexture(rgb, soft = false) {
   const c = document.createElement('canvas');
   c.width = c.height = 128;
   const g = c.getContext('2d');
   const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-  grad.addColorStop(0, `rgba(${rgb},1)`);
-  grad.addColorStop(0.35, `rgba(${rgb},0.35)`);
-  grad.addColorStop(1, `rgba(${rgb},0)`);
+  if (soft) {
+    grad.addColorStop(0, `rgba(${rgb},1)`);
+    grad.addColorStop(0.16, `rgba(${rgb},0.78)`);
+    grad.addColorStop(0.4, `rgba(${rgb},0.42)`);
+    grad.addColorStop(0.7, `rgba(${rgb},0.16)`);
+    grad.addColorStop(1, `rgba(${rgb},0)`);
+  } else {
+    grad.addColorStop(0, `rgba(${rgb},1)`);
+    grad.addColorStop(0.35, `rgba(${rgb},0.35)`);
+    grad.addColorStop(1, `rgba(${rgb},0)`);
+  }
   g.fillStyle = grad;
   g.fillRect(0, 0, 128, 128);
   return new THREE.CanvasTexture(c);
 }
 
-function glowSprite(rgb, scale, x, y, z) {
+function glowSprite(rgb, scale, x, y, z, soft = false) {
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: glowTexture(rgb), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true,
+    map: glowTexture(rgb, soft), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true,
   }));
   sprite.scale.set(scale, scale, 1);
   sprite.position.set(x, y, z);
@@ -215,6 +231,10 @@ const REDUCED = typeof window !== 'undefined'
 
 // The intro runs on this clock: comet first, then the figure assembles.
 const OPEN_SECONDS = 4.8;
+
+// The resting field of view. Kept as a named constant because three different
+// places have to agree on it: the camera and the height the resize() fit solves.
+const HOME_FOV = 35;
 
 // Cut scenes. One entry is one shot — where the camera sits, what it looks at,
 // its field of view, and how long it holds. Switching between shots is
@@ -269,7 +289,7 @@ export async function createHologram(container, getSignal) {
   container.appendChild(statusEl);
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 50);
+  const camera = new THREE.PerspectiveCamera(HOME_FOV, 1, 0.1, 50);
   camera.position.set(0, -0.15, 6);
 
   const material = new THREE.ShaderMaterial({
@@ -298,7 +318,9 @@ export async function createHologram(container, getSignal) {
   // Soft glow on the lips: brightens with the voice so you can see her speak.
   const lipGlow = glowSprite('255,150,125', 0.1, HEAD.x, MOUTH_Y, 0.22);
   const bodyGlow = glowSprite('60,150,255', 2.4, 0, 0.2, -0.4);
-  const point = glowSprite('200,235,255', 0.35, CHEST_POINT.x, CHEST_POINT.y, 0.3);
+  // The reference's chest point is a saturated blue bloom, not a white one,
+  // and it spreads wide rather than sitting as a bead.
+  const point = glowSprite('80,175,255', 0.35, CHEST_POINT.x, CHEST_POINT.y, 0.3, true);
   scene.add(bodyGlow, coreGlow, lipGlow, point);
 
   const composer = new EffectComposer(renderer);
@@ -326,10 +348,18 @@ export async function createHologram(container, getSignal) {
     renderer.setSize(w, h, false);
     composer.setSize(w, h);
     camera.aspect = w / h;
-    // On a tall phone screen, step back so the whole bust fits.
-    homePos.z = 6 * Math.max(1, 1.15 / camera.aspect);
-    // Looking straight down -Z gives the camera exactly the orientation it had
-    // with no lookAt at all, so the resting view stays byte-for-byte unchanged.
+    // The baked bust measures 1.081 half-wide and 0.971 half-tall about
+    // y = -0.15, which is exactly where the camera rests — so height nearly
+    // sets the distance on its own. The second term only bites on a narrow
+    // container, where it backs off far enough to keep the head whole and lets
+    // the shoulders run past the edge, the way they do in the reference
+    // framing. (It used to be a flat 6, tuned for a point cloud whose
+    // shoulders reached x=+-3; with the corrected bake that left the figure
+    // floating small in the middle of the frame.)
+    const tan = Math.tan((HOME_FOV * Math.PI) / 360);
+    homePos.z = Math.max((0.971 * 1.06) / tan, (0.47 * 1.12) / (tan * camera.aspect));
+    // Looking straight down -Z gives the camera the same orientation it has
+    // with no lookAt at all; only the distance is being solved here.
     homeTarget.set(homePos.x, homePos.y, homePos.z - 1);
     applyProjection(w, h);
   }
@@ -388,7 +418,10 @@ export async function createHologram(container, getSignal) {
     lipGlow.scale.setScalar(0.07 + (speaking ? level * 0.1 : 0));
     bodyGlow.material.opacity = 0.05 + morph * 0.06 + level * 0.12;
     point.material.opacity = 0.9;
-    point.scale.setScalar(0.17 + 0.05 * breathe + level * 0.2);
+    // Sized against the bust rather than a fixed screen fraction: at the fitted
+    // distance it lands at roughly an eighth of the figure's width, which is
+    // how large the bloom reads in the reference footage.
+    point.scale.setScalar(0.32 + 0.07 * breathe + level * 0.22);
 
     // ---- cut scenes: one shot at a time, switching instantly ----
     // With reduced motion the shot list is never consulted and the camera just
@@ -419,8 +452,8 @@ export async function createHologram(container, getSignal) {
     } else {
       camera.position.copy(homePos);
       camera.lookAt(homeTarget);
-      if (camera.fov !== 35) {
-        camera.fov = 35;
+      if (camera.fov !== HOME_FOV) {
+        camera.fov = HOME_FOV;
         applyProjection(container.clientWidth || 1, container.clientHeight || 1);
       }
     }

@@ -38,34 +38,54 @@ def main(path: str, seconds: float = 4.8) -> None:
     gold = warm & (yy >= 570)
     mask = cyan | warm
 
+    # Pixels of the reference to world units, applied to both axes alike.
+    # y spans 205..830 (625 px) and maps to 1.93 units.
+    scale = 1.93 / 625
+
+    # Particle radii. The high-pass mask only keeps each scanline's edge pixels,
+    # so consecutive points sit further apart than the strokes they came from;
+    # at the old sizes the gaps stayed open and the contour lines read as rows
+    # of loose dots rather than the continuous rules the reference draws. These
+    # are sized so neighbouring points overlap at the distance the camera rests
+    # at, which closes the lines without merging them into solid bands.
+    CYAN_SIZE = 0.012
+    FACE_SIZE = 0.014
+    GOLD_SIZE = 0.0105
+
     records: list[tuple[float, ...]] = []
     ys, xs = np.where(mask)
+    # x and y must share one scale. They did not: x used 0.82*2.4/350 per pixel
+    # above y=570 and 1.25*2.4/350 below it, while y used 1.93/625. That is a
+    # 1.52x jump across a single row and a 1.82x horizontal stretch overall, so
+    # the head baked 1.55 wide-to-tall when the reference measures 0.851, and
+    # the shoulders reached x=+-3.0 into a shader that hides everything past
+    # 1.55 -- half the shoulder span simply never drew. One factor for both
+    # axes keeps the reference's proportions and lands the shoulders inside the
+    # fade.
     for x, y in zip(xs.tolist(), ys.tolist()):
         warm = bool(gold[y, x] or face_lines[y, x])
         face_warm = bool(face_lines[y, x])
-        # The camera crops the left shoulder; mirror its measured scanlines to restore
-        # the complete, symmetric bust while retaining the captured head contours.
+        # The camera crops the right shoulder at the ROI edge; mirror the intact
+        # left half about the head centre (x=350) to restore a whole bust. The
+        # head itself is not cropped, so only the body is mirrored.
         mirrored = y >= 570 and x < 350 and not warm
         if y >= 570 and x >= 350 and not warm:
             continue
         positions = (x, 700 - x) if mirrored else (x,)
         for px in positions:
-            # The reference camera is unusually wide: in the actual figure the
-            # head is much narrower than the shoulder span. Preserve that ratio
-            # instead of letting a screen-width mapping turn the bust into an oval.
-            scene_x = (px - 350) * ((0.82 if y < 570 else 1.25) * 2.4 / 350)
-            scene_y = 0.85 - (y - 205) * (1.93 / 625)
+            scene_x = (px - 350) * scale
+            scene_y = 0.85 - (y - 205) * scale
             if warm:
                 if face_warm:
                     glow = max(0.0, 1.0 - ((x - 350) / 120) ** 2 - ((y - 470) / 145) ** 2)
                     color = (1.1, 0.32 + 0.52 * glow, 0.025 + 0.09 * glow)
-                    size = 0.0115
+                    size = FACE_SIZE
                 else:
                     color = (1.05, 0.58, 0.12)
-                    size = 0.0085
+                    size = GOLD_SIZE
             else:
                 color = (0.18, 0.78, 1.2)
-                size = 0.0095
+                size = CYAN_SIZE
             records.append((scene_x, scene_y, 0.12, *color, size))
 
     points = np.asarray(records, dtype="<f4")
