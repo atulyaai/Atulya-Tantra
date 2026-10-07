@@ -1,76 +1,146 @@
 """Bake the hologram as horizontal isolines cut from a parametric bust.
 
-Usage: python webui/bake_hologram_mesh.py path/to/reference.mp4 [time-seconds]
-Requires OpenCV and NumPy. Writes webui/hologram-points.bin.
+Usage: python webui/bake_hologram_mesh.py
+Requires only NumPy. Writes webui/hologram-points.bin.
 
-Why this exists instead of `bake_hologram_reference.py`:
-
-That script lifts edge pixels straight out of the footage, so its lines are as
-good as a phone photograph of a monitor allows -- 2px runs behind a 6px median
-gap, with camera moiré on top. No amount of filtering separates the noise from
-a stroke that is itself only two pixels tall.
-
-The reference clip is not a photograph of points; it is a solid bust sliced
-into horizontal contour lines. So this script rebuilds that geometry: it takes
-the *silhouette* from the footage (the one thing a photo measures reliably),
-extrudes it into a closed cross-section, and cuts that cross-section at regular
-heights. The wrap around the skull, the nested arcs over the shoulders and the
-clean bright rim are then consequences of the geometry rather than of pixels,
-and they survive at any zoom.
-
-Colours still come from the footage, so the gold veins across the chest and the
-warm face glow stay exactly where the reference puts them.
+No footage, no photograph, no embedded image. Every number that shapes the
+figure lives below as a tunable constant: the silhouette is a smooth curve
+through control points fitted to the reference proportions, the face glow is an
+ellipse, the chest veins are two bezier curves, and the colours are measured
+shader values. Changing the look means changing a number, never re-measuring
+a video frame -- which is the whole point, now that voice, HUD binding and the
+rest of the build all sit on top of this file.
 
 The output is the same 7-float record the renderer already reads -- x, y, z,
 r, g, b, size -- so the renderer needs no changes at all.
+
+Where the numbers came from (2026-10-07, kept so a retune starts from facts):
+the PROFILE control points are the per-row silhouette half-widths measured off
+the reference footage at 4.8s, thinned to one point per feature (crown tip,
+temple max, ear bump, neck, trapezius flare, shoulder run-off). The CLOUD
+colour is rgb (12,108,171) sampled off the loose dots at the reference's edge.
+CYAN/GOLD/RIM are set for what they look like added together: a stroke is
+built from sprites spaced POINT_STEP apart and CYAN_SIZE wide, so roughly four
+of them land on every pixel and the values would clip to grey-white if they
+were specified at face value.
 """
 from __future__ import annotations
 
 import struct
-import sys
 from pathlib import Path
 
-import cv2
 import numpy as np
 
 OUT = Path(__file__).resolve().parent / "hologram-points.bin"
 
-# Footage -> world. x and y share one factor: x spans 625px about the centre
-# below the mirror line exactly as y does, and giving them separate scales is
-# what stretched the bust 1.82x wide in the first place.
-CX = 350.0
-Y_TOP_SRC = 205.0
-SCALE = 1.93 / 625
+# Silhouette half-width rx at height y, crown to run-off. Read top to bottom:
+# the tip of the crown, the temple max, the ear bump at y~0.32, the long neck,
+# the trapezius flare from y~-0.4, and the shoulders held past the frame bottom
+# so the chest leaves view instead of ending on a hem (the renderer already
+# fades the body out across y = -1.45..-1.2). A point every feature is enough:
+# the Hermite curve below keeps it C1 smooth between them, and adding points
+# only ever sharpens a wiggle.
+PROFILE = [
+    (0.788, 0.000),
+    (0.764, 0.076),
+    (0.739, 0.101),
+    (0.714, 0.126),
+    (0.689, 0.178),
+    (0.665, 0.185),
+    (0.640, 0.210),
+    (0.615, 0.229),
+    (0.591, 0.261),
+    (0.566, 0.239),
+    (0.541, 0.270),
+    (0.516, 0.316),
+    (0.492, 0.338),
+    (0.467, 0.366),
+    (0.442, 0.402),
+    (0.418, 0.403),
+    (0.393, 0.390),
+    (0.368, 0.342),
+    (0.344, 0.344),
+    (0.319, 0.409),
+    (0.294, 0.403),
+    (0.269, 0.402),
+    (0.245, 0.406),
+    (0.220, 0.363),
+    (0.195, 0.365),
+    (0.171, 0.372),
+    (0.121, 0.375),
+    (0.072, 0.372),
+    (0.022, 0.359),
+    (-0.027, 0.350),
+    (-0.076, 0.325),
+    (-0.126, 0.310),
+    (-0.175, 0.328),
+    (-0.225, 0.310),
+    (-0.274, 0.307),
+    (-0.323, 0.304),
+    (-0.373, 0.325),
+    (-0.422, 0.353),
+    (-0.472, 0.418),
+    (-0.521, 0.488),
+    (-0.570, 0.630),
+    (-0.620, 0.758),
+    (-0.669, 0.849),
+    (-0.719, 0.912),
+    (-0.768, 0.967),
+    (-0.818, 0.980),
+    (-0.867, 1.012),
+    (-0.892, 1.042),
+    (-0.916, 1.042),
+    (-0.941, 1.052),
+    (-0.966, 1.058),
+    (-0.990, 1.064),
+    (-1.015, 1.069),
+    (-1.065, 1.068),
+    (-1.114, 1.068),
+]
 
-# One contour line every this many footage rows, and one point every this many
-# world units along a line. The row step sets how many lines the bust carries --
-# the reference shows about thirty-five over the head, which is a line every
-# eight footage rows. The along-line step has to stay well under the particle's
-# on-screen width or the stroke breaks into dashes: 0.0040 world units was over
-# 1px at this framing and even 0.0024 still read as separate ticks.
-CUT_ROWS = 8
+# Contour lines: the reference carries about thirty-five over the head, which
+# used to be one line every eight footage rows. In world units that step is
+# 0.0247, and keeping it means a retune never has to count rows again.
+Y_TOP = 0.79
+RUNOFF_Y = -1.46
+LINE_DY = 0.0247
+
+# Head width, as a fraction of the measured profile. The footage the profile
+# was fitted to reads wide and blocky next to the current target: measured on
+# captures, my head runs 1.15 wide-per-tall against the target's 0.86 (Claude
+# still) and 0.70 (monitor footage), clouds included on both sides. 0.80 lands
+# the render at ~0.92, the conservative end of that gap; push it down if the
+# head still reads blocky. Applies across the face band only, blended back to
+# 1.0 at the neck and the crown so neither junction steps.
+HEAD_W = 0.80
+HEAD_Y0 = 0.00
+HEAD_Y1 = 0.10
+HEAD_Y2 = 0.60
+HEAD_Y3 = 0.72
+
+# One point every this many world units along a line. It has to stay well
+# under the particle's on-screen width or the stroke breaks into dashes:
+# 0.0040 world units was over 1px at this framing and even 0.0024 still read
+# as separate ticks.
 POINT_STEP = 0.0016
 
-# How small a blob may be before it is taken for spray, and how few pixels a
-# row may hold before its edge is taken for the silhouette. Both are small on
-# purpose. Around the crown the contour lines are themselves short segments of
-# only a few pixels, and a minimum component area of 25 -- the first guess --
-# deleted the entire top of the head; np.interp then back-filled the gap with
-# whatever the last surviving row below it measured, which is why the skull
-# came out as a cone. Sprayed droplets are individual pixels and die at 6.
-MIN_COMPONENT = 6
-MIN_ROW_PIXELS = 6
+# The warm face glow: centre x/y, half-width, half-height. A glow, so the
+# ellipse is wider than the skull -- it fades, it does not clip. The width is
+# tied to HEAD_W: the ellipse was fitted to the unslimmed head, and leaving it
+# wide would spill the glow past the cheeks once the head narrows.
+FACE_C = (0.0, 0.032)
+FACE_RX = 0.448 * HEAD_W
+FACE_RY = 0.510
 
-# How far past the monitor the chest is extended. The footage stops at the
-# bottom of the screen, so what is below it cannot be measured -- but the
-# reference clearly has the shoulders running out of frame, and the renderer
-# already fades the body out across y = -1.45..-1.2, which is exactly where a
-# run-off to -1.46 lands. Holding the last measured width there costs nothing
-# and removes the visible hem the bust used to end on.
-RUNOFF_Y = -1.46
-
-# The warm face glow in footage pixels: centre x, centre y, half-width, height.
-FACE = (350.0, 470.0, 145.0, 165.0)
+# The gold veins: one quadratic bezier per side, from the neck down to the
+# chest node, bowing outward through the trapezius. Points within VEIN_W of
+# either curve read gold; points within NODE_R of the node do too, so the
+# wishbone lands on the burst the renderer draws there.
+VEIN_L = ((-0.085, -0.28), (-0.155, -0.68), (-0.008, -1.055))
+VEIN_R = ((0.085, -0.28), (0.155, -0.68), (0.008, -1.055))
+VEIN_W = 0.022
+NODE = (0.0, -1.08)
+NODE_R = 0.05
 
 # Depth of the cross-section as a fraction of its width. A head is nearly as
 # deep as it is wide; shoulders are wide and shallow. Perspective is what makes
@@ -90,24 +160,18 @@ GOLD_SIZE = 0.0072
 RIM_SIZE = 0.0110
 
 # The loose particles that hang off the silhouette. Three per row, thrown
-# outward between CLOUD_NEAR and CLOUD_NEAR + CLOUD_SPREAD world units -- the far
-# end is about 24px at the fitted framing, which is how far the reference's dots
-# drift before they fade out. Their own colour, measured off the footage rather
-# than derived from the contour palette: an isolated sprite stacks with nothing,
-# so it has to carry its own brightness.
+# outward between CLOUD_NEAR and CLOUD_NEAR + CLOUD_SPREAD world units -- the
+# far end is about 24px at the fitted framing, which is how far the reference's
+# dots drift before they fade out. An isolated sprite stacks with nothing, so
+# unlike the contour colours this one carries its own brightness.
 CLOUD = (0.10, 0.60, 0.92)
 CLOUD_SIZE = 0.0070
 CLOUD_PER_ROW = 3
 CLOUD_NEAR = 0.004
 CLOUD_SPREAD = 0.078
 
-# Colours are set for what they look like *added together*, not on their own.
-# A line is built from sprites spaced 0.0016 world units apart and 0.0075 wide,
-# so roughly four of them land on every pixel of the stroke; taking these
-# numbers at face value stacks green and blue past 1.0, they clip, and the
-# stroke comes out grey-white where the reference is cyan. Measured on the
-# capture: the reference's lit pixels run 76/125/128 at saturation 111, an
-# early version of this bake ran 107/121/118 at saturation 59.
+# Contour colours, set for what they look like *added together* (see module
+# docstring). Face gold brightens toward the middle of the glow.
 CYAN = (0.07, 0.31, 0.48)
 GOLD = (0.42, 0.23, 0.05)
 RIM = (0.24, 0.60, 0.88)
@@ -120,90 +184,88 @@ RIM = (0.24, 0.60, 0.88)
 # where the projected silhouette falls, so the outline is complete without it.
 
 
+_PY, _PW = zip(*sorted(PROFILE))
+_PY = np.array(_PY)
+_PW = np.array(_PW)
+
+
+def _tangents() -> np.ndarray:
+    """Central-difference tangents, one per control point (ends one-sided)."""
+    m = np.empty_like(_PW)
+    m[0] = (_PW[1] - _PW[0]) / (_PY[1] - _PY[0])
+    m[-1] = (_PW[-1] - _PW[-2]) / (_PY[-1] - _PY[-2])
+    d = (_PW[2:] - _PW[:-2]) / (_PY[2:] - _PY[:-2])
+    m[1:-1] = d
+    return m
+
+
+_M = _tangents()
+
+
+def silhouette_rx(y: float) -> float:
+    """Half-width of the bust at height y: cubic Hermite through PROFILE.
+
+    C1 smooth by construction, so the contours never show the steps that row
+    quantisation left in the measured version. Clamped at zero: above the
+    crown tip the curve would go negative, and a negative width is a ring
+    inside-out.
+    """
+    if y >= _PY[-1]:
+        return 0.0
+    if y <= _PY[0]:
+        return float(_PW[0]) * _head_factor(y)
+    i = int(np.searchsorted(_PY, y, side="right")) - 1
+    h = _PY[i + 1] - _PY[i]
+    t = (y - _PY[i]) / h
+    t2, t3 = t * t, t * t * t
+    w = ((2 * t3 - 3 * t2 + 1) * _PW[i]
+         + (t3 - 2 * t2 + t) * h * _M[i]
+         + (-2 * t3 + 3 * t2) * _PW[i + 1]
+         + (t3 - t2) * h * _M[i + 1])
+    return max(0.0, float(w)) * _head_factor(y)
+
+
+def _head_factor(y: float) -> float:
+    """1 outside the face band, HEAD_W inside, smoothstep ramps between."""
+    def smooth(a: float, b: float, x: float) -> float:
+        t = min(1.0, max(0.0, (x - a) / (b - a)))
+        return t * t * (3 - 2 * t)
+    return 1.0 - (1.0 - HEAD_W) * smooth(HEAD_Y0, HEAD_Y1, y) * (
+        1.0 - smooth(HEAD_Y2, HEAD_Y3, y))
+
+
+def _bezier(p0: tuple[float, float], p1: tuple[float, float],
+            p2: tuple[float, float], n: int = 64) -> np.ndarray:
+    t = np.linspace(0.0, 1.0, n)[:, None]
+    a = np.array(p0) + t * (np.array(p1) - np.array(p0))
+    b = np.array(p1) + t * (np.array(p2) - np.array(p1))
+    return a + t * (b - a)
+
+
+# Vein centrelines as (y, x) polylines running top to bottom, so the x of each
+# vein at a ring's height is one interpolation away.
+def _vein_yx(curve: tuple[tuple[float, float], tuple[float, float], tuple[float, float]],
+             ) -> tuple[np.ndarray, np.ndarray]:
+    pts = _bezier(*curve)
+    order = np.argsort(pts[:, 1])
+    return pts[order, 1], pts[order, 0]
+
+
+_VEIN_LY, _VEIN_LX = _vein_yx(VEIN_L)
+_VEIN_RY, _VEIN_RX = _vein_yx(VEIN_R)
+
+
 def _hash01(row: int, salt: int) -> float:
     """Deterministic 0..1 from a row index and a salt.
 
-    Used for the silhouette cloud. Math.random would be the obvious choice, but
-    it would re-roll every particle on every bake, so the .bin would churn in
-    git even when the video and the parameters were untouched. This gives the
-    same scatter every run while still being flat enough to look random.
+    Used for the silhouette cloud. Random here would re-roll every particle on
+    every bake, so the .bin would churn in git even when the parameters were
+    untouched. This gives the same scatter every run while still being flat
+    enough to look random.
     """
     h = (row * 2654435761 + salt * 40503) & 0xFFFFFFFF
     h ^= h >> 16
     return (h % 100000) / 100000.0
-
-
-def frame_masks(path: str, seconds: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Return (colour frame, warm mask, cyan mask) at the given time."""
-    video = cv2.VideoCapture(path)
-    video.set(cv2.CAP_PROP_POS_MSEC, seconds * 1000)
-    ok, frame = video.read()
-    video.release()
-    if not ok:
-        raise SystemExit(f"Could not read frame at {seconds:.2f}s from {path}")
-
-    hue, sat, val = cv2.split(cv2.cvtColor(frame, cv2.COLOR_BGR2HSV))
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    detail = cv2.subtract(gray, cv2.GaussianBlur(gray, (0, 0), sigmaX=5, sigmaY=5))
-    roi = (np.indices(gray.shape)[1] < 530)
-    cyan = roi & (hue >= 72) & (hue <= 112) & (sat >= 55) & (val >= 55) & (detail > 8)
-    warm = roi & (hue >= 5) & (hue <= 38) & (sat >= 55) & (val >= 55) & (detail > 8)
-    return frame, warm, cyan
-
-
-def measure_width(warm: np.ndarray, cyan: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Per-row half-width about CX in world units, NaN where unmeasured.
-
-    Only the left half is trusted: the ROI clips the right shoulder at x=530,
-    so the left edge is the only one that still measures the real figure.
-    Dropping small components first matters -- the reference sprays loose
-    droplets around the crown, and a single stray pixel on the left of a row
-    would read as a shoulder twice its real width.
-    """
-    mask = (warm | cyan).astype(np.uint8)
-    n, labels, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
-    if n > 1:
-        keep = np.zeros(n, bool)
-        keep[1:] = stats[1:, cv2.CC_STAT_AREA] >= MIN_COMPONENT
-        mask = keep[labels].astype(np.uint8)
-
-    rows = np.arange(190, 851)
-    width = np.full(rows.shape, np.nan)
-    for i, y in enumerate(rows):
-        xs = np.flatnonzero(mask[y])
-        if xs.size < MIN_ROW_PIXELS:
-            continue
-        # Ignore a lone outlier by taking the edge of the densest run
-        # rather than the bare minimum.
-        left = np.percentile(xs, 1)
-        width[i] = (CX - left) * SCALE
-    return rows, width
-
-
-def silhouette_width(warm: np.ndarray, cyan: np.ndarray) -> np.ndarray:
-    """`measure_width` with the gaps filled, the tail held and the jitter gone."""
-    rows, width = measure_width(warm, cyan)
-    if np.isfinite(width).sum() < 10:
-        raise SystemExit("No silhouette found in frame -- wrong timestamp?")
-
-    # The bust only ever widens as it runs down through the shoulders, so a
-    # row that falls far below the widest value already seen is the monitor
-    # edge eating the figure, not the body narrowing. Blank those rows before
-    # interpolating: np.interp then holds the last real width instead of
-    # dragging the chest down to the glare it measured below the screen.
-    # The neck IS narrower than the shoulders, which is why this only applies
-    # past the widest row rather than to every row.
-    peak = int(np.nanargmax(width))
-    tail = width.copy()
-    tail[peak + 1:][width[peak + 1:] < 0.80 * width[peak]] = np.nan
-    valid = np.isfinite(tail)
-    width = np.interp(rows, rows[valid], tail[valid])
-
-    # A running median smooths the jitter of a photographed edge. 15 rows is
-    # wide enough to kill that and narrow enough not to round off the crown.
-    pad = np.pad(width, 7, mode="edge")
-    width = np.median(np.lib.stride_tricks.sliding_window_view(pad, 15), axis=1)
-    return np.clip(width, 0.0, 350 * SCALE)
 
 
 def depth_ratio(y: float) -> float:
@@ -222,67 +284,44 @@ def surface_normal(u: float, rx: float, rz: float, drx: float, drz: float) -> np
     ])
 
 
-def sample_colour(warm: np.ndarray, cyan: np.ndarray, sx: float, sy: float,
-                  glow: float) -> tuple[float, float, float]:
-    """Colour of the footage at a world point, mapped back through the bake."""
-    h, w = warm.shape
-    x, y = int(round(sx)), int(round(sy))
-    if 0 <= x < w and 0 <= y < h:
-        x0, x1 = max(0, x - 3), min(w, x + 4)
-        y0, y1 = max(0, y - 3), min(h, y + 4)
-        if warm[y0:y1, x0:x1].any():
-            # Same accumulated-brightness reasoning as CYAN above: these are
-            # the values a line of overlapping face sprites should stack to.
-            return ((0.44, 0.13 + 0.21 * glow, 0.010 + 0.036 * glow)
-                    if glow > 0 else GOLD)
-        if cyan[y0:y1, x0:x1].any():
-            return CYAN
-    return CYAN
+def paint(px: float, y: float) -> tuple[tuple[float, float, float], float, float]:
+    """Colour, glow and vein-ness of a world point, from the parameters.
+
+    Returns (rgb, glow, vein). The veins are checked first: where they cross
+    the face ellipse the gold wins, which is what the reference shows -- the
+    wishbone stays readable over the glow instead of dissolving into it.
+    """
+    vein = min(
+        abs(px - float(np.interp(y, _VEIN_LY, _VEIN_LX, left=9e9, right=9e9))),
+        abs(px - float(np.interp(y, _VEIN_RY, _VEIN_RX, left=9e9, right=9e9))),
+    )
+    node = abs(complex(px - NODE[0], y - NODE[1]))
+    if vein < VEIN_W or node < NODE_R:
+        return GOLD, 0.0, 1.0
+    fx, fy = FACE_C
+    glow = max(0.0, 1.0 - ((px - fx) / FACE_RX) ** 2 - ((y - fy) / FACE_RY) ** 2)
+    if glow > 0:
+        return (0.44, 0.13 + 0.21 * glow, 0.010 + 0.036 * glow), glow, 0.0
+    return CYAN, 0.0, 0.0
 
 
-def main(path: str, seconds: float = 4.8) -> None:
-    frame, warm, cyan = frame_masks(path, seconds)
-    rows, raw = measure_width(warm, cyan)
-    width = silhouette_width(warm, cyan)
-
-    # Cut only where the footage actually measures the bust. Rows above the
-    # crown hold nothing but spray and come back NaN; cutting there hangs a
-    # ring in empty air over the head, which is what turned the skull into a
-    # cone the first time round.
-    measured = np.flatnonzero(np.isfinite(raw))
-    lo, hi = int(measured[0]), int(measured[-1])
-
-    # Run the profile past the bottom of the screen. What lies below it cannot
-    # be measured, so the last real width is simply held: the chest then leaves
-    # frame the way the reference's shoulders do, instead of ending on a
-    # visible hem. The renderer already fades the body out across y = -1.45..-1.2.
-    # NOTE: `rows` holds source rows while `lo`/`hi` are indices into it, so the
-    # tail has to continue from rows[hi] -- arange(hi+1, ...) silently restarted
-    # at 652 and re-cut rows 652..841 a second time, giving each of them a
-    # correct ring and a second ring wearing the held chest width.
-    runoff = int(np.ceil(Y_TOP_SRC + (0.85 - RUNOFF_Y) / SCALE))
-    tail_rows = np.arange(rows[hi] + 1, runoff + 1)
-    cut_rows = np.concatenate([rows[lo:hi + 1], tail_rows])
-    cut_w = np.concatenate([width[lo:hi + 1], np.full(len(tail_rows), width[hi])])
-
-    fx, fy, frx, fry = FACE
+def main() -> None:
+    n_lines = int((Y_TOP - RUNOFF_Y) / LINE_DY)
+    ys = Y_TOP - np.arange(n_lines) * LINE_DY
     records: list[tuple[float, ...]] = []
 
-    for idx in range(0, len(cut_rows), CUT_ROWS):
-        src_y = cut_rows[idx]
-        y = 0.85 - (src_y - Y_TOP_SRC) * SCALE
-        rx = float(cut_w[idx])
+    for li, y in enumerate(ys):
+        rx = silhouette_rx(float(y))
         if rx < 0.02:
             continue
-        rz = rx * depth_ratio(y)
+        rz = rx * depth_ratio(float(y))
 
-        # Slope of the profile, needed for the normal. One step either side is
-        # enough -- the silhouette is smooth once it has been median-filtered.
-        dy = SCALE
-        drx = ((cut_w[min(idx + 1, len(cut_w) - 1)] - cut_w[max(idx - 1, 0)])
-               / (2 * dy)) if 0 < idx < len(cut_w) - 1 else 0.0
-        drz = drx * depth_ratio(y) + rx * (
-            (depth_ratio(y + dy) - depth_ratio(y - dy)) / (2 * dy))
+        # Slope of the profile, needed for the normal. Finite difference on
+        # the curve itself now -- no measurement noise left to smooth away.
+        e = 0.004
+        drx = (silhouette_rx(float(y) + e) - silhouette_rx(float(y) - e)) / (2 * e)
+        drz = drx * depth_ratio(float(y)) + rx * (
+            (depth_ratio(float(y) + e) - depth_ratio(float(y) - e)) / (2 * e))
 
         # How far around the ring one sample takes, so the count tracks the
         # circumference and the spacing stays even between a small head ring
@@ -294,8 +333,6 @@ def main(path: str, seconds: float = 4.8) -> None:
             u = 2 * np.pi * k / count
             px, pz = rx * np.sin(u), rz * np.cos(u)
             if pz < 0:
-                # The far half of the ring is dropped, not dimmed -- see the
-                # note about interleaved contours near the top of this file.
                 continue
 
             # Grazing angle: the surface turns away from the camera exactly
@@ -304,10 +341,7 @@ def main(path: str, seconds: float = 4.8) -> None:
             n = surface_normal(u, rx, rz, drx, drz)
             grazing = 1.0 - abs(n[2]) / max(np.linalg.norm(n), 1e-9)
 
-            sx = CX + px / SCALE
-            sy = Y_TOP_SRC + (0.85 - y) / SCALE
-            glow = max(0.0, 1.0 - ((sx - fx) / frx) ** 2 - ((sy - fy) / fry) ** 2)
-            r, g, b = sample_colour(warm, cyan, sx, sy, glow)
+            (r, g, b), glow, vein = paint(px, float(y))
 
             if grazing > 0.72:
                 # Ease into the rim colour rather than switching to it, so the
@@ -322,54 +356,51 @@ def main(path: str, seconds: float = 4.8) -> None:
                 size = CYAN_SIZE + (RIM_SIZE - CYAN_SIZE) * t
             else:
                 size = (FACE_SIZE if glow > 0
-                        else GOLD_SIZE if (b < 0.5 and r > 0.7)
+                        else GOLD_SIZE if vein > 0
                         else CYAN_SIZE)
 
-            records.append((px, y, pz, r, g, b, size))
+            records.append((px, float(y), pz, r, g, b, size))
 
     # The silhouette, traced on its own. Each ring only lends the two points
     # where it turns edge-on, so stacking rings left the outline as a column of
     # separate dots while the reference's edge is one continuous bright band.
     # The projected outline of a stack of cross-sections is simply x = +-rx(y),
     # and it closes on itself at the crown where rx vanishes -- so follow that
-    # curve one footage row at a time, which lands at 0.003 world units apart,
-    # about a third of a pixel. Nothing else in the bust carries the outline.
-    for j in range(len(cut_rows)):
-        y = 0.85 - (cut_rows[j] - Y_TOP_SRC) * SCALE
-        rx = float(cut_w[j])
-        if rx < 0.02:
-            continue
-        records.append((-rx, y, 0.0, *RIM, RIM_SIZE))
-        records.append((rx, y, 0.0, *RIM, RIM_SIZE))
+    # curve one small step at a time. Nothing else in the bust carries it.
+    rim_dy = LINE_DY / 8
+    y = Y_TOP
+    while y > RUNOFF_Y:
+        rx = silhouette_rx(y)
+        if rx >= 0.02:
+            records.append((-rx, y, 0.0, *RIM, RIM_SIZE))
+            records.append((rx, y, 0.0, *RIM, RIM_SIZE))
+        y -= rim_dy
 
-    # ...and hanging off it, the cloud. Magnify the reference's edge to 7x and
-    # the outline is not a drawn line at all: a bright rim with loose particles
-    # drifting outward, thinning as they go, denser over the crown than at the
-    # shoulder. Measured on the footage, those dots read rgb (12,108,171) with
-    # peaks near (29,190,249) -- a single sprite can hit that on its own, so
-    # unlike the contour colours these are not pre-dimmed for stacking. The
-    # throw is deterministic per row index so two bakes of the same frame give
-    # byte-identical output; Math.random here would churn the .bin on every run.
-    for j in range(len(cut_rows)):
-        y = 0.85 - (cut_rows[j] - Y_TOP_SRC) * SCALE
-        rx = float(cut_w[j])
-        if rx < 0.02:
-            continue
-        for side in (-1.0, 1.0):
-            for k in range(CLOUD_PER_ROW):
-                u = _hash01(j, k)
-                d = CLOUD_NEAR + CLOUD_SPREAD * (u ** 1.7)
-                dy = (_hash01(j, k + 11) - 0.5) * 0.030
-                dz = (_hash01(j, k + 23) - 0.5) * 0.070
-                records.append((side * (rx + d), y + dy, dz, *CLOUD, CLOUD_SIZE))
+    # ...and hanging off it, the cloud. Magnify the reference's edge and the
+    # outline is not a drawn line at all: a bright rim with loose particles
+    # drifting outward, thinning as they go. The throw is deterministic per row
+    # index (see _hash01) so the output is byte-identical run to run.
+    row = 0
+    y = Y_TOP
+    while y > RUNOFF_Y:
+        rx = silhouette_rx(y)
+        if rx >= 0.02:
+            for side in (-1.0, 1.0):
+                for k in range(CLOUD_PER_ROW):
+                    u = _hash01(row, k)
+                    d = CLOUD_NEAR + CLOUD_SPREAD * (u ** 1.7)
+                    dy = (_hash01(row, k + 11) - 0.5) * 0.030
+                    dz = (_hash01(row, k + 23) - 0.5) * 0.070
+                    records.append((side * (rx + d), y + dy, dz, *CLOUD, CLOUD_SIZE))
+        row += 1
+        y -= LINE_DY / 2
 
     points = np.asarray(records, dtype="<f4")
     OUT.write_bytes(struct.pack("<I", len(points)) + points.tobytes())
     print(f"Wrote {len(points)} particles to {OUT}")
-    print(f"  {len(range(0, len(cut_rows), CUT_ROWS))} contour lines, "
-          f"world x {points[:, 0].min():.3f}..{points[:, 0].max():.3f}, "
+    print(f"  world x {points[:, 0].min():.3f}..{points[:, 0].max():.3f}, "
           f"y {points[:, 1].min():.3f}..{points[:, 1].max():.3f}")
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], float(sys.argv[2]) if len(sys.argv) > 2 else 4.8)
+    main()
