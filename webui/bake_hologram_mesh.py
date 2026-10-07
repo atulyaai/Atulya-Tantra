@@ -89,6 +89,18 @@ FACE_SIZE = 0.0079
 GOLD_SIZE = 0.0072
 RIM_SIZE = 0.0110
 
+# The loose particles that hang off the silhouette. Three per row, thrown
+# outward between CLOUD_NEAR and CLOUD_NEAR + CLOUD_SPREAD world units -- the far
+# end is about 24px at the fitted framing, which is how far the reference's dots
+# drift before they fade out. Their own colour, measured off the footage rather
+# than derived from the contour palette: an isolated sprite stacks with nothing,
+# so it has to carry its own brightness.
+CLOUD = (0.10, 0.60, 0.92)
+CLOUD_SIZE = 0.0070
+CLOUD_PER_ROW = 3
+CLOUD_NEAR = 0.004
+CLOUD_SPREAD = 0.078
+
 # Colours are set for what they look like *added together*, not on their own.
 # A line is built from sprites spaced 0.0016 world units apart and 0.0075 wide,
 # so roughly four of them land on every pixel of the stroke; taking these
@@ -106,6 +118,19 @@ RIM = (0.24, 0.60, 0.88)
 # intended, and the dim far half greyed out the near one. The far side is not
 # missed: a ring still reaches its widest at u = +/-90 deg, which is exactly
 # where the projected silhouette falls, so the outline is complete without it.
+
+
+def _hash01(row: int, salt: int) -> float:
+    """Deterministic 0..1 from a row index and a salt.
+
+    Used for the silhouette cloud. Math.random would be the obvious choice, but
+    it would re-roll every particle on every bake, so the .bin would churn in
+    git even when the video and the parameters were untouched. This gives the
+    same scatter every run while still being flat enough to look random.
+    """
+    h = (row * 2654435761 + salt * 40503) & 0xFFFFFFFF
+    h ^= h >> 16
+    return (h % 100000) / 100000.0
 
 
 def frame_masks(path: str, seconds: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -316,6 +341,27 @@ def main(path: str, seconds: float = 4.8) -> None:
             continue
         records.append((-rx, y, 0.0, *RIM, RIM_SIZE))
         records.append((rx, y, 0.0, *RIM, RIM_SIZE))
+
+    # ...and hanging off it, the cloud. Magnify the reference's edge to 7x and
+    # the outline is not a drawn line at all: a bright rim with loose particles
+    # drifting outward, thinning as they go, denser over the crown than at the
+    # shoulder. Measured on the footage, those dots read rgb (12,108,171) with
+    # peaks near (29,190,249) -- a single sprite can hit that on its own, so
+    # unlike the contour colours these are not pre-dimmed for stacking. The
+    # throw is deterministic per row index so two bakes of the same frame give
+    # byte-identical output; Math.random here would churn the .bin on every run.
+    for j in range(len(cut_rows)):
+        y = 0.85 - (cut_rows[j] - Y_TOP_SRC) * SCALE
+        rx = float(cut_w[j])
+        if rx < 0.02:
+            continue
+        for side in (-1.0, 1.0):
+            for k in range(CLOUD_PER_ROW):
+                u = _hash01(j, k)
+                d = CLOUD_NEAR + CLOUD_SPREAD * (u ** 1.7)
+                dy = (_hash01(j, k + 11) - 0.5) * 0.030
+                dz = (_hash01(j, k + 23) - 0.5) * 0.070
+                records.append((side * (rx + d), y + dy, dz, *CLOUD, CLOUD_SIZE))
 
     points = np.asarray(records, dtype="<f4")
     OUT.write_bytes(struct.pack("<I", len(points)) + points.tobytes())
