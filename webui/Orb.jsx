@@ -44,6 +44,80 @@ const COLORS = {
   error: [255, 110, 110],
 };
 
+function AudioWaveform({ levelRef, stateRef }) {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return undefined;
+    let raf = 0;
+    let t = 0;
+    const bars = 112;
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+    function resize() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const { width, height } = canvas.getBoundingClientRect();
+      canvas.width = Math.max(1, Math.round(width * dpr));
+      canvas.height = Math.max(1, Math.round(height * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    function frame() {
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      const mid = h * 0.52;
+      const state = stateRef.current;
+      const live = Math.max(0, Math.min(1, levelRef.current || 0));
+      t += reduced ? 0 : 0.035;
+      ctx.clearRect(0, 0, w, h);
+      ctx.beginPath();
+      ctx.moveTo(0, mid);
+      ctx.lineTo(w, mid);
+      ctx.strokeStyle = 'rgba(120,220,255,.32)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      const gap = 2;
+      const step = w / bars;
+      const barW = Math.max(1, step - gap);
+      for (let i = 0; i < bars; i += 1) {
+        const x = i * step + gap / 2;
+        const fromCenter = Math.abs((i / (bars - 1)) * 2 - 1);
+        const envelope = Math.pow(Math.max(0, 1 - fromCenter), 1.25);
+        const voice = live * (0.12 + 0.88 * Math.abs(Math.sin(i * 1.74 + t * (state === 'thinking' ? 1.6 : 1))));
+        const idle = (state === 'idle' || state === 'listening') ? 0.025 + 0.04 * Math.abs(Math.sin(i * 0.5 + t)) : 0.012;
+        const amp = Math.min(h * 0.46, h * envelope * Math.max(idle, voice));
+        const orange = Math.sin(i * 0.21 + t * 0.55) > 0.82;
+        const grad = ctx.createLinearGradient(0, mid - amp, 0, mid + amp);
+        grad.addColorStop(0, orange ? 'rgba(255,164,70,.32)' : 'rgba(62,197,255,.28)');
+        grad.addColorStop(0.5, orange ? '#ffc06b' : '#9ff4ff');
+        grad.addColorStop(1, orange ? 'rgba(255,164,70,.32)' : 'rgba(62,197,255,.28)');
+        ctx.fillStyle = grad;
+        ctx.shadowColor = orange ? '#ff9c42' : '#31cfff';
+        ctx.shadowBlur = state === 'speaking' || state === 'listening' ? 9 : 5;
+        ctx.fillRect(x, mid - amp, barW, Math.max(1, amp * 2));
+      }
+      ctx.shadowBlur = 0;
+      if (!reduced) raf = requestAnimationFrame(frame);
+    }
+    frame();
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', resize); };
+  }, [levelRef, stateRef]);
+
+  return <div className="holo-wave" aria-label="Live audio waveform">
+    <span className="holo-wave-bracket left" aria-hidden="true" />
+    <canvas ref={canvasRef} />
+    <span className="holo-wave-bracket right" aria-hidden="true" />
+  </div>;
+}
+
+function formatPercent(value) {
+  return Number.isFinite(Number(value)) ? `${Math.round(Number(value))}%` : '—';
+}
+
 export function Orb({ onMenu, toast, onCommand }) {
   const [settings, setSettings] = useState(loadSettings);
   const [state, setState] = useState('idle'); // idle | listening | thinking | speaking | error
@@ -54,6 +128,7 @@ export function Orb({ onMenu, toast, onCommand }) {
   const webcamRef = useRef(null);
   const previewRef = useRef(null);
   const [camOn, setCamOn] = useState(false);
+  const [camPresence, setCamPresence] = useState(false);
   const [camError, setCamError] = useState('');
   const [cams, setCams] = useState({ state: 'prompt', devices: [] });
   const [camId, setCamId] = useState('');
@@ -61,6 +136,11 @@ export function Orb({ onMenu, toast, onCommand }) {
   const [showSettings, setShowSettings] = useState(false);
   const [typed, setTyped] = useState('');
   const [boost, setBoostState] = useState(getBoost());
+  const [telemetry, setTelemetry] = useState(null);
+  const [telemetryState, setTelemetryState] = useState('loading');
+  const [telemetryHistory, setTelemetryHistory] = useState([]);
+  const [apiRtt, setApiRtt] = useState(null);
+  const [hudClock, setHudClock] = useState(() => new Date());
 
   const canvasRef = useRef(null);
   const holoBoxRef = useRef(null);
@@ -81,6 +161,36 @@ export function Orb({ onMenu, toast, onCommand }) {
   const busyRef = useRef(false);
 
   useEffect(() => { stateRef.current = state; }, [state]);
+
+  useEffect(() => {
+    let alive = true;
+    const refresh = async () => {
+      try {
+        const requestStart = performance.now();
+        const result = await api.get('/api/telemetry');
+        if (!alive) return;
+        setApiRtt(Math.round(performance.now() - requestStart));
+        setTelemetry(result);
+        const cpu = Number(result.system?.cpu_pct);
+        const ram = Number(result.system?.ram_pct);
+        if (Number.isFinite(cpu) && Number.isFinite(ram)) {
+          setTelemetryHistory((history) => [...history, { cpu, ram }].slice(-24));
+        }
+        setTelemetryState('online');
+      } catch (err) {
+        if (!alive) return;
+        const message = String(err?.message || '');
+        setTelemetryState(/401|403|unauthorized|forbidden/i.test(message) ? 'restricted' : 'offline');
+      }
+    };
+    refresh();
+    const timerId = window.setInterval(refresh, 15000);
+    return () => { alive = false; window.clearInterval(timerId); };
+  }, []);
+  useEffect(() => {
+    const timerId = window.setInterval(() => setHudClock(new Date()), 1000);
+    return () => window.clearInterval(timerId);
+  }, []);
   useEffect(() => {
     settingsRef.current = settings;
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch {}
@@ -380,7 +490,7 @@ export function Orb({ onMenu, toast, onCommand }) {
     setState('thinking');
     try {
       // "What do you see?" with the webcam on: send one picture along with the question.
-      const wantsLook = /\b(what do you see|what can you see|look at (this|me)|what is this|what am i holding|can you see)\b/i.test(text);
+      const wantsLook = /\b(what (?:do|can) you see|what can you see|what do you see|look at (?:this|me)|what is this|what am i holding|can you see|describe (?:this|what'?s in front of you)|what is in front of you)\b/i.test(text);
       const image = wantsLook && webcamRef.current?.active ? webcamRef.current.snapshot() : null;
       const res = await api.post('/api/voice/chat', {
         prompt: text,
@@ -520,7 +630,7 @@ export function Orb({ onMenu, toast, onCommand }) {
   async function toggleWebcam(on, deviceId) {
     setCamError('');
     if (!webcamRef.current) {
-      webcamRef.current = createWebcam({ onGaze: (x, y) => holoRef.current?.setGaze(x, y), onLight: (l) => holoRef.current?.setAmbient(l) });
+      webcamRef.current = createWebcam({ onPresence: setCamPresence, onGaze: (x, y) => holoRef.current?.setGaze(x, y), onLight: (l) => holoRef.current?.setAmbient(l) });
     }
     try {
       if (on) {
@@ -626,6 +736,7 @@ export function Orb({ onMenu, toast, onCommand }) {
 
   // With the hologram the screen stays free of text: replies appear in the right-hand corner, and only for a while.
   const quiet = holo === 'ready';
+  const immersive = holo !== 'none';
   useEffect(() => {
     setCapVisible(true);
     const id = setTimeout(() => setCapVisible(false), 16000);
@@ -633,34 +744,116 @@ export function Orb({ onMenu, toast, onCommand }) {
   }, [said, heard, hint, state]);
 
   return (
-    <div className={`orb-screen ${state}${quiet ? ' with-holo' : ''}${typing ? ' typing' : ''}`}>
-      <canvas ref={canvasRef} className={`orb-canvas${holo === 'ready' ? ' hidden' : ''}`} onClick={tapOrb}
+    <div className={`orb-screen ${state}${immersive ? ' with-holo' : ''}${typing ? ' typing' : ''}`}>
+      <canvas ref={canvasRef} className={`orb-canvas${immersive ? ' hidden' : ''}`} onClick={tapOrb}
         aria-label="Talk to Atulya" role="button" />
       <div ref={holoBoxRef} className={`orb-holo ${holo}`} onClick={tapOrb} />
       <div className="orb-top">
         <button type="button" className="orb-icon" onClick={onMenu} title="Menu" aria-label="Menu">☰</button>
-        <div className="orb-name" />
+        <div className="orb-name"><strong>ATULYA</strong><span>// PERSONAL AI</span></div>
+        {immersive && <div className="holo-meta" aria-label="Connection telemetry">
+          <span>API RTT <b>{apiRtt == null ? '—' : `${apiRtt} ms`}</b></span>
+          <span>TIME <b>{hudClock.toLocaleTimeString('en-GB', { hour12: false })}</b></span>
+          <span className={window.location.protocol === 'https:' ? 'secure' : 'local'}>
+            <b>{window.location.protocol === 'https:' ? 'SECURE CONNECTION' : 'LOCAL HTTP'}</b><i />
+          </span>
+        </div>}
         <div className="orb-icons">
-          {cams.state !== 'unsupported' && cams.state !== 'none' && (
+          {!immersive && cams.state !== 'unsupported' && cams.state !== 'none' && (
             <button type="button" className={`orb-icon ${camOn ? 'on' : ''}`} onClick={() => toggleWebcam(!camOn)}
               title={camOn ? 'Turn the camera off' : cams.state === 'denied' ? 'Camera is blocked' : 'Turn the camera on (the browser will ask permission)'}
               aria-label="Camera">📷</button>
-          )}
-          {quiet && (
-            <button type="button" className={`orb-icon ${typing ? 'on' : ''}`} onClick={() => setTyping((v) => !v)}
-              title="Type to Atulya" aria-label="Type to Atulya">⌨</button>
           )}
           <button type="button" className="orb-icon" onClick={() => setShowSettings((v) => !v)} title="Settings" aria-label="Settings">⚙</button>
         </div>
       </div>
 
-      {(!quiet || (capVisible && (heard || said || hint))) && (
+      {immersive && <>
+        <div className="holo-hud holo-left" aria-label="System status">
+          <section className="hud-card hud-status">
+            <h2><i /> SYSTEM STATUS</h2>
+            <div className="hud-status-line"><span>NEURAL CORE</span><b className={`hud-state ${state}`}>{state === 'idle' ? 'STANDBY' : state.toUpperCase()}</b></div>
+            <div className="hud-status-line"><span>SERVER LINK</span><b className={`hud-state ${telemetryState}`}>{telemetryState === 'online' ? 'CONNECTED' : telemetryState === 'restricted' ? 'ADMIN ONLY' : telemetryState === 'loading' ? 'CHECKING' : 'OFFLINE'}</b></div>
+            <div className="hud-status-line"><span>SYSTEM HEALTH</span><b className={telemetry?.events?.some((event) => event.type === 'warning') ? 'hud-state error' : 'hud-state online'}>{telemetry ? (telemetry.events?.some((event) => event.type === 'warning') ? 'REVIEW' : 'NOMINAL') : 'CHECKING'}</b></div>
+            <div className="hud-status-line"><span>VOICE INPUT</span><b>{started ? 'READY' : 'TAP TO START'}</b></div>
+            <div className="hud-status-line"><span>CAMERA</span><b>{camOn ? (camPresence ? 'MOTION' : 'STREAM ON') : 'STANDBY'}</b></div>
+            <div className="hud-status-line"><span>UPTIME</span><b>{telemetry?.system?.uptime || '—'}</b></div>
+          </section>
+          <section className="hud-card hud-metrics">
+            <h2>CPU / MEMORY BUFFER</h2>
+            <div className="hud-gauges">
+              <div className="hud-gauge" style={{ '--gauge': `${Number(telemetry?.system?.cpu_pct) || 0}%` }}><span>{telemetry ? formatPercent(telemetry.system?.cpu_pct) : '—'}</span><small>CPU</small></div>
+              <div className="hud-gauge warm" style={{ '--gauge': `${Number(telemetry?.system?.ram_pct) || 0}%` }}><span>{telemetry ? formatPercent(telemetry.system?.ram_pct) : '—'}</span><small>RAM</small></div>
+            </div>
+            <small>{telemetry ? `${telemetry.system?.ram_avail_gb ?? '—'} GB RAM available · ${telemetry.system?.disk_free_gb ?? '—'} GB disk free` : telemetryState === 'restricted' ? 'Sign in as admin to view server metrics' : 'Server metrics unavailable'}</small>
+          </section>
+          <section className="hud-card hud-brain">
+            <h2>COGNITIVE SYNAPSE</h2>
+            {telemetry?.providers?.filter((p) => p.id !== 'auto').slice(0, 3).map((p) => (
+              <div className="hud-provider" key={p.id}><span className={p.available ? 'provider-dot on' : 'provider-dot'} />{p.name}<b>{p.available ? 'READY' : 'OFF'}</b></div>
+            )) || <small>{telemetryState === 'restricted' ? 'Provider health requires admin access' : 'Checking configured brains…'}</small>}
+          </section>
+        </div>
+        <div className="holo-hud holo-right" aria-label="Environment and connection status">
+          <section className="hud-card hud-sensors">
+            <h2>ENVIRONMENT CONTROL</h2>
+            <button type="button" onClick={() => toggleWebcam(!camOn)}><span>CAMERA SENSOR</span><b className={camOn ? 'sensor-on' : ''}>{camOn ? 'ON' : 'OFF'}</b></button>
+            {camOn && <button type="button" onClick={() => ask('What can you see in front of you?')}><span>DESCRIBE CAMERA VIEW</span><b className="sensor-on">ASK</b></button>}
+            <button type="button" onClick={tapOrb}><span>VOICE INTERFACE</span><b className={started ? 'sensor-on' : ''}>{started ? 'READY' : 'START'}</b></button>
+            <button type="button" onClick={() => setTyping((v) => !v)}><span>TEXT INPUT</span><b className={typing ? 'sensor-on' : ''}>{typing ? 'OPEN' : 'CLOSED'}</b></button>
+          </section>
+          <section className="hud-card hud-link">
+            <h2>NETWORK / SECURITY</h2>
+            <div className="hud-link-light"><span className={telemetryState === 'online' ? 'provider-dot on' : 'provider-dot'} />
+              <div><strong>{telemetryState === 'online' ? 'ATULYA SERVER' : telemetryState === 'restricted' ? 'TELEMETRY LOCKED' : telemetryState === 'loading' ? 'CHECKING LINK' : 'SERVER UNREACHABLE'}</strong>
+                <small>{window.location.protocol === 'https:' ? 'HTTPS ENCRYPTED' : ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) ? 'LOCAL CONNECTION' : 'HTTP CONNECTION'}</small></div>
+            </div>
+            {telemetry?.system?.uptime && <div className="hud-status-line"><span>UPTIME</span><b>{telemetry.system.uptime}</b></div>}
+          </section>
+          <section className="hud-card hud-history">
+            <h2>RESOURCE HISTORY</h2>
+            <div className="hud-chart-label"><span>CPU</span><span>RAM</span></div>
+            {telemetryHistory.length > 1 ? (
+              <svg viewBox="0 0 100 32" preserveAspectRatio="none" role="img" aria-label="Recent CPU and RAM readings">
+                <polyline points={telemetryHistory.map((p, i) => `${i * (100 / (telemetryHistory.length - 1))},${30 - p.cpu * 0.28}`).join(' ')} />
+                <polyline className="ram-line" points={telemetryHistory.map((p, i) => `${i * (100 / (telemetryHistory.length - 1))},${30 - p.ram * 0.28}`).join(' ')} />
+              </svg>
+            ) : <small>Collecting live samples every 15 seconds</small>}
+          </section>
+          <section className="hud-card hud-utilities">
+            <h2>AI UTILITY MODULES</h2>
+            <label className="hud-toggle"><span>WAKE WORD</span><input type="checkbox" checked={settings.handsFree} onChange={(e) => setSettings((s) => ({ ...s, handsFree: e.target.checked }))} /></label>
+            <label className="hud-toggle"><span>SERVER VOICE</span><input type="checkbox" checked={settings.serverTts} onChange={(e) => setSettings((s) => ({ ...s, serverTts: e.target.checked }))} /></label>
+            <small>{settings.handsFree ? (started ? 'Wake phrase active' : 'Tap voice to activate listening') : 'Wake phrase disabled'} · {settings.engine === 'browser' ? 'Recognition on this device' : 'Recognition on Atulya server'}</small>
+          </section>
+          <section className="hud-card hud-events">
+            <h2>SYSTEM DIAGNOSTICS</h2>
+            {telemetry?.events?.length ? telemetry.events.slice(0, 3).map((event) => (
+              <div className="hud-event" key={event.title}><i className={event.type} /><span><b>{event.title}</b><small>{event.desc}</small></span></div>
+            )) : <small>{telemetryState === 'restricted' ? 'Admin access required for diagnostics' : 'Waiting for live diagnostics'}</small>}
+          </section>
+          <section className="hud-card hud-response">
+            <h2>VOICE PATTERN</h2>
+            <strong>{state === 'speaking' ? 'SPEAKING' : state === 'listening' ? 'LISTENING' : state === 'thinking' ? 'PROCESSING' : 'READY'}</strong>
+            <small>{said ? 'Response active' : 'Neural bridge ' + (telemetryState === 'online' ? 'connected' : 'awaiting connection')}</small>
+          </section>
+        </div>
+        <div className="holo-bottom">
+          <AudioWaveform levelRef={levelRef} stateRef={stateRef} />
+          <div className="holo-controls">
+            <span className="holo-control-label">ATULYA // VOICE CONSOLE</span>
+            <button type="button" className={`holo-control-mic ${started ? 'active' : ''}`} onClick={tapOrb} aria-label={started ? 'Talk to Atulya' : 'Start voice'} title={started ? 'Talk to Atulya' : 'Start voice'}>◉</button>
+          </div>
+        </div>
+      </>}
+
+      {(holo === 'none' || ((capVisible || state === 'speaking') && (heard || said || hint))) && (
       <div className="orb-captions" ref={captionsRef}>
         {!quiet && <div className="orb-status">{STATUS[state]}</div>}
         {heard && <div className="orb-heard">“{heard}”</div>}
         {said && <div className="orb-said">{said}</div>}
         {hint && <div className="orb-hint">{hint}</div>}
-        {!quiet && !said && !heard && state !== 'thinking' && (
+        {holo === 'none' && !said && !heard && state !== 'thinking' && (
           <div className="orb-chips">
             {SUGGESTIONS.map((text) => (
               <button type="button" key={text} onClick={() => ask(text)}>{text}</button>
@@ -672,14 +865,15 @@ export function Orb({ onMenu, toast, onCommand }) {
 
       {camOn && <div className="orb-cam" ref={previewRef} title="Your camera is on. Everything stays in this browser unless you ask me to look at something." />}
 
-      {(!quiet || typing) && (
+      {(holo === 'none' || typing) && (
       <form className="orb-type" onSubmit={(e) => { e.preventDefault(); const t = typed.trim(); setTyped(''); if (t) ask(t); }}>
         <input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Or type to Atulya…" autoFocus={quiet} />
       </form>
       )}
 
       {showSettings && (
-        <div className="orb-settings">
+        <div className="orb-settings" role="dialog" aria-label="Atulya settings" aria-modal="true">
+          <div className="orb-settings-heading"><strong>SETTINGS</strong><button type="button" onClick={() => setShowSettings(false)} aria-label="Close settings">×</button></div>
           <label>I am
             <select value={settings.userGender} onChange={(e) => setSettings((s) => ({ ...s, userGender: e.target.value }))}>
               <option value="male">A man (Atulya speaks as a woman)</option>
@@ -717,6 +911,7 @@ export function Orb({ onMenu, toast, onCommand }) {
               : cams.devices.length ? `${cams.devices.length} camera${cams.devices.length > 1 ? 's' : ''} found${cams.state === 'granted' ? ', allowed' : cams.state === 'denied' ? ', blocked' : ', not allowed yet'}.`
               : 'No camera detected. Plug one in and it will appear here.'}
           </small>
+          {camOn && <small className="orb-camera-note">Camera stays in this browser. Atulya uses one frame only when you choose “Describe camera view” or ask what is in front of the camera.</small>}
           {cams.devices.length > 1 && (
             <select value={camId} onChange={(e) => { setCamId(e.target.value); if (camOn) { webcamRef.current?.stop(); toggleWebcam(true, e.target.value); } }}>
               <option value="">Automatic</option>

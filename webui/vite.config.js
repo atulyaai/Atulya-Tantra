@@ -6,6 +6,14 @@ import react from '@vitejs/plugin-react';
 // They sit next to the source in this one flat folder, so there is no public/ folder.
 const STATIC = ['favicon.svg', 'manifest.webmanifest', 'sw.js', 'icon-192.png', 'icon-512.png', 'hologram-points.bin'];
 const TYPES = { svg: 'image/svg+xml', bin: 'application/octet-stream', webmanifest: 'application/manifest+json', js: 'text/javascript' };
+const localApiProxy = {
+  '/v1': 'http://127.0.0.1:8501',
+  '/api': 'http://127.0.0.1:8501',
+  '/ws': {
+    target: 'ws://127.0.0.1:8501',
+    ws: true,
+  },
+};
 
 const staticFiles = {
   name: 'atulya-static-files',
@@ -30,14 +38,8 @@ export default defineConfig({
     emptyOutDir: true,
     chunkSizeWarningLimit: 600, // the hologram (three.js) is one lazy-loaded chunk
   },
-  server: {
-    proxy: {
-      '/v1': 'http://127.0.0.1:8501',
-      '/api': 'http://127.0.0.1:8501',
-      '/ws': {
-        target: 'ws://127.0.0.1:8501',
-        ws: true,
-      },
-    },
-  },
+  server: { proxy: localApiProxy },
+  // Let the production build preview behave like the dev server so local auth,
+  // telemetry, and chat use the already-running Atulya API.
+  preview: { proxy: localApiProxy },
 });

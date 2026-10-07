@@ -2,12 +2,8 @@
 //
 // It opens as a comet-like stream of particles rising from a bright point,
 // then the particles fly into a glowing bust with contour lines and a warm face.
-// The opening is directed rather than animated: four hard camera cuts — the
-// chest point, a three-quarter, a close on the head, then a settle to front —
-// with an `ASSEMBLING... n%` readout counting the sequence off. Once she is
-// up, a `STATUS: <state> INTENSITY: <band>` line tracks the live signal.
-// Everything pulses with the live sound level (your voice while it
-// listens, its own voice while it speaks).
+// The opening forms separate body layers in a fixed frontal view, then keeps
+// the finished figure stable while its face, orbit and waveform respond to voice.
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -64,13 +60,15 @@ function buildParticles(reference) {
   const size = [];
   const kind = [];
   const phase = [];
-  function add(p, c, sz, k, s = Math.random()) {
+  const stage = [];
+  function add(p, c, sz, k, s = Math.random(), startsAt = 1.4) {
     target.push(p[0], p[1], p[2]);
     start.push(...cometStart(s));
     color.push(c[0], c[1], c[2]);
     size.push(sz);
     kind.push(k);
     phase.push(Math.random());
+    stage.push(startsAt);
     deform.push(0, 0, 0, 0, 0, 0, 0, 0, 0);
   }
 
@@ -78,9 +76,15 @@ function buildParticles(reference) {
   // scanline silhouette, face glow, shoulder curves and gold veins stay faithful.
   for (let i = 0; i < reference.count; i += 1) {
     const o = i * 7;
-    add([reference.data[o], reference.data[o + 1], reference.data[o + 2]],
-      [reference.data[o + 3], reference.data[o + 4], reference.data[o + 5]],
-      reference.data[o + 6], KIND.body, i / reference.count);
+    const y = reference.data[o + 1];
+    const red = reference.data[o + 3];
+    const blue = reference.data[o + 5];
+    // Reveal real spatial layers: shoulders first, then neck, head contour,
+    // and the warm facial core. These are particle start times, not labels.
+    const startsAt = y < -0.35 ? 1.5 : y < 0.08 ? 2.8 : red > blue * 1.2 ? 5.0 : 3.8;
+    add([reference.data[o], y, reference.data[o + 2]],
+      [red, reference.data[o + 4], blue],
+      reference.data[o + 6], KIND.body, i / reference.count, startsAt);
   }
 
   const g = new THREE.BufferGeometry();
@@ -90,6 +94,7 @@ function buildParticles(reference) {
   g.setAttribute('aSize', new THREE.Float32BufferAttribute(size, 1));
   g.setAttribute('aKind', new THREE.Float32BufferAttribute(kind, 1));
   g.setAttribute('aPhase', new THREE.Float32BufferAttribute(phase, 1));
+  g.setAttribute('aStage', new THREE.Float32BufferAttribute(stage, 1));
   const d = new Float32Array(deform);
   const view = (offset) => new THREE.InterleavedBufferAttribute(new THREE.InterleavedBuffer(d, 9), 3, offset);
   g.setAttribute('aJaw', view(0));
@@ -101,6 +106,7 @@ function buildParticles(reference) {
 const vertexShader = /* glsl */`
   uniform float uTime;
   uniform float uMorph;
+  uniform float uOpening;
   uniform float uLevel;
   uniform float uScale;
   uniform float uSpin;
@@ -116,6 +122,7 @@ const vertexShader = /* glsl */`
   attribute float aSize;
   attribute float aKind;
   attribute float aPhase;
+  attribute float aStage;
   varying vec3 vColor;
   varying float vAlpha;
   const vec2 HEAD = vec2(${HEAD.x.toFixed(2)}, ${(HEAD.y - 0.05).toFixed(2)});
@@ -160,7 +167,7 @@ const vertexShader = /* glsl */`
     float swirl = uTime * 0.6;
     vec2 rel = s.xy - POINT;
     s.xy = POINT + mat2(cos(swirl * 0.2), -sin(swirl * 0.2), sin(swirl * 0.2), cos(swirl * 0.2)) * rel;
-    float m = smoothstep(0.0, 1.0, clamp(uMorph * 1.6 - aPhase * 0.6, 0.0, 1.0));
+    float m = smoothstep(aStage, aStage + 1.9, uOpening);
     p = mix(s, p, m);
     alpha = mix(0.7, alpha, m);
 
@@ -226,39 +233,21 @@ const TINTS = {
   error: new THREE.Color(1.6, 0.55, 0.55),
 };
 
-const REDUCED = typeof window !== 'undefined'
-  && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-
-// The intro runs on this clock: comet first, then the figure assembles.
-const OPEN_SECONDS = 4.8;
+// Give the full formation enough time to read: gather, form the face and
+// shoulders, then settle into the live view (matching the reference clip).
+const OPEN_SECONDS = 8.4;
 
 // The resting field of view. Kept as a named constant because three different
 // places have to agree on it: the camera and the height the resize() fit solves.
 const HOME_FOV = 35;
 
-// Cut scenes. One entry is one shot — where the camera sits, what it looks at,
-// its field of view, and how long it holds. Switching between shots is
-// instantaneous: an edit, not a swoop. That is the difference between a
-// directed opening and a camera on rails, and it is the only way a cut reads
-// as a cut. `home: true` means the final framing computed by resize(), so the
-// sequence lands exactly where the resting view wants to be.
-const SHOTS = [
-  // The bright point at the chest, where the comet is born.
-  { at: 0.0, dur: 1.6, pos: [0.0, -1.16, 2.5], look: [0.0, -1.08, 0.0], fov: 36, drift: [0.04, 0.02] },
-  // Three-quarter from her right as the shoulders sweep out.
-  { at: 1.6, dur: 1.2, pos: [2.5, -0.55, 4.3], look: [0.0, -0.45, 0.0], fov: 33, drift: [-0.08, 0.05] },
-  // Close on the head from her left, the warm face core filling the frame.
-  { at: 2.8, dur: 1.1, pos: [-1.7, 0.72, 3.8], look: [0.0, 0.45, 0.0], fov: 31, drift: [0.06, -0.04] },
-  // Settle front. No drift: the resting view must be perfectly still.
-  { at: 3.9, dur: 0.9, home: true, fov: 35, drift: [0, 0] },
-];
-
 // The two readouts from the reference footage: assembly progress while she
 // forms, then a live status line once she is up.
-function makeOverlay() {
+function makeOverlay(position) {
   const el = document.createElement('div');
   el.style.cssText = [
-    'position:absolute', 'right:14px', 'top:47%', 'pointer-events:none',
+    'position:absolute', 'left:50%', 'pointer-events:none', 'transform:translateX(-50%)', 'text-align:center',
+    position === 'assembly' ? 'top:68px' : 'bottom:132px',
     'font:11px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace',
     'color:#3ae3ff', 'letter-spacing:0.12em',
     'text-shadow:0 0 10px rgba(58,227,255,0.75)',
@@ -279,18 +268,19 @@ function setOverlay(el, text) {
 // getSignal() -> { level: 0..1, state: 'idle' | 'listening' | 'thinking' | 'speaking' | 'error' }
 export async function createHologram(container, getSignal) {
   const reference = await loadReference();
-  const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false, powerPreference: 'high-performance' });
+  const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.setClearColor(0x000000, 1);
+  // Keep the WebGL layer transparent so the HUD's CSS grid/background can sit behind the figure.
+  renderer.setClearColor(0x000000, 0);
   container.appendChild(renderer.domElement);
-  const assembleEl = makeOverlay();
-  const statusEl = makeOverlay();
+  const assembleEl = makeOverlay('assembly');
+  const statusEl = makeOverlay('status');
   container.appendChild(assembleEl);
   container.appendChild(statusEl);
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(HOME_FOV, 1, 0.1, 50);
-  camera.position.set(0, -0.15, 6);
+  camera.position.set(0, -0.15, 6); // replaced by the fitted framing in resize()
 
   const material = new THREE.ShaderMaterial({
     vertexShader,
@@ -298,6 +288,7 @@ export async function createHologram(container, getSignal) {
     uniforms: {
       uTime: { value: 0 },
       uMorph: { value: 0 },
+      uOpening: { value: 0 },
       uLevel: { value: 0 },
       uScale: { value: 400 },
       uSpin: { value: 0 },
@@ -314,18 +305,45 @@ export async function createHologram(container, getSignal) {
   const points = new THREE.Points(buildParticles(reference), material);
   scene.add(points);
 
+  // The storyboard's orbit halo is a separate, true 3D layer. It fades in as
+  // the head forms and stays subtle enough to leave the particle contours clear.
+  const orbitRings = [
+    { radius: 0.48, color: 0x4bcdf2, tilt: 0.18 },
+    { radius: 0.68, color: 0x238fcb, tilt: 0.82 },
+    { radius: 0.9, color: 0xc18b58, tilt: 1.28 },
+  ].map(({ radius, color, tilt }, index) => {
+    const ringMaterial = new THREE.MeshBasicMaterial({
+      color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.0025, 4, 144), ringMaterial);
+    mesh.position.set(HEAD.x, HEAD.y, -0.12 - index * 0.015);
+    mesh.rotation.set(tilt, 0, index * 0.34);
+    mesh.scale.y = 0.62;
+    scene.add(mesh);
+    return { mesh, material: ringMaterial, index };
+  });
+
   const coreGlow = glowSprite('255,120,30', 0.3, HEAD.x, 0.04, -0.2);
+  const eyeGlows = [-1, 1].map((side) => glowSprite('90,215,255', 0.075, side * 0.12, 0.52, 0.24, true));
+  const mouthGeometry = new THREE.BufferGeometry();
+  const mouthPositions = new Float32Array(11 * 3);
+  mouthGeometry.setAttribute('position', new THREE.BufferAttribute(mouthPositions, 3));
+  const mouthMaterial = new THREE.LineBasicMaterial({
+    color: 0xffb24f, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  const mouthLine = new THREE.Line(mouthGeometry, mouthMaterial);
   // Soft glow on the lips: brightens with the voice so you can see her speak.
   const lipGlow = glowSprite('255,150,125', 0.1, HEAD.x, MOUTH_Y, 0.22);
   const bodyGlow = glowSprite('60,150,255', 2.4, 0, 0.2, -0.4);
   // The reference's chest point is a saturated blue bloom, not a white one,
   // and it spreads wide rather than sitting as a bead.
   const point = glowSprite('80,175,255', 0.35, CHEST_POINT.x, CHEST_POINT.y, 0.3, true);
-  scene.add(bodyGlow, coreGlow, lipGlow, point);
+  scene.add(bodyGlow, coreGlow, lipGlow, point, mouthLine, ...eyeGlows);
 
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.28, 0.4, 0.62);
+  // Bloom only the brightest points so fine face and shoulder contours remain visible.
+  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.18, 0.35, 0.72);
   composer.addPass(bloom);
 
   // The resting framing: straight on, pulled back far enough that a tall phone
@@ -384,21 +402,33 @@ export async function createHologram(container, getSignal) {
     raf = requestAnimationFrame(frame);
     const t = clock.getElapsedTime();
     const sig = getSignal() || {};
+    const speaking = sig.state === 'speaking';
     level += ((sig.level || 0) - level) * 0.2;
     spin += ((sig.state === 'thinking' ? 1 : 0) - spin) * 0.05;
     const since = (performance.now() - opened) / 1000;
-    const morph = smooth(1.6, OPEN_SECONDS, since); // comet first, then the humanoid forms
+    const morph = smooth(2.2, OPEN_SECONDS, since); // gather first, then form the humanoid in stages
     const u = material.uniforms;
     u.uTime.value = t;
     u.uMorph.value = morph;
+    u.uOpening.value = since;
     u.uLevel.value = level;
     u.uSpin.value = spin;
     // Mouth follows the voice; a quick blink every few seconds; slow breathing.
     u.uJaw.value = sig.state === 'speaking' ? Math.min(1, level * 1.6) : 0;
+    const jawOpen = speaking ? 0.012 + level * 0.042 : 0.006 + Math.sin(t * 1.2) * 0.002;
+    for (let i = 0; i < 11; i += 1) {
+      const x = (i / 10 - 0.5) * 0.2;
+      const curve = Math.sin((i / 10) * Math.PI);
+      mouthGeometry.attributes.position.setXYZ(i, x, MOUTH_Y - curve * jawOpen, 0.27);
+    }
+    mouthGeometry.attributes.position.needsUpdate = true;
+    mouthMaterial.opacity = morph * (speaking ? 0.78 : 0.2);
     if (t > nextBlink) nextBlink = t + 2.5 + Math.random() * 3.5;
     u.uBlink.value = Math.max(0, 1 - Math.abs(nextBlink - t - 0.08) / 0.08);
     u.uBreath.value = Math.sin(t * (0.9 + feel.energy * 0.7));
-    scatter += ((sig.state === 'thinking' ? 1 : 0) - scatter) * (sig.state === 'thinking' ? 0.03 : 0.08);
+    // Keep the face visible during the entire turn. Activity is shown through
+    // the voice waveform, tint and glow rather than dispersing the figure.
+    scatter += (0 - scatter) * 0.08;
     u.uScatter.value = scatter * morph;
     const v = feel.valence;
     moodTint.setRGB(1 + 0.12 * Math.max(0, v) - 0.1 * Math.max(0, -v), 1 + 0.02 * v, 1 - 0.1 * Math.max(0, v) + 0.12 * Math.max(0, -v));
@@ -406,56 +436,36 @@ export async function createHologram(container, getSignal) {
     feel.glow += ((0.7 + 0.5 * Math.min(1, feel.room * 1.6)) - feel.glow) * 0.03;
     goalTint.copy(TINTS[sig.state] || TINTS.idle).multiply(moodTint).multiplyScalar(feel.glow);
     u.uTint.value.lerp(goalTint, 0.08);
+    const eyesOn = since >= 5.2;
+    eyeGlows.forEach((eye) => { eye.material.opacity = morph * (eyesOn ? (speaking ? 0.78 : 0.44) : 0); });
+    orbitRings.forEach(({ mesh, material: ringMaterial, index }) => {
+      ringMaterial.opacity = morph * (0.1 + (speaking ? level * 0.12 : level * 0.035));
+      mesh.rotation.y = Math.sin(t * 0.16 + index) * 0.08;
+      mesh.rotation.z = index * 0.34 + t * (0.018 + index * 0.006);
+    });
     feel.ry += (feel.gx * 0.22 - feel.ry) * 0.06;
     feel.rx += (feel.gy * 0.1 - feel.rx) * 0.06;
     points.rotation.y = feel.ry;
     points.rotation.x = feel.rx;
     const breathe = 0.5 + 0.5 * Math.sin(t * 1.3);
-    coreGlow.material.opacity = morph * (0.52 + 0.12 * breathe + level * 0.1);
+    coreGlow.material.opacity = morph * (0.34 + 0.08 * breathe + level * 0.08);
     coreGlow.scale.setScalar(0.72 + level * 0.12);
-    const speaking = sig.state === 'speaking';
     lipGlow.material.opacity = morph * (0.1 + (speaking ? Math.min(1, level * 1.6) * 0.85 : 0));
     lipGlow.scale.setScalar(0.07 + (speaking ? level * 0.1 : 0));
-    bodyGlow.material.opacity = 0.05 + morph * 0.06 + level * 0.12;
+    bodyGlow.material.opacity = 0.025 + morph * 0.035 + level * 0.06;
     point.material.opacity = 0.9;
     // Sized against the bust rather than a fixed screen fraction: at the fitted
     // distance it lands at roughly an eighth of the figure's width, which is
     // how large the bloom reads in the reference footage.
     point.scale.setScalar(0.32 + 0.07 * breathe + level * 0.22);
 
-    // ---- cut scenes: one shot at a time, switching instantly ----
-    // With reduced motion the shot list is never consulted and the camera just
-    // sits at its resting framing, so the intro stays a single still view.
-    let shot = null;
-    if (!REDUCED) {
-      for (let i = 0; i < SHOTS.length; i += 1) {
-        if (since >= SHOTS[i].at && since < SHOTS[i].at + SHOTS[i].dur) { shot = SHOTS[i]; break; }
-      }
-    }
-    if (shot) {
-      const held = (since - shot.at) / shot.dur; // 0..1 across this shot
-      if (shot.home) {
-        camera.position.copy(homePos);
-        camera.lookAt(homeTarget);
-      } else {
-        camera.position.set(
-          shot.pos[0] + shot.drift[0] * held,
-          shot.pos[1] + shot.drift[1] * held,
-          shot.pos[2],
-        );
-        camera.lookAt(shot.look[0], shot.look[1], shot.look[2]);
-      }
-      if (camera.fov !== shot.fov) {
-        camera.fov = shot.fov;
-        applyProjection(container.clientWidth || 1, container.clientHeight || 1);
-      }
-    } else {
-      camera.position.copy(homePos);
-      camera.lookAt(homeTarget);
-      if (camera.fov !== HOME_FOV) {
-        camera.fov = HOME_FOV;
-        applyProjection(container.clientWidth || 1, container.clientHeight || 1);
-      }
+    // Keep a fixed frontal composition like the storyboard; animate the layers,
+    // not the camera, so the HUD and figure never jump between shots.
+    camera.position.copy(homePos);
+    camera.lookAt(homeTarget);
+    if (camera.fov !== HOME_FOV) {
+      camera.fov = HOME_FOV;
+      applyProjection(container.clientWidth || 1, container.clientHeight || 1);
     }
 
     // ---- readouts ----
@@ -464,7 +474,11 @@ export async function createHologram(container, getSignal) {
       // number claims to be. It is deliberately not a count of particles
       // placed, because nothing measures that.
       const pct = Math.min(100, Math.round((since / OPEN_SECONDS) * 100));
-      setOverlay(assembleEl, `ASSEMBLING... ${pct}%`);
+      const label = since < 1.5 ? 'GATHERING PARTICLES'
+        : since < 3.8 ? 'FORMING SHOULDERS'
+          : since < 5.0 ? 'FORMING FACE'
+            : since < 6.9 ? 'LIGHTING NEURAL CORE' : 'CALIBRATING';
+      setOverlay(assembleEl, `${label} · ${pct}%`);
       setOverlay(statusEl, '');
     } else {
       setOverlay(assembleEl, '');
@@ -474,7 +488,7 @@ export async function createHologram(container, getSignal) {
         : '');
     }
 
-    bloom.strength = 0.35 + level * 0.25;
+    bloom.strength = 0.18 + level * 0.12;
     composer.render();
   }
   frame();
@@ -489,7 +503,10 @@ export async function createHologram(container, getSignal) {
       observer.disconnect();
       points.geometry.dispose();
       material.dispose();
-      [coreGlow, bodyGlow, lipGlow, point].forEach((s) => { s.material.map.dispose(); s.material.dispose(); });
+      [coreGlow, bodyGlow, lipGlow, point, ...eyeGlows].forEach((s) => { s.material.map?.dispose(); s.material.dispose(); });
+      mouthGeometry.dispose();
+      mouthMaterial.dispose();
+      orbitRings.forEach(({ mesh, material: ringMaterial }) => { mesh.geometry.dispose(); ringMaterial.dispose(); });
       composer.dispose?.();
       renderer.dispose();
       container.replaceChildren();

@@ -10,7 +10,7 @@ const values = new Map([
 Object.defineProperty(globalThis, 'window', {
   configurable: true,
   value: {
-    Telegram: { WebApp: {} },
+    Telegram: { WebApp: { initData: 'signed-init-data' } },
     location: { origin: 'https://current-server.example', search: '' },
   },
 });
@@ -39,7 +39,8 @@ test('Telegram Mini App connects to its hosting server and drops another server 
 });
 
 test('ordinary browsers do not have their saved server changed', () => {
-  window.Telegram = undefined;
+  // Loading the Telegram SDK globally creates WebApp even outside Telegram.
+  window.Telegram = { WebApp: { initData: '' } };
   values.set('atulya-server-url', 'https://saved-server.example');
   assert.equal(connectTelegramOrigin(), false);
   assert.equal(getServerUrl(), 'https://saved-server.example');

@@ -27,10 +27,11 @@ function currentServerOrigin() {
 let telegramSdk = null;
 
 function looksLikeTelegram() {
-  if (window.Telegram && window.Telegram.WebApp) return true;
+  // The Telegram SDK is included in index.html, so its WebApp object can exist
+  // in an ordinary browser too. Only signed launch data identifies a Mini App;
+  // otherwise the local dashboard must keep its normal same-device sign-in.
+  if (typeof window.Telegram?.WebApp?.initData === 'string' && window.Telegram.WebApp.initData.length > 0) return true;
   try {
-    if (/^https:\/\/([a-z0-9-]+\.)*(t\.me|telegram\.me|telegram\.org)(\/|$)/i.test(document.referrer || '')) return true;
-    if (/Telegram/i.test(navigator.userAgent || '')) return true;
     // Escape hatch for a webview that hides where it came from: opening the
     // Mini App URL as .../?tg asks for it in as many words.
     if (new URLSearchParams(window.location.search).has('tg')) return true;
@@ -43,7 +44,7 @@ export function maybeInTelegram() {
 }
 
 function telegramSdkReady() {
-  if (window.Telegram && window.Telegram.WebApp) return Promise.resolve(window.Telegram.WebApp);
+  if (window.Telegram?.WebApp?.initData) return Promise.resolve(window.Telegram.WebApp);
   if (telegramSdk) return telegramSdk;
   telegramSdk = new Promise((resolve) => {
     let settled = false;
