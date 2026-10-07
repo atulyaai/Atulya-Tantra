@@ -138,7 +138,16 @@ const vertexShader = /* glsl */`
       // Thinking: the face dissolves into a drifting cloud, then pulls back together.
       vec3 dir = normalize(vec3(sin(aPhase * 91.0), cos(aPhase * 57.0), sin(aPhase * 23.0)) + 0.001);
       p += dir * uScatter * (0.35 + aPhase * 0.6) + dir * uScatter * 0.08 * sin(uTime * 1.5 + aPhase * 30.0);
-      p.xy += 0.004 * vec2(sin(uTime * 2.1 + aPhase * 60.0), cos(uTime * 1.7 + aPhase * 40.0)) * (1.0 + uLevel * 5.0);
+      // Shimmer is keyed to height, not to the particle. Every point on one
+      // contour line shares a y, so a whole line drifts together and stays a
+      // stroke. With aPhase -- Math.random() per particle -- each neighbour
+      // was shoved about 1.2px on its own against a 0.5px sample spacing,
+      // which shredded the baked isolines into dashes. The factor of 0.35
+      // makes adjacent lines differ by ~0.5rad, so the wave stays smooth
+      // down the bust instead of scrambling ring against ring.
+      float shimmer = p.y * 0.35;
+      p.xy += 0.004 * vec2(sin(uTime * 2.1 + shimmer * 60.0),
+                           cos(uTime * 1.7 + shimmer * 40.0)) * (1.0 + uLevel * 5.0);
       // The bust reaches x=+-1.081, so the side fade has to begin well inside
       // that or the shoulder tips end on a hard edge. Dissolving them over
       // 0.90..1.15 matches how the reference feathers its outer shoulders away
