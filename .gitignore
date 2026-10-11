@@ -80,8 +80,3 @@ examples/results.md
 
 # Legacy data path from earlier local configuration; remove after migrating .env to data/.
 assets/
-
-# Third-party scene artwork and renderer bundle with unconfirmed license
-# (see webui/ATTRIBUTION.txt). Kept locally only; replaced by the Atulya hologram.
-webui/scene/
-webui/renderer.js

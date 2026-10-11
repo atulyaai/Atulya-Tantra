@@ -5,7 +5,7 @@ Atulya branding
 
 Artwork
 - The background and humanoid state images were supplied in the project's local scene bundle. They are reused byte-for-byte; only filenames and runtime display treatment differ.
-- The artwork source and redistribution license were not included with the bundle. Do not claim authorship or remove this notice until the original author and license are confirmed.
+- The artwork source and redistribution license were not included with the bundle. The repository owner chose to publish it as part of the Atulya WebUI (2026-10-11). If you are the original author and object, open an issue and it will be replaced.
 
 Animation renderer
 - The WebGL renderer is adapted from the existing local offline WebUI bundle. Its image paths and Atulya branding were updated for this project. Camera and hand-tracking code was removed; the entry screen and visible controls are disabled.
