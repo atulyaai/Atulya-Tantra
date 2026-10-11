@@ -246,3 +246,15 @@ def test_signup_waits_for_owner_approval(project_temp_dir: Path) -> None:
     assert store.decide_signup(user_id, True)
     assert store.check_password(user_id, "Str0ng-Passphrase", "c2") == "ok"
     assert store.pending_signups() == []
+
+
+def test_successful_sign_in_forgives_strikes_but_not_active_bans(project_temp_dir: Path) -> None:
+    store = AuthStore(project_temp_dir)
+    for _ in range(8):
+        store.strike_ip("1.2.3.4")
+    store.clear_ip("1.2.3.4")
+    assert not any(store.strike_ip("1.2.3.4") for _ in range(9))   # counter restarted
+    for _ in range(10):
+        store.strike_ip("5.6.7.8")
+    store.clear_ip("5.6.7.8")
+    assert store.ip_banned("5.6.7.8")                             # an active ban is not lifted by this

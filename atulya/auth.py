@@ -241,6 +241,26 @@ class AuthStore:
         words = re.findall(r"[^\W_]+", text.lower())
         return " ".join(words)
 
+    @staticmethod
+    def _sound_key(word: str) -> str:
+        """Soundex-style key so speech-recognition spelling variants match (saffron ~ safran)."""
+        if not word.isascii():
+            return word  # Devanagari etc.: keep as spoken
+        codes = {**dict.fromkeys("bfpv", "1"), **dict.fromkeys("cgjkqsxz", "2"), **dict.fromkeys("dt", "3"),
+                 "l": "4", **dict.fromkeys("mn", "5"), "r": "6"}
+        key, last = word[0], codes.get(word[0], "")
+        for char in word[1:]:
+            code = codes.get(char, "")
+            if code and code != last:
+                key += code
+            if char not in "hw":
+                last = code
+        return (key + "000")[:4]
+
+    @classmethod
+    def phrase_key(cls, text: str) -> str:
+        return " ".join(cls._sound_key(word) for word in cls.normalize_phrase(text).split())
+
     def enroll_voice_unlock(self, user_id: str, phrase: str, label: str) -> tuple[str, str]:
         normalized = self.normalize_phrase(phrase)
         if len(normalized.split()) < 3 or len(normalized) < 12:
@@ -252,7 +272,7 @@ class AuthStore:
             db.execute("INSERT INTO voice_unlock(id,user_id,device_hash,phrase_salt,phrase_hash,label,created_at,"
                        "last_used) VALUES(?,?,?,?,?,?,?,?)",
                        (unlock_id, user_id, self._token_hash(device_secret), salt,
-                        self._password_hash(normalized, salt), label[:80], now, now))
+                        self._password_hash(self.phrase_key(normalized), salt), label[:80], now, now))
         return unlock_id, device_secret
 
     def check_voice_unlock(self, unlock_id: str, device_secret: str, spoken: str) -> str | None:
@@ -262,7 +282,7 @@ class AuthStore:
             if (row is None or row["failures"] >= 5 or now - row["last_used"] > self.VOICE_UNLOCK_MAX_IDLE
                     or not secrets.compare_digest(self._token_hash(device_secret), row["device_hash"])):
                 return None
-            candidate = self._password_hash(self.normalize_phrase(spoken), bytes(row["phrase_salt"]))
+            candidate = self._password_hash(self.phrase_key(spoken), bytes(row["phrase_salt"]))
             if not secrets.compare_digest(candidate, bytes(row["phrase_hash"])):
                 db.execute("UPDATE voice_unlock SET failures=failures+1 WHERE id=?", (unlock_id,))
                 return None
@@ -296,6 +316,11 @@ class AuthStore:
             db.execute("UPDATE ip_strikes SET strikes=?, blocked_until=MAX(blocked_until,?) WHERE ip=?",
                        (strikes, until, ip))
             return bool(until)
+
+    def clear_ip(self, ip: str) -> None:
+        """A successful sign-in from this IP forgives its earlier typos."""
+        with self._session() as db:
+            db.execute("DELETE FROM ip_strikes WHERE ip=? AND blocked_until<?", (ip, int(time.time())))
 
     def ip_banned(self, ip: str) -> bool:
         with self._session() as db:

@@ -760,6 +760,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return rp_id, f"{request.url.scheme}://{host}"
 
     def set_session_cookie(response: Response, request: Request, token: str) -> None:
+        if request.client:
+            auth_store.clear_ip(request.client.host)
         response.set_cookie(
             SESSION_COOKIE,
             token,
@@ -970,9 +972,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def strike(request: Request, weight_only_if_remote: bool = False) -> None:
         """Count a failed or abusive sign-in attempt against the caller's IP (ban at 10 per hour)."""
         ip = request.client.host if request.client else ""
-        if not ip or (ip in {"127.0.0.1", "::1"} and not config.public_origin):
-            return  # the owner's own machine with no public exposure is never banned
-        if weight_only_if_remote and ip in {"127.0.0.1", "::1"}:
+        # Never ban this machine itself: the owner would lock themselves out. Internet traffic arrives via
+        # the tunnel/proxy with its real client IP (trusted proxy headers), so remote attackers still count.
+        if not ip or ip in {"127.0.0.1", "::1", "localhost"}:
             return
         if await asyncio.to_thread(auth_store.strike_ip, ip):
             logging.getLogger(__name__).warning("Banned an IP for 1 hour after repeated failed sign-ins")

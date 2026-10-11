@@ -1021,7 +1021,7 @@
   // follow-up window after Atulya spoke). Barge-in: while Atulya speaks, the
   // mic is monitored (with echo cancellation); talking over it stops speech
   // and starts listening immediately.
-  const WAKE_PATTERN = /^\s*(?:(?:hey|hi|hello|ok|okay|ai|he|hay)[\s,]+)?(?:atulya|atuliya|atulia|athulya|atulyaa|atul ya|a tulya)\b[\s,.!?:-]*/i;
+  const WAKE_PATTERN = /^\s*(?:(?:hey|hi|hello|ok|okay|ai|he|hay|हे|हाय|ओके)[\s,]+)?(?:atulya|atuliya|atulia|athulya|atulyaa|atul ya|a tulya|atuya|atulla|atoolya|atooliya|atulyah|atulea|अतुल्य|अतुल)(?=$|[\s,.!?:।-])[\s,.!?:।-]*/iu;
   const FOLLOW_UP_MS = 8000;
   const readFlag = (key, fallback) => {
     try { const value = localStorage.getItem(key); return value === null ? fallback : value === "1"; } catch { return fallback; }
