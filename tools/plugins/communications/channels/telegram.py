@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
 from datetime import datetime, timedelta, timezone
 
@@ -76,6 +77,7 @@ class TelegramChannel:
         self._connected = False
         self._last_error = ""
         self._failures = 0
+        self._guest_usage: dict[str, tuple[str, int]] = {}
 
     @property
     def configured(self) -> bool:
@@ -182,6 +184,45 @@ class TelegramChannel:
                     logger.error("Telegram polling recovered from an error (%s)", type(exc).__name__)
                     await asyncio.sleep(5)
 
+    GUEST_DAILY_LIMIT = 30
+
+    async def _guest_message(self, client: httpx.AsyncClient, user_id: str, chat_id: str, message_id: str,
+                             text: str) -> None:
+        """Strangers get a limited public assistant: info tools only, 30 messages a day, nothing private."""
+        today = datetime.now().date().isoformat()
+        day, used = self._guest_usage.get(user_id, (today, 0))
+        if day != today:
+            used = 0
+        if used >= self.GUEST_DAILY_LIMIT:
+            reply = "You've reached today's limit for guests. Try again tomorrow."
+        elif text.split(maxsplit=1)[0].split("@", 1)[0].lower() in {"/start", "/help"}:
+            reply = ("Hi, I'm Atulya. Ask me anything — weather, news, maths, quick facts. "
+                     f"Guests get {self.GUEST_DAILY_LIMIT} messages a day.")
+        elif self._brain is None:
+            reply = "I'm not available right now."
+        else:
+            scoped = f"tgguest_{user_id}"
+            try:
+                saved = await asyncio.to_thread(self._history.read, f"tg{user_id}", 10, scoped)
+                conversation = [Message(role=row["role"], content=row["content"]) for row in saved
+                                if row["role"] in {"user", "assistant"}]
+                conversation.append(Message(role="user", content=text[:1000]))
+                toolbox = Toolbox.for_registry(self._command_plugins, None) if self._command_plugins else None
+                guard = ("You are talking to a guest, not your owner. Never reveal anything about your owner, "
+                         "their memory, calendar, devices or settings. Keep answers short.")
+                reply = (await self._brain.respond_with_tools(conversation, toolbox, system_instructions=guard)).text \
+                    if toolbox else (await self._brain.respond(conversation, system_instructions=guard)).text
+                await asyncio.to_thread(self._history.append, f"tg{user_id}", f"u{message_id}", "user", text[:1000], scoped)
+                await asyncio.to_thread(self._history.append, f"tg{user_id}", f"a{message_id}", "assistant", reply, scoped)
+            except Exception:
+                reply = "I couldn't answer that just now. Please try again."
+        self._guest_usage[user_id] = (today, used + 1)
+        try:
+            response = await client.post(self._url("sendMessage"), json={"chat_id": chat_id, "text": reply[:4000]})
+            response.raise_for_status()
+        except httpx.HTTPError:
+            return
+
     async def _poll_failed(self, status_code: int | None) -> None:
         """Back off exponentially and log each distinct failure kind once, never per retry."""
         self._connected = False
@@ -209,10 +250,14 @@ class TelegramChannel:
         chat = message.get("chat") or {}
         user_id = str(sender.get("id", ""))
         chat_id = str(chat.get("id", ""))
-        if chat.get("type") != "private" or user_id not in self._allowed or not chat_id.lstrip("-").isdigit():
+        if chat.get("type") != "private" or not user_id.isdigit() or not chat_id.lstrip("-").isdigit():
             return
         text = str(message.get("text") or "").strip()
         if not text:
+            return
+        if user_id not in self._allowed:
+            if os.environ.get("ATULYA_TELEGRAM_OPEN", "").strip() == "1":
+                await self._guest_message(client, user_id, chat_id, str(message.get("message_id", "")), text)
             return
         message_id = str(message.get("message_id", ""))
         command_parts = text.split(maxsplit=1)

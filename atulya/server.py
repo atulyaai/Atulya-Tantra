@@ -187,6 +187,13 @@ class SessionAuthMiddleware:
             await self.app(scope, receive, send)
             return
         path = scope.get("path", "")
+        client = scope.get("client")
+        client_ip = str(client[0]) if client else ""
+        if path.startswith("/api/") and client_ip and await asyncio.to_thread(self.auth_store.ip_banned, client_ip):
+            response = JSONResponse({"detail": "Too many failed attempts from your network. Try again later."},
+                                    status_code=403)
+            await response(scope, receive, send)
+            return
         if not path.startswith("/api/") or path in self.PUBLIC_PATHS or path.startswith("/api/auth/login-requests"):
             await self.app(scope, receive, send)
             return
@@ -600,6 +607,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         app.state.weather_task = asyncio.create_task(keep_home_weather_fresh())
 
+    async def unload_idle_models() -> None:
+        """On-demand resources: drop speech models from RAM after ATULYA_IDLE_UNLOAD_SECONDS idle (default 600)."""
+        import gc
+
+        try:
+            idle = max(60.0, float(os.environ.get("ATULYA_IDLE_UNLOAD_SECONDS", "600")))
+        except ValueError:
+            idle = 600.0
+        while True:
+            await asyncio.sleep(60)
+            freed = [name for name, model in (("speech recognition", voice), ("speech output", speech_output))
+                     if await asyncio.to_thread(model.unload_if_idle, idle)]
+            if freed:
+                gc.collect()
+                logging.getLogger(__name__).info("Unloaded idle %s", " and ".join(freed))
+
+    app.router.add_event_handler("startup", lambda: setattr(app.state, "unload_task", asyncio.create_task(unload_idle_models())))
+
     app.router.add_event_handler("startup", warm_models)
     app.router.add_event_handler("shutdown", stop_telegram)
     if brain is not None:
@@ -908,6 +933,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         base = config.public_origin or f"{request.url.scheme}://{request.headers.get('host', 'localhost:8501')}"
         return {"url": f"{base}/#link={token}", "expires_minutes": 10}
 
+    async def strike(request: Request, weight_only_if_remote: bool = False) -> None:
+        """Count a failed or abusive sign-in attempt against the caller's IP (ban at 10 per hour)."""
+        ip = request.client.host if request.client else ""
+        if not ip or (ip in {"127.0.0.1", "::1"} and not config.public_origin):
+            return  # the owner's own machine with no public exposure is never banned
+        if weight_only_if_remote and ip in {"127.0.0.1", "::1"}:
+            return
+        if await asyncio.to_thread(auth_store.strike_ip, ip):
+            logging.getLogger(__name__).warning("Banned an IP for 1 hour after repeated failed sign-ins")
+            await telegram.notify("Atulya security: an IP address was blocked for 1 hour after repeated failed "
+                                  "sign-in attempts. No action is needed unless that was you.")
+
     async def deliver_login_code(user_id: str, code: str, label: str) -> list[str]:
         channels = []
         text = (f"Atulya sign-in code: {code}\nRequested from {label}. It expires in 5 minutes. "
@@ -930,9 +967,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/auth/login-requests")
     async def start_login_request(body: LoginRequestBody, request: Request) -> dict[str, object]:
         """Ask to sign in on this device: code to Telegram/email + approve card on signed-in devices."""
-        user_id = body.username.strip().lower()
+        user_id = await asyncio.to_thread(auth_store.resolve_login, body.username)
         client = request.client.host if request.client else "unknown"
         label = _client_label(request)
+        await strike(request, weight_only_if_remote=True)
         try:
             created = await asyncio.to_thread(auth_store.create_login_request, user_id, client, label)
         except ValueError as exc:
@@ -949,6 +987,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if user_id is None:
             row = await asyncio.to_thread(auth_store.login_request, request_id)
             state = row["state"] if row is not None and row["expires_at"] > time.time() else "expired"
+            if code is not None:
+                await strike(request)
             return JSONResponse({"authenticated": False, "state": state}, status_code=200 if code is None else 401)
         response = JSONResponse({"authenticated": True})
         set_session_cookie(response, request, await asyncio.to_thread(auth_store.create_session, user_id))
@@ -991,12 +1031,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def password_login(body: PasswordLogin, request: Request) -> Response:
         """Password fallback for devices without a passkey. Rate-limited per user and client."""
         client = request.client.host if request.client else "unknown"
-        result = await asyncio.to_thread(auth_store.check_password, body.username.strip().lower(), body.password, client)
+        user_id = await asyncio.to_thread(auth_store.resolve_login, body.username)
+        result = await asyncio.to_thread(auth_store.check_password, user_id, body.password, client)
         if result == "locked":
             raise HTTPException(status_code=429, detail="Too many attempts. Try again in 15 minutes.")
         if result != "ok":
+            await strike(request)
             raise HTTPException(status_code=401, detail="Wrong username or password.")
-        user_id = body.username.strip().lower()
         account = await asyncio.to_thread(auth_store.user, user_id)
         response = JSONResponse({"authenticated": True, "user": str(account["display_name"]) if account else user_id})
         set_session_cookie(response, request, await asyncio.to_thread(auth_store.create_session, user_id))

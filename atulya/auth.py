@@ -60,6 +60,16 @@ class AuthStore:
                     hash BLOB NOT NULL,
                     updated_at INTEGER NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS ip_strikes (
+                    ip TEXT PRIMARY KEY,
+                    strikes INTEGER NOT NULL,
+                    first_at INTEGER NOT NULL,
+                    blocked_until INTEGER NOT NULL DEFAULT 0
+                );
+                CREATE TABLE IF NOT EXISTS login_aliases (
+                    alias TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS login_failures (
                     key TEXT PRIMARY KEY,
                     count INTEGER NOT NULL,
@@ -187,6 +197,49 @@ class AuthStore:
                         "admin" if user_id == ADMIN_ID else "user", now))
             db.execute("INSERT OR REPLACE INTO passwords(user_id,salt,hash,updated_at) VALUES(?,?,?,?)",
                        (user_id, salt, self._password_hash(password, salt), now))
+
+    def add_alias(self, alias: str, user_id: str) -> None:
+        """Let a user sign in with another name, e.g. an email address."""
+        alias = alias.strip().lower()
+        if not re.fullmatch(r"[a-z0-9._%+-]{1,64}(@[a-z0-9.-]{1,190})?", alias):
+            raise ValueError("Use a plain username or a valid email address")
+        with self._session() as db:
+            db.execute("INSERT OR REPLACE INTO login_aliases(alias,user_id) VALUES(?,?)", (alias, user_id))
+
+    def resolve_login(self, name: str) -> str:
+        name = name.strip().lower()
+        with self._session() as db:
+            row = db.execute("SELECT user_id FROM login_aliases WHERE alias=?", (name,)).fetchone()
+        return str(row["user_id"]) if row else name
+
+    # --- IP bans -----------------------------------------------------------------
+    IP_STRIKE_LIMIT = 10
+    IP_BAN_SECONDS = 3600
+
+    def strike_ip(self, ip: str) -> bool:
+        """Count one failed/abusive auth attempt; returns True when the IP is now banned."""
+        now = int(time.time())
+        with self._session() as db:
+            row = db.execute("SELECT strikes,first_at FROM ip_strikes WHERE ip=?", (ip,)).fetchone()
+            if row is None or now - row["first_at"] > self.IP_BAN_SECONDS:
+                db.execute("INSERT OR REPLACE INTO ip_strikes(ip,strikes,first_at,blocked_until) VALUES(?,1,?,0)",
+                           (ip, now))
+                return False
+            strikes = row["strikes"] + 1
+            until = now + self.IP_BAN_SECONDS if strikes >= self.IP_STRIKE_LIMIT else 0
+            db.execute("UPDATE ip_strikes SET strikes=?, blocked_until=MAX(blocked_until,?) WHERE ip=?",
+                       (strikes, until, ip))
+            return bool(until)
+
+    def ip_banned(self, ip: str) -> bool:
+        with self._session() as db:
+            row = db.execute("SELECT blocked_until FROM ip_strikes WHERE ip=?", (ip,)).fetchone()
+        return bool(row and row["blocked_until"] > time.time())
+
+    def banned_ips(self) -> list[sqlite3.Row]:
+        with self._session() as db:
+            return db.execute("SELECT ip,strikes,blocked_until FROM ip_strikes WHERE blocked_until>?",
+                              (int(time.time()),)).fetchall()
 
     def has_password(self) -> bool:
         with self._session() as db:

@@ -30,7 +30,7 @@ class Report:
     def add(self, name: str, ok: bool, detail: str, seconds: float) -> None:
         self.rows.append((name, ok, detail, seconds))
         mark = "PASS" if ok else "FAIL"
-        print(f"[{mark}] {name:<28} {seconds:6.2f}s  {detail}", flush=True)
+        print(f"[{mark}] {name:<30} {seconds * 1000:7.0f} ms  {detail}", flush=True)
 
 
 def _timed(report: Report, name: str, fn) -> object:
@@ -109,7 +109,7 @@ def main(actions: bool = False) -> int:
             def tools():
                 reply, _, first = _stream_chat(client, "What is 17*23, and what's the weather in Delhi right now?", conversation)
                 ok = "391" in reply and any(word in reply.lower() for word in ("°c", "temperature", "weather"))
-                return ok, f"first token {first or 0:.1f}s · {reply[:90]!r}", None
+                return ok, f"first words {(first or 0) * 1000:.0f} ms · {reply[:80]!r}", None
             _timed(report, "model + 2 tools", tools)
 
             def memory():

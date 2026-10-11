@@ -2014,7 +2014,7 @@
     try {
       const response = await fetch("/api/auth/login-requests", {
         method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ username: document.getElementById("auth-username")?.value || "admin" }), cache: "no-store",
+        body: JSON.stringify({ username: document.getElementById("auth-username")?.value || "atulya" }), cache: "no-store",
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.detail || "Could not start sign-in.");

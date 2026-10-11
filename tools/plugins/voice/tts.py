@@ -64,6 +64,7 @@ class LocalSupertonicTTS:
         self.num_threads = max(1, min(8, int(num_threads)))
         self._engine = None
         self._lock = threading.Lock()
+        self.last_used = 0.0
         self._generate_lock = threading.Lock()
 
     @property
@@ -100,7 +101,20 @@ class LocalSupertonicTTS:
                         raise VoiceError("Local speech model could not be loaded.") from exc
         return self._engine
 
+    def unload_if_idle(self, idle_seconds: float) -> bool:
+        """Free the speech model's RAM when unused for a while; it reloads on demand."""
+        import time
+
+        with self._lock, self._generate_lock:
+            if self._engine is not None and time.monotonic() - self.last_used > idle_seconds:
+                self._engine = None
+                return True
+        return False
+
     def synthesize(self, text: str, *, language: str = "auto", speaker_id: int | None = None) -> bytes:
+        import time
+
+        self.last_used = time.monotonic()
         clean = speakable(text)
         if not clean or len(clean) > 1000:
             raise VoiceError("Speech text must contain 1 to 1000 characters.")

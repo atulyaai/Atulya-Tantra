@@ -31,6 +31,9 @@ def main() -> None:
     commands.add_parser("doctor", help="check basic local configuration")
     password = commands.add_parser("set-password", help="set a password (read from stdin or prompt) for a user")
     password.add_argument("--user", default="admin")
+    alias = commands.add_parser("add-login", help="let a user sign in with another name or email")
+    alias.add_argument("alias")
+    alias.add_argument("--user", default="admin")
     secrets = commands.add_parser("secrets", help="encrypt API keys/tokens from .env at rest")
     secrets.add_argument("action", choices=["protect", "status"])
     selftest = commands.add_parser("selftest", help="run real end-to-end checks against the running server")
@@ -40,6 +43,12 @@ def main() -> None:
     remote.add_argument("--disable", action="store_true", help="stop serving on your tailnet")
     remote.add_argument("--cloudflare", metavar="HOSTNAME", help="public HTTPS on your domain via Cloudflare Tunnel")
     args = parser.parse_args()
+    if args.command == "add-login":
+        from .auth import AuthStore
+
+        AuthStore(Settings.from_environment().data_dir).add_alias(args.alias, args.user)
+        print(f"'{args.alias}' now signs in as '{args.user}'.")
+        return
     if args.command == "set-password":
         import getpass
         import sys

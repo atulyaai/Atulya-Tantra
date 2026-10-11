@@ -23,6 +23,7 @@ class LocalVoice:
         self.stt_model_name = stt_model
         self._stt = None
         self._stt_lock = threading.Lock()
+        self.last_used = 0.0
 
     @property
     def ready(self) -> bool:
@@ -69,7 +70,20 @@ class LocalVoice:
                         raise VoiceError(f"Could not load the local speech recognition model: {exc}") from exc
         return self._stt
 
+    def unload_if_idle(self, idle_seconds: float) -> bool:
+        """Free the Whisper model's RAM when unused for a while; it reloads on demand."""
+        import time
+
+        with self._stt_lock:
+            if self._stt is not None and time.monotonic() - self.last_used > idle_seconds:
+                self._stt = None
+                return True
+        return False
+
     def transcribe(self, audio: bytes, *, content_type: str, language: str) -> str:
+        import time
+
+        self.last_used = time.monotonic()
         if not audio:
             raise VoiceError("No audio was received. Try speaking again.")
         suffixes = {
