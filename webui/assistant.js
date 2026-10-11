@@ -655,6 +655,28 @@
     return null;
   }
 
+  // ---- Live sync: changes from Telegram, the app or another screen appear here immediately ----
+  let liveEvents = null;
+  function startLiveSync() {
+    if (liveEvents || !("EventSource" in window)) return;
+    liveEvents = new EventSource("/api/events");
+    liveEvents.onmessage = (message) => {
+      let event = {};
+      try { event = JSON.parse(message.data); } catch { return; }
+      if (event.type !== "conversation") return;
+      if (historyDialog?.open) drawArchiveList();
+      if (event.id === conversationId && phase !== "thinking" && !speaking) reloadCurrentConversation();
+    };
+    liveEvents.onerror = () => { /* EventSource reconnects by itself */ };
+  }
+
+  async function reloadCurrentConversation() {
+    const keep = [...messagesNode.querySelectorAll(".action-card")];
+    messagesNode.replaceChildren();
+    await restoreConversation();
+    keep.forEach((card) => messagesNode.append(card));
+  }
+
   async function restoreConversation() {
     try {
       const response = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}`, { headers: { Accept: "application/json" } });
@@ -1942,6 +1964,7 @@
         if (authDialog.open) authDialog.close();
         document.body.classList.remove("auth-required");
         if (addPasskeyButton) addPasskeyButton.hidden = false;
+        startLiveSync();
         window.setTimeout(enablePushNotifications, 4000);
         if (document.getElementById("add-voice-unlock")) document.getElementById("add-voice-unlock").hidden = false;
         if (manageUsersButton) manageUsersButton.hidden = !auth.is_admin;

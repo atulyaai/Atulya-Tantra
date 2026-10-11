@@ -179,14 +179,13 @@ def test_telegram_approve_button_runs_only_for_its_owner_once(tmp_path) -> None:
                     return None
             return Ok()
 
-    action = queue.add("search_files", {"query": "zz-no-such-file-zz"}, "Search files for: zz", "tg_111")
+    action = queue.add("search_files", {"query": "zz-no-such-file-zz"}, "Search files for: zz", "admin")
 
     async def press(user, data):
         await channel._handle_callback(FakeClient(), {"id": "q", "from": {"id": user}, "data": data,
                                                       "message": {"chat": {"id": user}, "message_id": 5}})
-    asyncio.run(press(222, f"act:{action.id}:1"))                 # another allowlisted user: refused
-    assert "expired or was already handled" in posts[-1][1]["text"]
-    action = queue.add("search_files", {"query": "zz-no-such-file-zz"}, "Search files for: zz", "tg_111")
+    asyncio.run(press(333, f"act:{action.id}:1"))                 # a stranger: refused
+    assert posts[-1][1]["text"] == "Not allowed."
     asyncio.run(press(111, f"act:{action.id}:1"))
     assert "No files matching" in posts[-1][1]["text"]
     asyncio.run(press(111, f"act:{action.id}:1"))                 # single use

@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import re
 import secrets
 import time
@@ -154,6 +155,60 @@ async def _update_profile(args: dict, ctx: PluginContext | None) -> str:
     return f"Saved: {field} = {profile[field]}"
 
 
+# --- owner-only status ------------------------------------------------------------
+
+# Set by the server at startup: returns a dict describing Atulya's live health.
+STATUS_PROVIDER: Callable[[], dict] | None = None
+
+
+def _owner_only(ctx: PluginContext | None) -> str | None:
+    return None if ctx is not None and ctx.user_id == "admin" else "Only the owner can see system status."
+
+
+async def _atulya_status(_args: dict, ctx: PluginContext | None) -> str:
+    if (denied := _owner_only(ctx)) or STATUS_PROVIDER is None:
+        return denied or "Status is unavailable."
+    data = await asyncio.to_thread(STATUS_PROVIDER)
+    return "\n".join(f"- {key}: {value}" for key, value in data.items())
+
+
+def _server_list() -> list[tuple[str, str, str]]:
+    """ATULYA_SERVERS="atulvij=ubuntu@1.2.3.4=C:/keys/a.key;sublimew=ubuntu@5.6.7.8=C:/keys/b.key" """
+    servers = []
+    for item in os.environ.get("ATULYA_SERVERS", "").split(";"):
+        parts = [part.strip() for part in item.split("=")]
+        if len(parts) == 3 and all(parts):
+            servers.append((parts[0], parts[1], parts[2]))
+    return servers
+
+
+def _ssh_status(target: str, key: str) -> str:
+    import subprocess
+
+    # Fixed, read-only commands only; the model cannot pass anything to the server.
+    command = ("uptime -p; echo load $(cut -d' ' -f1-3 /proc/loadavg); "
+               "df -h / | awk 'NR==2{print \"disk \" $5 \" used of \" $2}'; "
+               "free -m | awk '/Mem:/{printf \"memory %d%% used\\n\", $3*100/$2}'; "
+               "echo nginx $(systemctl is-active nginx); echo fail2ban $(systemctl is-active fail2ban)")
+    try:
+        result = subprocess.run(["ssh", "-i", key, "-o", "BatchMode=yes", "-o", "ConnectTimeout=8",
+                                 "-o", "StrictHostKeyChecking=accept-new", target, command],
+                                capture_output=True, text=True, timeout=25)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return f"unreachable ({type(exc).__name__})"
+    return "; ".join(result.stdout.split("\n")).strip("; ") if result.returncode == 0 else "unreachable"
+
+
+async def _server_status(_args: dict, ctx: PluginContext | None) -> str:
+    if denied := _owner_only(ctx):
+        return denied
+    servers = _server_list()
+    if not servers:
+        return "No servers are configured. Set ATULYA_SERVERS in .env."
+    results = await asyncio.gather(*(asyncio.to_thread(_ssh_status, target, key) for _name, target, key in servers))
+    return "\n".join(f"- {name}: {result}" for (name, _t, _k), result in zip(servers, results))
+
+
 # --- PC control (approval required) ---------------------------------------------
 
 def _pc(fn_name: str):
@@ -233,6 +288,10 @@ TOOLS: tuple[Tool, ...] = (
     Tool("search_past_chats", "Search the user's earlier conversations for something they said or asked before.",
          _params({"query": {"type": "string", "description": "Key words to look for"}}, ["query"]),
          _search_chats, "personal-memory", True),
+    Tool("atulya_status", "Owner only: Atulya's own live health (model, voice, Telegram, tunnel, CPU/RAM, uptime, version).",
+         _params(), _atulya_status, "local-utilities", True),
+    Tool("server_status", "Owner only: read-only health of the owner's web servers (uptime, load, disk, memory, nginx).",
+         _params(), _server_status, "local-utilities", True),
     Tool("open_app", "Open an installed application on the user's computer (asks the user first).",
          _params({"name": {"type": "string", "description": "App name, e.g. 'Spotify', 'Calculator'"}}, ["name"]),
          _pc("open_app"), "pc-control", True, True, lambda a: f"Open app: {a.get('name', '')}"),

@@ -501,6 +501,28 @@ def _merge_web_owners(data_dir) -> None:
             db.execute(f"DELETE FROM {table} WHERE owner<>? AND owner NOT GLOB 'tg[0-9]*'", (WEB_OWNER,))
 
 
+def _merge_telegram_owner(data_dir, owner_ids: set[str]) -> None:
+    """Older versions kept the owner's Telegram chats/memory under tg_<id>; fold them into the main account."""
+    import sqlite3
+    from contextlib import closing
+
+    for telegram_id in owner_ids:
+        if not telegram_id.isdigit():
+            continue
+        moves = (
+            ("conversations.sqlite3", "UPDATE OR IGNORE messages SET user_id='admin', conversation_id='telegram' "
+                                      "WHERE user_id=? AND conversation_id=?", (f"tg_{telegram_id}", f"tg{telegram_id}")),
+            ("personal_memory.sqlite3", "UPDATE OR IGNORE facts SET user_id='admin', owner='web' WHERE user_id=?",
+             (f"tg_{telegram_id}",)),
+            ("calendar.sqlite3", "UPDATE events SET user_id='admin', owner='web' WHERE user_id=?", (f"tg_{telegram_id}",)),
+        )
+        for name, sql, args in moves:
+            path = data_dir / name
+            if path.is_file():
+                with closing(sqlite3.connect(path)) as db, db:
+                    db.execute(sql, args)
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Create the API app; API routes take precedence over the static page."""
     config = settings or Settings.from_environment()
@@ -559,6 +581,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.personal_memory = personal_memory
     app.state.calendar = calendar
     app.state.command_plugins = command_plugins
+    started_at = time.time()
+
+    def live_status() -> dict:
+        from tools.plugins.toolkit import TOOLS as _all_tools
+
+        host = sysmon.snapshot(str(config.data_dir))
+        provider = getattr(brain, "_provider", None) if brain is not None else None
+        active = getattr(provider, "active_provider", None)
+        return {
+            "service": "online",
+            "uptime": f"{(time.time() - started_at) / 3600:.1f} h",
+            "public address": config.public_origin or "local only",
+            "model": f"{getattr(active or provider, 'name', 'none')} {getattr(active or provider, 'model', '')}".strip(),
+            "speech recognition": "ready" if voice.ready else "not set up",
+            "speech output": "ready" if speech_output.ready else "browser voice",
+            "telegram": telegram.status_label,
+            "push notifications": "ready" if push is not None else "off",
+            "cpu": f"{host['cpu_percent']:.0f}% of {host['cpu_count']} cores",
+            "memory": f"{host['memory_used_gb']} / {host['memory_total_gb']} GB",
+            "disk": f"{host['disk_percent']:.0f}% used",
+            "tools": str(len(_all_tools)),
+        }
+
+    import tools.plugins.toolkit as _toolkit
+    _toolkit.STATUS_PROVIDER = live_status
     issue_state: dict[str, dict[str, str] | None] = {"issue": None}
 
     def integration_summary() -> str:
@@ -579,6 +626,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     telegram_allowlist = {
         item.strip() for item in os.environ.get("ATULYA_TELEGRAM_ALLOWLIST", "").split(",") if item.strip()
     }
+    _merge_telegram_owner(config.data_dir, telegram_allowlist)
+
+    # ---- live sync hub: one queue per open screen, keyed by user ----
+    event_queues: dict[str, set[asyncio.Queue]] = defaultdict(set)
+    app.state.event_loop = None
+
+    def publish(user_id: str, conversation_id: str, change: str) -> None:
+        loop = app.state.event_loop
+        if loop is None:
+            return
+        event = {"type": "conversation", "id": conversation_id, "change": change}
+        for queue in list(event_queues.get(user_id, ())):
+            loop.call_soon_threadsafe(queue.put_nowait, event)
+
+    history.listeners = [publish]
     telegram = TelegramChannel(
         token=telegram_token,
         allowed_user_ids=telegram_allowlist,
@@ -1511,6 +1573,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return {"deleted": deleted}
+
+    @app.get("/api/events")
+    async def live_events(http_request: Request) -> StreamingResponse:
+        """Server-sent events: chat changes from any channel reach every open screen within milliseconds."""
+        user_id = str(http_request.state.user_id)
+        app.state.event_loop = asyncio.get_running_loop()
+        queue: asyncio.Queue = asyncio.Queue(maxsize=100)
+        event_queues[user_id].add(queue)
+
+        async def stream():
+            try:
+                yield "retry: 3000\n\n"
+                while True:
+                    try:
+                        event = await asyncio.wait_for(queue.get(), timeout=20)
+                        yield f"data: {json.dumps(event)}\n\n"
+                    except asyncio.TimeoutError:
+                        yield ": keep-alive\n\n"
+                    if await http_request.is_disconnected():
+                        break
+            finally:
+                event_queues[user_id].discard(queue)
+
+        return StreamingResponse(stream(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     @app.get("/api/conversations")
     async def list_conversations(http_request: Request) -> dict[str, list[dict]]:

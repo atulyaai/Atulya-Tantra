@@ -104,10 +104,12 @@ class ConversationHistory:
         if not clean or len(clean) > 20_000:
             raise ValueError("Message content must contain 1 to 20000 characters")
         with self._session() as connection:
-            connection.execute(
+            inserted = connection.execute(
                 "INSERT OR IGNORE INTO messages(user_id,conversation_id,message_id,role,content) VALUES(?,?,?,?,?)",
                 (user_id, conversation_id, message_id, role, clean),
-            )
+            ).rowcount
+        if inserted:
+            self._notify(user_id, conversation_id, "message")
 
     def read(self, conversation_id: str, limit: int = 200, user_id: str = "admin") -> list[dict[str, str]]:
         self._validate_ids(conversation_id, "read")
@@ -158,4 +160,17 @@ class ConversationHistory:
             cursor = connection.execute(
                 "DELETE FROM messages WHERE user_id=? AND conversation_id=?", (user_id, conversation_id)
             )
-            return int(cursor.rowcount)
+            deleted = int(cursor.rowcount)
+        if deleted:
+            self._notify(user_id, conversation_id, "deleted")
+        return deleted
+
+    # Live sync: the server registers a listener that pushes changes to every open screen of that user.
+    listeners: list = []
+
+    def _notify(self, user_id: str, conversation_id: str, change: str) -> None:
+        for listener in list(self.listeners):
+            try:
+                listener(user_id, conversation_id, change)
+            except Exception:
+                pass

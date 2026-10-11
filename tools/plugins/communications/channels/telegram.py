@@ -19,6 +19,11 @@ from tools.plugins.toolkit import Toolbox
 
 logger = logging.getLogger(__name__)
 
+# The allowlisted owner is the same person as the web admin: one account, memory, profile and history.
+OWNER_USER = "admin"
+OWNER_MEMORY = "web"      # same memory/calendar owner as the WebUI
+OWNER_THREAD = "telegram"  # the owner's Telegram chat appears as this conversation everywhere
+
 def _parse_due(value: str, now: datetime | None = None) -> datetime:
     """Parse `10m`, `2h`, `1d`, `in 20 minutes`, or an ISO date/time."""
     current = now or datetime.now(timezone.utc)
@@ -366,14 +371,15 @@ class TelegramChannel:
         answer = "Not allowed."
         if user_id in self._allowed and data.startswith("act:") and self._actions is not None:
             _, action_id, approve = (data.split(":") + ["", ""])[:3]
-            action = self._actions.take(action_id, f"tg_{user_id}")
+            action = self._actions.take(action_id, OWNER_USER)
             if action is None:
                 answer = "That request expired or was already handled."
             elif approve != "1":
                 answer = f"Cancelled: {action.summary}."
             else:
                 toolbox = Toolbox.for_registry(self._command_plugins, PluginContext(
-                    f"tg{user_id}", self._personal_memory, self._calendar, f"tg_{user_id}", actions=self._actions.view()))
+                    OWNER_MEMORY, self._personal_memory, self._calendar, OWNER_USER, actions=self._actions.view(),
+                    history=self._history, profile=self._profiles))
                 answer = await toolbox.run_approved(action)
         try:
             await client.post(self._url("answerCallbackQuery"), json={"callback_query_id": query.get("id"), "text": answer[:190]})
@@ -450,7 +456,8 @@ class TelegramChannel:
             if self._command_plugins is not None and self._personal_memory is not None and self._calendar is not None:
                 try:
                     reply = await self._command_plugins.dispatch(
-                        text, PluginContext(f"tg{user_id}", self._personal_memory, self._calendar, f"tg_{user_id}")
+                        text, PluginContext(OWNER_MEMORY, self._personal_memory, self._calendar, OWNER_USER,
+                                            history=self._history, profile=self._profiles)
                     )
                 except PluginExecutionError:
                     reply = "That feature is unavailable right now."
@@ -466,16 +473,16 @@ class TelegramChannel:
     async def _answer(self, user_id: str, message_id: str, text: str) -> str:
         if self._brain is None:
             return "Text chat is not available right now."
-        conversation_id = f"tg{user_id}"
+        conversation_id = OWNER_THREAD
         try:
-            scoped_user = f"tg_{user_id}"
+            scoped_user = OWNER_USER
             saved = await asyncio.to_thread(self._history.read, conversation_id, 30, scoped_user)
             conversation = [Message(role=row["role"], content=row["content"]) for row in saved if row["role"] in {"user", "assistant"}]
             conversation.append(Message(role="user", content=text))
             if self._command_plugins is not None and self._personal_memory is not None and self._calendar is not None:
                 view = self._actions.view() if self._actions is not None else None
                 toolbox = Toolbox.for_registry(self._command_plugins, PluginContext(
-                    conversation_id, self._personal_memory, self._calendar, scoped_user, history=self._history,
+                    OWNER_MEMORY, self._personal_memory, self._calendar, scoped_user, history=self._history,
                     profile=self._profiles, actions=view))
                 reply = await self._brain.respond_with_tools(conversation, toolbox,
                                                              system_instructions=self._style(scoped_user))
@@ -508,11 +515,11 @@ class TelegramChannel:
                     now = datetime.now().astimezone()
                     if (now.hour, now.minute) >= (hour, minute) and self._brain is not None:
                         for user_id in sorted(self._allowed):
-                            recipient = f"tg_{user_id}"
+                            recipient = OWNER_USER if len(self._allowed) == 1 else f"tg_{user_id}"
                             if await asyncio.to_thread(self._briefing_log.sent_today, recipient):
                                 continue
                             toolbox = Toolbox.for_registry(self._command_plugins, PluginContext(
-                                f"tg{user_id}", self._personal_memory, self._calendar, recipient,
+                                OWNER_MEMORY, self._personal_memory, self._calendar, recipient,
                                 history=self._history)) if self._command_plugins is not None else None
                             city = (self._profiles.get(recipient).get("city") if self._profiles else "") or briefing_city()
                             prompt = [Message(role="user", content=briefing_prompt(city))]
