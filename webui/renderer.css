@@ -307,3 +307,5 @@ body.status-focus .system-tile strong{font-size:13px;line-height:1.4}
 .system-meter[data-state="busy"]::after{background:var(--gold)}
 .system-meter[data-state="error"]::after{background:#ff6b6b}
 .link-device{width:100%;margin:10px 0 0;border:1px solid rgba(255,190,83,.45);border-radius:999px;background:rgba(255,190,83,.08);color:#ffd894;padding:8px 10px;font:700 8px var(--font-ui);letter-spacing:.1em;cursor:pointer}
+.action-card button{white-space:nowrap;min-width:0;padding:6px 8px;letter-spacing:.06em;font-size:10px}
+.chat-message.action-card{max-width:100%;box-sizing:border-box}

@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <style>
+    .bg{fill:#050b12}
+    .box{fill:#0a1824;stroke:#2a6f8a;stroke-width:1.5}
+    .core{fill:#13202c;stroke:#f7931a;stroke-width:2}
+    .warn{fill:#1c140a;stroke:#ffb54d;stroke-width:1.5;stroke-dasharray:5 4}
+    .t{fill:#dffaff;font-size:14px;font-weight:600}
+    .s{fill:#8fb3c2;font-size:11.5px}
+    .h{fill:#f7931a;font-size:12px;font-weight:700;letter-spacing:.14em}
+    .a{stroke:#69eaff;stroke-width:1.6;fill:none;marker-end:url(#arrow)}
+    .g{stroke:#ffb54d;stroke-width:1.6;fill:none;marker-end:url(#arrowg);stroke-dasharray:5 4}
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#69eaff"/></marker>
+    <marker id="arrowg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#ffb54d"/></marker>
+  </defs>
+  <rect class="bg" width="960" height="520" rx="14"/>
+
+  <text class="h" x="30" y="38">YOU</text>
+  <rect class="box" x="30" y="52" width="200" height="74" rx="10"/>
+  <text class="t" x="46" y="80">WebUI · voice + text</text>
+  <text class="s" x="46" y="100">"Hey Atulya", camera, gestures</text>
+  <text class="s" x="46" y="116">browser / installable app</text>
+  <rect class="box" x="30" y="142" width="200" height="56" rx="10"/>
+  <text class="t" x="46" y="168">Telegram</text>
+  <text class="s" x="46" y="186">chat · reminders · briefing</text>
+  <rect class="box" x="30" y="214" width="200" height="56" rx="10"/>
+  <text class="t" x="46" y="240">MCP hosts</text>
+  <text class="s" x="46" y="258">Claude Desktop, VS Code…</text>
+
+  <text class="h" x="300" y="38">ATULYA SERVER</text>
+  <rect class="core" x="300" y="52" width="330" height="218" rx="12"/>
+  <text class="t" x="318" y="80">atulya/server.py · passkey login</text>
+  <text class="s" x="318" y="100">Brain: stream reply, call tools, loop (≤4 rounds)</text>
+  <text class="s" x="318" y="120">Fast path: exact commands answered instantly</text>
+  <text class="s" x="318" y="140">Voice: Whisper STT · Supertonic TTS (local)</text>
+  <text class="s" x="318" y="160">Speech starts on the first sentence</text>
+  <text class="s" x="318" y="180">Memory: saved facts + past-chat search</text>
+  <text class="s" x="318" y="200">Live status: CPU · RAM · network · tools</text>
+  <text class="s" x="318" y="220">Logs redacted · rotating</text>
+  <text class="s" x="318" y="248">tools/plugins/toolkit.py — one tool list for all</text>
+
+  <path class="a" d="M230 89H298"/>
+  <path class="a" d="M230 170H298"/>
+  <path class="a" d="M230 242H298"/>
+
+  <text class="h" x="672" y="38">BRAINS</text>
+  <rect class="box" x="672" y="52" width="262" height="96" rx="10"/>
+  <text class="t" x="686" y="80">Cloud, raced &amp; hedged</text>
+  <text class="s" x="686" y="100">NVIDIA · Gemini · OpenRouter · DeepSeek</text>
+  <text class="t" x="686" y="126">Local fallback</text>
+  <text class="s" x="686" y="142">Qwen 2B · llama.cpp (CPU/GPU auto)</text>
+  <path class="a" d="M630 100H670"/>
+
+  <text class="h" x="300" y="312">TOOLS</text>
+  <rect class="box" x="300" y="326" width="160" height="92" rx="10"/>
+  <text class="t" x="316" y="352">Information</text>
+  <text class="s" x="316" y="372">weather · news</text>
+  <text class="s" x="316" y="390">time · calculator</text>
+  <rect class="box" x="470" y="326" width="160" height="92" rx="10"/>
+  <text class="t" x="486" y="352">Personal</text>
+  <text class="s" x="486" y="372">memory · calendar</text>
+  <text class="s" x="486" y="390">briefing · skills</text>
+  <rect class="warn" x="640" y="326" width="290" height="92" rx="10"/>
+  <text class="t" x="656" y="352">PC control — asks first</text>
+  <text class="s" x="656" y="372">apps · websites · file search · media/volume</text>
+  <text class="s" x="656" y="390">screenshots → APPROVE / DENY in the WebUI</text>
+  <path class="a" d="M420 270V324"/>
+  <path class="a" d="M550 270V324"/>
+  <path class="g" d="M615 270Q700 290 760 324"/>
+
+  <text class="h" x="30" y="312">RUNS ON</text>
+  <rect class="box" x="30" y="326" width="200" height="92" rx="10"/>
+  <text class="t" x="46" y="352">Windows · macOS · Linux</text>
+  <text class="s" x="46" y="372">one-line installer · Docker</text>
+  <text class="s" x="46" y="390">auto-start at login</text>
+
+  <rect class="box" x="30" y="440" width="900" height="56" rx="10"/>
+  <text class="t" x="46" y="466">Private remote access</text>
+  <text class="s" x="46" y="484">Tailscale Serve → https://your-pc.your-tailnet.ts.net · only your devices · passkeys linked per device · data stays in data/ on your machine</text>
+</svg>
