@@ -166,6 +166,7 @@ class SessionAuthMiddleware:
         "/api/auth/login/verify",
         "/api/auth/logout",
         "/api/auth/password",
+        "/api/app/latest",
     }
 
     def __init__(self, app, auth_store: AuthStore):
@@ -194,7 +195,8 @@ class SessionAuthMiddleware:
                                     status_code=403)
             await response(scope, receive, send)
             return
-        if not path.startswith("/api/") or path in self.PUBLIC_PATHS or path.startswith("/api/auth/login-requests"):
+        if (not path.startswith("/api/") or path in self.PUBLIC_PATHS or path.startswith("/api/auth/login-requests")
+                or path == "/api/auth/voice-unlock"):
             await self.app(scope, receive, send)
             return
         headers = {key.lower(): value for key, value in scope.get("headers", [])}
@@ -238,6 +240,10 @@ class ChatMessage(BaseModel):
 class BriefingRequest(BaseModel):
     conversation_id: str = Field(default="briefing", min_length=1, max_length=120)
     force: bool = False
+
+
+class VoiceUnlockEnroll(BaseModel):
+    phrase: str = Field(min_length=8, max_length=120)
 
 
 class LoginRequestBody(BaseModel):
@@ -562,6 +568,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         calendar=calendar,
         briefing_log=briefing_log,
         profiles=profiles,
+        data_dir=config.data_dir,
     )
     app.state.telegram = telegram
 
@@ -1016,6 +1023,60 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except VoiceError as exc:
             raise HTTPException(status_code=503, detail="Voice is unavailable; type the code instead.") from exc
         return await _finish_login(request_id, spoken_digits(heard)[:6], request)
+
+    @app.post("/api/auth/voice-unlock/enroll")
+    async def enroll_voice_unlock(body: VoiceUnlockEnroll, request: Request) -> dict[str, str]:
+        """Signed-in device only: returns a device key the browser keeps; the phrase is stored hashed."""
+        user_id = str(request.state.user_id)
+        try:
+            unlock_id, device_secret = await asyncio.to_thread(
+                auth_store.enroll_voice_unlock, user_id, body.phrase, _client_label(request))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {"id": unlock_id, "device_secret": device_secret}
+
+    @app.delete("/api/auth/voice-unlock/enroll")
+    async def remove_voice_unlock(request: Request) -> dict[str, int]:
+        return {"removed": await asyncio.to_thread(auth_store.remove_voice_unlock, str(request.state.user_id))}
+
+    @app.post("/api/auth/voice-unlock")
+    async def voice_unlock(request: Request, unlock_id: str = Form(...), device_secret: str = Form(...),
+                           audio: UploadFile = File(...)) -> Response:
+        """Trusted device + spoken phrase -> session. The transcript is never returned."""
+        data = await audio.read(2 * 1024 * 1024 + 1)
+        if len(data) > 2 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="Keep it short: just say your unlock phrase.")
+        try:
+            heard = await run_in_threadpool(voice.transcribe, data, content_type=audio.content_type or "audio/webm",
+                                            language="")
+        except VoiceError as exc:
+            raise HTTPException(status_code=503, detail="Voice is unavailable right now.") from exc
+        user_id = await asyncio.to_thread(auth_store.check_voice_unlock, unlock_id[:40], device_secret[:80], heard)
+        if user_id is None:
+            await strike(request)
+            raise HTTPException(status_code=401, detail="That didn't unlock. Say your phrase again, or sign in another way.")
+        response = JSONResponse({"authenticated": True})
+        set_session_cookie(response, request, await asyncio.to_thread(auth_store.create_session, user_id))
+        return response
+
+    latest_app: dict[str, object] = {"checked": 0.0, "data": {}}
+
+    @app.get("/api/app/latest")
+    async def latest_app_release() -> dict[str, object]:
+        """Newest signed Android build (GitHub Releases), cached 10 minutes. Public: holds no private data."""
+        if time.monotonic() - float(latest_app["checked"]) > 600:
+            try:
+                async with httpx.AsyncClient(timeout=10, headers={"Accept": "application/vnd.github+json"}) as client:
+                    release = (await client.get(
+                        "https://api.github.com/repos/atulyaai/Atulya-Tantra/releases/latest")).json()
+                apk = next((a for a in release.get("assets", []) if str(a.get("name", "")).endswith(".apk")), None)
+                latest_app["data"] = ({"version": str(release.get("tag_name", "")).lstrip("v"),
+                                       "url": apk["browser_download_url"], "notes": str(release.get("body", ""))[:500]}
+                                      if apk else {})
+            except (httpx.HTTPError, ValueError, KeyError, TypeError):
+                pass
+            latest_app["checked"] = time.monotonic()
+        return latest_app["data"] or {"version": "", "url": ""}
 
     @app.get("/api/auth/pending-logins")
     async def list_pending_logins(http_request: Request) -> dict[str, list[dict]]:

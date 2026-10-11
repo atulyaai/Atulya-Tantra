@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import re
@@ -57,6 +58,7 @@ class TelegramChannel:
         calendar=None,
         briefing_log=None,
         profiles=None,
+        data_dir=None,
     ) -> None:
         self._token = token.strip()
         self._allowed = {value for value in allowed_user_ids if value.isdigit()}
@@ -69,6 +71,7 @@ class TelegramChannel:
         self._calendar = calendar
         self._briefing_log = briefing_log
         self._profiles = profiles
+        self._members_path = (data_dir / "telegram_members.json") if data_dir else None
         self._briefing_task: asyncio.Task | None = None
         self._offset = 0
         self._poll_task: asyncio.Task | None = None
@@ -185,6 +188,8 @@ class TelegramChannel:
                     await asyncio.sleep(5)
 
     GUEST_DAILY_LIMIT = 30
+    FREE_MESSAGES_BEFORE_REGISTER = 5
+    MEMBER_DAILY_LIMIT = 100
     # All guests together; protects the cloud-model budget (ATULYA_GUEST_DAILY_TOTAL overrides).
     GUEST_DAILY_TOTAL = 200
 
@@ -195,12 +200,37 @@ class TelegramChannel:
         day, used = self._guest_usage.get(user_id, (today, 0))
         if day != today:
             used = 0
+        member = self._members().get(user_id, {})
+        state = member.get("state")
+        first_word = text.split(maxsplit=1)[0].split("@", 1)[0].lower()
+        if first_word == "/register":
+            name = " ".join(text.split()[1:])[:40].strip()
+            if not name:
+                reply = "Send /register followed by your name, e.g. /register Rahul."
+            elif state == "approved":
+                reply = "You're already registered."
+            else:
+                self._save_member(user_id, {"name": name, "state": "pending", "since": today})
+                await self.notify(f"New Atulya registration: {name} (Telegram id {user_id}). "
+                                  f"Reply /approve {user_id} or /deny {user_id}.")
+                reply = "Thanks! Your registration is waiting for the owner's approval."
+            await self._send(client, chat_id, reply)
+            return
+        if state == "denied":
+            await self._send(client, chat_id, "Sorry, this assistant isn't available to you.")
+            return
+        daily_limit = self.MEMBER_DAILY_LIMIT if state == "approved" else self.GUEST_DAILY_LIMIT
+        if state != "approved" and used >= self.FREE_MESSAGES_BEFORE_REGISTER:
+            await self._send(client, chat_id, "To keep chatting, please register: send /register <your name>. "
+                                              "The owner approves new users." if state != "pending"
+                             else "Your registration is still waiting for approval.")
+            return
         total_today = sum(count for day_seen, count in self._guest_usage.values() if day_seen == today)
         try:
             total_cap = int(os.environ.get("ATULYA_GUEST_DAILY_TOTAL", self.GUEST_DAILY_TOTAL))
         except ValueError:
             total_cap = self.GUEST_DAILY_TOTAL
-        if used >= self.GUEST_DAILY_LIMIT or total_today >= total_cap:
+        if used >= daily_limit or total_today >= total_cap:
             reply = "Guest access is at its limit for today. Try again tomorrow."
         elif text.split(maxsplit=1)[0].split("@", 1)[0].lower() in {"/start", "/help"}:
             reply = ("Hi, I'm Atulya. Ask me anything — weather, news, maths, quick facts. "
@@ -229,6 +259,38 @@ class TelegramChannel:
             response.raise_for_status()
         except httpx.HTTPError:
             return
+
+    # --- registered Telegram members ---------------------------------------------
+    def _members(self) -> dict[str, dict]:
+        if self._members_path is None or not self._members_path.is_file():
+            return {}
+        try:
+            data = json.loads(self._members_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _save_member(self, user_id: str, info: dict) -> None:
+        if self._members_path is None:
+            return
+        members = self._members()
+        members[user_id] = info
+        self._members_path.write_text(json.dumps(members, indent=1), encoding="utf-8")
+
+    def _decide_member(self, user_id: str, approve: bool) -> str:
+        member = self._members().get(user_id)
+        if not user_id.isdigit() or member is None:
+            return "No registration with that id. Send /members to list them."
+        member["state"] = "approved" if approve else "denied"
+        self._save_member(user_id, member)
+        return f"{member.get('name', user_id)} is now {member['state']}."
+
+    async def _send(self, client: httpx.AsyncClient, chat_id: str, text: str) -> None:
+        try:
+            response = await client.post(self._url("sendMessage"), json={"chat_id": chat_id, "text": text[:4000]})
+            response.raise_for_status()
+        except httpx.HTTPError:
+            pass
 
     async def _poll_failed(self, status_code: int | None) -> None:
         """Back off exponentially and log each distinct failure kind once, never per retry."""
@@ -282,6 +344,12 @@ class TelegramChannel:
             reply = self._format_reminders(items)
         elif command == "/remind":
             reply = await self._create_reminder(user_id, chat_id, command_args.strip())
+        elif command in {"/approve", "/deny"}:
+            reply = self._decide_member(command_args.strip(), command == "/approve")
+        elif command == "/members":
+            members = self._members()
+            reply = "\n".join(f"{uid}: {info.get('name', '?')} — {info.get('state')}" for uid, info in members.items()) \
+                or "No registered Telegram users yet."
         else:
             reply = None
             if self._command_plugins is not None and self._personal_memory is not None and self._calendar is not None:

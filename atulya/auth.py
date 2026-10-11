@@ -60,6 +60,17 @@ class AuthStore:
                     hash BLOB NOT NULL,
                     updated_at INTEGER NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS voice_unlock (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    device_hash TEXT NOT NULL,
+                    phrase_salt BLOB NOT NULL,
+                    phrase_hash BLOB NOT NULL,
+                    label TEXT NOT NULL,
+                    failures INTEGER NOT NULL DEFAULT 0,
+                    created_at INTEGER NOT NULL,
+                    last_used INTEGER NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS ip_strikes (
                     ip TEXT PRIMARY KEY,
                     strikes INTEGER NOT NULL,
@@ -211,6 +222,53 @@ class AuthStore:
         with self._session() as db:
             row = db.execute("SELECT user_id FROM login_aliases WHERE alias=?", (name,)).fetchone()
         return str(row["user_id"]) if row else name
+
+    # --- voice unlock on a trusted device -------------------------------------------
+    # Two factors: a random device key kept only by that browser/app (possession) and a
+    # spoken personal phrase (knowledge, scrypt-hashed after normalising). 5 wrong phrases
+    # disable that device's voice unlock; unused for 30 days it expires.
+    VOICE_UNLOCK_MAX_IDLE = 30 * 24 * 3600
+
+    @staticmethod
+    def normalize_phrase(text: str) -> str:
+        words = re.findall(r"[^\W_]+", text.lower())
+        return " ".join(words)
+
+    def enroll_voice_unlock(self, user_id: str, phrase: str, label: str) -> tuple[str, str]:
+        normalized = self.normalize_phrase(phrase)
+        if len(normalized.split()) < 3 or len(normalized) < 12:
+            raise ValueError("Choose a phrase of at least 3 words, e.g. 'saffron rocket at midnight'")
+        unlock_id, device_secret = secrets.token_urlsafe(12), secrets.token_urlsafe(32)
+        salt = secrets.token_bytes(16)
+        now = int(time.time())
+        with self._session() as db:
+            db.execute("INSERT INTO voice_unlock(id,user_id,device_hash,phrase_salt,phrase_hash,label,created_at,"
+                       "last_used) VALUES(?,?,?,?,?,?,?,?)",
+                       (unlock_id, user_id, self._token_hash(device_secret), salt,
+                        self._password_hash(normalized, salt), label[:80], now, now))
+        return unlock_id, device_secret
+
+    def check_voice_unlock(self, unlock_id: str, device_secret: str, spoken: str) -> str | None:
+        now = int(time.time())
+        with self._session() as db:
+            row = db.execute("SELECT * FROM voice_unlock WHERE id=?", (unlock_id,)).fetchone()
+            if (row is None or row["failures"] >= 5 or now - row["last_used"] > self.VOICE_UNLOCK_MAX_IDLE
+                    or not secrets.compare_digest(self._token_hash(device_secret), row["device_hash"])):
+                return None
+            candidate = self._password_hash(self.normalize_phrase(spoken), bytes(row["phrase_salt"]))
+            if not secrets.compare_digest(candidate, bytes(row["phrase_hash"])):
+                db.execute("UPDATE voice_unlock SET failures=failures+1 WHERE id=?", (unlock_id,))
+                return None
+            if not db.execute("SELECT 1 FROM users WHERE id=? AND disabled_at IS NULL", (row["user_id"],)).fetchone():
+                return None
+            db.execute("UPDATE voice_unlock SET failures=0, last_used=? WHERE id=?", (now, unlock_id))
+            return str(row["user_id"])
+
+    def remove_voice_unlock(self, user_id: str, unlock_id: str | None = None) -> int:
+        with self._session() as db:
+            if unlock_id:
+                return db.execute("DELETE FROM voice_unlock WHERE user_id=? AND id=?", (user_id, unlock_id)).rowcount
+            return db.execute("DELETE FROM voice_unlock WHERE user_id=?", (user_id,)).rowcount
 
     # --- IP bans -----------------------------------------------------------------
     IP_STRIKE_LIMIT = 10

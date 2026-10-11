@@ -34,16 +34,19 @@ jobs:
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/atulya-release.p12"
           export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/atulya-release.p12"
-          gradle --no-daemon assembleRelease -PversionName="$VERSION" -PversionCode="$GITHUB_RUN_NUMBER"
+          gradle --no-daemon assembleRelease bundleRelease -PversionName="$VERSION" -PversionCode="$GITHUB_RUN_NUMBER"
           mkdir -p ../dist && cp app/build/outputs/apk/release/app-release.apk "../dist/Atulya-$VERSION.apk"
+          cp app/build/outputs/bundle/release/app-release.aab "../dist/Atulya-$VERSION.aab"
           rm -f "$RUNNER_TEMP/atulya-release.p12"
           "$ANDROID_HOME"/build-tools/*/apksigner verify --print-certs "../dist/Atulya-$VERSION.apk" | grep -i "SHA-256"
       - uses: actions/upload-artifact@v4
         with:
           name: Atulya-${{ env.VERSION }}
-          path: dist/Atulya-*.apk
+          path: |
+            dist/Atulya-*.apk
+            dist/Atulya-*.aab
       - name: Publish release (tags only)
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "v$VERSION" dist/Atulya-*.apk --title "Atulya $VERSION" --notes "Signed Android build of Atulya."
+        run: gh release create "v$VERSION" dist/Atulya-*.apk dist/Atulya-*.aab --title "Atulya $VERSION" --notes "Signed Android build of Atulya. Install the .apk on your phone; the .aab is for Google Play."

@@ -67,6 +67,7 @@ class MainActivity : AppCompatActivity() {
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     unlocked = true
                     if (web.url == null) web.loadUrl(origin.toString())
+                    checkForUpdate()
                 }
                 override fun onAuthenticationError(code: Int, message: CharSequence) {
                     finish()
@@ -110,6 +111,41 @@ class MainActivity : AppCompatActivity() {
                 else request.deny()
             }
         }
+    }
+
+    /** Native-shell updates: the web UI updates itself; this only offers a newer signed APK. */
+    private fun checkForUpdate() {
+        Thread {
+            try {
+                val connection = java.net.URL("${origin}/api/app/latest").openConnection() as java.net.HttpURLConnection
+                connection.connectTimeout = 5000
+                connection.readTimeout = 5000
+                val body = org.json.JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                val latest = body.optString("version")
+                val url = body.optString("url")
+                if (latest.isNotEmpty() && url.startsWith("https://github.com/") && isNewer(latest, BuildConfig.VERSION_NAME)) {
+                    runOnUiThread {
+                        androidx.appcompat.app.AlertDialog.Builder(this)
+                            .setTitle("Update available")
+                            .setMessage("Atulya $latest is ready (you have ${BuildConfig.VERSION_NAME}).")
+                            .setPositiveButton("Update") { _, _ -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                            .setNegativeButton("Later", null)
+                            .show()
+                    }
+                }
+            } catch (_: Exception) { /* offline or no release yet */ }
+        }.start()
+    }
+
+    private fun isNewer(candidate: String, current: String): Boolean {
+        val a = candidate.split(".").map { it.toIntOrNull() ?: 0 }
+        val b = current.split(".").map { it.toIntOrNull() ?: 0 }
+        for (i in 0 until maxOf(a.size, b.size)) {
+            val x = a.getOrElse(i) { 0 }
+            val y = b.getOrElse(i) { 0 }
+            if (x != y) return x > y
+        }
+        return false
     }
 
     private fun requestMediaPermissions() {

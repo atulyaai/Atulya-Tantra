@@ -144,13 +144,32 @@ def main(actions: bool = False) -> int:
                             listed = owner.get("/api/auth/pending-logins").json()["requests"]
                             owner.post(f"/api/auth/pending-logins/{started['id']}", json={"approve": True})
                         done = stranger.get(f"/api/auth/login-requests/{started['id']}").json()
-                        signed_in = stranger.get("/api/auth/status").json().get("authenticated")
+                        # Cookies are Secure once a public HTTPS origin is set; check the issued session directly.
+                        signed_in = bool(done.get("authenticated") and store.user_for_session(stranger.cookies.get("atulya_session")))
                     ok = wrong.status_code == 401 and len(listed) == 1 and done.get("authenticated") and signed_in and pending
                     return bool(ok), f"wrong code rejected · approval card shown · new device signed in={signed_in}", None
                 finally:
                     store.revoke_session(trusted)
                     store.disable_user(user_id)
             _timed(report, "sign in with code / approval", code_login)
+
+            def voice_unlock():
+                enrolled = client.post("/api/auth/voice-unlock/enroll", json={"phrase": "saffron rocket at midnight"}).json()
+                try:
+                    spoken = client.post("/api/voice/synthesize", json={"text": "Saffron rocket at midnight.", "language": "en"}, timeout=120)
+                    wrong = client.post("/api/voice/synthesize", json={"text": "Open the door please.", "language": "en"}, timeout=120)
+                    with httpx.Client(base_url=base, timeout=120) as device:
+                        bad = device.post("/api/auth/voice-unlock", data={"unlock_id": enrolled["id"], "device_secret": enrolled["device_secret"]},
+                                          files={"audio": ("w.wav", wrong.content, "audio/wav")})
+                        stolen = device.post("/api/auth/voice-unlock", data={"unlock_id": enrolled["id"], "device_secret": "x" * 40},
+                                             files={"audio": ("s.wav", spoken.content, "audio/wav")})
+                        good = device.post("/api/auth/voice-unlock", data={"unlock_id": enrolled["id"], "device_secret": enrolled["device_secret"]},
+                                           files={"audio": ("p.wav", spoken.content, "audio/wav")})
+                    ok = bad.status_code == 401 and stolen.status_code == 401 and good.status_code == 200
+                    return ok, f"wrong phrase {bad.status_code} · right phrase on other device {stolen.status_code} · right phrase here {good.status_code}", None
+                finally:
+                    client.delete("/api/auth/voice-unlock/enroll")
+            _timed(report, "voice unlock (device + phrase)", voice_unlock)
 
             def voice_round_trip():
                 phrase = "Atulya, please set a reminder for the meeting tomorrow."

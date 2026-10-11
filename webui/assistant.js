@@ -1909,6 +1909,7 @@
         if (authDialog.open) authDialog.close();
         document.body.classList.remove("auth-required");
         if (addPasskeyButton) addPasskeyButton.hidden = false;
+        if (document.getElementById("add-voice-unlock")) document.getElementById("add-voice-unlock").hidden = false;
         if (manageUsersButton) manageUsersButton.hidden = !auth.is_admin;
         if (signOutButton) signOutButton.hidden = false;
         startAuthorizedApplication();
@@ -1925,6 +1926,12 @@
         ? "Create the first administrator passkey to protect Atulya on this device."
         : "Unlock this local session with your device passkey.";
       if (authActivate) authActivate.textContent = authSetupRequired ? "CREATE ADMIN PASSKEY" : deviceLinkToken ? "ADD PASSKEY FOR THIS DEVICE" : "SIGN IN WITH PASSKEY";
+      const voiceButton = document.getElementById("auth-voice-unlock");
+      if (voiceButton) {
+        let hasKey = false;
+        try { hasKey = Boolean(localStorage.getItem("atulya.voiceUnlock")); } catch { /* storage blocked */ }
+        voiceButton.hidden = !hasKey;
+      }
       const passwordForm = document.getElementById("auth-password-form");
       if (passwordForm) passwordForm.hidden = !auth.password_login;
       if (authInviteWrap) authInviteWrap.hidden = authSetupRequired;
@@ -2099,6 +2106,63 @@
     } catch { /* offline; try again next tick */ }
   }
   window.setInterval(checkPendingLogins, 3000);
+
+
+  // ---- Voice unlock (trusted device + spoken phrase) -------------------------------
+  const VOICE_KEY = "atulya.voiceUnlock";
+  const readVoiceKey = () => { try { return JSON.parse(localStorage.getItem(VOICE_KEY) || "null"); } catch { return null; } };
+  const voiceUnlockButton = document.getElementById("auth-voice-unlock");
+  const addVoiceUnlockButton = document.getElementById("add-voice-unlock");
+
+  async function recordSeconds(seconds) {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    const chunks = [];
+    const recorder = new MediaRecorder(stream);
+    recorder.ondataavailable = (event) => { if (event.data?.size) chunks.push(event.data); };
+    recorder.start();
+    await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+    await new Promise((resolve) => { recorder.onstop = resolve; recorder.stop(); });
+    stream.getTracks().forEach((track) => track.stop());
+    return new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+  }
+
+  addVoiceUnlockButton?.addEventListener("click", async () => {
+    const phrase = window.prompt("Choose a private unlock phrase (3+ words) you'll say to unlock THIS device, e.g. 'saffron rocket at midnight'. Don't use your password.");
+    if (!phrase) return;
+    const response = await fetch("/api/auth/voice-unlock/enroll", {
+      method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ phrase }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) { appendMessage("notice", body.detail || "Voice unlock could not be set up."); return; }
+    try { localStorage.setItem(VOICE_KEY, JSON.stringify({ id: body.id, secret: body.device_secret })); } catch { /* storage blocked */ }
+    appendMessage("assistant", "Voice unlock is set up on this device. Next time, tap UNLOCK WITH VOICE and say your phrase.");
+  });
+
+  voiceUnlockButton?.addEventListener("click", async () => {
+    const key = readVoiceKey();
+    if (!key) return;
+    voiceUnlockButton.disabled = true;
+    voiceUnlockButton.textContent = "LISTENING… SAY YOUR PHRASE";
+    try {
+      const form = new FormData();
+      form.append("unlock_id", key.id);
+      form.append("device_secret", key.secret);
+      form.append("audio", await recordSeconds(4), "phrase.webm");
+      voiceUnlockButton.textContent = "CHECKING…";
+      const response = await fetch("/api/auth/voice-unlock", { method: "POST", body: form });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.detail || "That didn't unlock.");
+      authDialog.close();
+      document.body.classList.remove("auth-required");
+      await refreshAuthState();
+    } catch (error) {
+      if (authMessage) authMessage.textContent = error.message || "Microphone unavailable here.";
+    } finally {
+      voiceUnlockButton.disabled = false;
+      voiceUnlockButton.textContent = "UNLOCK WITH VOICE";
+    }
+  });
 
   document.getElementById("auth-password-toggle")?.addEventListener("click", (event) => {
     const field = document.getElementById("auth-password");

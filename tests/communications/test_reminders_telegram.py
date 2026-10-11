@@ -83,3 +83,43 @@ def test_reminder_time_parser_supports_relative_and_iso() -> None:
     assert _parse_due("2026-10-09T14:00:00+05:30", now).astimezone(timezone.utc) == datetime(2026, 10, 9, 8, 30, tzinfo=timezone.utc)
     with pytest.raises(ValueError):
         _parse_due("later", now)
+
+
+def test_strangers_must_register_after_free_messages(tmp_path, monkeypatch) -> None:
+    import asyncio
+
+    from atulya.history import ConversationHistory
+    from tools.plugins.communications.channels.telegram import TelegramChannel
+    from tools.plugins.productivity.reminders import ReminderStore
+
+    monkeypatch.setenv("ATULYA_TELEGRAM_OPEN", "1")
+    channel = TelegramChannel(token="1:test", allowed_user_ids={"111"}, brain=None,
+                              history=ConversationHistory(tmp_path), reminders=ReminderStore(tmp_path),
+                              status_summary=lambda: "", data_dir=tmp_path)
+    sent, owner = [], []
+
+    class FakeClient:
+        async def post(self, url, json):
+            sent.append(json["text"])
+
+            class Ok:
+                def raise_for_status(self):
+                    return None
+            return Ok()
+
+    async def fake_notify(text):
+        owner.append(text)
+        return 1
+    channel.notify = fake_notify
+
+    async def run():
+        for n in range(6):
+            await channel._guest_message(FakeClient(), "222", "222", str(n), "hello")
+        await channel._guest_message(FakeClient(), "222", "222", "r", "/register Rahul")
+        return channel._decide_member("222", True)
+
+    approved = asyncio.run(run())
+    assert "register" in sent[5].lower()          # 6th message asks to register
+    assert "waiting for the owner" in sent[6]
+    assert "/approve 222" in owner[0]
+    assert approved == "Rahul is now approved."
