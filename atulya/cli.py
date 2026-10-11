@@ -19,10 +19,28 @@ def main() -> None:
     commands.add_parser("pc-host", help="run Atulya as a persistent personal-computer host")
     commands.add_parser("mcp", help="run the local Atulya MCP server over stdio")
     commands.add_parser("doctor", help="check basic local configuration")
+    password = commands.add_parser("set-password", help="set a password (read from stdin or prompt) for a user")
+    password.add_argument("--user", default="admin")
+    selftest = commands.add_parser("selftest", help="run real end-to-end checks against the running server")
+    selftest.add_argument("--actions", action="store_true", help="also approve a real PC action (opens Calculator)")
     remote = commands.add_parser("remote", help="reach Atulya from your devices anywhere via Tailscale")
     remote.add_argument("--enable", action="store_true", help="serve Atulya over private HTTPS on your tailnet")
     remote.add_argument("--disable", action="store_true", help="stop serving on your tailnet")
     args = parser.parse_args()
+    if args.command == "set-password":
+        import getpass
+        import sys
+
+        from .auth import AuthStore
+
+        secret = sys.stdin.readline().rstrip("\r\n") if not sys.stdin.isatty() else getpass.getpass("New password: ")
+        AuthStore(Settings.from_environment().data_dir).set_password(args.user.strip().lower(), secret)
+        print(f"Password set for '{args.user}'. It is stored only as a scrypt hash in data/auth.sqlite3.")
+        return
+    if args.command == "selftest":
+        from tools.selftest import main as selftest_main
+
+        raise SystemExit(selftest_main(actions=args.actions))
     if args.command == "remote":
         from tools.remote_access import main as remote_main
 

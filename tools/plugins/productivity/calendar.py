@@ -6,6 +6,7 @@ import sqlite3
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from atulya.dbrepair import ensure_created_at_default
 
 
 class CalendarStore:
@@ -33,6 +34,8 @@ class CalendarStore:
                 db.execute("DROP TABLE events")
                 db.execute("ALTER TABLE events_scoped RENAME TO events")
             db.execute("CREATE INDEX IF NOT EXISTS events_owner_start ON events(user_id, owner, starts_at)")
+        with closing(sqlite3.connect(self.path, isolation_level=None)) as repair:
+            ensure_created_at_default(repair, "events")
 
     @staticmethod
     def _owner(owner: str) -> str:

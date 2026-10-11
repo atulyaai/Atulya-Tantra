@@ -54,6 +54,17 @@ class AuthStore:
                     created_at INTEGER NOT NULL,
                     disabled_at INTEGER
                 );
+                CREATE TABLE IF NOT EXISTS passwords (
+                    user_id TEXT PRIMARY KEY,
+                    salt BLOB NOT NULL,
+                    hash BLOB NOT NULL,
+                    updated_at INTEGER NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS login_failures (
+                    key TEXT PRIMARY KEY,
+                    count INTEGER NOT NULL,
+                    first_at INTEGER NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS device_links (
                     token_hash TEXT PRIMARY KEY,
                     user_id TEXT NOT NULL,
@@ -94,8 +105,9 @@ class AuthStore:
             db.close()
 
     def credential_count(self) -> int:
+        """Sign-in methods that exist (passkeys + passwords). Zero means first-time setup is open."""
         with self._session() as db:
-            return int(db.execute("SELECT COUNT(*) FROM credentials").fetchone()[0])
+            return int(db.execute("SELECT (SELECT COUNT(*) FROM credentials) + (SELECT COUNT(*) FROM passwords)").fetchone()[0])
 
     def credentials(self) -> list[sqlite3.Row]:
         with self._session() as db:
@@ -147,6 +159,52 @@ class AuthStore:
                        (self._token_hash(token), user_id, now, now + INVITE_MAX_AGE))
         return user_id, token
 
+    # --- password fallback -----------------------------------------------
+    # scrypt (n=2**14, r=8, p=1), per-user random salt; constant-time compare.
+    @staticmethod
+    def _password_hash(password: str, salt: bytes) -> bytes:
+        return hashlib.scrypt(password.encode("utf-8"), salt=salt, n=2 ** 14, r=8, p=1, dklen=32)
+
+    def set_password(self, user_id: str, password: str) -> None:
+        if len(password) < 10:
+            raise ValueError("Use at least 10 characters")
+        salt = secrets.token_bytes(16)
+        now = int(time.time())
+        with self._session() as db:
+            db.execute("INSERT OR IGNORE INTO users(id,display_name,role,created_at) VALUES(?,?,?,?)",
+                       (user_id, "Admin" if user_id == ADMIN_ID else user_id,
+                        "admin" if user_id == ADMIN_ID else "user", now))
+            db.execute("INSERT OR REPLACE INTO passwords(user_id,salt,hash,updated_at) VALUES(?,?,?,?)",
+                       (user_id, salt, self._password_hash(password, salt), now))
+
+    def has_password(self) -> bool:
+        with self._session() as db:
+            return db.execute("SELECT 1 FROM passwords LIMIT 1").fetchone() is not None
+
+    def check_password(self, user_id: str, password: str, client: str) -> str:
+        """Returns 'ok', 'bad', or 'locked'. 5 failures per user+client lock it for 15 minutes."""
+        key = f"{user_id}|{client}"
+        now = int(time.time())
+        with self._session() as db:
+            failure = db.execute("SELECT count,first_at FROM login_failures WHERE key=?", (key,)).fetchone()
+            if failure and now - failure["first_at"] > 900:
+                db.execute("DELETE FROM login_failures WHERE key=?", (key,))
+                failure = None
+            if failure and failure["count"] >= 5:
+                return "locked"
+            row = db.execute(
+                "SELECT p.salt,p.hash FROM passwords p JOIN users u ON u.id=p.user_id "
+                "WHERE p.user_id=? AND u.disabled_at IS NULL", (user_id,),
+            ).fetchone()
+            candidate = self._password_hash(password, bytes(row["salt"]) if row else b"0" * 16)
+            if row and secrets.compare_digest(candidate, bytes(row["hash"])):
+                db.execute("DELETE FROM login_failures WHERE key=?", (key,))
+                return "ok"
+            db.execute(
+                "INSERT INTO login_failures(key,count,first_at) VALUES(?,1,?) "
+                "ON CONFLICT(key) DO UPDATE SET count=count+1", (key, now))
+            return "bad"
+
     def create_device_link(self, user_id: str) -> str:
         """One-time, 10-minute code that lets a signed-in user add a passkey on another device/address."""
         token = secrets.token_urlsafe(24)
@@ -192,7 +250,8 @@ class AuthStore:
             db.execute("BEGIN IMMEDIATE")
             # The first credential creates the one local admin. Additional
             # credentials can only be added by an authenticated admin route.
-            if first_only and db.execute("SELECT 1 FROM credentials LIMIT 1").fetchone():
+            if first_only and db.execute(
+                "SELECT 1 FROM credentials UNION ALL SELECT 1 FROM passwords LIMIT 1").fetchone():
                 return False
             if device_token:
                 link = db.execute(

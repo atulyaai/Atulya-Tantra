@@ -7,13 +7,14 @@ from __future__ import annotations
 
 import re
 import sqlite3
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from pathlib import Path
 from collections.abc import Iterator
 
 
 _ID = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
 _ROLES = {"user", "assistant", "notice"}
+from atulya.dbrepair import ensure_created_at_default
 
 
 class ConversationHistory:
@@ -67,6 +68,8 @@ class ConversationHistory:
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS messages_by_conversation ON messages(user_id,conversation_id,created_at)"
             )
+        with closing(sqlite3.connect(self.path, isolation_level=None)) as repair:
+            ensure_created_at_default(repair, "messages")
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=5)

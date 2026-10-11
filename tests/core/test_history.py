@@ -205,3 +205,19 @@ def test_chat_api_enforces_per_ip_rate_limit_and_request_body_cap(project_temp_d
             return statuses[-1], oversized.status_code
 
     assert asyncio.run(exercise()) == (429, 413)
+
+
+def test_tables_missing_created_at_default_are_repaired(project_temp_dir) -> None:
+    import sqlite3
+    from contextlib import closing
+
+    from tools.plugins.personal.memory import PersonalMemory
+
+    path = project_temp_dir / "personal_memory.sqlite3"
+    with closing(sqlite3.connect(path)) as db, db:
+        db.execute("CREATE TABLE facts (id INTEGER PRIMARY KEY, user_id TEXT NOT NULL, owner TEXT NOT NULL, "
+                   "fact TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(user_id, owner, fact))")
+        db.execute("INSERT INTO facts(user_id,owner,fact,created_at) VALUES('admin','web','old fact','2026-01-01')")
+    memory = PersonalMemory(project_temp_dir)
+    assert memory.remember("web", "new fact", user_id="admin") is True
+    assert set(memory.list("web", user_id="admin")) == {"old fact", "new fact"}

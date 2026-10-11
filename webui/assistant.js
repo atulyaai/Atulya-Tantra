@@ -1908,6 +1908,8 @@
         ? "Create the first administrator passkey to protect Atulya on this device."
         : "Unlock this local session with your device passkey.";
       if (authActivate) authActivate.textContent = authSetupRequired ? "CREATE ADMIN PASSKEY" : deviceLinkToken ? "ADD PASSKEY FOR THIS DEVICE" : "SIGN IN WITH PASSKEY";
+      const passwordForm = document.getElementById("auth-password-form");
+      if (passwordForm) passwordForm.hidden = !auth.password_login;
       if (authInviteWrap) authInviteWrap.hidden = authSetupRequired;
       if (authJoin) authJoin.hidden = authSetupRequired;
       if (!authDialog.open) authDialog.showModal();
@@ -1963,6 +1965,27 @@
     if (!verifyResponse.ok) throw new Error(verifyBody.detail || "Passkey verification failed.");
     return verifyBody;
   }
+
+  document.getElementById("auth-password-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const password = document.getElementById("auth-password");
+    try {
+      const response = await fetch("/api/auth/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ username: document.getElementById("auth-username").value, password: password.value }),
+        cache: "no-store",
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.detail || "Sign-in failed.");
+      password.value = "";
+      authDialog.close();
+      document.body.classList.remove("auth-required");
+      await refreshAuthState();
+    } catch (error) {
+      if (authMessage) authMessage.textContent = error.message;
+    }
+  });
 
   authActivate?.addEventListener("click", async () => {
     authActivate.disabled = true;

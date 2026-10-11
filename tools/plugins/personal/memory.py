@@ -5,6 +5,7 @@ import re
 import sqlite3
 from contextlib import closing
 from pathlib import Path
+from atulya.dbrepair import ensure_created_at_default
 
 
 class PersonalMemory:
@@ -30,6 +31,8 @@ class PersonalMemory:
                 db.execute("DROP TABLE facts")
                 db.execute("ALTER TABLE facts_scoped RENAME TO facts")
             db.execute("CREATE INDEX IF NOT EXISTS facts_owner ON facts(user_id, owner, id DESC)")
+        with closing(sqlite3.connect(self.path, isolation_level=None)) as repair:
+            ensure_created_at_default(repair, "facts")
 
     @staticmethod
     def _owner(owner: str) -> str:

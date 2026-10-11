@@ -164,6 +164,7 @@ class SessionAuthMiddleware:
         "/api/auth/login/options",
         "/api/auth/login/verify",
         "/api/auth/logout",
+        "/api/auth/password",
     }
 
     def __init__(self, app, auth_store: AuthStore):
@@ -222,6 +223,11 @@ class ChatMessage(BaseModel):
 class BriefingRequest(BaseModel):
     conversation_id: str = Field(default="briefing", min_length=1, max_length=120)
     force: bool = False
+
+
+class PasswordLogin(BaseModel):
+    username: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=1, max_length=256)
 
 
 class ActionDecision(BaseModel):
@@ -406,6 +412,25 @@ def _provider_hedge_delay() -> float:
         return 1.25
 
 
+# WebUI memory and calendar are per user, shared by every chat (Telegram keeps "tg<id>").
+WEB_OWNER = "web"
+
+
+def _merge_web_owners(data_dir) -> None:
+    """One-time move of per-chat memory/calendar rows to the shared WebUI owner."""
+    import sqlite3
+    from contextlib import closing
+
+    for name, table in (("personal_memory.sqlite3", "facts"), ("calendar.sqlite3", "events")):
+        path = data_dir / name
+        if not path.is_file():
+            continue
+        with closing(sqlite3.connect(path)) as db, db:
+            db.execute(f"UPDATE OR IGNORE {table} SET owner=? WHERE owner<>? AND owner NOT GLOB 'tg[0-9]*'",
+                       (WEB_OWNER, WEB_OWNER))
+            db.execute(f"DELETE FROM {table} WHERE owner<>? AND owner NOT GLOB 'tg[0-9]*'", (WEB_OWNER,))
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Create the API app; API routes take precedence over the static page."""
     config = settings or Settings.from_environment()
@@ -425,6 +450,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     reminders = ReminderStore(config.data_dir)
     personal_memory = PersonalMemory(config.data_dir)
     calendar = CalendarStore(config.data_dir)
+    _merge_web_owners(config.data_dir)
     command_plugins = build_default_registry()
     action_queue = ActionQueue(config.data_dir)
     briefing_log = BriefingLog(config.data_dir)
@@ -575,6 +601,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     and await asyncio.to_thread(auth_store.credential_count) == 0
                 ),
                 "setup_token_configured": bool(config.admin_setup_token),
+                "password_login": await asyncio.to_thread(auth_store.has_password),
                 "authenticated": user_id is not None,
                 "user": (await asyncio.to_thread(auth_store.user, user_id))["display_name"] if user_id else None,
                 "is_admin": bool(user_id and await asyncio.to_thread(auth_store.is_admin, user_id)),
@@ -825,6 +852,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         base = config.public_origin or f"{request.url.scheme}://{request.headers.get('host', 'localhost:8501')}"
         return {"url": f"{base}/#link={token}", "expires_minutes": 10}
 
+    @app.post("/api/auth/password")
+    async def password_login(body: PasswordLogin, request: Request) -> Response:
+        """Password fallback for devices without a passkey. Rate-limited per user and client."""
+        client = request.client.host if request.client else "unknown"
+        result = await asyncio.to_thread(auth_store.check_password, body.username.strip().lower(), body.password, client)
+        if result == "locked":
+            raise HTTPException(status_code=429, detail="Too many attempts. Try again in 15 minutes.")
+        if result != "ok":
+            raise HTTPException(status_code=401, detail="Wrong username or password.")
+        user_id = body.username.strip().lower()
+        account = await asyncio.to_thread(auth_store.user, user_id)
+        response = JSONResponse({"authenticated": True, "user": str(account["display_name"]) if account else user_id})
+        set_session_cookie(response, request, await asyncio.to_thread(auth_store.create_session, user_id))
+        return response
+
     @app.post("/api/auth/logout")
     async def passkey_logout(request: Request) -> Response:
         token = request.cookies.get(SESSION_COOKIE)
@@ -971,8 +1013,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         due_meeting = False
         if conversation_id is not None:
             try:
-                meetings = await run_in_threadpool(calendar.list, conversation_id, 1, user_id=owner_id)
-                due_meeting = await run_in_threadpool(calendar.due_reminder, conversation_id, user_id=owner_id)
+                meetings = await run_in_threadpool(calendar.list, WEB_OWNER, 1, user_id=owner_id)
+                due_meeting = await run_in_threadpool(calendar.due_reminder, WEB_OWNER, user_id=owner_id)
             except ValueError as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
         return {
@@ -1016,7 +1058,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def get_memory(conversation_id: str, http_request: Request) -> dict[str, list[str]]:
         try:
             facts = await run_in_threadpool(
-                personal_memory.list, conversation_id, user_id=str(http_request.state.user_id)
+                personal_memory.list, WEB_OWNER, user_id=str(http_request.state.user_id)
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -1026,7 +1068,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def save_memory(request: MemoryRequest, http_request: Request) -> dict[str, bool]:
         try:
             created = await run_in_threadpool(
-                personal_memory.remember, request.conversation_id, request.fact,
+                personal_memory.remember, WEB_OWNER, request.fact,
                 user_id=str(http_request.state.user_id),
             )
         except ValueError as exc:
@@ -1037,7 +1079,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def forget_memory(conversation_id: str, query: str, http_request: Request) -> dict[str, int]:
         try:
             deleted = await run_in_threadpool(
-                personal_memory.forget, conversation_id, query, user_id=str(http_request.state.user_id)
+                personal_memory.forget, WEB_OWNER, query, user_id=str(http_request.state.user_id)
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -1047,7 +1089,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def get_calendar(conversation_id: str, http_request: Request) -> dict[str, list[dict]]:
         try:
             events = await run_in_threadpool(
-                calendar.list, conversation_id, user_id=str(http_request.state.user_id)
+                calendar.list, WEB_OWNER, user_id=str(http_request.state.user_id)
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -1059,7 +1101,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             parsed = datetime.fromisoformat(request.starts_at.replace("Z", "+00:00"))
             if parsed.tzinfo is None:
                 parsed = parsed.astimezone()
-            event = await run_in_threadpool(calendar.add, request.conversation_id, request.title,
+            event = await run_in_threadpool(calendar.add, WEB_OWNER, request.title,
                                             parsed, request.reminder_minutes, user_id=str(http_request.state.user_id))
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -1069,7 +1111,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def delete_calendar_event(event_id: int, conversation_id: str, http_request: Request) -> dict[str, bool]:
         try:
             deleted = await run_in_threadpool(
-                calendar.remove, conversation_id, event_id, user_id=str(http_request.state.user_id)
+                calendar.remove, WEB_OWNER, event_id, user_id=str(http_request.state.user_id)
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -1115,7 +1157,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 command_reply = await command_plugins.dispatch(
                     latest_user,
                     PluginContext(
-                        request.conversation_id, personal_memory, calendar, str(http_request.state.user_id)
+                        WEB_OWNER, personal_memory, calendar, str(http_request.state.user_id), history=history
                     ),
                 )
             except PluginExecutionError:
@@ -1147,7 +1189,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 for i, item in enumerate(request.messages)
             ]
             memory_items = await run_in_threadpool(
-                personal_memory.relevant, request.conversation_id, latest_user,
+                personal_memory.relevant, WEB_OWNER, latest_user,
                 user_id=str(http_request.state.user_id),
             )
             if memory_items:
@@ -1162,7 +1204,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 messages.insert(0, memory_context)
             action_view = action_queue.view()
             toolbox = Toolbox.for_registry(command_plugins, PluginContext(
-                request.conversation_id, personal_memory, calendar, str(http_request.state.user_id),
+                WEB_OWNER, personal_memory, calendar, str(http_request.state.user_id),
                 actions=action_view, history=history,
             ))
             if not request.stream:
@@ -1206,7 +1248,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not body.force and await asyncio.to_thread(briefing_log.sent_today, f"web_{user_id}"):
             return {"text": "", "already_sent": True}
         toolbox = Toolbox.for_registry(command_plugins, PluginContext(
-            body.conversation_id, personal_memory, calendar, user_id, history=history))
+            WEB_OWNER, personal_memory, calendar, user_id, history=history))
         try:
             reply = await brain.respond_with_tools([Message(role="user", content=briefing_prompt(briefing_city()))], toolbox)
         except BrainError as exc:
@@ -1224,7 +1266,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not body.approve:
             return {"text": f"Cancelled: {action.summary}."}
         toolbox = Toolbox.for_registry(command_plugins, PluginContext(
-            "actions", personal_memory, calendar, user_id, actions=action_queue.view(), history=history))
+            WEB_OWNER, personal_memory, calendar, user_id, actions=action_queue.view(), history=history))
         return {"text": await toolbox.run_approved(action)}
 
     @app.post("/api/voice/transcribe")

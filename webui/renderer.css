@@ -309,3 +309,6 @@ body.status-focus .system-tile strong{font-size:13px;line-height:1.4}
 .link-device{width:100%;margin:10px 0 0;border:1px solid rgba(255,190,83,.45);border-radius:999px;background:rgba(255,190,83,.08);color:#ffd894;padding:8px 10px;font:700 8px var(--font-ui);letter-spacing:.1em;cursor:pointer}
 .action-card button{white-space:nowrap;min-width:0;padding:6px 8px;letter-spacing:.06em;font-size:10px}
 .chat-message.action-card{max-width:100%;box-sizing:border-box}
+.auth-password{display:grid;gap:8px;margin-top:10px}.auth-password[hidden]{display:none}
+.auth-password input{padding:9px;border:1px solid rgba(76,206,229,.3);border-radius:8px;background:#06121b;color:#dffaff}
+.auth-password button{padding:9px;border:1px solid rgba(255,190,83,.5);border-radius:999px;background:rgba(255,190,83,.1);color:#ffd894;font:700 9px var(--font-ui);letter-spacing:.1em;cursor:pointer}

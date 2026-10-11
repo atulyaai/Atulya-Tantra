@@ -49,6 +49,11 @@
         <input id="auth-setup-token" type="password" autocomplete="one-time-code" spellcheck="false">
       </label>
       <button id="auth-activate" type="button">SIGN IN WITH PASSKEY</button>
+      <form class="auth-password" id="auth-password-form" hidden>
+        <input id="auth-username" autocomplete="username" placeholder="username" value="admin" spellcheck="false">
+        <input id="auth-password" type="password" autocomplete="current-password" placeholder="password">
+        <button type="submit">SIGN IN WITH PASSWORD</button>
+      </form>
       <label class="auth-setup-token" id="auth-invite-wrap" hidden>
         <span>INVITATION CODE</span>
         <input id="auth-invite-token" type="password" autocomplete="one-time-code" spellcheck="false">

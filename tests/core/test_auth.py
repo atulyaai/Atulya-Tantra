@@ -64,7 +64,7 @@ def test_private_api_requires_passkey_session_and_first_admin_setup_is_available
             auth = await client.get("/api/auth/status")
             assert auth.status_code == 200
             assert auth.json() == {
-                "setup_required": True, "setup_token_required": False, "setup_token_configured": False,
+                "setup_required": True, "setup_token_required": False, "setup_token_configured": False, "password_login": False,
                 "authenticated": False, "user": None, "is_admin": False,
             }
             assert (await client.get("/api/plugins")).status_code == 401
@@ -166,3 +166,18 @@ def test_device_links_add_a_passkey_to_the_same_account_once(project_temp_dir: P
     assert store.device_link(token) is None  # single use
     assert not store.add_credential(b"tablet", b"key3", 0, "[]", user_id="admin", device_token=token)
     assert store.device_link("not-a-real-token-value") is None
+
+
+def test_password_login_is_hashed_rate_limited_and_closes_first_setup(project_temp_dir: Path) -> None:
+    store = AuthStore(project_temp_dir)
+    assert store.credential_count() == 0
+    store.set_password("admin", "a-long-test-password")
+    assert store.credential_count() == 1  # first-time passkey setup is no longer open
+    with closing(sqlite3.connect(project_temp_dir / "auth.sqlite3")) as db:
+        raw = db.execute("SELECT hash FROM passwords").fetchone()[0]
+    assert b"a-long-test-password" not in bytes(raw)
+    assert store.check_password("admin", "a-long-test-password", "c1") == "ok"
+    for _ in range(5):
+        assert store.check_password("admin", "wrong", "c2") == "bad"
+    assert store.check_password("admin", "a-long-test-password", "c2") == "locked"
+    assert store.check_password("admin", "a-long-test-password", "c1") == "ok"
