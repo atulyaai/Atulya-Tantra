@@ -107,3 +107,84 @@ def main(enable: bool = False, disable: bool = False) -> int:
     print(f"Serve status:\n{serving or '  (not serving)'}")
     print("Run with --enable to serve Atulya at " + origin)
     return 0
+
+
+# --- Cloudflare Tunnel: a public HTTPS hostname on your own domain ----------------
+
+CLOUDFLARED_DIR = PROJECT_ROOT / "models" / "runtime" / "cloudflared"
+TUNNEL_NAME = "atulya"
+
+
+def cloudflared_binary(download: bool = False) -> str | None:
+    found = shutil.which("cloudflared")
+    if found:
+        return found
+    name = "cloudflared.exe" if platform.system() == "Windows" else "cloudflared"
+    local = CLOUDFLARED_DIR / name
+    if local.is_file():
+        return str(local)
+    if not download:
+        return None
+    import urllib.request
+
+    machine = platform.machine().lower()
+    arch = "arm64" if machine in {"arm64", "aarch64"} else "amd64"
+    asset = {"Windows": f"cloudflared-windows-{arch}.exe", "Linux": f"cloudflared-linux-{arch}"}.get(platform.system())
+    if asset is None:
+        print("On macOS install it with:  brew install cloudflared")
+        return None
+    url = f"https://github.com/cloudflare/cloudflared/releases/latest/download/{asset}"
+    print(f"Downloading Cloudflare's tunnel client from {url} …")
+    CLOUDFLARED_DIR.mkdir(parents=True, exist_ok=True)
+    partial = local.with_suffix(".part")
+    urllib.request.urlretrieve(url, partial)
+    partial.replace(local)
+    if platform.system() != "Windows":
+        local.chmod(0o755)
+    return str(local)
+
+
+def cloudflare(hostname: str) -> int:
+    binary = cloudflared_binary(download=True)
+    if binary is None:
+        return 1
+    cert = Path.home() / ".cloudflared" / "cert.pem"
+    if not cert.is_file():
+        print("One-time step (needs you): a browser window opens — sign in to Cloudflare and pick the domain "
+              f"for {hostname}. Then run this command again.")
+        subprocess.run([binary, "tunnel", "login"], timeout=600)
+        if not cert.is_file():
+            return 1
+    listed = _run(binary, "tunnel", "list", "--output", "json")
+    tunnels = json.loads(listed.stdout or "[]") if listed.returncode == 0 else []
+    if not any(item.get("name") == TUNNEL_NAME for item in tunnels):
+        created = _run(binary, "tunnel", "create", TUNNEL_NAME)
+        if created.returncode != 0:
+            print("Could not create the tunnel:\n  " + (created.stderr or created.stdout)[:400])
+            return 1
+    routed = _run(binary, "tunnel", "route", "dns", "--overwrite-dns", TUNNEL_NAME, hostname)
+    if routed.returncode != 0:
+        print("Could not point DNS at the tunnel:\n  " + (routed.stderr or routed.stdout)[:400])
+        return 1
+    port = os.environ.get("ATULYA_PORT", "8501").strip() or "8501"
+    set_env("ATULYA_PUBLIC_ORIGIN", f"https://{hostname}")
+    set_env("ATULYA_TRUSTED_PROXY_IPS", "127.0.0.1,::1")
+    set_env("ATULYA_CLOUDFLARE_TUNNEL", TUNNEL_NAME)
+    set_env("ATULYA_CLOUDFLARE_URL", f"http://127.0.0.1:{port}")
+    print(f"Done. https://{hostname} will serve Atulya whenever the PC host runs "
+          "(it starts the tunnel automatically). Restart Atulya now.")
+    print("Strongly recommended: in Cloudflare Zero Trust, add an Access application for this hostname "
+          "allowing only your email — a second lock in front of Atulya's own sign-in.")
+    return 0
+
+
+def start_tunnel() -> subprocess.Popen | None:
+    """Run the configured tunnel next to the server (called by `atulya.cli pc-host`)."""
+    name = os.environ.get("ATULYA_CLOUDFLARE_TUNNEL", "").strip()
+    binary = cloudflared_binary() if name else None
+    if not binary:
+        return None
+    url = os.environ.get("ATULYA_CLOUDFLARE_URL", "http://127.0.0.1:8501")
+    flags = 0x08000000 if platform.system() == "Windows" else 0  # no console window
+    return subprocess.Popen([binary, "tunnel", "--no-autoupdate", "run", "--url", url, name],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)

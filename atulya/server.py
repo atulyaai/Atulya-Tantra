@@ -9,6 +9,7 @@ import json
 import logging
 import time
 import hmac
+import secrets
 from http.cookies import SimpleCookie
 from collections import defaultdict, deque
 from datetime import datetime
@@ -186,7 +187,7 @@ class SessionAuthMiddleware:
             await self.app(scope, receive, send)
             return
         path = scope.get("path", "")
-        if not path.startswith("/api/") or path in self.PUBLIC_PATHS:
+        if not path.startswith("/api/") or path in self.PUBLIC_PATHS or path.startswith("/api/auth/login-requests"):
             await self.app(scope, receive, send)
             return
         headers = {key.lower(): value for key, value in scope.get("headers", [])}
@@ -230,6 +231,37 @@ class ChatMessage(BaseModel):
 class BriefingRequest(BaseModel):
     conversation_id: str = Field(default="briefing", min_length=1, max_length=120)
     force: bool = False
+
+
+class LoginRequestBody(BaseModel):
+    username: str = Field(default="admin", min_length=1, max_length=64)
+
+
+class LoginCodeBody(BaseModel):
+    code: str = Field(min_length=1, max_length=40)
+
+
+_NUMBER_WORDS = {
+    "zero": "0", "oh": "0", "one": "1", "two": "2", "to": "2", "too": "2", "three": "3", "four": "4", "for": "4",
+    "five": "5", "six": "6", "seven": "7", "eight": "8", "nine": "9",
+    "shunya": "0", "ek": "1", "do": "2", "teen": "3", "char": "4", "chaar": "4", "paanch": "5", "panch": "5",
+    "chhe": "6", "che": "6", "saat": "7", "aath": "8", "nau": "9",
+    "शून्य": "0", "एक": "1", "दो": "2", "तीन": "3", "चार": "4", "पांच": "5", "पाँच": "5", "छह": "6", "छः": "6",
+    "सात": "7", "आठ": "8", "नौ": "9",
+}
+
+
+def spoken_digits(text: str) -> str:
+    """Digits from a spoken code: '4 7 2', 'four seven two', 'चार सात दो' all work."""
+    import re as _re
+
+    out = []
+    for token in _re.findall(r"\d+|[^\W\d_]+", text.lower()):
+        if token.isdigit():
+            out.append(token)
+        elif token in _NUMBER_WORDS:
+            out.append(_NUMBER_WORDS[token])
+    return "".join(out)
 
 
 class PasswordLogin(BaseModel):
@@ -553,6 +585,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         app.state.warm_task = asyncio.create_task(asyncio.to_thread(load))
 
+        async def keep_home_weather_fresh() -> None:
+            """Refresh every profile's home-city weather so the common question answers instantly."""
+            from tools.plugins.information.weather import FORECAST_TTL, weather
+
+            while True:
+                try:
+                    cities = await asyncio.to_thread(profiles.cities)
+                    for city in cities:
+                        await weather(city)
+                except Exception as exc:
+                    logging.getLogger(__name__).info("Weather prefetch skipped (%s)", type(exc).__name__)
+                await asyncio.sleep(FORECAST_TTL - 30)
+
+        app.state.weather_task = asyncio.create_task(keep_home_weather_fresh())
+
     app.router.add_event_handler("startup", warm_models)
     app.router.add_event_handler("shutdown", stop_telegram)
     if brain is not None:
@@ -860,6 +907,85 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         token = await asyncio.to_thread(auth_store.create_device_link, user_id)
         base = config.public_origin or f"{request.url.scheme}://{request.headers.get('host', 'localhost:8501')}"
         return {"url": f"{base}/#link={token}", "expires_minutes": 10}
+
+    async def deliver_login_code(user_id: str, code: str, label: str) -> list[str]:
+        channels = []
+        text = (f"Atulya sign-in code: {code}\nRequested from {label}. It expires in 5 minutes. "
+                "If this wasn't you, ignore it — or deny it on a signed-in device.")
+        if user_id == "admin" and await telegram.notify(text):
+            channels.append("Telegram")
+        from tools.plugins.communications import email_notify
+
+        if user_id == "admin" and await asyncio.to_thread(email_notify.send, "Atulya sign-in code", text):
+            channels.append("email")
+        return channels
+
+    def _client_label(request: Request) -> str:
+        agent = request.headers.get("user-agent", "")
+        device = ("Android phone" if "Android" in agent else "iPhone" if "iPhone" in agent else
+                  "Mac" if "Macintosh" in agent else "Windows PC" if "Windows" in agent else
+                  "Linux PC" if "Linux" in agent else "a browser")
+        return f"{device} ({request.client.host if request.client else 'unknown'})"
+
+    @app.post("/api/auth/login-requests")
+    async def start_login_request(body: LoginRequestBody, request: Request) -> dict[str, object]:
+        """Ask to sign in on this device: code to Telegram/email + approve card on signed-in devices."""
+        user_id = body.username.strip().lower()
+        client = request.client.host if request.client else "unknown"
+        label = _client_label(request)
+        try:
+            created = await asyncio.to_thread(auth_store.create_login_request, user_id, client, label)
+        except ValueError as exc:
+            raise HTTPException(status_code=429, detail=str(exc)) from exc
+        if created is None:
+            # Same answer as success, so usernames can't be probed.
+            return {"id": secrets.token_urlsafe(18), "channels": [], "expires_in": 300}
+        request_id, code = created
+        channels = await deliver_login_code(user_id, code, label)
+        return {"id": request_id, "channels": channels + ["signed-in devices"], "expires_in": 300}
+
+    async def _finish_login(request_id: str, code: str | None, request: Request) -> Response:
+        user_id = await asyncio.to_thread(auth_store.redeem_login, request_id, code)
+        if user_id is None:
+            row = await asyncio.to_thread(auth_store.login_request, request_id)
+            state = row["state"] if row is not None and row["expires_at"] > time.time() else "expired"
+            return JSONResponse({"authenticated": False, "state": state}, status_code=200 if code is None else 401)
+        response = JSONResponse({"authenticated": True})
+        set_session_cookie(response, request, await asyncio.to_thread(auth_store.create_session, user_id))
+        return response
+
+    @app.get("/api/auth/login-requests/{request_id}")
+    async def poll_login_request(request_id: str, request: Request) -> Response:
+        return await _finish_login(request_id, None, request)
+
+    @app.post("/api/auth/login-requests/{request_id}/code")
+    async def code_login(request_id: str, body: LoginCodeBody, request: Request) -> Response:
+        return await _finish_login(request_id, "".join(ch for ch in body.code if ch.isdigit())[:6], request)
+
+    @app.post("/api/auth/login-requests/{request_id}/voice")
+    async def voice_code_login(request_id: str, request: Request, audio: UploadFile = File(...)) -> Response:
+        """Speak the code: transcribed locally, digits checked server-side; the transcript is never returned."""
+        data = await audio.read(2 * 1024 * 1024 + 1)
+        if len(data) > 2 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="Keep it short: just say the six digits.")
+        try:
+            heard = await run_in_threadpool(voice.transcribe, data, content_type=audio.content_type or "audio/webm",
+                                            language="")
+        except VoiceError as exc:
+            raise HTTPException(status_code=503, detail="Voice is unavailable; type the code instead.") from exc
+        return await _finish_login(request_id, spoken_digits(heard)[:6], request)
+
+    @app.get("/api/auth/pending-logins")
+    async def list_pending_logins(http_request: Request) -> dict[str, list[dict]]:
+        rows = await asyncio.to_thread(auth_store.pending_logins, str(http_request.state.user_id))
+        return {"requests": [{"id": row["id"], "label": row["label"]} for row in rows]}
+
+    @app.post("/api/auth/pending-logins/{request_id}")
+    async def decide_pending_login(request_id: str, body: ActionDecision, http_request: Request) -> dict[str, bool]:
+        decided = await asyncio.to_thread(auth_store.decide_login, request_id, str(http_request.state.user_id), body.approve)
+        if not decided:
+            raise HTTPException(status_code=404, detail="That sign-in request expired or was already handled.")
+        return {"approved": body.approve}
 
     @app.post("/api/auth/password")
     async def password_login(body: PasswordLogin, request: Request) -> Response:

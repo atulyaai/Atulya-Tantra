@@ -38,6 +38,7 @@ def main() -> None:
     remote = commands.add_parser("remote", help="reach Atulya from your devices anywhere via Tailscale")
     remote.add_argument("--enable", action="store_true", help="serve Atulya over private HTTPS on your tailnet")
     remote.add_argument("--disable", action="store_true", help="stop serving on your tailnet")
+    remote.add_argument("--cloudflare", metavar="HOSTNAME", help="public HTTPS on your domain via Cloudflare Tunnel")
     args = parser.parse_args()
     if args.command == "set-password":
         import getpass
@@ -68,8 +69,10 @@ def main() -> None:
 
         raise SystemExit(selftest_main(actions=args.actions))
     if args.command == "remote":
-        from tools.remote_access import main as remote_main
+        from tools.remote_access import cloudflare, main as remote_main
 
+        if args.cloudflare:
+            raise SystemExit(cloudflare(args.cloudflare.strip().lower()))
         raise SystemExit(remote_main(enable=args.enable, disable=args.disable))
     if args.command == "mcp":
         try:
@@ -137,6 +140,14 @@ def main() -> None:
         except Exception as exc:
             raise SystemExit(f"Atulya local chat setup failed: {exc}") from exc
 
+    tunnel = None
+    if args.command == "pc-host":
+        from tools.remote_access import start_tunnel
+
+        tunnel = start_tunnel()
+        if tunnel is not None:
+            logging.getLogger(__name__).info("Cloudflare tunnel started for %s", settings.public_origin)
+
     import uvicorn
     try:
         uvicorn.run(
@@ -151,6 +162,8 @@ def main() -> None:
     finally:
         if runtime is not None:
             runtime.stop()
+        if tunnel is not None:
+            tunnel.terminate()
 
 
 if __name__ == "__main__":

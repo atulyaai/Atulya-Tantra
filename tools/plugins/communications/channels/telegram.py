@@ -117,6 +117,21 @@ class TelegramChannel:
         self._reminder_task = None
         self._briefing_task = None
 
+    async def notify(self, text: str) -> int:
+        """Send a message to every allowlisted owner; works even while polling is in conflict."""
+        if not self._token or not self._allowed:
+            return 0
+        sent = 0
+        async with httpx.AsyncClient(timeout=httpx.Timeout(10, connect=5)) as client:
+            for user_id in sorted(self._allowed):
+                try:
+                    response = await client.post(self._url("sendMessage"), json={"chat_id": user_id, "text": text[:4000]})
+                    response.raise_for_status()
+                    sent += 1
+                except httpx.HTTPError:
+                    logger.warning("Telegram notification could not be delivered")
+        return sent
+
     def _url(self, method: str) -> str:
         return f"https://api.telegram.org/bot{self._token}/{method}"
 

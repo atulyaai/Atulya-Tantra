@@ -10,9 +10,9 @@
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icons/icon-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <link rel="stylesheet" href="./renderer.css?v=atulya-38">
+  <link rel="stylesheet" href="./renderer.css?v=atulya-39">
   <script type="module" crossorigin src="./renderer.js?v=atulya-10"></script>
-  <script defer src="./assistant.js?v=atulya-48"></script>
+  <script defer src="./assistant.js?v=atulya-49"></script>
 </head>
 <body>
   <div id="root"></div>
@@ -49,6 +49,12 @@
         <input id="auth-setup-token" type="password" autocomplete="one-time-code" spellcheck="false">
       </label>
       <button id="auth-activate" type="button">SIGN IN WITH PASSKEY</button>
+      <button id="auth-code-start" class="auth-code-start" type="button">SIGN IN WITH A CODE</button>
+      <div class="auth-code" id="auth-code" hidden>
+        <p id="auth-code-status">Sending a code…</p>
+        <input id="auth-code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code">
+        <div><button id="auth-code-submit" type="button">CONFIRM CODE</button><button id="auth-code-say" type="button">SAY CODE</button></div>
+      </div>
       <form class="auth-password" id="auth-password-form" hidden>
         <input id="auth-username" autocomplete="username" placeholder="username" value="admin" spellcheck="false">
         <input id="auth-password" type="password" autocomplete="current-password" placeholder="password">

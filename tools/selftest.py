@@ -131,6 +131,27 @@ def main(actions: bool = False) -> int:
                     client.put("/api/profile", json={"preferred_name": before.get("preferred_name", "")})
             _timed(report, "profile learned by chat", profile)
 
+            def code_login():
+                # A throwaway user, so no real Telegram/email code is sent to the owner.
+                user_id, _invite = store.create_invitation("Selftest device")
+                trusted = store.create_session(user_id)
+                try:
+                    with httpx.Client(base_url=base, timeout=60) as stranger:
+                        started = stranger.post("/api/auth/login-requests", json={"username": user_id}).json()
+                        wrong = stranger.post(f"/api/auth/login-requests/{started['id']}/code", json={"code": "123456"})
+                        pending = client.cookies.get("atulya_session")
+                        with httpx.Client(base_url=base, cookies={"atulya_session": trusted}, timeout=30) as owner:
+                            listed = owner.get("/api/auth/pending-logins").json()["requests"]
+                            owner.post(f"/api/auth/pending-logins/{started['id']}", json={"approve": True})
+                        done = stranger.get(f"/api/auth/login-requests/{started['id']}").json()
+                        signed_in = stranger.get("/api/auth/status").json().get("authenticated")
+                    ok = wrong.status_code == 401 and len(listed) == 1 and done.get("authenticated") and signed_in and pending
+                    return bool(ok), f"wrong code rejected · approval card shown · new device signed in={signed_in}", None
+                finally:
+                    store.revoke_session(trusted)
+                    store.disable_user(user_id)
+            _timed(report, "sign in with code / approval", code_login)
+
             def voice_round_trip():
                 phrase = "Atulya, please set a reminder for the meeting tomorrow."
                 wav = client.post("/api/voice/synthesize", json={"text": phrase, "language": "en"}, timeout=120)

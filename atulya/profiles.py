@@ -15,14 +15,17 @@ from contextlib import closing
 from pathlib import Path
 
 CHOICES = {
-    "language": ("auto", "english", "hindi", "hinglish"),
-    "tone": ("friendly", "formal", "brief", "witty", "jarvis"),
+    # Any language Whisper can hear; local Supertonic speaks English/Hindi, others use the browser voice.
+    "language": ("auto", "english", "hindi", "hinglish", "marathi", "bengali", "gujarati", "punjabi", "tamil",
+                 "telugu", "kannada", "malayalam", "urdu", "nepali", "spanish", "french", "german", "portuguese",
+                 "italian", "russian", "arabic", "turkish", "japanese", "korean", "chinese", "indonesian"),
+    "tone": ("atulya", "friendly", "formal", "brief", "witty"),
     "length": ("short", "normal", "detailed"),
     "safety": ("ask_all", "ask_risky"),
 }
 TEXT_FIELDS = {"preferred_name": 40, "city": 60, "about": 600, "work_style": 300}
 VOICE_EDITABLE = {"preferred_name", "city", "about", "work_style", "language", "tone", "length"}
-DEFAULTS = {"language": "auto", "tone": "jarvis", "length": "short", "safety": "ask_all"}
+DEFAULTS = {"language": "auto", "tone": "atulya", "length": "short", "safety": "ask_all"}
 
 
 def validate(field: str, value: str) -> str:
@@ -52,7 +55,22 @@ class ProfileStore:
             stored = json.loads(row[0]) if row else {}
         except ValueError:
             stored = {}
+        if stored.get("tone") == "jarvis":  # renamed default style
+            stored["tone"] = "atulya"
         return {**DEFAULTS, **{k: v for k, v in stored.items() if k in CHOICES or k in TEXT_FIELDS}}
+
+    def cities(self) -> list[str]:
+        with closing(sqlite3.connect(self.path)) as db:
+            rows = db.execute("SELECT data FROM profiles").fetchall()
+        found = []
+        for (data,) in rows:
+            try:
+                city = json.loads(data).get("city", "")
+            except ValueError:
+                continue
+            if city and city not in found:
+                found.append(city)
+        return found[:10]
 
     def update(self, user_id: str, changes: dict[str, str], *, allow_safety: bool = False) -> dict[str, str]:
         profile = self.get(user_id)
@@ -73,14 +91,14 @@ def profile_instructions(profile: dict[str, str]) -> str:
         "formal": "polite and formal",
         "brief": "terse, no small talk",
         "witty": "light and witty, still precise",
-        "jarvis": "calm, capable, lightly witty, like a trusted butler-engineer; address the user respectfully",
-    }[profile.get("tone", "jarvis")]
+        "atulya": "calm, capable and warm, lightly witty, like a trusted personal aide; address the user respectfully",
+    }.get(profile.get("tone", "atulya"), "calm, capable and warm")
+    chosen = profile.get("language", "auto")
     language = {
         "auto": "Reply in the language the user used.",
-        "english": "Reply in English.",
         "hindi": "Reply in Hindi (Devanagari).",
         "hinglish": "Reply in natural Hinglish (Hindi-English mix, Latin script).",
-    }[profile.get("language", "auto")]
+    }.get(chosen, f"Reply in {chosen.title()}.")
     length = {"short": "Keep answers to 1-3 sentences unless asked for more; replies are often spoken aloud.",
               "normal": "Use moderate length.", "detailed": "Give thorough answers."}[profile.get("length", "short")]
     lines = [f"Style: {tone}. {language} {length}"]

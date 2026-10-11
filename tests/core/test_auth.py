@@ -203,3 +203,27 @@ def test_secrets_are_encrypted_and_reloaded(project_temp_dir: Path, monkeypatch)
     assert load_protected(project_temp_dir) == 1
     import os
     assert os.environ["OPENROUTER_API_KEY"] == "sk-or-test-1234567890"
+
+
+def test_login_by_code_is_single_use_limited_and_approvable(project_temp_dir: Path) -> None:
+    from atulya.server import spoken_digits
+
+    store = AuthStore(project_temp_dir)
+    store.set_password("admin", "a-long-test-password")
+    request_id, code = store.create_login_request("admin", "1.2.3.4", "phone")
+    assert store.redeem_login(request_id, None) is None  # still pending
+    wrong = "000000" if code != "000000" else "111111"
+    for _ in range(5):
+        assert store.redeem_login(request_id, wrong) is None
+    assert store.redeem_login(request_id, code) is None  # locked after 5 wrong tries
+
+    request_id, code = store.create_login_request("admin", "5.6.7.8", "laptop")
+    assert store.redeem_login(request_id, code) == "admin"
+    assert store.redeem_login(request_id, code) is None  # single use
+
+    request_id, _ = store.create_login_request("admin", "9.9.9.9", "tablet")
+    assert not store.decide_login(request_id, "someone-else", True)
+    assert store.decide_login(request_id, "admin", True)
+    assert store.redeem_login(request_id, None) == "admin"
+    assert store.create_login_request("ghost", "1.1.1.1", "x") is None
+    assert spoken_digits("four seven 2, nau एक 0") == "472910"

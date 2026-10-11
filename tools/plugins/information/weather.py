@@ -1,18 +1,45 @@
-"""Current weather lookup using Open-Meteo's public APIs."""
+"""Current weather lookup using Open-Meteo's public APIs.
+
+Speed: one shared keep-alive client, place lookups cached for the process lifetime,
+and forecasts cached for 10 minutes (Open-Meteo updates current conditions every 15).
+"""
+import time
+
 import httpx
+
+_client: httpx.AsyncClient | None = None
+_places: dict[str, dict | None] = {}
+_forecasts: dict[tuple[float, float], tuple[float, dict]] = {}
+FORECAST_TTL = 600
+
+
+def _http() -> httpx.AsyncClient:
+    global _client
+    if _client is None or _client.is_closed:
+        _client = httpx.AsyncClient(timeout=httpx.Timeout(8, connect=4), follow_redirects=False,
+                                    limits=httpx.Limits(max_keepalive_connections=4, keepalive_expiry=120))
+    return _client
 
 
 async def weather(city: str) -> str:
     city = city.strip()
     if not city or len(city) > 100:
         raise ValueError("Tell me the city, for example: weather in Bengaluru")
-    async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
+    client = _http()
+    key = city.casefold()
+    if key not in _places:
         geo = await client.get("https://geocoding-api.open-meteo.com/v1/search", params={"name": city, "count": 1, "language": "en", "format": "json"})
         geo.raise_for_status()
         results = geo.json().get("results") or []
-        if not results:
-            return f"I couldn't find a location named {city}."
-        place = results[0]
+        _places[key] = results[0] if results else None
+    place = _places[key]
+    if place is None:
+        return f"I couldn't find a location named {city}."
+    coords = (round(place["latitude"], 2), round(place["longitude"], 2))
+    cached = _forecasts.get(coords)
+    if cached and time.monotonic() - cached[0] < FORECAST_TTL:
+        current = cached[1]
+    else:
         forecast = await client.get("https://api.open-meteo.com/v1/forecast", params={
             "latitude": place["latitude"], "longitude": place["longitude"],
             "current": "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m",
@@ -20,6 +47,7 @@ async def weather(city: str) -> str:
         })
         forecast.raise_for_status()
         current = forecast.json().get("current", {})
+        _forecasts[coords] = (time.monotonic(), current)
     code = int(current.get("weather_code", -1))
     conditions = {0:"clear",1:"mostly clear",2:"partly cloudy",3:"overcast",45:"foggy",48:"foggy",
                   51:"light drizzle",53:"drizzle",55:"heavy drizzle",61:"light rain",63:"rain",65:"heavy rain",

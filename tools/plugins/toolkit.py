@@ -240,8 +240,8 @@ TOOLS: tuple[Tool, ...] = (
          _params({"url": {"type": "string", "description": "Full http(s) URL"}}, ["url"]),
          _pc("open_url"), "pc-control", True, True, lambda a: f"Open website: {a.get('url', '')}"),
     Tool("update_profile", "Save a lasting user preference: preferred_name, city, language "
-         "(auto/english/hindi/hinglish), tone (friendly/formal/brief/witty/jarvis), length (short/normal/detailed), "
-         "work_style, or about.",
+         "(auto, english, hindi, hinglish, marathi, tamil, spanish, … lowercase name), tone "
+         "(atulya/friendly/formal/brief/witty), length (short/normal/detailed), work_style, or about.",
          _params({"field": {"type": "string", "enum": ["preferred_name", "city", "language", "tone", "length",
                                                         "work_style", "about"]},
                   "value": {"type": "string"}}, ["field", "value"]),

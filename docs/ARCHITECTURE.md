@@ -33,7 +33,6 @@ Plugins implement capabilities that can be replaced or disabled without changing
 | `tools/plugins/productivity/` | Calendar and reminders |
 | `tools/plugins/information/` | Weather and news lookup |
 | `tools/plugins/utilities/` | Calculator and clock |
-| `tools/plugins/entertainment/` | Reserved for optional entertainment tools |
 
 `tools/bootstrap.py` prepares the environment and assets; `tools/diagnostics/` contains opt-in operational probes. A plugin should expose a small interface, declare its dependencies and configuration, fail with a safe actionable status, and never print credentials.
 

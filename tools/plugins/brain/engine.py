@@ -11,6 +11,27 @@ from .textcalls import TextCallFilter
 from .types import BrainError, BrainReply, Message, ToolCall
 
 
+_FILLERS = {
+    "get_weather": "Checking the weather.",
+    "get_news": "Pulling up the headlines.",
+    "calculate": "",
+    "get_time": "",
+    "recall_memories": "Let me check what I remember.",
+    "search_past_chats": "Looking through our past conversations.",
+    "list_meetings": "Checking your calendar.",
+    "add_meeting": "Adding that to your calendar.",
+    "search_files": "Searching your files.",
+    "use_skill": "On it.",
+}
+
+
+def _tool_filler(calls) -> str:
+    """A short spoken acknowledgement for slow tools; empty for instant ones."""
+    phrases = [_FILLERS.get(call.name, "One moment.") for call in calls]
+    phrases = [phrase for phrase in dict.fromkeys(phrases) if phrase]
+    return (" ".join(phrases[:2]) + " ") if phrases else ""
+
+
 class Brain:
     """Turn conversation text into a model reply.
 
@@ -131,6 +152,12 @@ class Brain:
                     yield leftover
                 if not calls:
                     return
+                if not text_parts:
+                    # Say something immediately so voice users hear a reply while tools run.
+                    filler = _tool_filler(calls)
+                    if filler:
+                        text_parts.append(filler)
+                        yield filler
                 results = await asyncio.gather(*(toolbox.call(call.name, call.arguments) for call in calls))
                 messages.append(Message(role="assistant", content="".join(text_parts), tool_calls=tuple(calls)))
                 messages.extend(

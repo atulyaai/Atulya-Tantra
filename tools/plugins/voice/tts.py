@@ -42,6 +42,19 @@ def model_assets_ready(models_dir: Path) -> bool:
     )
 
 
+_EMOJI = re.compile("[\U0001F000-\U0001FAFF☀-➿️‍]+")
+
+
+def speakable(text: str) -> str:
+    """Drop emoji and markdown symbols so the voice never reads them out."""
+    text = _EMOJI.sub("", text)
+    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)  # [label](url) -> label
+    text = re.sub(r"https?://\S+", "", text)
+    text = re.sub(r"[*_`#>|~]+", "", text)
+    text = text.replace(" ", " ").replace(" ", " ").replace("×", " times ")
+    return re.sub(r"\s+", " ", text).strip()
+
+
 class LocalSupertonicTTS:
     """Create bilingual local speech on demand; no audio leaves the device."""
 
@@ -88,7 +101,7 @@ class LocalSupertonicTTS:
         return self._engine
 
     def synthesize(self, text: str, *, language: str = "auto", speaker_id: int | None = None) -> bytes:
-        clean = text.strip()
+        clean = speakable(text)
         if not clean or len(clean) > 1000:
             raise VoiceError("Speech text must contain 1 to 1000 characters.")
         language_code = language.strip().lower()

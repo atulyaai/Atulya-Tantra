@@ -65,6 +65,17 @@ class AuthStore:
                     count INTEGER NOT NULL,
                     first_at INTEGER NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS login_requests (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    code_hash TEXT NOT NULL,
+                    client TEXT NOT NULL,
+                    label TEXT NOT NULL,
+                    state TEXT NOT NULL DEFAULT 'pending',
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    created_at INTEGER NOT NULL,
+                    expires_at INTEGER NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS device_links (
                     token_hash TEXT PRIMARY KEY,
                     user_id TEXT NOT NULL,
@@ -209,6 +220,68 @@ class AuthStore:
                     "INSERT INTO login_failures(key,count,first_at) VALUES(?,1,?) "
                     "ON CONFLICT(key) DO UPDATE SET count=count+1", (failure_key, now))
             return "bad"
+
+    # --- sign-in by approval or one-time code ------------------------------
+    # A new device asks to sign in; the code goes to the user's other channels
+    # (Telegram, email) and signed-in devices get an approve/deny card. Codes are
+    # hashed, single-use, 5 minutes, 5 attempts; at most 3 open requests per user.
+    def create_login_request(self, user_id: str, client: str, label: str) -> tuple[str, str] | None:
+        now = int(time.time())
+        with self._session() as db:
+            if not db.execute("SELECT 1 FROM users WHERE id=? AND disabled_at IS NULL", (user_id,)).fetchone():
+                return None
+            db.execute("DELETE FROM login_requests WHERE expires_at<?", (now - 3600,))
+            open_count = db.execute("SELECT COUNT(*) FROM login_requests WHERE user_id=? AND state='pending' "
+                                    "AND expires_at>?", (user_id, now)).fetchone()[0]
+            recent = db.execute("SELECT 1 FROM login_requests WHERE client=? AND created_at>?",
+                                (client, now - 30)).fetchone()
+            if open_count >= 3 or recent:
+                raise ValueError("Too many sign-in requests. Wait a moment and try again.")
+            request_id = secrets.token_urlsafe(18)
+            code = f"{secrets.randbelow(10 ** 6):06d}"
+            db.execute("INSERT INTO login_requests(id,user_id,code_hash,client,label,created_at,expires_at) "
+                       "VALUES(?,?,?,?,?,?,?)", (request_id, user_id, self._token_hash(code), client, label[:80],
+                                                 now, now + 300))
+        return request_id, code
+
+    def login_request(self, request_id: str) -> sqlite3.Row | None:
+        with self._session() as db:
+            return db.execute("SELECT * FROM login_requests WHERE id=?", (request_id,)).fetchone()
+
+    def pending_logins(self, user_id: str) -> list[sqlite3.Row]:
+        with self._session() as db:
+            return db.execute("SELECT id,label,client,created_at FROM login_requests WHERE user_id=? AND "
+                              "state='pending' AND expires_at>? ORDER BY created_at DESC",
+                              (user_id, int(time.time()))).fetchall()
+
+    def decide_login(self, request_id: str, approver: str, approve: bool) -> bool:
+        with self._session() as db:
+            cursor = db.execute("UPDATE login_requests SET state=? WHERE id=? AND user_id=? AND state='pending' "
+                                "AND expires_at>?", ("approved" if approve else "denied", request_id, approver,
+                                                     int(time.time())))
+            return cursor.rowcount == 1
+
+    def redeem_login(self, request_id: str, code: str | None) -> str | None:
+        """Return the user id once: when approved, or when the code matches. Then the request is spent."""
+        now = int(time.time())
+        with self._session() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT * FROM login_requests WHERE id=?", (request_id,)).fetchone()
+            if row is None or row["expires_at"] < now or row["state"] not in {"pending", "approved"}:
+                return None
+            if row["state"] == "approved":
+                db.execute("UPDATE login_requests SET state='used' WHERE id=?", (request_id,))
+                return str(row["user_id"])
+            if code is None:
+                return None
+            if row["attempts"] >= 5:
+                db.execute("UPDATE login_requests SET state='denied' WHERE id=?", (request_id,))
+                return None
+            if secrets.compare_digest(self._token_hash(code), row["code_hash"]):
+                db.execute("UPDATE login_requests SET state='used' WHERE id=?", (request_id,))
+                return str(row["user_id"])
+            db.execute("UPDATE login_requests SET attempts=attempts+1 WHERE id=?", (request_id,))
+            return None
 
     def create_device_link(self, user_id: str) -> str:
         """One-time, 10-minute code that lets a signed-in user add a passkey on another device/address."""

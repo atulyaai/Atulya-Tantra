@@ -1116,7 +1116,19 @@
     }, 350);
   }
 
-  function speakWithBrowser(text, detail = "Using the browser's built-in speech voice.") {
+  // Never read emoji, markdown symbols or links aloud.
+  function speakableText(text) {
+    return String(text || "")
+      .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, "")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .replace(/https?:\/\/\S+/g, "")
+      .replace(/[*_`#>|~]+/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function speakWithBrowser(rawText, detail = "Using the browser's built-in speech voice.") {
+    const text = speakableText(rawText);
     if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
       speaking = false;
       clearSpokenReply();
@@ -1970,6 +1982,123 @@
     if (!verifyResponse.ok) throw new Error(verifyBody.detail || "Passkey verification failed.");
     return verifyBody;
   }
+
+
+  // ---- Sign in with a code (Telegram / email / approval on a signed-in device) ----
+  let loginRequestId = "";
+  let loginPoll = 0;
+  const codeBox = document.getElementById("auth-code");
+  const codeStatus = document.getElementById("auth-code-status");
+  const codeInput = document.getElementById("auth-code-input");
+
+  async function finishCodeLogin(response) {
+    const body = await response.json().catch(() => ({}));
+    if (body.authenticated) {
+      window.clearInterval(loginPoll);
+      loginRequestId = "";
+      authDialog.close();
+      document.body.classList.remove("auth-required");
+      await refreshAuthState();
+      return true;
+    }
+    if (body.state === "denied" || body.state === "expired") {
+      window.clearInterval(loginPoll);
+      codeStatus.textContent = body.state === "denied" ? "Sign-in was denied or locked. Start again." : "The code expired. Start again.";
+    }
+    return false;
+  }
+
+  document.getElementById("auth-code-start")?.addEventListener("click", async () => {
+    codeBox.hidden = false;
+    codeStatus.textContent = "Sending a code…";
+    try {
+      const response = await fetch("/api/auth/login-requests", {
+        method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ username: document.getElementById("auth-username")?.value || "admin" }), cache: "no-store",
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.detail || "Could not start sign-in.");
+      loginRequestId = body.id;
+      codeStatus.textContent = `Code sent to ${body.channels.join(", ")}. Type or say it, or approve on a signed-in device. Expires in 5 minutes.`;
+      codeInput.focus();
+      window.clearInterval(loginPoll);
+      loginPoll = window.setInterval(async () => {
+        if (!loginRequestId) return;
+        await finishCodeLogin(await fetch(`/api/auth/login-requests/${encodeURIComponent(loginRequestId)}`, { cache: "no-store" }));
+      }, 2000);
+    } catch (error) {
+      codeStatus.textContent = error.message;
+    }
+  });
+
+  document.getElementById("auth-code-submit")?.addEventListener("click", async () => {
+    if (!loginRequestId) return;
+    const ok = await finishCodeLogin(await fetch(`/api/auth/login-requests/${encodeURIComponent(loginRequestId)}/code`, {
+      method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ code: codeInput.value }), cache: "no-store",
+    }));
+    if (!ok) codeStatus.textContent = "That code didn't match. Check it and try again.";
+  });
+  codeInput?.addEventListener("keydown", (event) => { if (event.key === "Enter") document.getElementById("auth-code-submit").click(); });
+
+  document.getElementById("auth-code-say")?.addEventListener("click", async () => {
+    if (!loginRequestId || !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return;
+    const button = document.getElementById("auth-code-say");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      const chunks = [];
+      const recorder = new MediaRecorder(stream);
+      recorder.ondataavailable = (event) => { if (event.data?.size) chunks.push(event.data); };
+      button.disabled = true;
+      button.textContent = "LISTENING… 5s";
+      recorder.start();
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      await new Promise((resolve) => { recorder.onstop = resolve; recorder.stop(); });
+      stream.getTracks().forEach((track) => track.stop());
+      const form = new FormData();
+      form.append("audio", new Blob(chunks, { type: recorder.mimeType || "audio/webm" }), "code.webm");
+      codeStatus.textContent = "Checking what you said…";
+      const ok = await finishCodeLogin(await fetch(`/api/auth/login-requests/${encodeURIComponent(loginRequestId)}/voice`, { method: "POST", body: form }));
+      if (!ok) codeStatus.textContent = "I couldn't match that. Say the six digits clearly, or type them.";
+    } catch {
+      codeStatus.textContent = "Microphone unavailable here. Type the code instead.";
+    } finally {
+      button.disabled = false;
+      button.textContent = "SAY CODE";
+    }
+  });
+
+  // Signed-in devices: show and announce sign-in requests from other devices.
+  const shownLoginRequests = new Set();
+  async function checkPendingLogins() {
+    if (document.body.classList.contains("auth-required")) return;
+    try {
+      const response = await fetch("/api/auth/pending-logins", { headers: { Accept: "application/json" }, cache: "no-store" });
+      if (!response.ok) return;
+      for (const item of (await response.json()).requests || []) {
+        if (shownLoginRequests.has(item.id)) continue;
+        shownLoginRequests.add(item.id);
+        const card = document.createElement("div");
+        card.className = "chat-message action-card";
+        card.innerHTML = "<strong>SIGN-IN REQUEST</strong><span></span><div><button class=\"approve\" type=\"button\">APPROVE</button><button type=\"button\">DENY</button></div>";
+        card.querySelector("span").textContent = `Someone wants to sign in from ${item.label}.`;
+        const [approve, deny] = card.querySelectorAll("button");
+        const decide = async (yes) => {
+          approve.disabled = deny.disabled = true;
+          card.dataset.state = yes ? "approved" : "denied";
+          await fetch(`/api/auth/pending-logins/${encodeURIComponent(item.id)}`, {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ approve: yes }),
+          }).catch(() => {});
+        };
+        approve.addEventListener("click", () => decide(true));
+        deny.addEventListener("click", () => decide(false));
+        messagesNode.append(card);
+        messagesNode.scrollTop = messagesNode.scrollHeight;
+        if (!speaking) speak(`Someone is asking to sign in from ${item.label}. Approve only if it's you.`);
+      }
+    } catch { /* offline; try again next tick */ }
+  }
+  window.setInterval(checkPendingLogins, 3000);
 
   document.getElementById("auth-password-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
