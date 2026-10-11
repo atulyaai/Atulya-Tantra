@@ -152,3 +152,42 @@ def test_telegram_mini_app_signature_is_verified(tmp_path) -> None:
     assert channel.web_identity("111") == "owner" and channel.web_identity("999") is None
     assert channel.verify_webapp_data(good.replace("AJ", "XX")) is None          # tampered
     assert channel.verify_webapp_data(signed(int(time.time()) - 200000)) is None  # expired
+
+
+def test_telegram_approve_button_runs_only_for_its_owner_once(tmp_path) -> None:
+    import asyncio
+
+    from atulya.history import ConversationHistory
+    from tools.plugins.communications.channels.telegram import TelegramChannel
+    from tools.plugins.productivity.reminders import ReminderStore
+    from tools.plugins.registry import build_default_registry
+    from tools.plugins.toolkit import ActionQueue
+
+    queue = ActionQueue(tmp_path)
+    channel = TelegramChannel(token="1:t", allowed_user_ids={"111", "222"}, brain=None, history=ConversationHistory(tmp_path),
+                              reminders=ReminderStore(tmp_path), status_summary=lambda: "", data_dir=tmp_path,
+                              command_plugins=build_default_registry(), personal_memory=object(), calendar=object(),
+                              actions=queue)
+    posts = []
+
+    class FakeClient:
+        async def post(self, url, json):
+            posts.append((url.rsplit("/", 1)[-1], json))
+
+            class Ok:
+                def raise_for_status(self):
+                    return None
+            return Ok()
+
+    action = queue.add("search_files", {"query": "zz-no-such-file-zz"}, "Search files for: zz", "tg_111")
+
+    async def press(user, data):
+        await channel._handle_callback(FakeClient(), {"id": "q", "from": {"id": user}, "data": data,
+                                                      "message": {"chat": {"id": user}, "message_id": 5}})
+    asyncio.run(press(222, f"act:{action.id}:1"))                 # another allowlisted user: refused
+    assert "expired or was already handled" in posts[-1][1]["text"]
+    action = queue.add("search_files", {"query": "zz-no-such-file-zz"}, "Search files for: zz", "tg_111")
+    asyncio.run(press(111, f"act:{action.id}:1"))
+    assert "No files matching" in posts[-1][1]["text"]
+    asyncio.run(press(111, f"act:{action.id}:1"))                 # single use
+    assert "expired or was already handled" in posts[-1][1]["text"]

@@ -592,6 +592,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         briefing_log=briefing_log,
         profiles=profiles,
         data_dir=config.data_dir,
+        actions=action_queue,
+        voice=voice,
+        webapp_url=(config.public_origin + "/") if config.public_origin else "",
     )
     app.state.telegram = telegram
 

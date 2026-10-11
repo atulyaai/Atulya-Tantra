@@ -59,6 +59,9 @@ class TelegramChannel:
         briefing_log=None,
         profiles=None,
         data_dir=None,
+        actions=None,
+        voice=None,
+        webapp_url: str = "",
     ) -> None:
         self._token = token.strip()
         self._allowed = {value for value in allowed_user_ids if value.isdigit()}
@@ -71,6 +74,10 @@ class TelegramChannel:
         self._calendar = calendar
         self._briefing_log = briefing_log
         self._profiles = profiles
+        self._actions = actions          # shared approval queue (PC actions)
+        self._voice = voice              # local Whisper for voice notes
+        self._webapp_url = webapp_url    # Mini App button on every reply
+        self._pending_cards: list = []
         self._members_path = (data_dir / "telegram_members.json") if data_dir else None
         self._briefing_task: asyncio.Task | None = None
         self._offset = 0
@@ -162,7 +169,7 @@ class TelegramChannel:
                 try:
                     response = await client.get(
                         self._url("getUpdates"),
-                        params={"timeout": 30, "offset": self._offset, "allowed_updates": '["message"]'},
+                        params={"timeout": 30, "offset": self._offset, "allowed_updates": '["message","callback_query"]'},
                     )
                     response.raise_for_status()
                     body = response.json()
@@ -174,7 +181,10 @@ class TelegramChannel:
                     self._failures = 0
                     for update in body.get("result", []):
                         self._offset = max(self._offset, int(update.get("update_id", 0)) + 1)
-                        await self._handle_message(client, update.get("message", {}))
+                        if "callback_query" in update:
+                            await self._handle_callback(client, update["callback_query"])
+                        else:
+                            await self._handle_message(client, update.get("message", {}))
                 except asyncio.CancelledError:
                     raise
                 except httpx.HTTPStatusError as exc:
@@ -254,11 +264,7 @@ class TelegramChannel:
             except Exception:
                 reply = "I couldn't answer that just now. Please try again."
         self._guest_usage[user_id] = (today, used + 1)
-        try:
-            response = await client.post(self._url("sendMessage"), json={"chat_id": chat_id, "text": reply[:4000]})
-            response.raise_for_status()
-        except httpx.HTTPError:
-            return
+        await self._send(client, chat_id, reply)
 
     # --- registered Telegram members ---------------------------------------------
     def web_identity(self, telegram_id: str) -> str | None:
@@ -326,10 +332,55 @@ class TelegramChannel:
         self._save_member(user_id, member)
         return f"{member.get('name', user_id)} is now {member['state']}."
 
-    async def _send(self, client: httpx.AsyncClient, chat_id: str, text: str) -> None:
+    async def _send(self, client: httpx.AsyncClient, chat_id: str, text: str, buttons: list | None = None) -> None:
+        """Send a reply; every message carries an 'Open Atulya' Mini App button when one is configured."""
+        rows = list(buttons or [])
+        if self._webapp_url and not buttons:
+            rows.append([{"text": "Open Atulya", "web_app": {"url": self._webapp_url}}])
+        payload = {"chat_id": chat_id, "text": text[:4000]}
+        if rows:
+            payload["reply_markup"] = {"inline_keyboard": rows}
         try:
-            response = await client.post(self._url("sendMessage"), json={"chat_id": chat_id, "text": text[:4000]})
+            response = await client.post(self._url("sendMessage"), json=payload)
             response.raise_for_status()
+        except httpx.HTTPError:
+            pass  # never log bot URLs, tokens or chat ids
+
+    async def _transcribe_voice(self, client: httpx.AsyncClient, voice: dict) -> str:
+        if self._voice is None or int(voice.get("file_size", 0) or 0) > 20 * 1024 * 1024:
+            return ""
+        try:
+            info = (await client.get(self._url("getFile"), params={"file_id": voice.get("file_id", "")})).json()
+            path = info.get("result", {}).get("file_path", "")
+            audio = (await client.get(f"https://api.telegram.org/file/bot{self._token}/{path}")).content
+            return (await asyncio.to_thread(self._voice.transcribe, audio,
+                                            content_type=voice.get("mime_type") or "audio/ogg", language="")).strip()
+        except Exception as exc:
+            logger.info("Voice note could not be transcribed (%s)", type(exc).__name__)
+            return ""
+
+    async def _handle_callback(self, client: httpx.AsyncClient, query: dict) -> None:
+        """Approve/Deny buttons for PC actions; only the owner who triggered the action can decide."""
+        user_id = str((query.get("from") or {}).get("id", ""))
+        data = str(query.get("data", ""))
+        answer = "Not allowed."
+        if user_id in self._allowed and data.startswith("act:") and self._actions is not None:
+            _, action_id, approve = (data.split(":") + ["", ""])[:3]
+            action = self._actions.take(action_id, f"tg_{user_id}")
+            if action is None:
+                answer = "That request expired or was already handled."
+            elif approve != "1":
+                answer = f"Cancelled: {action.summary}."
+            else:
+                toolbox = Toolbox.for_registry(self._command_plugins, PluginContext(
+                    f"tg{user_id}", self._personal_memory, self._calendar, f"tg_{user_id}", actions=self._actions.view()))
+                answer = await toolbox.run_approved(action)
+        try:
+            await client.post(self._url("answerCallbackQuery"), json={"callback_query_id": query.get("id"), "text": answer[:190]})
+            message = query.get("message") or {}
+            if message.get("chat"):
+                await client.post(self._url("editMessageText"), json={
+                    "chat_id": message["chat"]["id"], "message_id": message.get("message_id"), "text": answer[:4000]})
         except httpx.HTTPError:
             pass
 
@@ -363,6 +414,11 @@ class TelegramChannel:
         if chat.get("type") != "private" or not user_id.isdigit() or not chat_id.lstrip("-").isdigit():
             return
         text = str(message.get("text") or "").strip()
+        if not text and (message.get("voice") or message.get("audio")):
+            text = await self._transcribe_voice(client, message.get("voice") or message.get("audio"))
+            if not text:
+                await self._send(client, chat_id, "I couldn't make out that voice note. Try again or type it.")
+                return
         if not text:
             return
         if user_id not in self._allowed:
@@ -374,10 +430,8 @@ class TelegramChannel:
         command = command_parts[0].split("@", 1)[0].lower()
         command_args = command_parts[1] if len(command_parts) > 1 else ""
         if command in {"/start", "/help"}:
-            reply = (
-                "Atulya is connected. Send a message to chat. Commands: /status, /reminders, "
-                "/remind 10m take a break. Use 10m, 2h, 1d, or an ISO date/time."
-            )
+            reply = ("Atulya is here. Type or send a voice note. Tap Open Atulya for the full app. "
+                     "Commands: /status, /reminders, /remind 10m take a break, /members, /approve <id>, /deny <id>.")
         elif command == "/status":
             reply = self._status_summary()
         elif command == "/reminders":
@@ -402,12 +456,12 @@ class TelegramChannel:
                     reply = "That feature is unavailable right now."
             if reply is None:
                 reply = await self._answer(user_id, message_id, text)
-        try:
-            response = await client.post(self._url("sendMessage"), json={"chat_id": chat_id, "text": reply[:4000]})
-            response.raise_for_status()
-        except httpx.HTTPError:
-            # Do not write bot URLs, tokens, or user chat IDs to logs.
-            return
+        await self._send(client, chat_id, reply)
+        cards, self._pending_cards = self._pending_cards, []
+        for action in cards:
+            await self._send(client, chat_id, f"Approval needed: {action.summary}", buttons=[
+                [{"text": "✅ Approve", "callback_data": f"act:{action.id}:1"},
+                 {"text": "✖ Deny", "callback_data": f"act:{action.id}:0"}]])
 
     async def _answer(self, user_id: str, message_id: str, text: str) -> str:
         if self._brain is None:
@@ -419,11 +473,14 @@ class TelegramChannel:
             conversation = [Message(role=row["role"], content=row["content"]) for row in saved if row["role"] in {"user", "assistant"}]
             conversation.append(Message(role="user", content=text))
             if self._command_plugins is not None and self._personal_memory is not None and self._calendar is not None:
+                view = self._actions.view() if self._actions is not None else None
                 toolbox = Toolbox.for_registry(self._command_plugins, PluginContext(
                     conversation_id, self._personal_memory, self._calendar, scoped_user, history=self._history,
-                    profile=self._profiles))
+                    profile=self._profiles, actions=view))
                 reply = await self._brain.respond_with_tools(conversation, toolbox,
                                                              system_instructions=self._style(scoped_user))
+                if view is not None:
+                    self._pending_cards.extend(view.created)
             else:
                 reply = await self._brain.respond(conversation)
         except Exception:
