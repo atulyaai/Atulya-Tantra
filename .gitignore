@@ -1,0 +1,87 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+venv/
+.venv/
+.venv-*/
+
+# Testing
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.benchmarks/
+# scratch dirs pytest and agents create while running the suite
+*-test-tmp/
+.pytest-tmp/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+*.crt
+# The maintainer's own addresses, for tools/audit_personal_values.py only.
+# It looks for them in this checkout; nothing else may ever carry them.
+tools/.personal-values
+
+# Data / outputs
+*.model
+*.bin
+*.gguf
+*.safetensors
+checkpoints/
+
+# Node / webui
+node_modules/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Portable runtime (models, binaries, venv) — downloaded by install/setup
+runtime/
+
+# Runtime scratch / generated reports
+tmp/
+/.startup-tmp/
+
+.claude/
+
+# Everything Atulya learns and stores on your machine (memory, accounts, logs, tokens)
+data/
+*.sqlite3
+*.sqlite3-*
+*.db
+# Local speech models and generated voice files.
+models/
+# the old name of data/, moved to data/ automatically on first start
+kosh/
+outputs/
+
+# examples: downloaded models and your own measurements
+examples/models/
+examples/results.md
+
+
+
+
+
+# Legacy data path from earlier local configuration; remove after migrating .env to data/.
+assets/
+
+# Third-party scene artwork and renderer bundle with unconfirmed license
+# (see webui/ATTRIBUTION.txt). Kept locally only; replaced by the Atulya hologram.
+webui/scene/
+webui/renderer.js

@@ -1,0 +1,12 @@
+Atulya WebUI — artwork and renderer provenance
+
+Atulya branding
+- The Atulya name, mark, page shell, and custom WebUI styles are part of the Atulya-Tantra project and are covered by the repository LICENSE.
+
+Artwork
+- The background and humanoid state images were supplied in the project's local scene bundle. They are reused byte-for-byte; only filenames and runtime display treatment differ.
+- The artwork source and redistribution license were not included with the bundle. Do not claim authorship or remove this notice until the original author and license are confirmed.
+
+Animation renderer
+- The WebGL renderer is adapted from the existing local offline WebUI bundle. Its image paths and Atulya branding were updated for this project. Camera and hand-tracking code was removed; the entry screen and visible controls are disabled.
+- The bundled JavaScript retains embedded third-party license notices, including the Three.js MIT notice. Keep those notices intact and confirm the upstream bundle's licensing before public redistribution.

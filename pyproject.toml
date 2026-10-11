@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "atulya-tantra"
+dynamic = ["version"]
+description = "Atulya — a configurable assistant with a direct WebUI and pluggable model providers"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.100",
+    "httpx>=0.24",
+    "pydantic>=2.0",
+    "python-dotenv>=1.0",
+    "python-multipart>=0.0.9",
+    "uvicorn>=0.23",
+    "webauthn>=2.2,<3",
+]
+
+[project.optional-dependencies]
+voice = [
+    "faster-whisper>=1.1",
+    "av>=11,<19",
+    "sherpa-onnx>=1.13.8,<2",
+]
+mcp = [
+    "mcp==2.3.0",
+]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.1",
+]
+
+[project.scripts]
+atulya = "atulya.cli:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "atulya.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["atulya*", "tools*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F"]
+ignore = ["E501", "E402"]

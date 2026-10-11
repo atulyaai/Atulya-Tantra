@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#050b12">
+  <meta name="description" content="Atulya — a more natural way to work.">
+  <title>Atulya</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="stylesheet" href="./renderer.css?v=atulya-36">
+  <script type="module" crossorigin src="./renderer.js?v=atulya-10"></script>
+  <script defer src="./assistant.js?v=atulya-47"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <aside class="system-dashboard" id="system-dashboard" aria-label="Atulya system status">
+    <header class="system-dashboard-header"><span class="system-pulse" aria-hidden="true"></span><div><strong>SYSTEM</strong><small id="system-overview">CONNECTING</small></div></header>
+    <div class="system-status-grid">
+      <section class="system-tile" data-status-key="service"><span>SERVICE</span><strong>Connecting</strong></section>
+      <section class="system-tile" data-status-key="model"><span>MODEL</span><strong>Connecting</strong></section>
+      <section class="system-tile" data-status-key="voice"><span>VOICE · STT</span><strong>Connecting</strong></section>
+      <section class="system-tile" data-status-key="speech"><span>SPEECH · TTS</span><strong>Browser</strong></section>
+      <section class="system-tile" data-status-key="vision"><span>VISION</span><strong>Off</strong></section>
+      <section class="system-tile" data-status-key="gesture"><span>GESTURE</span><strong>Off</strong></section>
+      <section class="system-tile system-tile-wide" data-status-key="telegram"><span>TELEGRAM</span><strong>Checking</strong></section>
+      <section class="system-tile system-tile-wide" data-status-key="reminder"><span>NEXT REMINDER</span><strong>None scheduled</strong></section>
+      <section class="system-tile system-tile-wide" data-status-key="calendar"><span>NEXT MEETING</span><strong>None scheduled</strong></section>
+      <section class="system-tile system-tile-wide system-issue" data-status-key="issue"><span>ISSUES</span><strong>Checking</strong></section>
+    </div>
+  </aside>
+  <button class="layout-focus-exit" id="layout-focus-exit" type="button" hidden>EXIT FOCUS · ESC</button>
+  <button class="layout-voice-toggle" id="layout-voice-toggle" type="button" hidden aria-label="Start live voice conversation">VOICE</button>
+  <div class="layout-toast" id="layout-toast" role="status" aria-live="polite" hidden></div>
+  <dialog class="auth-dialog" id="auth-dialog" aria-labelledby="auth-title">
+    <div class="auth-card">
+      <div class="panel-mark" aria-hidden="true"><i></i><i></i><i></i></div>
+      <strong id="auth-title">ATULYA ACCESS</strong>
+      <p id="auth-message">Unlock this local session with your device passkey.</p>
+      <label class="auth-setup-token" id="auth-setup-token-wrap" hidden>
+        <span>ADMIN SETUP TOKEN</span>
+        <input id="auth-setup-token" type="password" autocomplete="one-time-code" spellcheck="false">
+      </label>
+      <button id="auth-activate" type="button">SIGN IN WITH PASSKEY</button>
+      <label class="auth-setup-token" id="auth-invite-wrap" hidden>
+        <span>INVITATION CODE</span>
+        <input id="auth-invite-token" type="password" autocomplete="one-time-code" spellcheck="false">
+      </label>
+      <button id="auth-join" type="button" hidden>JOIN WITH PASSKEY</button>
+      <p class="auth-footnote">Your passkey stays on your device. Windows Hello, Face ID, or a security key may be offered by your browser.</p>
+    </div>
+  </dialog>
+  <dialog class="history-dialog user-dialog" id="users-dialog" aria-labelledby="users-title">
+    <header><strong id="users-title">LOCAL USERS</strong><button id="close-users" type="button" aria-label="Close">×</button></header>
+    <p class="history-warning">Invitations expire after 24 hours. Each person enrolls their own passkey on this device.</p>
+    <form id="invite-user-form" class="invite-user-form">
+      <label>DISPLAY NAME<input id="invite-display-name" maxlength="80" required autocomplete="off"></label>
+      <button type="submit">CREATE INVITATION</button>
+    </form>
+    <div id="invite-result" class="invite-result" hidden></div>
+    <div id="users-list" class="users-list"></div>
+  </dialog>
+  <div class="session-stack">
+   <div class="vision-preview" id="camera-preview">
+      <div class="camera-region">
+        <video class="camera-feed" id="camera-feed" autoplay muted playsinline aria-label="Local camera preview"></video>
+        <button class="camera-toggle" id="camera-toggle" type="button" aria-pressed="false" aria-label="Toggle camera preview">
+          <span class="viewfinder" aria-hidden="true"><i></i><i></i><i></i><i></i><span class="viewfinder-core"></span></span>
+          <span class="preview-label"><span>CAMERA PREVIEW</span><b><i></i> CAMERA STARTING</b></span>
+        </button>
+        <select class="camera-device" id="camera-device" aria-label="Select camera" hidden></select>
+      </div>
+      <section class="gesture-region" id="gesture-region" data-state="setup" aria-label="Gesture recognition preparing" title="Hold thumbs up to send Yes, thumbs down to send No, or open palm to stop voice.">
+        <span class="gesture-copy" id="gesture-copy" aria-live="polite"><span>GESTURE</span><b id="gesture-result">PREPARING</b></span>
+      </section>
+    </div>
+  <aside class="assistant-panel" aria-label="Atulya live session">
+    <header class="panel-header">
+      <div class="panel-mark" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="panel-title"><strong>ATULYA</strong><span>LIVE SESSION</span></div>
+      <span class="connection-dot" id="connection-dot" aria-label="Connecting"></span>
+      <div class="history-tools" aria-label="Conversation archive controls">
+        <button id="add-passkey" type="button" title="Add a backup passkey" hidden>PASSKEY +</button>
+        <button id="manage-users" type="button" title="Manage local accounts" hidden>USERS</button>
+        <button id="sign-out" type="button" title="Lock this session" hidden>LOCK</button>
+        <button id="new-conversation" type="button" title="Start a new conversation">NEW</button>
+        <button id="open-history" type="button" title="Browse saved conversations">HISTORY</button>
+        <button id="open-plugins" type="button" title="Enable or disable built-in tools">TOOLS</button>
+      </div>
+    </header>
+    <div class="channel-status" aria-label="Available interaction modes">
+      <span class="channel-chip state-setup" id="text-channel" data-channel-name="Text" aria-label="Text channel setup required">TEXT</span>
+      <span class="channel-chip state-setup" id="voice-channel" data-channel-name="Voice" aria-label="Voice channel setup required">VOICE</span>
+      <span class="channel-chip state-off" id="vision-channel" data-channel-name="Vision" title="Vision is used on a message only while the camera is on" aria-label="Vision channel off">VISION</span>
+      <span class="channel-chip state-setup" id="gesture-channel" data-channel-name="Gesture" title="Gesture recognition is preparing" aria-label="Gesture channel setup required">GESTURE</span>
+    </div>
+    <div class="session-state" id="session-state" data-tone="busy">
+      <span class="status-orb" aria-hidden="true"><i></i><i></i><i></i></span>
+      <div class="status-copy"><span id="assistant-status">Connecting</span><span id="assistant-detail" aria-live="polite">Connecting to Atulya.</span></div>
+    </div>
+    <div id="chat-messages" class="chat-messages" aria-live="polite" aria-relevant="additions"></div>
+    <div id="wave-control" class="wave-control" role="button" tabindex="0" aria-label="Start live voice conversation" title="Activate once to allow microphone access. After that, phrases send automatically after a pause.">
+      <canvas id="voice-wave" aria-hidden="true"></canvas>
+      <span class="wave-help" id="wave-help">ACTIVATE ONCE · THEN AUTO SEND</span>
+    </div>
+    <form id="chat-form" class="chat-form" autocomplete="off">
+      <label class="visually-hidden" for="chat-prompt">Message Atulya</label>
+      <input id="chat-prompt" name="message" type="text" maxlength="20000" placeholder="Type a message…" autocomplete="off">
+    </form>
+    <p class="panel-footnote" id="history-status" data-state="waiting">LOCAL HISTORY · CONNECTING</p>
+  </aside>
+  </div>
+  <dialog id="history-dialog" class="history-dialog" aria-labelledby="history-title">
+    <header><strong id="history-title">CONVERSATION ARCHIVE</strong><button id="close-history" type="button" aria-label="Close archive">×</button></header>
+    <p class="history-warning">Saved locally on this device. Admin access uses a passkey.</p>
+    <div id="history-list" class="history-list"></div>
+    <footer><button id="open-history-selected" type="button">OPEN SELECTED</button><button id="export-history" type="button">EXPORT</button><button id="delete-history" type="button">DELETE</button></footer>
+  </dialog>
+  <dialog id="plugin-dialog" class="history-dialog" aria-labelledby="plugin-title">
+    <header><strong id="plugin-title">BUILT-IN TOOLS</strong><button id="close-plugins" type="button" aria-label="Close tools">×</button></header>
+    <p class="history-warning">These fixed local plugins power matching commands in WebUI and Telegram. Network tools may access the internet.</p>
+    <div id="plugin-list" class="history-list"></div>
+  </dialog>
+  <script>
+    if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
+      window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+    }
+  </script>
+</body>
+</html>

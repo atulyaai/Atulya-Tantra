@@ -1,0 +1,9 @@
+{
+  "id": "online-information",
+  "name": "Weather and headlines",
+  "version": "1.0.0",
+  "category": "information",
+  "enabled": true,
+  "commands": ["weather", "news", "headlines"],
+  "permissions": ["network"]
+}

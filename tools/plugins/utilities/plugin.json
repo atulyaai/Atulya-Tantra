@@ -1,0 +1,9 @@
+{
+  "id": "local-utilities",
+  "name": "Clock and calculator",
+  "version": "1.0.0",
+  "category": "utilities",
+  "enabled": true,
+  "commands": ["time", "calculate"],
+  "permissions": []
+}

@@ -1,0 +1,9 @@
+{
+  "id": "personal-memory",
+  "name": "Personal memory commands",
+  "version": "1.0.0",
+  "category": "personal",
+  "enabled": true,
+  "commands": ["remember", "forget", "recall memory"],
+  "permissions": ["local-data:read", "local-data:write"]
+}

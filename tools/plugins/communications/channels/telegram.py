@@ -1,0 +1,306 @@
+"""Allowlisted Telegram polling channel for chat, status, and reminders."""
+from __future__ import annotations
+
+import asyncio
+import logging
+import re
+from datetime import datetime, timedelta, timezone
+
+import httpx
+
+from tools.plugins.brain import Brain, Message
+from atulya.history import ConversationHistory
+from tools.plugins.productivity.reminders import ReminderStore
+from tools.plugins.registry import PluginContext, PluginExecutionError, PluginRegistry
+from tools.plugins.toolkit import Toolbox
+
+logger = logging.getLogger(__name__)
+
+def _parse_due(value: str, now: datetime | None = None) -> datetime:
+    """Parse `10m`, `2h`, `1d`, `in 20 minutes`, or an ISO date/time."""
+    current = now or datetime.now(timezone.utc)
+    compact = re.fullmatch(r"\s*(\d{1,4})\s*([mhd])\s*", value, re.I)
+    natural = re.fullmatch(r"\s*in\s+(\d{1,4})\s+(minutes?|hours?|days?)\s*", value, re.I)
+    if compact:
+        amount, unit = int(compact.group(1)), compact.group(2).lower()
+        delta = {"m": timedelta(minutes=amount), "h": timedelta(hours=amount), "d": timedelta(days=amount)}[unit]
+    elif natural:
+        amount, unit = int(natural.group(1)), natural.group(2).lower()[0]
+        delta = {"m": timedelta(minutes=amount), "h": timedelta(hours=amount), "d": timedelta(days=amount)}[unit]
+    else:
+        try:
+            parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError("Use 10m, 2h, 1d, 'in 20 minutes', or an ISO date/time.") from exc
+        return parsed.astimezone() if parsed.tzinfo is None else parsed
+    if amount < 1:
+        raise ValueError("Reminder time must be in the future.")
+    return current + delta
+
+
+class TelegramChannel:
+    """Long-poll Telegram only for explicitly allowlisted private user IDs."""
+
+    def __init__(
+        self,
+        *,
+        token: str,
+        allowed_user_ids: set[str],
+        brain: Brain | None,
+        history: ConversationHistory,
+        reminders: ReminderStore,
+        status_summary,
+        command_plugins: PluginRegistry | None = None,
+        personal_memory=None,
+        calendar=None,
+    ) -> None:
+        self._token = token.strip()
+        self._allowed = {value for value in allowed_user_ids if value.isdigit()}
+        self._brain = brain
+        self._history = history
+        self._reminders = reminders
+        self._status_summary = status_summary
+        self._command_plugins = command_plugins
+        self._personal_memory = personal_memory
+        self._calendar = calendar
+        self._offset = 0
+        self._poll_task: asyncio.Task | None = None
+        self._reminder_task: asyncio.Task | None = None
+        self._stopping = asyncio.Event()
+        self._connected = False
+        self._last_error = ""
+        self._failures = 0
+
+    @property
+    def configured(self) -> bool:
+        return bool(self._token and self._allowed)
+
+    @property
+    def state(self) -> str:
+        if not self._token:
+            return "off"
+        if not self._allowed:
+            return "setup"
+        return "ready" if self._connected else "setup"
+
+    @property
+    def status_label(self) -> str:
+        if not self._token:
+            return "Not configured"
+        if not self._allowed:
+            return "Access not paired"
+        return "Connected" if self._connected else self._last_error or "Connecting"
+
+    async def start(self) -> None:
+        if not self.configured or self._poll_task is not None:
+            return
+        self._stopping.clear()
+        self._poll_task = asyncio.create_task(self._poll(), name="atulya-telegram-poll")
+        self._reminder_task = asyncio.create_task(self._deliver_reminders(), name="atulya-reminders")
+
+    async def stop(self) -> None:
+        self._stopping.set()
+        tasks = [task for task in (self._poll_task, self._reminder_task) if task is not None]
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self._poll_task = None
+        self._reminder_task = None
+
+    def _url(self, method: str) -> str:
+        return f"https://api.telegram.org/bot{self._token}/{method}"
+
+    async def _poll(self) -> None:
+        timeout = httpx.Timeout(40, connect=10)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            # Start after the latest queued update so an app restart does not
+            # unexpectedly replay old messages or send stale bot replies.
+            try:
+                backlog = await client.get(self._url("getUpdates"), params={"timeout": 0})
+                backlog.raise_for_status()
+                body = backlog.json()
+                if body.get("ok"):
+                    self._offset = max(
+                        (int(item.get("update_id", 0)) + 1 for item in body.get("result", [])),
+                        default=0,
+                    )
+            except (httpx.HTTPError, ValueError, TypeError, KeyError):
+                pass
+            except Exception as exc:
+                logger.error("Telegram backlog check failed (%s)", type(exc).__name__)
+            while not self._stopping.is_set():
+                try:
+                    response = await client.get(
+                        self._url("getUpdates"),
+                        params={"timeout": 30, "offset": self._offset, "allowed_updates": '["message"]'},
+                    )
+                    response.raise_for_status()
+                    body = response.json()
+                    if not body.get("ok"):
+                        await self._poll_failed(body.get("error_code"))
+                        continue
+                    self._connected = True
+                    self._last_error = ""
+                    self._failures = 0
+                    for update in body.get("result", []):
+                        self._offset = max(self._offset, int(update.get("update_id", 0)) + 1)
+                        await self._handle_message(client, update.get("message", {}))
+                except asyncio.CancelledError:
+                    raise
+                except httpx.HTTPStatusError as exc:
+                    await self._poll_failed(exc.response.status_code)
+                except (httpx.HTTPError, ValueError, TypeError, KeyError):
+                    await self._poll_failed(None)
+                except Exception as exc:
+                    self._connected = False
+                    self._last_error = "Telegram service recovering"
+                    logger.error("Telegram polling recovered from an error (%s)", type(exc).__name__)
+                    await asyncio.sleep(5)
+
+    async def _poll_failed(self, status_code: int | None) -> None:
+        """Back off exponentially and log each distinct failure kind once, never per retry."""
+        self._connected = False
+        self._failures += 1
+        if status_code == 409:
+            error = "Polling conflict"
+            hint = ("another program is polling this bot token (or a webhook is set); "
+                    "stop the other copy or rotate the token in @BotFather")
+        elif status_code in {401, 404}:
+            error = "Bot access denied"
+            hint = "the bot token was rejected; update ATULYA_TELEGRAM_BOT_TOKEN"
+        else:
+            error, hint = "Connection unavailable", "network or Telegram is unreachable"
+        if error != self._last_error:
+            logger.warning("Telegram polling paused: %s", hint)
+        self._last_error = error
+        delay = 300 if error == "Bot access denied" else min(60, 3 * 2 ** min(self._failures - 1, 5))
+        try:
+            await asyncio.wait_for(self._stopping.wait(), timeout=delay)
+        except asyncio.TimeoutError:
+            pass
+
+    async def _handle_message(self, client: httpx.AsyncClient, message: dict) -> None:
+        sender = message.get("from") or {}
+        chat = message.get("chat") or {}
+        user_id = str(sender.get("id", ""))
+        chat_id = str(chat.get("id", ""))
+        if chat.get("type") != "private" or user_id not in self._allowed or not chat_id.lstrip("-").isdigit():
+            return
+        text = str(message.get("text") or "").strip()
+        if not text:
+            return
+        message_id = str(message.get("message_id", ""))
+        command_parts = text.split(maxsplit=1)
+        command = command_parts[0].split("@", 1)[0].lower()
+        command_args = command_parts[1] if len(command_parts) > 1 else ""
+        if command in {"/start", "/help"}:
+            reply = (
+                "Atulya is connected. Send a message to chat. Commands: /status, /reminders, "
+                "/remind 10m take a break. Use 10m, 2h, 1d, or an ISO date/time."
+            )
+        elif command == "/status":
+            reply = self._status_summary()
+        elif command == "/reminders":
+            items = await asyncio.to_thread(self._reminders.list_for_user, user_id)
+            reply = self._format_reminders(items)
+        elif command == "/remind":
+            reply = await self._create_reminder(user_id, chat_id, command_args.strip())
+        else:
+            reply = None
+            if self._command_plugins is not None and self._personal_memory is not None and self._calendar is not None:
+                try:
+                    reply = await self._command_plugins.dispatch(
+                        text, PluginContext(f"tg{user_id}", self._personal_memory, self._calendar, f"tg_{user_id}")
+                    )
+                except PluginExecutionError:
+                    reply = "That feature is unavailable right now."
+            if reply is None:
+                reply = await self._answer(user_id, message_id, text)
+        try:
+            response = await client.post(self._url("sendMessage"), json={"chat_id": chat_id, "text": reply[:4000]})
+            response.raise_for_status()
+        except httpx.HTTPError:
+            # Do not write bot URLs, tokens, or user chat IDs to logs.
+            return
+
+    async def _answer(self, user_id: str, message_id: str, text: str) -> str:
+        if self._brain is None:
+            return "Text chat is not available right now."
+        conversation_id = f"tg{user_id}"
+        try:
+            scoped_user = f"tg_{user_id}"
+            saved = await asyncio.to_thread(self._history.read, conversation_id, 30, scoped_user)
+            conversation = [Message(role=row["role"], content=row["content"]) for row in saved if row["role"] in {"user", "assistant"}]
+            conversation.append(Message(role="user", content=text))
+            if self._command_plugins is not None and self._personal_memory is not None and self._calendar is not None:
+                toolbox = Toolbox.for_registry(self._command_plugins, PluginContext(
+                    conversation_id, self._personal_memory, self._calendar, scoped_user))
+                reply = await self._brain.respond_with_tools(conversation, toolbox)
+            else:
+                reply = await self._brain.respond(conversation)
+        except Exception:
+            return "I couldn't complete that reply. Please try again in a moment."
+        try:
+            await asyncio.to_thread(self._history.append, conversation_id, f"u{message_id}", "user", text, scoped_user)
+            await asyncio.to_thread(self._history.append, conversation_id, f"a{message_id}", "assistant", reply.text, scoped_user)
+        except ValueError:
+            pass
+        return reply.text
+
+    async def _create_reminder(self, user_id: str, chat_id: str, payload: str) -> str:
+        natural = re.fullmatch(r"(in\s+\d{1,4}\s+(?:minutes?|hours?|days?))\s+(.+)", payload, re.I)
+        parts = [natural.group(1), natural.group(2)] if natural else payload.split(maxsplit=1)
+        if len(parts) != 2:
+            return "Use /remind 10m take a break, /remind 2h call home, or an ISO date/time."
+        try:
+            due_at = _parse_due(parts[0])
+            if due_at <= datetime.now(timezone.utc):
+                return "That time has already passed. Choose a future time."
+            await asyncio.to_thread(self._reminders.add, user_id, chat_id, parts[1], due_at)
+        except ValueError as exc:
+            return str(exc)
+        local_time = due_at.astimezone().strftime("%b %d at %I:%M %p %Z")
+        return f"Reminder saved for {local_time}: {parts[1].strip()}"
+
+    @staticmethod
+    def _format_reminders(items: list[dict]) -> str:
+        if not items:
+            return "No upcoming reminders. Add one with /remind 10m take a break."
+        rows = ["Upcoming reminders:"]
+        for item in items:
+            due = datetime.fromisoformat(str(item["due_at"])).astimezone().strftime("%b %d, %I:%M %p %Z")
+            rows.append(f"• {due} — {item['message']}")
+        return "\n".join(rows)
+
+    async def _deliver_reminders(self) -> None:
+        timeout = httpx.Timeout(15, connect=10)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            while not self._stopping.is_set():
+                try:
+                    due = await asyncio.to_thread(self._reminders.claim_due)
+                    for reminder in due:
+                        reminder_id = int(reminder["id"])
+                        if str(reminder["user_id"]) not in self._allowed:
+                            await asyncio.to_thread(self._reminders.mark_failed, reminder_id)
+                            continue
+                        try:
+                            text = f"Reminder: {reminder['message']}"
+                            response = await client.post(
+                                self._url("sendMessage"),
+                                json={"chat_id": reminder["chat_id"], "text": text[:4000]},
+                            )
+                            response.raise_for_status()
+                            await asyncio.to_thread(self._reminders.mark_delivered, reminder_id)
+                        except asyncio.CancelledError:
+                            raise
+                        except Exception as exc:
+                            await asyncio.to_thread(self._reminders.retry_failed, reminder_id)
+                            logger.error("Telegram reminder delivery failed (%s)", type(exc).__name__)
+                except asyncio.CancelledError:
+                    raise
+                except (httpx.HTTPError, ValueError, TypeError):
+                    pass
+                except Exception as exc:
+                    logger.error("Telegram reminder loop recovered from an error (%s)", type(exc).__name__)
+                await asyncio.sleep(10)

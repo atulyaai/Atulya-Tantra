@@ -1,0 +1,9 @@
+{
+  "id": "productivity-calendar",
+  "name": "Calendar commands",
+  "version": "1.0.0",
+  "category": "productivity",
+  "enabled": true,
+  "commands": ["add meeting", "list meetings"],
+  "permissions": ["local-data:read", "local-data:write"]
+}
