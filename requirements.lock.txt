@@ -35,7 +35,7 @@ click==8.5.0
     # via
     #   huggingface-hub
     #   uvicorn
-colorama==0.4.6
+colorama==0.4.6 ; sys_platform == "win32"
     # via
     #   pytest
     #   tqdm
@@ -143,7 +143,7 @@ python-multipart==0.0.32
     # via
     #   atulya-tantra (pyproject.toml)
     #   mcp
-pywin32==312
+pywin32==312 ; sys_platform == "win32"
     # via mcp
 pyyaml==6.0.3
     # via

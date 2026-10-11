@@ -49,12 +49,13 @@ jobs:
           "$PY" -m atulya.cli doctor
           "$PY" -m atulya.cli serve > server.log 2>&1 &
           for i in $(seq 1 60); do
-            if curl -fsS http://localhost:8501/api/health; then echo; break; fi
+            if curl -fsS http://127.0.0.1:8501/api/health -H "Host: localhost"; then echo; break; fi
             sleep 2
           done
-          curl -fsS http://localhost:8501/api/health | grep -q '"status":"ok"'
-          curl -fsS http://localhost:8501/ | grep -q "system-dashboard"
-          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8501/api/chat -H 'Content-Type: application/json' -d '{"messages":[{"role":"user","content":"hi"}],"conversation_id":"ci"}')" = "401"
+          echo "---- server log ----"; cat server.log; echo "--------------------"
+          curl -fsS -H 'Host: localhost' http://127.0.0.1:8501/api/health | grep -q '"status":"ok"'
+          curl -fsS -H 'Host: localhost' http://127.0.0.1:8501/ | grep -q "system-dashboard"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8501/api/chat -H 'Host: localhost' -H 'Content-Type: application/json' -d '{"messages":[{"role":"user","content":"hi"}],"conversation_id":"ci"}')" = "401"
           echo "Server healthy; WebUI served; chat requires sign-in."
 
       - name: Server log on failure
