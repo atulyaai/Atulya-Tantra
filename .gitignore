@@ -86,3 +86,9 @@ android/.gradle/
 android/build/
 android/app/build/
 android/local.properties
+
+# Local working notes (never publish)
+FINAL_SUMMARY.md
+ISSUE_ANALYSIS.md
+ssh-fix-plan.md
+*-plan.md

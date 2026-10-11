@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls", "delegate_permission/common.get_login_creds"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.atulvij.atulya",
+    "sha256_cert_fingerprints": ["25:63:C1:00:8F:22:4F:31:48:1F:03:18:FA:8D:7B:97:CA:8C:2B:C2:0D:EC:BD:1D:EE:C0:F4:C0:FB:32:BF:E2"]
+  }
+}]

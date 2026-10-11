@@ -472,8 +472,8 @@ def _merge_web_owners(data_dir) -> None:
         if not path.is_file():
             continue
         with closing(sqlite3.connect(path)) as db, db:
-            db.execute(f"UPDATE OR IGNORE {table} SET owner=? WHERE owner<>? AND owner NOT GLOB 'tg[0-9]*'",
-                       (WEB_OWNER, WEB_OWNER))
+            db.execute(f"UPDATE {table} SET owner=? WHERE owner<>? AND owner NOT GLOB 'tg[0-9]*'",
+           (WEB_OWNER, WEB_OWNER))
             db.execute(f"DELETE FROM {table} WHERE owner<>? AND owner NOT GLOB 'tg[0-9]*'", (WEB_OWNER,))
 
 
