@@ -46,7 +46,7 @@ def test_default_registry_dispatches_shared_memory_calendar_and_utility_commands
 
     _run_immediate(exercise())
     assert {manifest["id"] for manifest in registry.manifests} == {
-        "personal-memory", "productivity-calendar", "online-information", "local-utilities"
+        "personal-memory", "productivity-calendar", "online-information", "local-utilities", "pc-control"
     }
 
 

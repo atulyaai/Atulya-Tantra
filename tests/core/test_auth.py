@@ -154,3 +154,15 @@ def test_passkey_setup_uses_configured_https_public_origin(project_temp_dir: Pat
 
     asyncio.run(exercise())
 
+
+
+def test_device_links_add_a_passkey_to_the_same_account_once(project_temp_dir: Path) -> None:
+    store = AuthStore(project_temp_dir)
+    assert store.add_credential(b"first", b"key", 0, "[]", first_only=True)
+    token = store.create_device_link("admin")
+    assert store.device_link(token)["user_id"] == "admin"
+    assert not store.add_credential(b"phone", b"key2", 0, "[]", user_id="u_other", device_token=token)
+    assert store.add_credential(b"phone", b"key2", 0, "[]", user_id="admin", device_token=token)
+    assert store.device_link(token) is None  # single use
+    assert not store.add_credential(b"tablet", b"key3", 0, "[]", user_id="admin", device_token=token)
+    assert store.device_link("not-a-real-token-value") is None

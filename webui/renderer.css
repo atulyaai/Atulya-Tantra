@@ -290,3 +290,20 @@ body.status-focus .system-tile strong{font-size:13px;line-height:1.4}
 @media(max-width:560px){body.camera-focus .session-stack{inset:6px;top:6px;right:6px;bottom:6px}body.camera-focus .session-stack .vision-preview{grid-template-columns:minmax(0,2fr) minmax(86px,1fr);gap:5px;padding:5px}body.status-focus .system-status-grid{grid-template-columns:repeat(2,minmax(0,1fr))}body.status-focus .system-tile{min-height:60px;padding:8px}body.status-focus .system-tile strong{font-size:10px}}
 .auth-setup-token{width:100%;display:grid;gap:6px;text-align:left;color:#91acb6;font:700 9px var(--font-ui);letter-spacing:.12em}.auth-setup-token[hidden]{display:none}.auth-setup-token input{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid rgba(76,213,238,.32);border-radius:10px;background:#06121b;color:#dffaff;font:12px var(--font-ui);letter-spacing:.04em}
 .user-dialog{width:min(480px,calc(100vw - 24px));max-height:min(82dvh,720px)}.invite-user-form{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px;padding:10px 0;border-bottom:1px solid rgba(96,206,229,.16)}.invite-user-form label{display:grid;gap:5px;color:#91acb6;font:700 8px var(--font-ui);letter-spacing:.1em}.invite-user-form input{min-width:0;padding:9px;border:1px solid rgba(76,206,229,.24);border-radius:8px;background:#06121b;color:#dffaff}.invite-user-form button,.invite-result button,.user-entry>button,.credential-entry button{border:1px solid rgba(76,206,229,.3);border-radius:999px;background:#071924;color:#b9f5ff;padding:7px 9px;font:700 8px var(--font-ui);letter-spacing:.07em;cursor:pointer}.invite-user-form button:disabled{opacity:.5}.invite-result{display:grid;gap:7px;margin:10px 0;padding:10px;border:1px solid rgba(255,190,83,.35);border-radius:10px;color:#f1d5a5;font-size:10px}.invite-result[hidden]{display:none}.invite-result code{overflow-wrap:anywhere;padding:8px;border-radius:6px;background:#02090e;color:#fff0c9;font-size:11px;user-select:all}.users-list{display:grid;gap:7px;max-height:48dvh;overflow:auto;padding-top:8px}.user-entry{display:grid;grid-template-columns:1fr auto;align-items:center;gap:6px;padding:9px;border:1px solid rgba(96,206,229,.16);border-radius:9px;background:rgba(8,26,37,.65)}.user-entry>strong,.user-entry>small{grid-column:1}.user-entry>strong{font-size:10px}.user-entry>small{color:#829ba5;font-size:8px}.user-entry>[data-danger="true"]{border-color:rgba(255,92,119,.4);color:#ff9aaa}.credential-entry{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0 0 8px;border-top:1px solid rgba(96,206,229,.1)}.credential-entry small{color:#829ba5;font-size:8px}
+
+/* Approval card for computer actions */
+.chat-message.action-card{display:grid;gap:6px;padding:10px 12px;border:1px solid rgba(255,181,77,.55);border-radius:10px;background:rgba(255,181,77,.07);color:#ffe2b8}
+.action-card strong{font-size:10px;letter-spacing:.18em;color:var(--gold)}
+.action-card>div{display:flex;gap:8px}
+.action-card button{flex:1;padding:6px 10px;border-radius:7px;border:1px solid rgba(105,234,255,.45);background:rgba(105,234,255,.08);color:var(--cyan);font:600 11px var(--font-ui);letter-spacing:.12em;cursor:pointer}
+.action-card button.approve{border-color:rgba(255,181,77,.7);color:var(--gold);background:rgba(255,181,77,.12)}
+.action-card button:disabled{opacity:.45;cursor:default}
+.action-card[data-state="approved"]{border-color:rgba(80,220,140,.6)}
+.action-card[data-state="denied"]{opacity:.6}
+
+/* Live meters on system tiles */
+.system-meter{position:relative;overflow:hidden}
+.system-meter::after{content:"";position:absolute;left:0;bottom:0;height:2px;width:var(--level,0%);background:linear-gradient(90deg,var(--cyan),var(--gold));transition:width .8s ease;box-shadow:0 0 8px rgba(105,234,255,.6)}
+.system-meter[data-state="busy"]::after{background:var(--gold)}
+.system-meter[data-state="error"]::after{background:#ff6b6b}
+.link-device{width:100%;margin:10px 0 0;border:1px solid rgba(255,190,83,.45);border-radius:999px;background:rgba(255,190,83,.08);color:#ffd894;padding:8px 10px;font:700 8px var(--font-ui);letter-spacing:.1em;cursor:pointer}

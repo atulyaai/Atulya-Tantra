@@ -12,6 +12,7 @@ from tools.plugins.brain import Brain, Message
 from atulya.history import ConversationHistory
 from tools.plugins.productivity.reminders import ReminderStore
 from tools.plugins.registry import PluginContext, PluginExecutionError, PluginRegistry
+from tools.plugins.productivity.briefing import briefing_city, briefing_prompt, briefing_time
 from tools.plugins.toolkit import Toolbox
 
 logger = logging.getLogger(__name__)
@@ -53,6 +54,7 @@ class TelegramChannel:
         command_plugins: PluginRegistry | None = None,
         personal_memory=None,
         calendar=None,
+        briefing_log=None,
     ) -> None:
         self._token = token.strip()
         self._allowed = {value for value in allowed_user_ids if value.isdigit()}
@@ -63,6 +65,8 @@ class TelegramChannel:
         self._command_plugins = command_plugins
         self._personal_memory = personal_memory
         self._calendar = calendar
+        self._briefing_log = briefing_log
+        self._briefing_task: asyncio.Task | None = None
         self._offset = 0
         self._poll_task: asyncio.Task | None = None
         self._reminder_task: asyncio.Task | None = None
@@ -97,16 +101,19 @@ class TelegramChannel:
         self._stopping.clear()
         self._poll_task = asyncio.create_task(self._poll(), name="atulya-telegram-poll")
         self._reminder_task = asyncio.create_task(self._deliver_reminders(), name="atulya-reminders")
+        if self._briefing_log is not None and briefing_time() is not None:
+            self._briefing_task = asyncio.create_task(self._deliver_briefings(), name="atulya-briefings")
 
     async def stop(self) -> None:
         self._stopping.set()
-        tasks = [task for task in (self._poll_task, self._reminder_task) if task is not None]
+        tasks = [task for task in (self._poll_task, self._reminder_task, self._briefing_task) if task is not None]
         for task in tasks:
             task.cancel()
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
         self._poll_task = None
         self._reminder_task = None
+        self._briefing_task = None
 
     def _url(self, method: str) -> str:
         return f"https://api.telegram.org/bot{self._token}/{method}"
@@ -235,7 +242,7 @@ class TelegramChannel:
             conversation.append(Message(role="user", content=text))
             if self._command_plugins is not None and self._personal_memory is not None and self._calendar is not None:
                 toolbox = Toolbox.for_registry(self._command_plugins, PluginContext(
-                    conversation_id, self._personal_memory, self._calendar, scoped_user))
+                    conversation_id, self._personal_memory, self._calendar, scoped_user, history=self._history))
                 reply = await self._brain.respond_with_tools(conversation, toolbox)
             else:
                 reply = await self._brain.respond(conversation)
@@ -247,6 +254,37 @@ class TelegramChannel:
         except ValueError:
             pass
         return reply.text
+
+    async def _deliver_briefings(self) -> None:
+        """Send each allowlisted user one morning briefing per day at ATULYA_BRIEFING_TIME."""
+        async with httpx.AsyncClient(timeout=httpx.Timeout(20, connect=10)) as client:
+            while not self._stopping.is_set():
+                try:
+                    hour, minute = briefing_time() or (25, 0)
+                    now = datetime.now().astimezone()
+                    if (now.hour, now.minute) >= (hour, minute) and self._brain is not None:
+                        for user_id in sorted(self._allowed):
+                            recipient = f"tg_{user_id}"
+                            if await asyncio.to_thread(self._briefing_log.sent_today, recipient):
+                                continue
+                            toolbox = Toolbox.for_registry(self._command_plugins, PluginContext(
+                                f"tg{user_id}", self._personal_memory, self._calendar, recipient,
+                                history=self._history)) if self._command_plugins is not None else None
+                            prompt = [Message(role="user", content=briefing_prompt(briefing_city()))]
+                            reply = (await self._brain.respond_with_tools(prompt, toolbox) if toolbox
+                                     else await self._brain.respond(prompt))
+                            response = await client.post(self._url("sendMessage"),
+                                                         json={"chat_id": user_id, "text": reply.text[:4000]})
+                            response.raise_for_status()
+                            await asyncio.to_thread(self._briefing_log.mark, recipient)
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    logger.warning("Morning briefing delivery failed (%s)", type(exc).__name__)
+                try:
+                    await asyncio.wait_for(self._stopping.wait(), timeout=60)
+                except asyncio.TimeoutError:
+                    pass
 
     async def _create_reminder(self, user_id: str, chat_id: str, payload: str) -> str:
         natural = re.fullmatch(r"(in\s+\d{1,4}\s+(?:minutes?|hours?|days?))\s+(.+)", payload, re.I)

@@ -126,3 +126,35 @@ def test_secrets_are_redacted_from_logs() -> None:
     record = logging.LogRecord("httpx", logging.INFO, __file__, 1, "Request %s", (leaked,), None)
     RedactingFilter().filter(record)
     assert "AAFakeTest" not in record.getMessage()
+
+
+def test_pc_actions_wait_for_approval_and_only_run_for_that_user(tmp_path) -> None:
+    from tools.plugins.toolkit import ActionQueue
+
+    queue = ActionQueue(tmp_path)
+    view = queue.view()
+    context = PluginContext("conv", object(), object(), "u1", actions=view)
+    toolbox = Toolbox.for_registry(build_default_registry(), context)
+    reply = asyncio.run(toolbox.call("open_url", {"url": "https://example.com"}))
+    assert "NOT run" in reply
+    [pending] = view.drain_new()
+    assert pending.summary == "Open website: https://example.com" and view.drain_new() == []
+    assert queue.take(pending.id, "someone-else") is None
+    assert queue.take(pending.id, "u1") is pending
+    assert queue.take(pending.id, "u1") is None  # single use
+
+
+def test_pc_actions_are_refused_without_an_approval_channel() -> None:
+    context = PluginContext("tg1", object(), object(), "tg_1")  # e.g. Telegram: no actions queue
+    toolbox = Toolbox.for_registry(build_default_registry(), context)
+    assert "only available in the Atulya WebUI" in asyncio.run(toolbox.call("take_screenshot", {}))
+
+
+def test_search_past_chats_is_scoped_to_the_user(tmp_path) -> None:
+    from atulya.history import ConversationHistory
+
+    history = ConversationHistory(tmp_path)
+    history.append("c1", "m1", "user", "my passport number ends in 42", "u1")
+    history.append("c2", "m2", "user", "passport renewal next week", "u2")
+    assert [row["content"] for row in history.search("passport", user_id="u1")] == ["my passport number ends in 42"]
+    assert history.search("pass%", user_id="u1") == []

@@ -40,6 +40,15 @@ Open `http://localhost:8501`. On phones, the WebUI can be installed as an app on
 
 Plugins provide tools (weather, news, time, calculator, your saved memories and meetings). The chat model calls them itself, several at once when useful, so "what's it like outside in Delhi and what's 17×23?" works without exact command words. Exact commands such as `weather in Pune` are still answered instantly without a model call. Skills in `tools/skills/<name>/SKILL.md` are multi-step instructions the model loads on demand. `python -m atulya.cli mcp` exposes the public tools and every skill (as a prompt) to MCP hosts such as Claude Desktop or VS Code; see [tools/mcp/README.md](tools/mcp/README.md). Disabling a plugin in the WebUI removes its tools everywhere.
 
+## Jarvis features
+
+- **Wake word and interrupting:** with live voice on, start with "Hey Atulya"; talk over Atulya to stop it. Say "wake word off" or "interrupt off" to change this.
+- **Computer control with approval:** "open Spotify", "find my resume", "volume up", "take a screenshot". Atulya shows APPROVE / DENY (or answer "yes" / "no"); nothing runs without it.
+- **Memory:** saved facts plus search across your earlier conversations.
+- **Morning briefing:** set `ATULYA_BRIEFING_CITY` and `ATULYA_BRIEFING_TIME` in `.env`.
+- **Live system panel:** CPU, memory, network, disk, battery, and tool activity.
+- **Reach it anywhere (private):** install [Tailscale](https://tailscale.com/download) on the PC and your phone, then run `.venv/Scripts/python -m atulya.cli remote --enable` (Windows) or `.venv/bin/python -m atulya.cli remote --enable`, restart Atulya, and use USERS → LINK MY PHONE / ANOTHER DEVICE.
+
 ## Start from a checkout
 
 Requirements: Python 3.10 or newer (or none: `start.bat` / `start.sh` run the installer when Python is missing).

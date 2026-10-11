@@ -205,6 +205,7 @@ def main() -> int:
         "sherpa_onnx": "sherpa-onnx",
         "multipart": "python-multipart",
         "mcp": "mcp",
+        "psutil": "psutil",
     }
     missing = [package for module, package in required.items() if importlib.util.find_spec(module) is None]
     try:

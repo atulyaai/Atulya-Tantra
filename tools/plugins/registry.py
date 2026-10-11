@@ -16,6 +16,10 @@ class PluginContext:
     memory: object
     calendar: object
     user_id: str = "admin"
+    # Approval queue for side-effecting tools (WebUI only); None disables them.
+    actions: object | None = None
+    # Searchable chat archive for this principal; None disables past-chat recall.
+    history: object | None = None
 
 
 CommandHandler = Callable[[str, PluginContext], Awaitable[str | None]]
@@ -96,12 +100,14 @@ def build_default_registry() -> PluginRegistry:
     from tools.plugins.information.commands import handle as information
     from tools.plugins.personal.commands import handle as personal
     from tools.plugins.productivity.commands import handle as productivity
+    from tools.plugins.system.commands import handle as system
     from tools.plugins.utilities.commands import handle as utilities
 
     root = Path(__file__).parent
     registry = PluginRegistry()
     for relative, handler in (
         ("personal/plugin.json", personal),
+        ("system/plugin.json", system),
         ("productivity/plugin.json", productivity),
         ("information/plugin.json", information),
         ("utilities/plugin.json", utilities),

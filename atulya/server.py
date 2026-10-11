@@ -200,12 +200,14 @@ class SessionAuthMiddleware:
 from tools.plugins.brain import AutomaticProvider, Brain, BrainError, Message, OllamaProvider, OpenAICompatibleProvider
 from tools.plugins.communications.channels import WebUIChannel
 from tools.plugins.communications.channels.telegram import TelegramChannel
+from . import sysmon
 from .history import ConversationHistory
 from tools.plugins.productivity.calendar import CalendarStore
 from tools.plugins.personal.memory import PersonalMemory
 from tools.plugins.productivity.reminders import ReminderStore
 from tools.plugins.registry import PluginContext, PluginExecutionError, build_default_registry
-from tools.plugins.toolkit import Toolbox
+from tools.plugins.productivity.briefing import BriefingLog, briefing_city, briefing_prompt
+from tools.plugins.toolkit import TOOL_ACTIVITY, TOOLS, ActionQueue, Toolbox
 from .settings import PROJECT_ROOT, Settings
 from tools.plugins.voice import LocalSupertonicTTS, LocalVoice, VoiceError
 
@@ -215,6 +217,15 @@ load_dotenv(PROJECT_ROOT / ".env", override=False)
 class ChatMessage(BaseModel):
     role: Literal["user", "assistant"]
     content: str = Field(min_length=1, max_length=20_000)
+
+
+class BriefingRequest(BaseModel):
+    conversation_id: str = Field(default="briefing", min_length=1, max_length=120)
+    force: bool = False
+
+
+class ActionDecision(BaseModel):
+    approve: bool
 
 
 class ChatRequest(BaseModel):
@@ -415,6 +426,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     personal_memory = PersonalMemory(config.data_dir)
     calendar = CalendarStore(config.data_dir)
     command_plugins = build_default_registry()
+    action_queue = ActionQueue(config.data_dir)
+    briefing_log = BriefingLog(config.data_dir)
     plugin_state_path = config.data_dir / "plugin_settings.json"
     try:
         saved_plugin_states = json.loads(plugin_state_path.read_text(encoding="utf-8"))
@@ -472,6 +485,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         command_plugins=command_plugins,
         personal_memory=personal_memory,
         calendar=calendar,
+        briefing_log=briefing_log,
     )
     app.state.telegram = telegram
 
@@ -586,7 +600,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     def webauthn_origin(request: Request) -> tuple[str, str]:
         host = request.headers.get("host", "")
-        if config.public_origin:
+        # The local address keeps working after a public origin is added, so
+        # localhost passkeys stay valid on this machine.
+        if config.public_origin and request.url.hostname != "localhost":
             configured = urlsplit(config.public_origin)
             rp_id = configured.hostname or ""
             if (
@@ -638,6 +654,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if invitation is not None:
                 raise HTTPException(status_code=409, detail="Create the first administrator passkey before using invitations.")
         current_user = await asyncio.to_thread(auth_store.user_for_session, request.cookies.get(SESSION_COOKIE))
+        device_token = request.headers.get("x-atulya-device-token", "")
+        device_link = await asyncio.to_thread(auth_store.device_link, device_token) if device_token else None
+        if device_token and device_link is None:
+            raise HTTPException(status_code=403, detail="That device link is invalid, expired, or already used.")
+        if device_link is not None and current_user is None:
+            current_user = str(device_link["user_id"])
         if invite_token and invitation is None:
             raise HTTPException(status_code=403, detail="That invitation is invalid, expired, or already used.")
         if not setup_required and current_user is None and invitation is None:
@@ -683,7 +705,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         challenge, target_user_id = challenge_flow
         count = await asyncio.to_thread(auth_store.credential_count)
         current_user = await asyncio.to_thread(auth_store.user_for_session, request.cookies.get(SESSION_COOKIE))
-        authenticated_admin = current_user == "admin"
+        device_token = request.headers.get("x-atulya-device-token", "")
+        device_link = await asyncio.to_thread(auth_store.device_link, device_token) if device_token else None
+        if device_link is not None and str(device_link["user_id"]) == target_user_id:
+            current_user = target_user_id
+        authenticated_admin = current_user == "admin" and device_link is None
         invite_token = request.headers.get("x-atulya-invite-token", "")
         invitation = await asyncio.to_thread(auth_store.invitation, invite_token) if invite_token else None
         invite_matches = invitation is not None and str(invitation["user_id"]) == target_user_id
@@ -691,7 +717,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=403, detail="That invitation is invalid, expired, or already used.")
         if count == 0 and target_user_id != "admin":
             raise HTTPException(status_code=409, detail="Create the first administrator passkey before adding users.")
-        if target_user_id == "admin" and count and not authenticated_admin:
+        if target_user_id == "admin" and count and not authenticated_admin and device_link is None:
             raise HTTPException(status_code=401, detail="Sign in before adding another passkey.")
         account = await asyncio.to_thread(auth_store.user, target_user_id)
         display_name = str(invitation["display_name"]) if invitation else (
@@ -718,6 +744,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 display_name=str(invitation["display_name"]) if invitation else display_name,
                 first_only=count == 0,
                 invite_token=invite_token or None,
+                device_token=device_token if device_link is not None else None,
             )
             if not added:
                 raise HTTPException(status_code=409, detail="That passkey is already registered with an Atulya account.")
@@ -787,6 +814,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response = JSONResponse({"authenticated": True, "user": str(account["display_name"])})
         set_session_cookie(response, request, token)
         return response
+
+    @app.post("/api/auth/device-link")
+    async def create_device_link(request: Request) -> dict[str, object]:
+        """Signed-in users get a one-time link to add a passkey on a phone/laptop or the remote address."""
+        user_id = await asyncio.to_thread(auth_store.user_for_session, request.cookies.get(SESSION_COOKIE))
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Sign in first.")
+        token = await asyncio.to_thread(auth_store.create_device_link, user_id)
+        base = config.public_origin or f"{request.url.scheme}://{request.headers.get('host', 'localhost:8501')}"
+        return {"url": f"{base}/#link={token}", "expires_minutes": 10}
 
     @app.post("/api/auth/logout")
     async def passkey_logout(request: Request) -> Response:
@@ -883,6 +920,35 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=503, detail="Gesture recognition model is not installed.")
         return FileResponse(model_path, media_type="application/octet-stream", filename="gesture_recognizer.task")
 
+    def system_tiles() -> dict[str, dict[str, object]]:
+        try:
+            host = sysmon.snapshot(str(config.data_dir))
+        except Exception:
+            return {}
+        def level(percent: float) -> str:
+            return "error" if percent >= 90 else "busy" if percent >= 75 else "ready"
+        enabled_plugins = {item["id"] for item in command_plugins.manifests if item.get("enabled")} | {"skills"}
+        enabled_tools = sum(tool.plugin_id in enabled_plugins for tool in TOOLS)
+        recent = list(TOOL_ACTIVITY)[-3:]
+        power = "" if host["battery_percent"] is None else (
+            f" · battery {host['battery_percent']}%{' ⚡' if host['on_power'] else ''}")
+        return {
+            "cpu": {"state": level(host["cpu_percent"]), "label": f"{host['cpu_percent']:.0f}% · {host['cpu_count']} cores",
+                    "level": host["cpu_percent"]},
+            "memory": {"state": level(host["memory_percent"]),
+                       "label": f"{host['memory_used_gb']} / {host['memory_total_gb']} GB",
+                       "level": host["memory_percent"]},
+            "network": {"state": "ready",
+                        "label": f"↑ {host['net_up_kbps']:.0f} kb/s · ↓ {host['net_down_kbps']:.0f} kb/s",
+                        "level": min(100.0, (host["net_up_kbps"] + host["net_down_kbps"]) / 100)},
+            "host": {"state": level(host["disk_percent"]),
+                     "label": f"Disk {host['disk_percent']:.0f}% · up {host['uptime_hours']:.0f} h{power}",
+                     "level": host["disk_percent"]},
+            "tools": {"state": "live" if any(item["outcome"] == "awaiting approval" for item in recent) else "ready",
+                      "label": " · ".join(f"{item['tool'].replace('_', ' ')} ({item['outcome']})" for item in reversed(recent))
+                      or f"{enabled_tools} tools ready · none used yet"},
+        }
+
     @app.get("/api/status")
     async def status(
         http_request: Request,
@@ -939,6 +1005,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "starts_at": "" if not meetings else str(meetings[0]["starts_at"]),
                 "due": due_meeting,
             },
+            **system_tiles(),
             "issue": {
                 "state": "error" if issue_state["issue"] else "clear",
                 "label": issue_state["issue"]["message"] if issue_state["issue"] else "No active issues",
@@ -1041,7 +1108,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return Response(status_code=204)
 
     @app.post("/api/chat")
-    async def chat(request: ChatRequest, http_request: Request) -> dict[str, str]:
+    async def chat(request: ChatRequest, http_request: Request) -> dict[str, object]:
         latest_user = next((item.content.strip() for item in reversed(request.messages) if item.role == "user"), "")
         if not request.image:
             try:
@@ -1093,8 +1160,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     ),
                 )
                 messages.insert(0, memory_context)
+            action_view = action_queue.view()
             toolbox = Toolbox.for_registry(command_plugins, PluginContext(
-                request.conversation_id, personal_memory, calendar, str(http_request.state.user_id)
+                request.conversation_id, personal_memory, calendar, str(http_request.state.user_id),
+                actions=action_view, history=history,
             ))
             if not request.stream:
                 reply = await brain.respond_with_tools(messages, toolbox)
@@ -1107,7 +1176,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             async def stream_events():
                 try:
                     async for chunk in webui_channel.stream(messages, toolbox=toolbox):
+                        for action in action_view.drain_new():
+                            yield f"data: {json.dumps({'confirm': {'id': action.id, 'summary': action.summary}})}\n\n"
                         yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
+                    for action in action_view.drain_new():
+                        yield f"data: {json.dumps({'confirm': {'id': action.id, 'summary': action.summary}})}\n\n"
                     yield f"data: {json.dumps({'done': True, 'provider': brain.provider_name, 'model': brain.model_name})}\n\n"
                     if issue_state["issue"] and issue_state["issue"].get("source") == "chat":
                         issue_state["issue"] = None
@@ -1121,7 +1194,38 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         if issue_state["issue"] and issue_state["issue"].get("source") == "chat":
             issue_state["issue"] = None
-        return {"text": reply.text, "provider": reply.provider, "model": reply.model}
+        return {"text": reply.text, "provider": reply.provider, "model": reply.model,
+                "confirm": [{"id": item.id, "summary": item.summary} for item in action_view.created]}
+
+    @app.post("/api/briefing")
+    async def morning_briefing(body: BriefingRequest, http_request: Request) -> dict[str, str | bool]:
+        """Today's briefing, once per user per day unless `force` is set."""
+        user_id = str(http_request.state.user_id)
+        if brain is None:
+            raise HTTPException(status_code=503, detail="Chat is unavailable right now.")
+        if not body.force and await asyncio.to_thread(briefing_log.sent_today, f"web_{user_id}"):
+            return {"text": "", "already_sent": True}
+        toolbox = Toolbox.for_registry(command_plugins, PluginContext(
+            body.conversation_id, personal_memory, calendar, user_id, history=history))
+        try:
+            reply = await brain.respond_with_tools([Message(role="user", content=briefing_prompt(briefing_city()))], toolbox)
+        except BrainError as exc:
+            raise HTTPException(status_code=503, detail="The briefing could not be prepared right now.") from exc
+        await asyncio.to_thread(briefing_log.mark, f"web_{user_id}")
+        return {"text": reply.text, "already_sent": False}
+
+    @app.post("/api/actions/{action_id}")
+    async def decide_action(action_id: str, body: ActionDecision, http_request: Request) -> dict[str, str]:
+        """Run (or discard) a computer action the model proposed, only for the user it was proposed to."""
+        user_id = str(http_request.state.user_id)
+        action = action_queue.take(action_id, user_id)
+        if action is None:
+            raise HTTPException(status_code=404, detail="That request expired or was already handled.")
+        if not body.approve:
+            return {"text": f"Cancelled: {action.summary}."}
+        toolbox = Toolbox.for_registry(command_plugins, PluginContext(
+            "actions", personal_memory, calendar, user_id, actions=action_queue.view(), history=history))
+        return {"text": await toolbox.run_approved(action)}
 
     @app.post("/api/voice/transcribe")
     async def transcribe(audio: UploadFile = File(...), language: str = Form("")) -> dict[str, str]:

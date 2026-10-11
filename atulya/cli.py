@@ -19,7 +19,14 @@ def main() -> None:
     commands.add_parser("pc-host", help="run Atulya as a persistent personal-computer host")
     commands.add_parser("mcp", help="run the local Atulya MCP server over stdio")
     commands.add_parser("doctor", help="check basic local configuration")
+    remote = commands.add_parser("remote", help="reach Atulya from your devices anywhere via Tailscale")
+    remote.add_argument("--enable", action="store_true", help="serve Atulya over private HTTPS on your tailnet")
+    remote.add_argument("--disable", action="store_true", help="stop serving on your tailnet")
     args = parser.parse_args()
+    if args.command == "remote":
+        from tools.remote_access import main as remote_main
+
+        raise SystemExit(remote_main(enable=args.enable, disable=args.disable))
     if args.command == "mcp":
         try:
             from tools.mcp.server import main as run_mcp_server

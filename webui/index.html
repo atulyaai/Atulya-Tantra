@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="stylesheet" href="./renderer.css?v=atulya-36">
   <script type="module" crossorigin src="./renderer.js?v=atulya-10"></script>
-  <script defer src="./assistant.js?v=atulya-47"></script>
+  <script defer src="./assistant.js?v=atulya-48"></script>
 </head>
 <body>
   <div id="root"></div>
@@ -21,6 +21,11 @@
     <div class="system-status-grid">
       <section class="system-tile" data-status-key="service"><span>SERVICE</span><strong>Connecting</strong></section>
       <section class="system-tile" data-status-key="model"><span>MODEL</span><strong>Connecting</strong></section>
+      <section class="system-tile system-meter" data-status-key="cpu"><span>CPU</span><strong>—</strong></section>
+      <section class="system-tile system-meter" data-status-key="memory"><span>MEMORY</span><strong>—</strong></section>
+      <section class="system-tile system-tile-wide system-meter" data-status-key="network"><span>NETWORK</span><strong>—</strong></section>
+      <section class="system-tile system-tile-wide system-meter" data-status-key="host"><span>HOST</span><strong>—</strong></section>
+      <section class="system-tile system-tile-wide" data-status-key="tools"><span>TOOLS · ACTIVITY</span><strong>—</strong></section>
       <section class="system-tile" data-status-key="voice"><span>VOICE · STT</span><strong>Connecting</strong></section>
       <section class="system-tile" data-status-key="speech"><span>SPEECH · TTS</span><strong>Browser</strong></section>
       <section class="system-tile" data-status-key="vision"><span>VISION</span><strong>Off</strong></section>
@@ -59,6 +64,7 @@
       <label>DISPLAY NAME<input id="invite-display-name" maxlength="80" required autocomplete="off"></label>
       <button type="submit">CREATE INVITATION</button>
     </form>
+    <button id="link-device" class="link-device" type="button">LINK MY PHONE / ANOTHER DEVICE</button>
     <div id="invite-result" class="invite-result" hidden></div>
     <div id="users-list" class="users-list"></div>
   </dialog>

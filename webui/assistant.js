@@ -120,6 +120,8 @@
     if (!tile) return;
     tile.dataset.state = state;
     tile.querySelector("strong").textContent = label;
+    const level = Number(arguments[3]);
+    if (Number.isFinite(level)) tile.style.setProperty("--level", `${Math.max(0, Math.min(100, level))}%`);
   }
 
   async function refreshSystemStatus() {
@@ -130,7 +132,7 @@
       gestureAssetsReady = data.gesture?.state === "ready" || gestureModelReady;
       systemDashboard.dataset.state = "online";
       systemOverview.textContent = "LIVE · ON THIS DEVICE";
-      for (const key of ["service", "model", "voice", "vision", "gesture", "telegram", "reminder", "calendar", "issue"]) {
+      for (const key of ["service", "model", "cpu", "memory", "network", "host", "tools", "voice", "vision", "gesture", "telegram", "reminder", "calendar", "issue"]) {
         const item = data[key] || {};
         let label = item.label || "Unavailable";
         if (key === "issue" && cameraIssue) {
@@ -157,7 +159,7 @@
           item.state = "live";
           label = `Camera live${cameraFormat ? ` · ${cameraFormat}` : " · on device"}${cameraFocus ? ` · ${cameraFocus}` : ""}${cameraDeviceLabel ? ` · ${cameraDeviceLabel}` : ""}`;
         }
-        setSystemTile(key, item.state || "setup", label);
+        setSystemTile(key, item.state || "setup", label, item.level);
       }
       const meeting = data.calendar?.due;
       if (meeting?.id) {
@@ -570,6 +572,71 @@
     return item;
   }
 
+
+  // ---- Computer-action approvals -------------------------------------------
+  // The model can only *request* PC actions; they run after the user taps
+  // Approve or answers "yes" by voice/text while a request is waiting.
+  const pendingActions = new Map();
+
+  function showActionRequest(action) {
+    if (!action?.id || pendingActions.has(action.id)) return;
+    const card = document.createElement("div");
+    card.className = "chat-message action-card";
+    card.setAttribute("role", "group");
+    card.setAttribute("aria-label", "Approval needed");
+    const title = document.createElement("strong");
+    title.textContent = "APPROVAL NEEDED";
+    const summary = document.createElement("span");
+    summary.textContent = action.summary;
+    const buttons = document.createElement("div");
+    const approve = document.createElement("button");
+    approve.type = "button";
+    approve.textContent = "APPROVE";
+    approve.className = "approve";
+    const deny = document.createElement("button");
+    deny.type = "button";
+    deny.textContent = "DENY";
+    approve.addEventListener("click", () => decideAction(action.id, true));
+    deny.addEventListener("click", () => decideAction(action.id, false));
+    buttons.append(approve, deny);
+    card.append(title, summary, buttons);
+    messagesNode.append(card);
+    messagesNode.scrollTop = messagesNode.scrollHeight;
+    pendingActions.set(action.id, card);
+  }
+
+  async function decideAction(id, approve) {
+    const card = pendingActions.get(id);
+    if (!card) return;
+    pendingActions.delete(id);
+    card.querySelectorAll("button").forEach((button) => { button.disabled = true; });
+    card.dataset.state = approve ? "approved" : "denied";
+    let text;
+    try {
+      const response = await fetch(`/api/actions/${encodeURIComponent(id)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ approve }),
+      });
+      const body = await response.json().catch(() => ({}));
+      text = response.ok ? String(body.text || "Done.") : String(body.detail || "That request could not be completed.");
+    } catch {
+      text = "Atulya couldn't reach the computer to do that.";
+    }
+    appendMessage("assistant", text);
+    conversation.push({ role: "assistant", content: text });
+    return text;
+  }
+
+  // "yes" / "approve" / "haan" and "no" / "cancel" answer the newest waiting request.
+  function approvalAnswer(text) {
+    if (!pendingActions.size) return null;
+    const value = text.toLowerCase().replace(/[.!?,]/g, " ").trim();
+    if (/^(?:yes|yeah|yep|sure|ok|okay|approve|approved|do it|go ahead|haan|ha|ji haan|confirm)(?: please| it)?$/.test(value)) return true;
+    if (/^(?:no|nope|deny|cancel|stop|don't|do not|nahi|na)(?: please| it)?$/.test(value)) return false;
+    return null;
+  }
+
   async function restoreConversation() {
     try {
       const response = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}`, { headers: { Accept: "application/json" } });
@@ -929,6 +996,110 @@
     return frame.toDataURL("image/jpeg", 0.72);
   }
 
+
+  // ---- Wake word and barge-in -------------------------------------------
+  // Wake word: while live voice is on, utterances are transcribed locally and
+  // ignored unless they start with "Hey Atulya" (or arrive within a short
+  // follow-up window after Atulya spoke). Barge-in: while Atulya speaks, the
+  // mic is monitored (with echo cancellation); talking over it stops speech
+  // and starts listening immediately.
+  const WAKE_PATTERN = /^\s*(?:(?:hey|hi|hello|ok|okay|ai|he|hay)[\s,]+)?(?:atulya|atuliya|atulia|athulya|atulyaa|atul ya|a tulya)\b[\s,.!?:-]*/i;
+  const FOLLOW_UP_MS = 8000;
+  const readFlag = (key, fallback) => {
+    try { const value = localStorage.getItem(key); return value === null ? fallback : value === "1"; } catch { return fallback; }
+  };
+  let wakeWordEnabled = readFlag("atulya.voice.wake", true);
+  let bargeInEnabled = readFlag("atulya.voice.bargein", true);
+  let awakeUntil = 0;
+
+  function setVoiceOption(key, enabled) {
+    try { localStorage.setItem(key, enabled ? "1" : "0"); } catch { /* storage unavailable */ }
+  }
+
+  // Returns the text to send, or null when the utterance should be ignored.
+  function applyWakeWord(transcript) {
+    if (!wakeWordEnabled) return transcript;
+    const match = transcript.match(WAKE_PATTERN);
+    if (match) {
+      const rest = transcript.slice(match[0].length).trim();
+      if (rest) return rest;
+      awakeUntil = Date.now() + FOLLOW_UP_MS;
+      return "";
+    }
+    if (Date.now() < awakeUntil) return transcript;
+    return null;
+  }
+
+  function markFollowUpWindow() {
+    if (wakeWordEnabled) awakeUntil = Date.now() + FOLLOW_UP_MS;
+  }
+
+  let bargeMonitor = null;
+  async function startBargeMonitor() {
+    if (bargeMonitor || !navigator.mediaDevices?.getUserMedia) return;
+    const monitor = { stopped: false, stream: null, context: null };
+    bargeMonitor = monitor;
+    try {
+      monitor.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      if (monitor.stopped) { monitor.stream.getTracks().forEach((track) => track.stop()); return; }
+      const AudioContextType = window.AudioContext || window.webkitAudioContext;
+      monitor.context = new AudioContextType();
+      const analyser = monitor.context.createAnalyser();
+      analyser.fftSize = 512;
+      monitor.context.createMediaStreamSource(monitor.stream).connect(analyser);
+      const samples = new Uint8Array(analyser.fftSize);
+      let floor = 0.01;
+      let loudSince = 0;
+      const started = performance.now();
+      const tick = () => {
+        if (monitor.stopped) return;
+        analyser.getByteTimeDomainData(samples);
+        let sum = 0;
+        for (const sample of samples) { const a = (sample - 128) / 128; sum += a * a; }
+        const rms = Math.sqrt(sum / samples.length);
+        const now = performance.now();
+        // Learn the residual echo level for the first half second, then require
+        // clearly louder speech held for 300 ms before interrupting.
+        if (now - started < 500) floor = Math.max(floor, rms);
+        else if (rms > Math.max(0.045, floor * 3)) {
+          loudSince ||= now;
+          if (now - loudSince > 300) { interruptSpeech(); return; }
+        } else loudSince = 0;
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    } catch {
+      stopBargeMonitor();
+    }
+  }
+
+  function stopBargeMonitor() {
+    const monitor = bargeMonitor;
+    bargeMonitor = null;
+    if (!monitor) return;
+    monitor.stopped = true;
+    monitor.stream?.getTracks().forEach((track) => track.stop());
+    monitor.context?.close().catch(() => {});
+  }
+
+  function interruptSpeech() {
+    stopBargeMonitor();
+    if (!speaking) return;
+    releaseSpeech();
+    clearSpokenReply();
+    awakeUntil = Date.now() + FOLLOW_UP_MS;
+    setPhase("listening", "Listening", "Interrupted. Go ahead.");
+    voiceSessionActive = true;
+    startListening(true);
+  }
+
+  // Keep the monitor running exactly while Atulya is speaking in a live session.
+  window.setInterval(() => {
+    const wanted = bargeInEnabled && voiceSessionActive && speaking && !listening;
+    if (wanted && !bargeMonitor) startBargeMonitor();
+    else if (!wanted && bargeMonitor) stopBargeMonitor();
+  }, 120);
+
   function resumeLiveVoice() {
     if (!voiceSessionActive || listening) return;
     if (!voiceReady) {
@@ -976,6 +1147,7 @@
       speaking = false;
       clearSpokenReply();
       restoreIdlePhase();
+      markFollowUpWindow();
       resumeLiveVoice();
       refreshWave();
     };
@@ -1017,6 +1189,32 @@
     // The browser still owns the permission prompt; Atulya never bypasses it.
     voiceSessionActive = voiceReady;
     speak(greeting);
+    deliverMorningBriefing();
+  }
+
+  // First visit of the day: show and read the morning briefing once the greeting ends.
+  async function deliverMorningBriefing() {
+    let body;
+    try {
+      const response = await fetch("/api/briefing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ conversation_id: conversationId }),
+      });
+      if (!response.ok) return;
+      body = await response.json();
+    } catch {
+      return;
+    }
+    const text = String(body?.text || "").trim();
+    if (!text) return;
+    const deadline = Date.now() + 20000;
+    while ((speaking || phase === "thinking") && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 300));
+    const bubble = appendMessage("assistant", text);
+    conversation.push({ role: "assistant", content: text });
+    if (listening) return; // the user already started talking; leave it on screen
+    highlightSpokenReply(bubble);
+    await speak(text);
   }
 
   function releaseSpeech() {
@@ -1103,6 +1301,7 @@
       speaking = false;
       clearSpokenReply();
       restoreIdlePhase();
+      markFollowUpWindow();
       resumeLiveVoice();
       refreshWave();
     })();
@@ -1257,6 +1456,29 @@
       }
       return;
     }
+    const approval = approvalAnswer(cleanText);
+    if (approval !== null) {
+      const [latest] = [...pendingActions.keys()].slice(-1);
+      setPhase("thinking", approval ? "Working" : "Cancelling", approval ? "Running the approved action." : "Cancelling the request.");
+      const reply = await decideAction(latest, approval);
+      if (speakReply && reply) await speak(reply);
+      else setPhase("idle", "Ready", reply || "");
+      return;
+    }
+    const voiceOption = cleanText.toLowerCase().match(/^(?:turn |switch )?(wake ?word|interrupt(?:ion)?s?|barge[ -]?in)\s+(on|off)$|^(?:turn |switch )?(on|off)\s+(?:the )?(wake ?word|interrupt(?:ion)?s?|barge[ -]?in)$/);
+    if (voiceOption) {
+      const name = voiceOption[1] || voiceOption[4];
+      const enabled = (voiceOption[2] || voiceOption[3]) === "on";
+      if (/wake/.test(name)) { wakeWordEnabled = enabled; setVoiceOption("atulya.voice.wake", enabled); }
+      else { bargeInEnabled = enabled; setVoiceOption("atulya.voice.bargein", enabled); }
+      const reply = /wake/.test(name)
+        ? enabled ? "Wake word is on. Start with “Hey Atulya”." : "Wake word is off. I'll answer everything I hear."
+        : enabled ? "Interrupting is on. Talk over me to stop me." : "Interrupting is off.";
+      appendMessage("assistant", reply);
+      conversation.push({ role: "assistant", content: reply });
+      setPhase("idle", "Ready", reply);
+      return;
+    }
     const cameraEnabled = cameraCommand(cleanText);
     if (cameraEnabled !== null) {
       const enabled = cameraEnabled ? await enableCamera() : (stopCamera(), true);
@@ -1304,6 +1526,7 @@
           if (!dataLine) return;
           const event = JSON.parse(dataLine.slice(5).trim());
           if (event.error) streamError = String(event.error);
+          if (event.confirm) showActionRequest(event.confirm);
           if (typeof event.text === "string" && event.text) {
             reply += event.text;
             if (speakReply && localTtsReady) {
@@ -1334,6 +1557,7 @@
         const body = await response.json().catch(() => ({}));
         reply = String(body.text || "").trim();
         assistantMessage = reply ? appendMessage("assistant", reply) : null;
+        (body.confirm || []).forEach(showActionRequest);
       }
       reply = reply.trim();
       if (!reply) throw new Error("Atulya returned an empty response.");
@@ -1405,8 +1629,20 @@
             : "Speech recognition failed. Try again or type below.";
         throw new Error(message);
       }
-      const transcript = String(body.text || "").trim();
-      if (!transcript) throw new Error("No speech was recognized. Try again or type below.");
+      const heard = String(body.text || "").trim();
+      const transcript = heard ? applyWakeWord(heard) : "";
+      if (transcript === null || (!heard && wakeWordEnabled)) {
+        // Not addressed to Atulya: keep waiting quietly for the wake word.
+        setPhase("idle", "Say “Hey Atulya”", "Waiting for the wake word. Everything stays on this device.");
+        resumeLiveVoice();
+        return;
+      }
+      if (!heard) throw new Error("No speech was recognized. Try again or type below.");
+      if (!transcript) {
+        setPhase("listening", "Yes?", "I'm listening.");
+        resumeLiveVoice();
+        return;
+      }
       await sendMessage(transcript, true);
     } catch (error) {
       setPhase("idle", "I missed that", error.message || "Speech recognition failed. You can type below.");
@@ -1483,7 +1719,10 @@
         });
       };
       recorder.start(200);
-      setPhase("listening", "Listening", "Speak naturally. Each turn sends after a pause; Atulya then listens again.");
+      const waiting = wakeWordEnabled && Date.now() >= awakeUntil;
+      setPhase("listening", waiting ? "Say “Hey Atulya”" : "Listening",
+        waiting ? "Live voice is on. Start with “Hey Atulya”; talk over me to interrupt."
+          : "Speak naturally. Each turn sends after a pause; Atulya then listens again.");
       refreshWave();
     } catch (error) {
       if (requestId !== voiceRequest) return;
@@ -1639,7 +1878,7 @@
     refreshSystemStatus();
     window.setInterval(() => {
       if (document.visibilityState === "visible") refreshSystemStatus();
-    }, 30000);
+    }, 3000); // live CPU/RAM/network meters
   }
 
   async function refreshAuthState() {
@@ -1668,7 +1907,7 @@
         : authSetupRequired
         ? "Create the first administrator passkey to protect Atulya on this device."
         : "Unlock this local session with your device passkey.";
-      if (authActivate) authActivate.textContent = authSetupRequired ? "CREATE ADMIN PASSKEY" : "SIGN IN WITH PASSKEY";
+      if (authActivate) authActivate.textContent = authSetupRequired ? "CREATE ADMIN PASSKEY" : deviceLinkToken ? "ADD PASSKEY FOR THIS DEVICE" : "SIGN IN WITH PASSKEY";
       if (authInviteWrap) authInviteWrap.hidden = authSetupRequired;
       if (authJoin) authJoin.hidden = authSetupRequired;
       if (!authDialog.open) authDialog.showModal();
@@ -1676,6 +1915,16 @@
       document.body.classList.add("auth-required");
       if (authMessage) authMessage.textContent = error.message || "Atulya could not check sign-in status.";
       if (!authDialog.open) authDialog.showModal();
+    }
+  }
+
+  // "#link=<token>" (from LINK A DEVICE) adds a passkey for an existing account on this device/address.
+  let deviceLinkToken = "";
+  {
+    const match = location.hash.match(/(?:^#|&)link=([A-Za-z0-9_-]{16,128})/);
+    if (match) {
+      deviceLinkToken = match[1];
+      history.replaceState(null, "", location.pathname + location.search);
     }
   }
 
@@ -1689,6 +1938,7 @@
     const authHeaders = { Accept: "application/json" };
     if (isRegistration && setupToken) authHeaders["X-Atulya-Setup-Token"] = setupToken;
     if (inviteToken) authHeaders["X-Atulya-Invite-Token"] = inviteToken;
+    if (isRegistration && deviceLinkToken) authHeaders["X-Atulya-Device-Token"] = deviceLinkToken;
     const optionsResponse = await fetch(`/api/auth/${isRegistration ? "register" : "login"}/options`, {
       method: "POST", headers: authHeaders, cache: "no-store",
     });
@@ -1704,6 +1954,7 @@
         "Content-Type": "application/json", Accept: "application/json",
         ...(isRegistration && setupToken ? { "X-Atulya-Setup-Token": setupToken } : {}),
         ...(inviteToken ? { "X-Atulya-Invite-Token": inviteToken } : {}),
+        ...(isRegistration && deviceLinkToken ? { "X-Atulya-Device-Token": deviceLinkToken } : {}),
       },
       body: JSON.stringify({ flow_id: optionsBody.flow_id, credential: serializeCredential(credential) }),
       cache: "no-store",
@@ -1717,7 +1968,8 @@
     authActivate.disabled = true;
     try {
       if (authMessage) authMessage.textContent = authSetupRequired ? "Follow your device prompt to create the admin passkey." : "Confirm with your device passkey.";
-      await runPasskeyCeremony(authSetupRequired ? "register" : "login");
+      await runPasskeyCeremony(authSetupRequired || deviceLinkToken ? "register" : "login");
+      deviceLinkToken = "";
       if (authSetupToken) authSetupToken.value = "";
       await refreshAuthState();
     } catch (error) {
@@ -1832,6 +2084,30 @@
     void refreshUsers();
   });
   $("#close-users")?.addEventListener("click", () => usersDialog?.close());
+  document.getElementById("link-device")?.addEventListener("click", async () => {
+    try {
+      const response = await fetch("/api/auth/device-link", { method: "POST", headers: { Accept: "application/json" } });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.detail || "Could not create a device link.");
+      inviteResult.hidden = false;
+      inviteResult.replaceChildren();
+      const label = document.createElement("span");
+      label.textContent = `Open this on your phone or other computer within ${body.expires_minutes} minutes to add a passkey for your account:`;
+      const code = document.createElement("code");
+      code.textContent = body.url;
+      const copy = document.createElement("button");
+      copy.type = "button";
+      copy.textContent = "COPY LINK";
+      copy.addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(body.url); copy.textContent = "COPIED"; }
+        catch { copy.textContent = "SELECT LINK TO COPY"; }
+      });
+      inviteResult.append(label, code, copy);
+    } catch (error) {
+      setPhase("idle", "Device link not created", error.message || "Try again.");
+    }
+  });
+
   inviteUserForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const button = inviteUserForm.querySelector("button[type=submit]");

@@ -117,6 +117,22 @@ class ConversationHistory:
             ).fetchall()
         return [dict(row) for row in reversed(rows)]
 
+    def search(self, query: str, limit: int = 8, user_id: str = "admin") -> list[dict[str, str]]:
+        """Find this user's past messages containing every query word, newest first."""
+        self._validate_user_id(user_id)
+        terms = [term for term in query.lower().split() if len(term) > 2][:6]
+        if not terms:
+            return []
+        escaped = [term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") for term in terms]
+        clause = " AND ".join("lower(content) LIKE ? ESCAPE '\\'" for _ in escaped)
+        with self._session() as connection:
+            rows = connection.execute(
+                f"SELECT conversation_id,role,content,created_at FROM messages WHERE user_id=? AND {clause} "
+                "ORDER BY rowid DESC LIMIT ?",
+                (user_id, *(f"%{term}%" for term in escaped), min(max(limit, 1), 20)),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def delete(self, conversation_id: str, user_id: str = "admin") -> int:
         """Delete one browser conversation archive and return its message count."""
         self._validate_ids(conversation_id, "delete")

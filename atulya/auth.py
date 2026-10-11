@@ -54,6 +54,13 @@ class AuthStore:
                     created_at INTEGER NOT NULL,
                     disabled_at INTEGER
                 );
+                CREATE TABLE IF NOT EXISTS device_links (
+                    token_hash TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    expires_at INTEGER NOT NULL,
+                    used_at INTEGER
+                );
                 CREATE TABLE IF NOT EXISTS invitations (
                     token_hash TEXT PRIMARY KEY,
                     user_id TEXT NOT NULL UNIQUE,
@@ -140,6 +147,27 @@ class AuthStore:
                        (self._token_hash(token), user_id, now, now + INVITE_MAX_AGE))
         return user_id, token
 
+    def create_device_link(self, user_id: str) -> str:
+        """One-time, 10-minute code that lets a signed-in user add a passkey on another device/address."""
+        token = secrets.token_urlsafe(24)
+        now = int(time.time())
+        with self._session() as db:
+            db.execute("INSERT INTO device_links(token_hash,user_id,created_at,expires_at) VALUES(?,?,?,?)",
+                       (self._token_hash(token), user_id, now, now + 600))
+        return token
+
+    def device_link(self, token: str | None) -> sqlite3.Row | None:
+        if not token or len(token) > 128 or not token.isascii() or not all(
+            character.isalnum() or character in "-_" for character in token
+        ):
+            return None
+        with self._session() as db:
+            return db.execute(
+                "SELECT d.user_id,u.display_name FROM device_links d JOIN users u ON u.id=d.user_id "
+                "WHERE d.token_hash=? AND d.used_at IS NULL AND d.expires_at>? AND u.disabled_at IS NULL",
+                (self._token_hash(token), int(time.time())),
+            ).fetchone()
+
     def invitation(self, token: str | None) -> sqlite3.Row | None:
         if not token or len(token) > 128 or not token.isascii() or not all(
             character.isalnum() or character in "-_" for character in token
@@ -157,6 +185,7 @@ class AuthStore:
         self, credential_id: bytes, public_key: bytes, sign_count: int, transports: str,
         *, user_id: str = ADMIN_ID, display_name: str = "Admin", first_only: bool = False,
         invite_token: str | None = None,
+        device_token: str | None = None,
     ) -> bool:
         now = int(time.time())
         with self._session() as db:
@@ -165,7 +194,15 @@ class AuthStore:
             # credentials can only be added by an authenticated admin route.
             if first_only and db.execute("SELECT 1 FROM credentials LIMIT 1").fetchone():
                 return False
-            if invite_token:
+            if device_token:
+                link = db.execute(
+                    "SELECT user_id FROM device_links WHERE token_hash=? AND used_at IS NULL AND expires_at>?",
+                    (self._token_hash(device_token), now),
+                ).fetchone()
+                if link is None or link["user_id"] != user_id:
+                    return False
+                db.execute("UPDATE device_links SET used_at=? WHERE token_hash=?", (now, self._token_hash(device_token)))
+            elif invite_token:
                 invitation = db.execute(
                     "SELECT user_id FROM invitations WHERE token_hash=? AND used_at IS NULL AND expires_at>?",
                     (self._token_hash(invite_token), now),

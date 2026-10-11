@@ -1,0 +1,9 @@
+{
+  "id": "pc-control",
+  "name": "PC control (asks before acting)",
+  "version": "1.0.0",
+  "category": "system",
+  "enabled": true,
+  "commands": ["open app", "open website", "find file", "media and volume", "screenshot"],
+  "permissions": ["system:launch-apps", "files:read-home", "system:media-keys", "system:screenshot"]
+}

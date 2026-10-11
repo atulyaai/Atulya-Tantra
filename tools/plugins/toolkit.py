@@ -10,8 +10,11 @@ import asyncio
 import json
 import logging
 import re
+import secrets
+import time
+from collections import deque
 from collections.abc import Awaitable, Callable, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
@@ -31,6 +34,9 @@ class Tool:
     handler: ToolHandler
     plugin_id: str
     needs_context: bool = False
+    # Side-effecting tools: the call only queues a request the user must approve.
+    confirm: bool = False
+    describe: Callable[[dict], str] | None = None
 
     def schema(self) -> dict:
         """OpenAI-style function definition, accepted by every supported provider."""
@@ -119,6 +125,41 @@ async def _list_meetings(_args: dict, ctx: PluginContext | None) -> str:
     )
 
 
+# --- past conversations ------------------------------------------------------
+
+async def _search_chats(args: dict, ctx: PluginContext | None) -> str:
+    if ctx.history is None:
+        return "Past conversations are not available on this channel."
+    rows = await asyncio.to_thread(ctx.history.search, _text(args, "query", 200), 8, ctx.user_id)
+    if not rows:
+        return "No past messages match."
+    return "\n".join(
+        f"- [{row['created_at'][:16]}] {row['role']}: {row['content'][:300]}" for row in rows
+    )
+
+
+# --- PC control (approval required) ---------------------------------------------
+
+def _pc(fn_name: str):
+    async def run(args: dict, ctx: PluginContext | None) -> str:
+        from tools.plugins.system import actions
+
+        if fn_name == "take_screenshot":
+            data_dir = getattr(ctx.actions, "data_dir", Path("data"))
+            return await asyncio.to_thread(actions.take_screenshot, data_dir)
+        if fn_name == "media_control":
+            return await asyncio.to_thread(actions.media_control, _text(args, "command", 20), int(args.get("steps", 1) or 1))
+        key = {"open_app": "name", "open_url": "url", "search_files": "query"}[fn_name]
+        return await asyncio.to_thread(getattr(actions, fn_name), _text(args, key, 300))
+    return run
+
+
+def _describe_media(args: dict) -> str:
+    command = str(args.get("command", "")).replace("_", " ")
+    steps = args.get("steps")
+    return f"Media: {command}" + (f" ×{steps}" if steps and "volume" in command else "")
+
+
 # --- skills ----------------------------------------------------------------
 
 def list_skills() -> list[dict[str, str]]:
@@ -173,9 +214,98 @@ TOOLS: tuple[Tool, ...] = (
                   "when": {"type": "string", "description": "ISO 'YYYY-MM-DD HH:MM' or 'today/tomorrow at 3pm'"}},
                  ["title", "when"]), _add_meeting, "productivity-calendar", True),
     Tool("list_meetings", "List upcoming calendar meetings.", _params(), _list_meetings, "productivity-calendar", True),
+    Tool("search_past_chats", "Search the user's earlier conversations for something they said or asked before.",
+         _params({"query": {"type": "string", "description": "Key words to look for"}}, ["query"]),
+         _search_chats, "personal-memory", True),
+    Tool("open_app", "Open an installed application on the user's computer (asks the user first).",
+         _params({"name": {"type": "string", "description": "App name, e.g. 'Spotify', 'Calculator'"}}, ["name"]),
+         _pc("open_app"), "pc-control", True, True, lambda a: f"Open app: {a.get('name', '')}"),
+    Tool("open_url", "Open a web page in the computer's browser (asks the user first).",
+         _params({"url": {"type": "string", "description": "Full http(s) URL"}}, ["url"]),
+         _pc("open_url"), "pc-control", True, True, lambda a: f"Open website: {a.get('url', '')}"),
+    Tool("search_files", "Find files by name in the user's Desktop, Documents, Downloads, Pictures, Music and Videos (asks first).",
+         _params({"query": {"type": "string", "description": "Words in the file name"}}, ["query"]),
+         _pc("search_files"), "pc-control", True, True, lambda a: f"Search files for: {a.get('query', '')}"),
+    Tool("media_control", "Play/pause, next/previous track, volume up/down, or mute on the computer (asks first).",
+         _params({"command": {"type": "string", "enum": ["play_pause", "next", "previous", "volume_up", "volume_down", "mute"]},
+                  "steps": {"type": "integer", "minimum": 1, "maximum": 10}}, ["command"]),
+         _pc("media_control"), "pc-control", True, True, _describe_media),
+    Tool("take_screenshot", "Capture the computer's screen to a file (asks first).", _params(),
+         _pc("take_screenshot"), "pc-control", True, True, lambda a: "Take a screenshot"),
     Tool("use_skill", "Load a named multi-step skill (workflow instructions) and follow it.",
          _params({"name": {"type": "string"}}, ["name"]), _use_skill, "skills"),
 )
+
+
+@dataclass
+class PendingAction:
+    id: str
+    tool: str
+    arguments: dict
+    summary: str
+    user_id: str
+    created: float = field(default_factory=time.monotonic)
+
+
+class ActionQueue:
+    """Side-effecting tool calls wait here until the signed-in user approves them.
+
+    One queue per app; each request gets a view that remembers which actions it
+    created so the WebUI stream can show Approve/Deny buttons for them.
+    """
+
+    TTL_SECONDS = 180
+
+    def __init__(self, data_dir: Path) -> None:
+        self.data_dir = data_dir
+        self._pending: dict[str, PendingAction] = {}
+
+    def add(self, tool: str, arguments: dict, summary: str, user_id: str) -> PendingAction:
+        self._expire()
+        action = PendingAction(secrets.token_urlsafe(12), tool, arguments, summary, user_id)
+        self._pending[action.id] = action
+        return action
+
+    def take(self, action_id: str, user_id: str) -> PendingAction | None:
+        self._expire()
+        action = self._pending.get(action_id)
+        if action is None or action.user_id != user_id:
+            return None
+        return self._pending.pop(action_id)
+
+    def _expire(self) -> None:
+        cutoff = time.monotonic() - self.TTL_SECONDS
+        for key in [key for key, item in self._pending.items() if item.created < cutoff]:
+            del self._pending[key]
+
+    def view(self) -> "ActionView":
+        return ActionView(self)
+
+
+class ActionView:
+    def __init__(self, queue: ActionQueue) -> None:
+        self.queue = queue
+        self.data_dir = queue.data_dir
+        self.created: list[PendingAction] = []
+        self._sent = 0
+
+    def add(self, tool: str, arguments: dict, summary: str, user_id: str) -> PendingAction:
+        action = self.queue.add(tool, arguments, summary, user_id)
+        self.created.append(action)
+        return action
+
+    def drain_new(self) -> list[PendingAction]:
+        new = self.created[self._sent:]
+        self._sent = len(self.created)
+        return new
+
+
+# Recent tool activity for the status panel (names and outcomes only, no arguments).
+TOOL_ACTIVITY: deque[dict] = deque(maxlen=12)
+
+
+def record_activity(name: str, outcome: str) -> None:
+    TOOL_ACTIVITY.append({"tool": name, "outcome": outcome, "at": datetime.now().astimezone().isoformat(timespec="seconds")})
 
 
 class Toolbox:
@@ -202,7 +332,9 @@ class Toolbox:
     def instructions(self) -> str:
         skills = list_skills()
         lines = ["You can call tools. Use them whenever they give fresher or more exact answers than memory "
-                 "(weather, news, time, maths, the user's saved memories and meetings). Never invent tool results."]
+                 "(weather, news, time, maths, the user's saved memories, meetings, and earlier conversations). "
+                 "Never invent tool results. Computer actions (apps, websites, files, media, screenshots) only "
+                 "run after the user taps Approve; say so instead of claiming they happened."]
         if skills:
             lines.append("Skills available through use_skill: " + "; ".join(
                 f"{s['name']} ({s['description']})" for s in skills))
@@ -216,11 +348,45 @@ class Toolbox:
             args = raw_arguments if isinstance(raw_arguments, dict) else json.loads(raw_arguments or "{}")
             if not isinstance(args, dict):
                 raise ValueError("arguments must be an object")
-            return (await asyncio.wait_for(tool.handler(args, self.context), timeout=20))[:4000]
+            if tool.confirm:
+                actions = getattr(self.context, "actions", None)
+                if actions is None:
+                    return "This action needs on-screen approval, which is only available in the Atulya WebUI."
+                summary = (tool.describe or (lambda _a: name))(args)[:200]
+                actions.add(name, args, summary, self.context.user_id)
+                record_activity(name, "awaiting approval")
+                return (f"Approval requested on screen: '{summary}'. It has NOT run yet. Tell the user briefly "
+                        "to tap Approve (or Deny); do not claim it is done.")
+            result = (await asyncio.wait_for(tool.handler(args, self.context), timeout=20))[:4000]
+            record_activity(name, "ok")
+            return result
         except (ValueError, TypeError) as exc:
+            record_activity(name, "invalid input")
             return f"Invalid input for {name}: {exc}"
         except asyncio.TimeoutError:
+            record_activity(name, "timed out")
             return f"{name} timed out."
         except Exception as exc:
             logger.warning("Tool %s failed (%s)", name, type(exc).__name__)
+            record_activity(name, "failed")
             return f"{name} is unavailable right now."
+
+    async def run_approved(self, action: PendingAction) -> str:
+        """Execute an action the user approved (bypasses the confirmation step only)."""
+        tool = TOOLS_BY_NAME.get(action.tool)
+        if tool is None:
+            return "That action is no longer available."
+        try:
+            result = (await asyncio.wait_for(tool.handler(action.arguments, self.context), timeout=30))[:4000]
+            record_activity(action.tool, "approved · ok")
+            return result
+        except (ValueError, TypeError) as exc:
+            record_activity(action.tool, "approved · invalid input")
+            return f"Couldn't do that: {exc}"
+        except Exception as exc:
+            logger.warning("Approved action %s failed (%s)", action.tool, type(exc).__name__)
+            record_activity(action.tool, "approved · failed")
+            return "That action failed on this computer."
+
+
+TOOLS_BY_NAME = {tool.name: tool for tool in TOOLS}
