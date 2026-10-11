@@ -80,3 +80,9 @@ examples/results.md
 
 # Legacy data path from earlier local configuration; remove after migrating .env to data/.
 assets/
+
+# Android build output
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
