@@ -10,9 +10,9 @@
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icons/icon-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <link rel="stylesheet" href="./renderer.css?v=atulya-39">
+  <link rel="stylesheet" href="./renderer.css?v=atulya-40">
   <script type="module" crossorigin src="./renderer.js?v=atulya-10"></script>
-  <script defer src="./assistant.js?v=atulya-49"></script>
+  <script defer src="./assistant.js?v=atulya-50"></script>
 </head>
 <body>
   <div id="root"></div>
@@ -57,7 +57,10 @@
       </div>
       <form class="auth-password" id="auth-password-form" hidden>
         <input id="auth-username" autocomplete="username" placeholder="username or email" value="atulya" spellcheck="false">
-        <input id="auth-password" type="password" autocomplete="current-password" placeholder="password">
+        <div class="password-field">
+          <input id="auth-password" type="password" autocomplete="current-password" placeholder="password">
+          <button id="auth-password-toggle" type="button" aria-label="Show password" aria-pressed="false">👁</button>
+        </div>
         <button type="submit">SIGN IN WITH PASSWORD</button>
       </form>
       <label class="auth-setup-token" id="auth-invite-wrap" hidden>

@@ -35,7 +35,8 @@ def main() -> None:
     alias.add_argument("alias")
     alias.add_argument("--user", default="admin")
     secrets = commands.add_parser("secrets", help="encrypt API keys/tokens from .env at rest")
-    secrets.add_argument("action", choices=["protect", "status"])
+    secrets.add_argument("action", choices=["protect", "status", "set"])
+    secrets.add_argument("name", nargs="?", help="for 'set': the variable name; the value is read from stdin")
     selftest = commands.add_parser("selftest", help="run real end-to-end checks against the running server")
     selftest.add_argument("--actions", action="store_true", help="also approve a real PC action (opens Calculator)")
     remote = commands.add_parser("remote", help="reach Atulya from your devices anywhere via Tailscale")
@@ -63,6 +64,14 @@ def main() -> None:
         from .secrets_store import SECRET_KEY, protect, secrets_path
 
         data_dir = Settings.from_environment().data_dir
+        if args.action == "set":
+            import sys
+
+            from .secrets_store import set_secret
+
+            set_secret(data_dir, (args.name or "").upper(), sys.stdin.readline().strip())
+            print(f"Stored {args.name.upper()} encrypted.")
+            return
         if args.action == "protect":
             moved = protect(PROJECT_ROOT / ".env", data_dir)
             print("Encrypted: " + (", ".join(moved) if moved else "nothing new (no plain-text secrets in .env)"))

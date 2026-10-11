@@ -250,6 +250,10 @@ def main() -> int:
         from tools.plugins.brain.local_llm import prepare_local_model
 
         settings = Settings.from_environment()
+        if os.environ.get("ATULYA_SKIP_MODELS", "").strip() == "1":
+            # CI / quick installs: packages only; models download later on first real start.
+            print("Skipping model downloads (ATULYA_SKIP_MODELS=1).", flush=True)
+            return 0
         prepare_models(
             settings.models_dir,
             stt_model=os.environ.get("ATULYA_STT_MODEL", "base").strip() or "base",

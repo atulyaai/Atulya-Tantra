@@ -72,6 +72,19 @@ def load_protected(data_dir: Path) -> int:
     return len(values)
 
 
+def set_secret(data_dir: Path, key: str, value: str) -> None:
+    """Add or replace one encrypted secret."""
+    if not re.fullmatch(r"[A-Z0-9_]{2,64}", key) or not value.strip():
+        raise ValueError("Use an UPPER_CASE name and a non-empty value")
+    path = secrets_path(data_dir)
+    stored = _decode(path.read_bytes()) if path.is_file() else {}
+    stored[key] = value.strip()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(_encode(stored))
+    if _decode(path.read_bytes()) != stored:
+        raise OSError("Encrypted secrets did not verify")
+
+
 def protect(env_file: Path, data_dir: Path) -> list[str]:
     """Move secret-looking values from .env into the encrypted store; blank them in .env."""
     lines = env_file.read_text(encoding="utf-8").splitlines()

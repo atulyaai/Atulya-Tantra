@@ -185,6 +185,8 @@ class TelegramChannel:
                     await asyncio.sleep(5)
 
     GUEST_DAILY_LIMIT = 30
+    # All guests together; protects the cloud-model budget (ATULYA_GUEST_DAILY_TOTAL overrides).
+    GUEST_DAILY_TOTAL = 200
 
     async def _guest_message(self, client: httpx.AsyncClient, user_id: str, chat_id: str, message_id: str,
                              text: str) -> None:
@@ -193,8 +195,13 @@ class TelegramChannel:
         day, used = self._guest_usage.get(user_id, (today, 0))
         if day != today:
             used = 0
-        if used >= self.GUEST_DAILY_LIMIT:
-            reply = "You've reached today's limit for guests. Try again tomorrow."
+        total_today = sum(count for day_seen, count in self._guest_usage.values() if day_seen == today)
+        try:
+            total_cap = int(os.environ.get("ATULYA_GUEST_DAILY_TOTAL", self.GUEST_DAILY_TOTAL))
+        except ValueError:
+            total_cap = self.GUEST_DAILY_TOTAL
+        if used >= self.GUEST_DAILY_LIMIT or total_today >= total_cap:
+            reply = "Guest access is at its limit for today. Try again tomorrow."
         elif text.split(maxsplit=1)[0].split("@", 1)[0].lower() in {"/start", "/help"}:
             reply = ("Hi, I'm Atulya. Ask me anything — weather, news, maths, quick facts. "
                      f"Guests get {self.GUEST_DAILY_LIMIT} messages a day.")

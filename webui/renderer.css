@@ -319,3 +319,8 @@ body.status-focus .system-tile strong{font-size:13px;line-height:1.4}
 .auth-code p{margin:0;color:#b9d7e2;font-size:11px;line-height:1.5}
 .auth-code input{padding:10px;border:1px solid rgba(76,206,229,.35);border-radius:8px;background:#06121b;color:#fff;font:600 20px ui-monospace,Consolas,monospace;letter-spacing:.4em;text-align:center}
 .auth-code div{display:flex;gap:8px}.auth-code button{flex:1;padding:9px;border:1px solid rgba(255,190,83,.5);border-radius:999px;background:rgba(255,190,83,.1);color:#ffd894;font:700 9px var(--font-ui);letter-spacing:.1em;cursor:pointer}
+
+.password-field{position:relative;display:grid}
+.password-field input{padding-right:40px}
+.password-field button{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:32px;height:30px;padding:0;border:0;border-radius:6px;background:transparent;color:#b9f5ff;font-size:15px;cursor:pointer}
+.password-field button:focus-visible{outline:2px solid var(--cyan)}

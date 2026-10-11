@@ -8,6 +8,7 @@
 # private Python 3.12 if no Python >= 3.10 exists, create .venv, run setup.
 param(
     [switch]$Service,
+    [switch]$NoStart,
     [switch]$RemoveService,
     [string]$Dir = $(if ($env:ATULYA_DIR) { $env:ATULYA_DIR } else { Join-Path $HOME 'Atulya-Tantra' })
 )
@@ -78,6 +79,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Atulya setup failed; see the messages above.' 
 # 4. Optional sign-in task, otherwise run in this window.
 if ($Service) {
     & (Join-Path $Dir 'tools\install_pc_host.ps1')
+} elseif ($NoStart) {
+    Say "Installed. Start with: $Dir\start.bat"
 } else {
     Say 'Starting Atulya at http://localhost:8501 (Ctrl+C to stop)'
     & $venvPython -m atulya.cli serve

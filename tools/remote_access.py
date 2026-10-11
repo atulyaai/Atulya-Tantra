@@ -156,7 +156,7 @@ def cloudflare(hostname: str) -> int:
         if not cert.is_file():
             return 1
     listed = _run(binary, "tunnel", "list", "--output", "json")
-    tunnels = json.loads(listed.stdout or "[]") if listed.returncode == 0 else []
+    tunnels = (json.loads(listed.stdout or "[]") or []) if listed.returncode == 0 else []
     if not any(item.get("name") == TUNNEL_NAME for item in tunnels):
         created = _run(binary, "tunnel", "create", TUNNEL_NAME)
         if created.returncode != 0:

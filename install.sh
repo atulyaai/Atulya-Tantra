@@ -12,10 +12,12 @@ set -eu
 REPO="https://github.com/atulyaai/Atulya-Tantra"
 DIR="${ATULYA_DIR:-$HOME/Atulya-Tantra}"
 SERVICE=0
+NO_START=0
 REMOVE=0
 for arg in "$@"; do
     case "$arg" in
         --service) SERVICE=1 ;;
+        --no-start) NO_START=1 ;;
         --remove-service) REMOVE=1 ;;
         --dir=*) DIR="${arg#--dir=}" ;;
         *) echo "Unknown option: $arg"; exit 2 ;;
@@ -130,6 +132,8 @@ EOF
     fi
     say "Atulya starts automatically at login. Logs: $DIR/data/logs/pc-host.log"
     say "Open http://localhost:8501"
+elif [ "$NO_START" = 1 ]; then
+    say "Installed. Start with: $DIR/start.sh"
 else
     say "Starting Atulya at http://localhost:8501 (Ctrl+C to stop)"
     exec .venv/bin/python -m atulya.cli serve

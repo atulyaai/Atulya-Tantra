@@ -2100,6 +2100,16 @@
   }
   window.setInterval(checkPendingLogins, 3000);
 
+  document.getElementById("auth-password-toggle")?.addEventListener("click", (event) => {
+    const field = document.getElementById("auth-password");
+    const show = field.type === "password";
+    field.type = show ? "text" : "password";
+    event.currentTarget.setAttribute("aria-pressed", String(show));
+    event.currentTarget.setAttribute("aria-label", show ? "Hide password" : "Show password");
+    event.currentTarget.textContent = show ? "🙈" : "👁";
+    field.focus();
+  });
+
   document.getElementById("auth-password-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const password = document.getElementById("auth-password");
