@@ -221,3 +221,20 @@ def test_tables_missing_created_at_default_are_repaired(project_temp_dir) -> Non
     memory = PersonalMemory(project_temp_dir)
     assert memory.remember("web", "new fact", user_id="admin") is True
     assert set(memory.list("web", user_id="admin")) == {"old fact", "new fact"}
+
+
+def test_merging_chat_memories_with_duplicates_does_not_crash(project_temp_dir) -> None:
+    import sqlite3
+    from contextlib import closing
+
+    from atulya.server import _merge_web_owners
+    from tools.plugins.personal.memory import PersonalMemory
+
+    memory = PersonalMemory(project_temp_dir)
+    memory.remember("chatA", "likes chai", user_id="admin")
+    memory.remember("chatB", "likes chai", user_id="admin")
+    memory.remember("tg123", "telegram fact", user_id="tg_123")
+    _merge_web_owners(project_temp_dir)
+    with closing(sqlite3.connect(project_temp_dir / "personal_memory.sqlite3")) as db:
+        rows = sorted(db.execute("SELECT owner, fact FROM facts").fetchall())
+    assert rows == [("tg123", "telegram fact"), ("web", "likes chai")]

@@ -215,13 +215,14 @@ class AuthStore:
     # --- IP bans -----------------------------------------------------------------
     IP_STRIKE_LIMIT = 10
     IP_BAN_SECONDS = 3600
+    IP_STRIKE_WINDOW = 24 * 3600  # slow attacks (a few tries an hour) still add up
 
     def strike_ip(self, ip: str) -> bool:
         """Count one failed/abusive auth attempt; returns True when the IP is now banned."""
         now = int(time.time())
         with self._session() as db:
             row = db.execute("SELECT strikes,first_at FROM ip_strikes WHERE ip=?", (ip,)).fetchone()
-            if row is None or now - row["first_at"] > self.IP_BAN_SECONDS:
+            if row is None or now - row["first_at"] > self.IP_STRIKE_WINDOW:
                 db.execute("INSERT OR REPLACE INTO ip_strikes(ip,strikes,first_at,blocked_until) VALUES(?,1,?,0)",
                            (ip, now))
                 return False
