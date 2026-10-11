@@ -167,6 +167,7 @@ def main() -> None:
             logging.getLogger(__name__).info("Cloudflare tunnel started for %s", settings.public_origin)
 
     import uvicorn
+    import uvicorn.config
     try:
         uvicorn.run(
             "atulya.server:app",
@@ -175,7 +176,8 @@ def main() -> None:
             reload=False,
             proxy_headers=True,
             forwarded_allow_ips=settings.trusted_proxy_ips,
-            log_config=None if args.command == "pc-host" else "default",
+            # pc-host logs to its rotating file; serve uses uvicorn's built-in console config.
+            log_config=None if args.command == "pc-host" else uvicorn.config.LOGGING_CONFIG,
         )
     finally:
         if runtime is not None:
