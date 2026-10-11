@@ -38,7 +38,8 @@ jobs:
           mkdir -p ../dist && cp app/build/outputs/apk/release/app-release.apk "../dist/Atulya-$VERSION.apk"
           cp app/build/outputs/bundle/release/app-release.aab "../dist/Atulya-$VERSION.aab"
           rm -f "$RUNNER_TEMP/atulya-release.p12"
-          "$ANDROID_HOME"/build-tools/*/apksigner verify --print-certs "../dist/Atulya-$VERSION.apk" | grep -i "SHA-256"
+          APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner"
+          "$APKSIGNER" verify --print-certs "../dist/Atulya-$VERSION.apk" | grep -i "SHA-256"
       - uses: actions/upload-artifact@v4
         with:
           name: Atulya-${{ env.VERSION }}
