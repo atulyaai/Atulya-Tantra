@@ -123,3 +123,32 @@ def test_strangers_must_register_after_free_messages(tmp_path, monkeypatch) -> N
     assert "waiting for the owner" in sent[6]
     assert "/approve 222" in owner[0]
     assert approved == "Rahul is now approved."
+
+
+def test_telegram_mini_app_signature_is_verified(tmp_path) -> None:
+    import hashlib
+    import hmac
+    import json
+    import time
+    from urllib.parse import urlencode
+
+    from atulya.history import ConversationHistory
+    from tools.plugins.communications.channels.telegram import TelegramChannel
+    from tools.plugins.productivity.reminders import ReminderStore
+
+    token = "123:secret-test-token"
+    channel = TelegramChannel(token=token, allowed_user_ids={"111"}, brain=None, history=ConversationHistory(tmp_path),
+                              reminders=ReminderStore(tmp_path), status_summary=lambda: "", data_dir=tmp_path)
+
+    def signed(auth_date: int, user_id: int = 111) -> str:
+        fields = {"auth_date": str(auth_date), "query_id": "q1", "user": json.dumps({"id": user_id, "first_name": "AJ"})}
+        check = "\n".join(f"{k}={fields[k]}" for k in sorted(fields))
+        secret = hmac.new(b"WebAppData", token.encode(), hashlib.sha256).digest()
+        fields["hash"] = hmac.new(secret, check.encode(), hashlib.sha256).hexdigest()
+        return urlencode(fields)
+
+    good = signed(int(time.time()))
+    assert channel.verify_webapp_data(good)["id"] == 111
+    assert channel.web_identity("111") == "owner" and channel.web_identity("999") is None
+    assert channel.verify_webapp_data(good.replace("AJ", "XX")) is None          # tampered
+    assert channel.verify_webapp_data(signed(int(time.time()) - 200000)) is None  # expired

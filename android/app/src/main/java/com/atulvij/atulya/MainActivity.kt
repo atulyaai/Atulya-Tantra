@@ -33,6 +33,9 @@ import androidx.webkit.WebViewFeature
 class MainActivity : AppCompatActivity() {
     private lateinit var web: WebView
     private var unlocked = false
+    private var leftAt = 0L
+    private var pendingUrl: String? = null
+    private val relockAfterMs = 2 * 60 * 1000L // quick trips (copying a code from Telegram) don't re-lock
     private val origin: Uri = Uri.parse(BuildConfig.ATULYA_URL)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,17 +44,43 @@ class MainActivity : AppCompatActivity() {
         web = WebView(this)
         setContentView(web)
         configureWebView()
+        if (savedInstanceState != null) web.restoreState(savedInstanceState)
+        pendingUrl = linkFrom(intent)
         requestMediaPermissions()
     }
 
     override fun onResume() {
         super.onResume()
-        if (!unlocked) unlock()
+        if (unlocked && leftAt > 0 && System.currentTimeMillis() - leftAt > relockAfterMs) unlocked = false
+        if (!unlocked) unlock() else openPending()
     }
 
     override fun onStop() {
         super.onStop()
-        unlocked = false // lock again whenever the app leaves the screen
+        leftAt = System.currentTimeMillis()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        web.saveState(outState)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        pendingUrl = linkFrom(intent) ?: pendingUrl
+        if (unlocked) openPending()
+    }
+
+    /** Only links to the Atulya origin (e.g. the Telegram "tap to sign in" link) open inside the app. */
+    private fun linkFrom(intent: Intent?): String? {
+        val data = intent?.data ?: return null
+        return if (data.scheme == "https" && data.host == origin.host) data.toString() else null
+    }
+
+    private fun openPending() {
+        val url = pendingUrl ?: return
+        pendingUrl = null
+        web.loadUrl(url)
     }
 
     private fun unlock() {
@@ -66,7 +95,8 @@ class MainActivity : AppCompatActivity() {
             object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     unlocked = true
-                    if (web.url == null) web.loadUrl(origin.toString())
+                    leftAt = 0L
+                    if (pendingUrl != null) openPending() else if (web.url == null) web.loadUrl(origin.toString())
                     checkForUpdate()
                 }
                 override fun onAuthenticationError(code: Int, message: CharSequence) {

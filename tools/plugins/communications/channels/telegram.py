@@ -261,6 +261,47 @@ class TelegramChannel:
             return
 
     # --- registered Telegram members ---------------------------------------------
+    def web_identity(self, telegram_id: str) -> str | None:
+        """'owner' for allowlisted ids, 'member' for approved registrations, else None."""
+        if telegram_id in self._allowed:
+            return "owner"
+        return "member" if self._members().get(telegram_id, {}).get("state") == "approved" else None
+
+    def verify_webapp_data(self, init_data: str, max_age: int = 86400) -> dict | None:
+        """Validate Telegram Mini App initData (HMAC with the bot token). Returns the user dict."""
+        import hashlib
+        import hmac
+        import time as _time
+        from urllib.parse import parse_qsl
+
+        if not self._token or not init_data or len(init_data) > 4096:
+            return None
+        fields = dict(parse_qsl(init_data, keep_blank_values=True))
+        received = fields.pop("hash", "")
+        check = "\n".join(f"{key}={fields[key]}" for key in sorted(fields))
+        secret = hmac.new(b"WebAppData", self._token.encode(), hashlib.sha256).digest()
+        expected = hmac.new(secret, check.encode(), hashlib.sha256).hexdigest()
+        if not received or not hmac.compare_digest(expected, received):
+            return None
+        try:
+            if _time.time() - int(fields.get("auth_date", "0")) > max_age:
+                return None
+            user = json.loads(fields.get("user", "{}"))
+        except ValueError:
+            return None
+        return user if isinstance(user, dict) and str(user.get("id", "")).isdigit() else None
+
+    async def set_menu_button(self, url: str) -> None:
+        """Show an 'Open Atulya' button in the bot that launches the Mini App."""
+        if not self._token or not url.startswith("https://"):
+            return
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                await client.post(self._url("setChatMenuButton"), json={
+                    "menu_button": {"type": "web_app", "text": "Open Atulya", "web_app": {"url": url}}})
+        except httpx.HTTPError:
+            logger.info("Could not set the Telegram menu button")
+
     def _members(self) -> dict[str, dict]:
         if self._members_path is None or not self._members_path.is_file():
             return {}

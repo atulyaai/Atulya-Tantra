@@ -1,6 +1,6 @@
 // Atulya service worker: makes the WebUI installable and opens the shell fast.
 // API calls, voice, and auth always go to the network and are never cached.
-const CACHE = "atulya-shell-v1";
+const CACHE = "atulya-shell-v2";
 const SHELL = ["./", "./index.html", "./renderer.css", "./assistant.js", "./manifest.webmanifest", "./icons/icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -13,6 +13,24 @@ self.addEventListener("activate", (event) => {
       .then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))))
       .then(() => self.clients.claim()),
   );
+});
+
+self.addEventListener("push", (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = { title: "Atulya", body: event.data?.text() }; }
+  event.waitUntil(self.registration.showNotification(data.title || "Atulya", {
+    body: data.body || "", icon: "./icons/icon-192.png", badge: "./icons/icon-192.png",
+    data: { url: data.url || "./" }, tag: data.title || "atulya", renotify: true,
+  }));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = new URL(event.notification.data?.url || "./", self.location.origin).href;
+  event.waitUntil(clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+    const open = windows.find((client) => client.url.startsWith(self.location.origin));
+    return open ? open.focus() : clients.openWindow(target);
+  }));
 });
 
 self.addEventListener("fetch", (event) => {

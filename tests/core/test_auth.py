@@ -227,3 +227,22 @@ def test_login_by_code_is_single_use_limited_and_approvable(project_temp_dir: Pa
     assert store.redeem_login(request_id, None) == "admin"
     assert store.create_login_request("ghost", "1.1.1.1", "x") is None
     assert spoken_digits("four seven 2, nau एक 0") == "472910"
+
+
+def test_signup_waits_for_owner_approval(project_temp_dir: Path) -> None:
+    import pytest
+
+    store = AuthStore(project_temp_dir)
+    with pytest.raises(ValueError, match="10 characters"):
+        store.create_signup("Ravi", "ravi@example.com", "short", "password")
+    with pytest.raises(ValueError, match="three"):
+        store.create_signup("Ravi", "ravi@example.com", "alllowercaseletters", "password")
+    user_id = store.create_signup("Ravi", "Ravi@Example.com", "Str0ng-Passphrase", "password")
+    assert store.resolve_login("ravi@example.com") == user_id
+    assert store.check_password(user_id, "Str0ng-Passphrase", "c") == "bad"   # pending: cannot sign in
+    with pytest.raises(ValueError, match="already"):
+        store.create_signup("Ravi 2", "ravi@example.com", "Str0ng-Passphrase", "password")
+    assert [row["email"] for row in store.pending_signups()] == ["ravi@example.com"]
+    assert store.decide_signup(user_id, True)
+    assert store.check_password(user_id, "Str0ng-Passphrase", "c2") == "ok"
+    assert store.pending_signups() == []

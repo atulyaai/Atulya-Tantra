@@ -120,6 +120,20 @@ class ConversationHistory:
             ).fetchall()
         return [dict(row) for row in reversed(rows)]
 
+    def conversations(self, user_id: str = "admin", limit: int = 50) -> list[dict[str, str]]:
+        """This user's conversations on every device, newest first, titled by their first message."""
+        self._validate_user_id(user_id)
+        with self._session() as connection:
+            rows = connection.execute(
+                """SELECT conversation_id, MAX(created_at) AS updated, COUNT(*) AS messages,
+                          (SELECT content FROM messages m2 WHERE m2.user_id=m.user_id AND m2.conversation_id=m.conversation_id
+                           AND m2.role='user' ORDER BY rowid LIMIT 1) AS title
+                   FROM messages m WHERE user_id=? GROUP BY conversation_id ORDER BY updated DESC LIMIT ?""",
+                (user_id, min(max(limit, 1), 200)),
+            ).fetchall()
+        return [{"id": row["conversation_id"], "title": (row["title"] or "Conversation")[:72],
+                 "updated": row["updated"], "messages": row["messages"]} for row in rows]
+
     def search(self, query: str, limit: int = 8, user_id: str = "admin") -> list[dict[str, str]]:
         """Find this user's past messages containing every query word, newest first."""
         self._validate_user_id(user_id)

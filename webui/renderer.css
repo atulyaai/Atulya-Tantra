@@ -324,3 +324,7 @@ body.status-focus .system-tile strong{font-size:13px;line-height:1.4}
 .password-field input{padding-right:40px}
 .password-field button{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:32px;height:30px;padding:0;border:0;border-radius:6px;background:transparent;color:#b9f5ff;font-size:15px;cursor:pointer}
 .password-field button:focus-visible{outline:2px solid var(--cyan)}
+
+.auth-google{display:block;text-align:center;text-decoration:none}
+.auth-google[hidden]{display:none}
+.signup-strength{color:#9fb8c2;font-size:10px}.signup-strength[data-ok="true"]{color:#7fe3a3}

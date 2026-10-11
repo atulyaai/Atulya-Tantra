@@ -167,6 +167,12 @@ class SessionAuthMiddleware:
         "/api/auth/logout",
         "/api/auth/password",
         "/api/app/latest",
+        "/api/auth/telegram-webapp",
+        "/api/auth/signup",
+        "/api/auth/google/start",
+        "/api/auth/google/callback",
+        "/api/auth/options",
+        "/api/push/key",
     }
 
     def __init__(self, app, auth_store: AuthStore):
@@ -240,6 +246,16 @@ class ChatMessage(BaseModel):
 class BriefingRequest(BaseModel):
     conversation_id: str = Field(default="briefing", min_length=1, max_length=120)
     force: bool = False
+
+
+class SignupBody(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    email: str = Field(min_length=5, max_length=254)
+    password: str = Field(min_length=1, max_length=256)
+
+
+class TelegramWebAppBody(BaseModel):
+    init_data: str = Field(min_length=10, max_length=4096)
 
 
 class VoiceUnlockEnroll(BaseModel):
@@ -505,6 +521,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     personal_memory = PersonalMemory(config.data_dir)
     calendar = CalendarStore(config.data_dir)
     profiles = ProfileStore(config.data_dir)
+    try:
+        from .push import PushService
+
+        push = PushService(config.data_dir)
+    except Exception as exc:  # optional: missing pywebpush or key storage problem
+        logging.getLogger(__name__).info("Web Push unavailable (%s)", type(exc).__name__)
+        push = None
     _merge_web_owners(config.data_dir)
     command_plugins = build_default_registry()
     action_queue = ActionQueue(config.data_dir)
@@ -574,6 +597,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     async def start_telegram() -> None:
         await telegram.start()
+        if config.public_origin:
+            await telegram.set_menu_button(config.public_origin + "/")
 
     async def stop_telegram() -> None:
         await telegram.stop()
@@ -954,9 +979,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await telegram.notify("Atulya security: an IP address was blocked for 1 hour after repeated failed "
                                   "sign-in attempts. No action is needed unless that was you.")
 
-    async def deliver_login_code(user_id: str, code: str, label: str) -> list[str]:
+    async def deliver_login_code(user_id: str, code: str, label: str, request_id: str = "") -> list[str]:
         channels = []
-        text = (f"Atulya sign-in code: {code}\nRequested from {label}. It expires in 5 minutes. "
+        base = config.public_origin or f"http://localhost:{config.port}"
+        link = f"\nOr tap to sign in on that device: {base}/#signin={request_id}.{code}" if request_id else ""
+        text = (f"Atulya sign-in code: {code}{link}\nRequested from {label}. It expires in 5 minutes. "
                 "If this wasn't you, ignore it — or deny it on a signed-in device.")
         if user_id == "admin" and await telegram.notify(text):
             channels.append("Telegram")
@@ -988,7 +1015,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             # Same answer as success, so usernames can't be probed.
             return {"id": secrets.token_urlsafe(18), "channels": [], "expires_in": 300}
         request_id, code = created
-        channels = await deliver_login_code(user_id, code, label)
+        channels = await deliver_login_code(user_id, code, label, request_id)
+        await notify_user(user_id, "Sign-in request", f"Someone wants to sign in from {label}. Approve only if it's you.")
         return {"id": request_id, "channels": channels + ["signed-in devices"], "expires_in": 300}
 
     async def _finish_login(request_id: str, code: str | None, request: Request) -> Response:
@@ -1077,6 +1105,129 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 pass
             latest_app["checked"] = time.monotonic()
         return latest_app["data"] or {"version": "", "url": ""}
+
+    async def notify_user(user_id: str, title: str, body: str, url: str = "/") -> None:
+        if push is not None:
+            await asyncio.to_thread(push.send, user_id, title, body, url)
+
+    @app.get("/api/push/key")
+    async def push_key() -> dict[str, str]:
+        return {"key": push.public_key if push else ""}
+
+    @app.post("/api/push/subscribe")
+    async def push_subscribe(body: dict, request: Request) -> dict[str, bool]:
+        if push is None:
+            raise HTTPException(status_code=503, detail="Notifications are unavailable on this server.")
+        try:
+            await asyncio.to_thread(push.subscribe, str(request.state.user_id), body)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {"subscribed": True}
+
+    @app.get("/api/auth/options")
+    async def auth_options() -> dict[str, bool]:
+        return {"google": bool(os.environ.get("GOOGLE_CLIENT_ID", "").strip()), "signup": True}
+
+    @app.post("/api/auth/signup")
+    async def signup(body: SignupBody, request: Request) -> dict[str, object]:
+        """Anyone can ask for an account; it stays disabled until the owner approves it."""
+        await strike(request, weight_only_if_remote=True)
+        try:
+            user_id = await asyncio.to_thread(auth_store.create_signup, body.name, body.email, body.password, "password")
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        await telegram.notify(f"New Atulya sign-up: {body.name} <{body.email.strip().lower()}>. "
+                              "Approve or deny it in Atulya → USERS.")
+        await notify_user("admin", "New account request", f"{body.name} asked for an account.")
+        return {"pending": True, "user_id": user_id}
+
+    @app.get("/api/auth/signups")
+    async def list_signups(request: Request) -> dict[str, list[dict]]:
+        if not await asyncio.to_thread(auth_store.is_admin, str(request.state.user_id)):
+            raise HTTPException(status_code=403, detail="Only the administrator can approve accounts.")
+        return {"signups": [dict(row) for row in await asyncio.to_thread(auth_store.pending_signups)]}
+
+    @app.post("/api/auth/signups/{user_id}")
+    async def decide_signup(user_id: str, body: ActionDecision, request: Request) -> dict[str, bool]:
+        if not await asyncio.to_thread(auth_store.is_admin, str(request.state.user_id)):
+            raise HTTPException(status_code=403, detail="Only the administrator can approve accounts.")
+        if not await asyncio.to_thread(auth_store.decide_signup, user_id, body.approve):
+            raise HTTPException(status_code=404, detail="That sign-up was already handled.")
+        return {"approved": body.approve}
+
+    google_states: dict[str, float] = {}
+
+    def _google_redirect_uri(request: Request) -> str:
+        base = config.public_origin or f"{request.url.scheme}://{request.headers.get('host', 'localhost:8501')}"
+        return base + "/api/auth/google/callback"
+
+    @app.get("/api/auth/google/start")
+    async def google_start(request: Request) -> Response:
+        client_id = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+        if not client_id:
+            raise HTTPException(status_code=404, detail="Google sign-in is not configured.")
+        state = secrets.token_urlsafe(24)
+        google_states[state] = time.monotonic()
+        from urllib.parse import urlencode
+
+        query = urlencode({"client_id": client_id, "redirect_uri": _google_redirect_uri(request), "response_type": "code",
+                           "scope": "openid email profile", "state": state, "prompt": "select_account"})
+        return Response(status_code=302, headers={"Location": f"https://accounts.google.com/o/oauth2/v2/auth?{query}"})
+
+    @app.get("/api/auth/google/callback")
+    async def google_callback(request: Request, code: str = "", state: str = "") -> Response:
+        started = google_states.pop(state, None)
+        if not code or started is None or time.monotonic() - started > 600:
+            return Response(status_code=302, headers={"Location": "/#google=expired"})
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                token = (await client.post("https://oauth2.googleapis.com/token", data={
+                    "code": code, "client_id": os.environ["GOOGLE_CLIENT_ID"].strip(),
+                    "client_secret": os.environ.get("GOOGLE_CLIENT_SECRET", "").strip(),
+                    "redirect_uri": _google_redirect_uri(request), "grant_type": "authorization_code"})).json()
+                info = (await client.get("https://oauth2.googleapis.com/tokeninfo",
+                                         params={"id_token": token.get("id_token", "")})).json()
+        except (httpx.HTTPError, ValueError, KeyError):
+            return Response(status_code=302, headers={"Location": "/#google=failed"})
+        if info.get("aud") != os.environ["GOOGLE_CLIENT_ID"].strip() or info.get("email_verified") not in {True, "true"}:
+            return Response(status_code=302, headers={"Location": "/#google=failed"})
+        email = str(info.get("email", "")).lower()
+        user_id = await asyncio.to_thread(auth_store.resolve_login, email)
+        account = await asyncio.to_thread(auth_store.user, user_id)
+        if account is None:
+            try:
+                await asyncio.to_thread(auth_store.create_signup, str(info.get("name", email)), email, None, "google")
+                await telegram.notify(f"New Atulya sign-up via Google: {info.get('name', '')} <{email}>. "
+                                      "Approve or deny it in Atulya → USERS.")
+            except ValueError:
+                pass
+            return Response(status_code=302, headers={"Location": "/#google=pending"})
+        if account["disabled_at"] is not None:
+            return Response(status_code=302, headers={"Location": "/#google=pending"})
+        response = Response(status_code=302, headers={"Location": "/#google=ok"})
+        set_session_cookie(response, request, await asyncio.to_thread(auth_store.create_session, user_id))
+        return response
+
+    @app.post("/api/auth/telegram-webapp")
+    async def telegram_webapp_login(body: TelegramWebAppBody, request: Request) -> Response:
+        """Inside the Telegram Mini App: Telegram's signed initData identifies the user (no passkey there)."""
+        user = telegram.verify_webapp_data(body.init_data)
+        if user is None:
+            await strike(request)
+            raise HTTPException(status_code=401, detail="Telegram sign-in could not be verified.")
+        telegram_id = str(user["id"])
+        identity = telegram.web_identity(telegram_id)
+        if identity is None:
+            raise HTTPException(status_code=403, detail="Register in the Atulya bot first: send /register <your name>.")
+        if identity == "owner":
+            user_id = "admin"
+        else:
+            user_id = f"tg_{telegram_id}"
+            name = " ".join(str(user.get(key, "")) for key in ("first_name", "last_name")).strip() or telegram_id
+            await asyncio.to_thread(auth_store.ensure_user, user_id, name)
+        response = JSONResponse({"authenticated": True})
+        set_session_cookie(response, request, await asyncio.to_thread(auth_store.create_session, user_id))
+        return response
 
     @app.get("/api/auth/pending-logins")
     async def list_pending_logins(http_request: Request) -> dict[str, list[dict]]:
@@ -1355,6 +1506,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return {"deleted": deleted}
+
+    @app.get("/api/conversations")
+    async def list_conversations(http_request: Request) -> dict[str, list[dict]]:
+        """Server-side history, so chats from the laptop also appear on the phone."""
+        return {"conversations": await asyncio.to_thread(history.conversations, str(http_request.state.user_id))}
 
     @app.get("/api/conversations/{conversation_id}")
     async def get_conversation(conversation_id: str, http_request: Request) -> dict[str, list[dict[str, str]]]:

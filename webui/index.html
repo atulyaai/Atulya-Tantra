@@ -7,12 +7,13 @@
   <meta name="description" content="Atulya — a more natural way to work.">
   <title>Atulya</title>
   <link rel="manifest" href="./manifest.webmanifest">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icons/icon-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <link rel="stylesheet" href="./renderer.css?v=atulya-40">
+  <link rel="stylesheet" href="./renderer.css?v=atulya-41">
   <script type="module" crossorigin src="./renderer.js?v=atulya-10"></script>
-  <script defer src="./assistant.js?v=atulya-51"></script>
+  <script defer src="./assistant.js?v=atulya-53"></script>
 </head>
 <body>
   <div id="root"></div>
@@ -51,6 +52,18 @@
       <button id="auth-activate" type="button">SIGN IN WITH PASSKEY</button>
       <button id="auth-voice-unlock" class="auth-code-start" type="button" hidden>UNLOCK WITH VOICE</button>
       <button id="auth-code-start" class="auth-code-start" type="button">SIGN IN WITH A CODE</button>
+      <a id="auth-google" class="auth-code-start auth-google" href="/api/auth/google/start" hidden>CONTINUE WITH GOOGLE</a>
+      <button id="auth-signup-start" class="auth-code-start" type="button">CREATE ACCOUNT</button>
+      <form class="auth-password" id="auth-signup-form" hidden>
+        <input id="signup-name" autocomplete="name" placeholder="your name" maxlength="80" required>
+        <input id="signup-email" type="email" autocomplete="email" placeholder="email" required>
+        <div class="password-field">
+          <input id="signup-password" type="password" autocomplete="new-password" placeholder="new password (10+ characters)" required>
+          <button class="password-eye" type="button" aria-label="Show password">👁</button>
+        </div>
+        <small id="signup-strength" class="signup-strength">Use 10+ characters with a mix of letters, numbers and symbols.</small>
+        <button type="submit">REQUEST ACCOUNT</button>
+      </form>
       <div class="auth-code" id="auth-code" hidden>
         <p id="auth-code-status">Sending a code…</p>
         <input id="auth-code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code">
@@ -81,6 +94,7 @@
     </form>
     <button id="link-device" class="link-device" type="button">LINK MY PHONE / ANOTHER DEVICE</button>
     <div id="invite-result" class="invite-result" hidden></div>
+    <div id="signups-list" class="users-list"></div>
     <div id="users-list" class="users-list"></div>
   </dialog>
   <div class="session-stack">

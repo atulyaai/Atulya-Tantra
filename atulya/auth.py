@@ -60,6 +60,13 @@ class AuthStore:
                     hash BLOB NOT NULL,
                     updated_at INTEGER NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS signups (
+                    user_id TEXT PRIMARY KEY,
+                    email TEXT NOT NULL UNIQUE,
+                    via TEXT NOT NULL,
+                    state TEXT NOT NULL DEFAULT 'pending',
+                    created_at INTEGER NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS voice_unlock (
                     id TEXT PRIMARY KEY,
                     user_id TEXT NOT NULL,
@@ -299,6 +306,62 @@ class AuthStore:
         with self._session() as db:
             return db.execute("SELECT ip,strikes,blocked_until FROM ip_strikes WHERE blocked_until>?",
                               (int(time.time()),)).fetchall()
+
+    # --- self sign-up (owner approves) ------------------------------------------------
+    COMMON_PASSWORDS = {"password123", "1234567890", "qwertyuiop", "iloveyou12", "password12", "admin12345"}
+
+    @classmethod
+    def password_problem(cls, password: str, email: str = "") -> str | None:
+        if len(password) < 10:
+            return "Use at least 10 characters."
+        if password.lower() in cls.COMMON_PASSWORDS or (email and email.split("@")[0].lower() in password.lower()):
+            return "That password is too easy to guess."
+        kinds = sum(bool(re.search(pattern, password)) for pattern in (r"[a-z]", r"[A-Z]", r"\d", r"[^\w]"))
+        if kinds < 3:
+            return "Mix at least three of: lowercase, uppercase, numbers, symbols."
+        return None
+
+    def create_signup(self, name: str, email: str, password: str | None, via: str) -> str:
+        """Create a pending (disabled) account; the owner approves it before it can sign in."""
+        email = email.strip().lower()
+        if not re.fullmatch(r"[a-z0-9._%+-]{1,64}@[a-z0-9.-]{1,190}\.[a-z]{2,}", email):
+            raise ValueError("Enter a valid email address")
+        if password is not None and (problem := self.password_problem(password, email)):
+            raise ValueError(problem)
+        with self._session() as db:
+            if db.execute("SELECT 1 FROM login_aliases WHERE alias=?", (email,)).fetchone() or \
+                    db.execute("SELECT 1 FROM signups WHERE email=?", (email,)).fetchone():
+                raise ValueError("An account with that email already exists or is waiting for approval")
+            user_id = "u_" + secrets.token_hex(16)
+            now = int(time.time())
+            db.execute("INSERT INTO users(id,display_name,role,created_at,disabled_at) VALUES(?,?,'user',?,?)",
+                       (user_id, " ".join(name.split())[:80] or email, now, now))
+            db.execute("INSERT INTO signups(user_id,email,via,created_at) VALUES(?,?,?,?)", (user_id, email, via, now))
+            db.execute("INSERT INTO login_aliases(alias,user_id) VALUES(?,?)", (email, user_id))
+        if password is not None:
+            salt = secrets.token_bytes(16)
+            with self._session() as db:
+                db.execute("INSERT INTO passwords(user_id,salt,hash,updated_at) VALUES(?,?,?,?)",
+                           (user_id, salt, self._password_hash(password, salt), int(time.time())))
+        return user_id
+
+    def pending_signups(self) -> list[sqlite3.Row]:
+        with self._session() as db:
+            return db.execute("SELECT s.user_id,s.email,s.via,s.created_at,u.display_name FROM signups s "
+                              "JOIN users u ON u.id=s.user_id WHERE s.state='pending' ORDER BY s.created_at").fetchall()
+
+    def decide_signup(self, user_id: str, approve: bool) -> bool:
+        with self._session() as db:
+            cursor = db.execute("UPDATE signups SET state=? WHERE user_id=? AND state='pending'",
+                                ("approved" if approve else "denied", user_id))
+            if cursor.rowcount and approve:
+                db.execute("UPDATE users SET disabled_at=NULL WHERE id=?", (user_id,))
+            return cursor.rowcount == 1
+
+    def ensure_user(self, user_id: str, display_name: str, role: str = "user") -> None:
+        with self._session() as db:
+            db.execute("INSERT OR IGNORE INTO users(id,display_name,role,created_at) VALUES(?,?,?,?)",
+                       (user_id, display_name[:80] or user_id, role, int(time.time())))
 
     def has_password(self) -> bool:
         with self._session() as db:

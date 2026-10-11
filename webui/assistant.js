@@ -412,14 +412,27 @@
     try { localStorage.setItem("atulya.conversations.index", JSON.stringify([next, ...entries.filter((item) => item.id !== id)].slice(0, 50))); } catch { /* The current page can continue without an archive index. */ }
   }
 
-  function drawArchiveList() {
+  // Conversations come from the server (all devices), merged with this browser's local index.
+  let serverArchive = [];
+  async function refreshServerArchive() {
+    try {
+      const response = await fetch("/api/conversations", { headers: { Accept: "application/json" }, cache: "no-store" });
+      if (response.ok) serverArchive = (await response.json()).conversations || [];
+    } catch { /* offline: local index only */ }
+  }
+
+  function drawArchiveList(refetch = true) {
     if (!historyList) return;
+    if (refetch) refreshServerArchive().then(() => drawArchiveList(false));
     historyList.replaceChildren();
-    const entries = readArchiveIndex();
+    const local = readArchiveIndex();
+    const seen = new Set(serverArchive.map((item) => item.id));
+    const entries = [...serverArchive, ...local.filter((item) => !seen.has(item.id))]
+      .sort((a, b) => String(b.updated).localeCompare(String(a.updated)));
     if (!entries.length) {
       const empty = document.createElement("p");
       empty.className = "history-warning";
-      empty.textContent = "No saved conversations in this browser yet.";
+      empty.textContent = "No saved conversations yet.";
       historyList.append(empty);
       return;
     }
@@ -430,7 +443,7 @@
       choose.type = "button";
       choose.textContent = entry.title || "Saved conversation";
       choose.setAttribute("aria-current", String(entry.id === selectedArchiveId));
-      choose.addEventListener("click", () => { selectedArchiveId = entry.id; drawArchiveList(); });
+      choose.addEventListener("click", () => { selectedArchiveId = entry.id; drawArchiveList(false); });
       choose.addEventListener("dblclick", () => { void openArchiveConversation(); });
       const date = document.createElement("small");
       const parsed = new Date(entry.updated);
@@ -1898,7 +1911,27 @@
     }, 3000); // live CPU/RAM/network meters
   }
 
+  // Inside the Telegram Mini App, sign in with Telegram's signed identity (passkeys don't work there).
+  let telegramTried = false;
+  async function telegramMiniAppSignIn() {
+    const webApp = window.Telegram?.WebApp;
+    if (telegramTried || !webApp?.initData) return false;
+    telegramTried = true;
+    webApp.ready?.();
+    webApp.expand?.();
+    try {
+      const response = await fetch("/api/auth/telegram-webapp", {
+        method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ init_data: webApp.initData }), cache: "no-store",
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok && authMessage) authMessage.textContent = body.detail || "Telegram sign-in failed.";
+      return response.ok;
+    } catch { return false; }
+  }
+
   async function refreshAuthState() {
+    await telegramMiniAppSignIn();
     try {
       const response = await fetch("/api/auth/status", { headers: { Accept: "application/json" }, cache: "no-store" });
       if (!response.ok) throw new Error("Atulya could not check the local session.");
@@ -1909,6 +1942,7 @@
         if (authDialog.open) authDialog.close();
         document.body.classList.remove("auth-required");
         if (addPasskeyButton) addPasskeyButton.hidden = false;
+        window.setTimeout(enablePushNotifications, 4000);
         if (document.getElementById("add-voice-unlock")) document.getElementById("add-voice-unlock").hidden = false;
         if (manageUsersButton) manageUsersButton.hidden = !auth.is_admin;
         if (signOutButton) signOutButton.hidden = false;
@@ -2001,6 +2035,8 @@
   async function finishCodeLogin(response) {
     const body = await response.json().catch(() => ({}));
     if (body.authenticated) {
+      try { sessionStorage.removeItem("atulya.loginRequest"); } catch { /* ignore */ }
+      offerPasskeyAfterSignIn();
       window.clearInterval(loginPoll);
       loginRequestId = "";
       authDialog.close();
@@ -2015,6 +2051,34 @@
     return false;
   }
 
+  // Coming back (app switched to Telegram and back, or page reloaded): keep the same pending code.
+  function resumePendingLogin() {
+    let saved = null;
+    try { saved = JSON.parse(sessionStorage.getItem("atulya.loginRequest") || "null"); } catch { /* ignore */ }
+    if (!saved?.id || Date.now() - saved.at > 5 * 60 * 1000 || !codeBox) return;
+    loginRequestId = saved.id;
+    codeBox.hidden = false;
+    codeStatus.textContent = "Enter the code from Telegram, or approve on a signed-in device.";
+    window.clearInterval(loginPoll);
+    loginPoll = window.setInterval(async () => {
+      if (!loginRequestId) return;
+      await finishCodeLogin(await fetch(`/api/auth/login-requests/${encodeURIComponent(loginRequestId)}`, { cache: "no-store" }));
+    }, 2000);
+  }
+
+  // "Tap to sign in" link from Telegram/email: #signin=<request>.<code>
+  async function signInFromLink() {
+    const match = location.hash.match(/signin=([A-Za-z0-9_-]{10,40})\.(\d{6})/);
+    if (!match) return false;
+    history.replaceState(null, "", location.pathname + location.search);
+    const response = await fetch(`/api/auth/login-requests/${encodeURIComponent(match[1])}/code`, {
+      method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ code: match[2] }), cache: "no-store",
+    });
+    return finishCodeLogin(response);
+  }
+  window.setTimeout(() => { signInFromLink().then((done) => { if (!done) resumePendingLogin(); }); }, 300);
+
   document.getElementById("auth-code-start")?.addEventListener("click", async () => {
     codeBox.hidden = false;
     codeStatus.textContent = "Sending a code…";
@@ -2026,6 +2090,7 @@
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.detail || "Could not start sign-in.");
       loginRequestId = body.id;
+      try { sessionStorage.setItem("atulya.loginRequest", JSON.stringify({ id: body.id, at: Date.now() })); } catch { /* ignore */ }
       codeStatus.textContent = `Code sent to ${body.channels.join(", ")}. Type or say it, or approve on a signed-in device. Expires in 5 minutes.`;
       codeInput.focus();
       window.clearInterval(loginPoll);
@@ -2187,6 +2252,7 @@
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.detail || "Sign-in failed.");
       password.value = "";
+      offerPasskeyAfterSignIn();
       authDialog.close();
       document.body.classList.remove("auth-required");
       await refreshAuthState();
@@ -2200,6 +2266,7 @@
     try {
       if (authMessage) authMessage.textContent = authSetupRequired ? "Follow your device prompt to create the admin passkey." : "Confirm with your device passkey.";
       await runPasskeyCeremony(authSetupRequired || deviceLinkToken ? "register" : "login");
+      try { localStorage.setItem("atulya.passkeyHere", "1"); } catch { /* ignore */ }
       deviceLinkToken = "";
       if (authSetupToken) authSetupToken.value = "";
       await refreshAuthState();
@@ -2224,10 +2291,39 @@
     }
   });
 
+  // After a password/code sign-in on a device without a passkey, offer one tap to add it.
+  function offerPasskeyAfterSignIn() {
+    let known = false;
+    try { known = localStorage.getItem("atulya.passkeyHere") === "1"; } catch { /* ignore */ }
+    if (known || !window.PublicKeyCredential || !navigator.credentials) return;
+    window.setTimeout(() => {
+      const card = document.createElement("div");
+      card.className = "chat-message action-card";
+      card.innerHTML = "<strong>ADD A PASSKEY?</strong><span>Next time, unlock this device with your fingerprint, face or PIN instead of a password or code.</span><div><button class=\"approve\" type=\"button\">ADD PASSKEY</button><button type=\"button\">NOT NOW</button></div>";
+      const [add, later] = card.querySelectorAll("button");
+      add.addEventListener("click", async () => {
+        add.disabled = later.disabled = true;
+        try {
+          await runPasskeyCeremony("register");
+          try { localStorage.setItem("atulya.passkeyHere", "1"); } catch { /* ignore */ }
+          card.dataset.state = "approved";
+          card.querySelector("span").textContent = "Passkey added. This device now signs in with one touch.";
+        } catch (error) {
+          card.querySelector("span").textContent = error.message || "Passkey not added. Try again from the menu (PASSKEY +).";
+          add.disabled = later.disabled = false;
+        }
+      });
+      later.addEventListener("click", () => card.remove());
+      messagesNode.append(card);
+      messagesNode.scrollTop = messagesNode.scrollHeight;
+    }, 1500);
+  }
+
   addPasskeyButton?.addEventListener("click", async () => {
     addPasskeyButton.disabled = true;
     try {
       await runPasskeyCeremony("register");
+      try { localStorage.setItem("atulya.passkeyHere", "1"); } catch { /* ignore */ }
       setPhase("idle", "Backup passkey added", "This device can now use another passkey to unlock Atulya.");
     } catch (error) {
       setPhase("idle", "Passkey not added", error.message || "Try again or use a different passkey device.");
@@ -2250,7 +2346,106 @@
     parent.append(button);
   }
 
+
+  // ---- Push notifications (sign-in requests, approvals) -------------------------------
+  async function enablePushNotifications() {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return;
+    if (Notification.permission === "denied") return;
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const { key } = await (await fetch("/api/push/key")).json();
+      if (!key) return;
+      if (Notification.permission !== "granted" && (await Notification.requestPermission()) !== "granted") return;
+      const raw = atob(key.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(key.length / 4) * 4, "="));
+      const subscription = (await registration.pushManager.getSubscription()) || await registration.pushManager.subscribe({
+        userVisibleOnly: true, applicationServerKey: Uint8Array.from(raw, (c) => c.charCodeAt(0)) });
+      await fetch("/api/push/subscribe", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(subscription.toJSON()) });
+    } catch { /* notifications are optional */ }
+  }
+
+  // ---- Sign up / Google ------------------------------------------------------------
+  const signupForm = document.getElementById("auth-signup-form");
+  document.getElementById("auth-signup-start")?.addEventListener("click", () => {
+    signupForm.hidden = !signupForm.hidden;
+    if (!signupForm.hidden) document.getElementById("signup-name").focus();
+  });
+  document.querySelectorAll(".password-eye").forEach((eye) => eye.addEventListener("click", () => {
+    const field = eye.previousElementSibling;
+    field.type = field.type === "password" ? "text" : "password";
+    eye.textContent = field.type === "password" ? "👁" : "🙈";
+  }));
+  document.getElementById("signup-password")?.addEventListener("input", (event) => {
+    const value = event.target.value;
+    const kinds = [/[a-z]/, /[A-Z]/, /\d/, /[^\w]/].filter((pattern) => pattern.test(value)).length;
+    const hint = document.getElementById("signup-strength");
+    hint.textContent = value.length < 10 ? `Too short (${value.length}/10)` : kinds < 3 ? "Add another kind: uppercase, number or symbol" : "Strong password ✓";
+    hint.dataset.ok = String(value.length >= 10 && kinds >= 3);
+  });
+  signupForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const response = await fetch("/api/auth/signup", {
+      method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ name: document.getElementById("signup-name").value,
+        email: document.getElementById("signup-email").value, password: document.getElementById("signup-password").value }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (authMessage) authMessage.textContent = response.ok
+      ? "Account requested. You'll be able to sign in once the owner approves it."
+      : (body.detail || "Sign-up failed.");
+    if (response.ok) { signupForm.reset(); signupForm.hidden = true; }
+  });
+  fetch("/api/auth/options").then((r) => r.json()).then((options) => {
+    const google = document.getElementById("auth-google");
+    if (google) google.hidden = !options.google;
+  }).catch(() => {});
+  {
+    const result = location.hash.match(/google=(ok|pending|failed|expired)/)?.[1];
+    if (result) {
+      history.replaceState(null, "", location.pathname + location.search);
+      if (result !== "ok" && authMessage) authMessage.textContent = {
+        pending: "Your Google account is waiting for the owner's approval.",
+        failed: "Google sign-in failed. Try again or use another way.",
+        expired: "Google sign-in took too long. Try again.",
+      }[result];
+    }
+  }
+
+  async function drawPendingSignups() {
+    const list = document.getElementById("signups-list");
+    if (!list) return;
+    list.replaceChildren();
+    const response = await fetch("/api/auth/signups", { headers: { Accept: "application/json" } }).catch(() => null);
+    if (!response?.ok) return;
+    for (const item of (await response.json()).signups || []) {
+      const row = document.createElement("div");
+      row.className = "user-entry";
+      const name = document.createElement("strong");
+      name.textContent = `${item.display_name} — waiting for approval`;
+      const info = document.createElement("small");
+      info.textContent = `${item.email} · via ${item.via}`;
+      const approve = document.createElement("button");
+      approve.type = "button";
+      approve.textContent = "APPROVE";
+      const deny = document.createElement("button");
+      deny.type = "button";
+      deny.textContent = "DENY";
+      deny.dataset.danger = "true";
+      const decide = async (yes) => {
+        await fetch(`/api/auth/signups/${encodeURIComponent(item.user_id)}`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ approve: yes }) });
+        await drawPendingSignups();
+        await refreshUsers();
+      };
+      approve.addEventListener("click", () => decide(true));
+      deny.addEventListener("click", () => decide(false));
+      row.append(name, approve, info, deny);
+      list.append(row);
+    }
+  }
+
   async function refreshUsers() {
+    void drawPendingSignups();
     if (!usersList) return;
     usersList.replaceChildren();
     try {
