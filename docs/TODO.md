@@ -23,6 +23,19 @@ Implementation order and capability mapping live in [INTEGRATIONS_CATALOG.md](IN
 - [ ] Install Tailscale on this PC and the phone, sign in, enable HTTPS certificates in the admin console, run `atulya remote --enable`, then link the phone and verify chat/voice from a mobile network.
 - [ ] Verify sentence-pipelined speech by ear in the user's browser (automated checks cover syntax and API only).
 
+## 2026-10-11 security + profile pass (verified with `atulya.cli selftest`: 9/10 real checks)
+
+- [x] Per-user profiles (`atulya/profiles.py`): name, tone (jarvis/friendly/formal/brief/witty), language (auto/English/Hindi/Hinglish), reply length, city, work style, about. Learned from chat via `update_profile` ("call me Captain" → verified live). Safety level (`ask_all` / `ask_risky`) is changeable only in the signed-in WebUI (`PUT /api/profile`), never by voice/chat.
+- [x] `ask_risky` lets low-risk PC tools (media keys, file search) run without approval; everything else still asks.
+- [x] Secrets encrypted at rest: `atulya.cli secrets protect` moves API keys/tokens from `.env` into `data/secrets.enc` (Windows DPAPI, bound to the Windows user; 0600 file elsewhere). Done on this PC; the server loads them at start (verified).
+- [x] Password fallback hardened: per-device 5 tries and per-account 20 tries per 15 min.
+- [x] Spoken/typed "yes" approves only a request made in the last 60 s; older ones need a tap.
+- [x] Fix: tool calls a model writes as text (`<tool_call>…`) are executed instead of shown/spoken (seen with the local model during the briefing).
+- [x] Briefing is one-way (no questions); uses the profile city.
+- [ ] Voice login: deliberately not built. Voice can be replayed/cloned and spoken passwords are overheard. Design: passkey once per device → trusted session → everything by voice; risky actions still approved.
+- [ ] Optional face/voice *quick unlock* of an already-trusted device session (never a login on its own).
+- [ ] Profile settings form in the WebUI (API exists; chat works today).
+
 ## Open-source plugins, MCP, and skills roadmap
 
 The project uses three distinct extension layers: feature implementations in `tools/plugins/`, an MCP server and its tool adapters in `tools/mcp/`, and reusable Jarvis workflows in `tools/skills/`. One shared tool list (`tools/plugins/toolkit.py`) feeds model tool calling, Telegram, and MCP. Items below stay unchecked until their end-to-end checks pass. Prefer permissively licensed, maintained, self-hostable projects and standards. Review each upstream license and security posture before adopting code or bundling dependencies.

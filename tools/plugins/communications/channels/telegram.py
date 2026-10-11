@@ -55,6 +55,7 @@ class TelegramChannel:
         personal_memory=None,
         calendar=None,
         briefing_log=None,
+        profiles=None,
     ) -> None:
         self._token = token.strip()
         self._allowed = {value for value in allowed_user_ids if value.isdigit()}
@@ -66,6 +67,7 @@ class TelegramChannel:
         self._personal_memory = personal_memory
         self._calendar = calendar
         self._briefing_log = briefing_log
+        self._profiles = profiles
         self._briefing_task: asyncio.Task | None = None
         self._offset = 0
         self._poll_task: asyncio.Task | None = None
@@ -242,8 +244,10 @@ class TelegramChannel:
             conversation.append(Message(role="user", content=text))
             if self._command_plugins is not None and self._personal_memory is not None and self._calendar is not None:
                 toolbox = Toolbox.for_registry(self._command_plugins, PluginContext(
-                    conversation_id, self._personal_memory, self._calendar, scoped_user, history=self._history))
-                reply = await self._brain.respond_with_tools(conversation, toolbox)
+                    conversation_id, self._personal_memory, self._calendar, scoped_user, history=self._history,
+                    profile=self._profiles))
+                reply = await self._brain.respond_with_tools(conversation, toolbox,
+                                                             system_instructions=self._style(scoped_user))
             else:
                 reply = await self._brain.respond(conversation)
         except Exception:
@@ -254,6 +258,13 @@ class TelegramChannel:
         except ValueError:
             pass
         return reply.text
+
+    def _style(self, user_id: str) -> str:
+        if self._profiles is None:
+            return ""
+        from atulya.profiles import profile_instructions
+
+        return profile_instructions(self._profiles.get(user_id))
 
     async def _deliver_briefings(self) -> None:
         """Send each allowlisted user one morning briefing per day at ATULYA_BRIEFING_TIME."""
@@ -270,8 +281,10 @@ class TelegramChannel:
                             toolbox = Toolbox.for_registry(self._command_plugins, PluginContext(
                                 f"tg{user_id}", self._personal_memory, self._calendar, recipient,
                                 history=self._history)) if self._command_plugins is not None else None
-                            prompt = [Message(role="user", content=briefing_prompt(briefing_city()))]
-                            reply = (await self._brain.respond_with_tools(prompt, toolbox) if toolbox
+                            city = (self._profiles.get(recipient).get("city") if self._profiles else "") or briefing_city()
+                            prompt = [Message(role="user", content=briefing_prompt(city))]
+                            reply = (await self._brain.respond_with_tools(prompt, toolbox,
+                                                                          system_instructions=self._style(recipient)) if toolbox
                                      else await self._brain.respond(prompt))
                             response = await client.post(self._url("sendMessage"),
                                                          json={"chat_id": user_id, "text": reply.text[:4000]})

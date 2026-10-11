@@ -7,6 +7,7 @@ from collections.abc import Sequence
 
 from atulya.persona import build_system_prompt
 from .providers import ChatProvider
+from .textcalls import TextCallFilter
 from .types import BrainError, BrainReply, Message, ToolCall
 
 
@@ -111,12 +112,23 @@ class Brain:
                 calls: list[ToolCall] = []
                 text_parts: list[str] = []
                 stream = stream_method(messages, tools=toolbox.schemas) if use_tools else stream_method(messages)
+                text_filter = TextCallFilter()
                 async for chunk in stream:
                     if isinstance(chunk, ToolCall):
                         calls.append(chunk)
                     elif chunk:
-                        text_parts.append(chunk)
-                        yield chunk
+                        visible = text_filter.feed(chunk)
+                        if visible:
+                            text_parts.append(visible)
+                            yield visible
+                text_calls, leftover = text_filter.finish()
+                if use_tools:
+                    calls.extend(text_calls)
+                elif text_calls:
+                    leftover = ""  # tools are closed this round: never show raw call markup
+                if leftover:
+                    text_parts.append(leftover)
+                    yield leftover
                 if not calls:
                     return
                 results = await asyncio.gather(*(toolbox.call(call.name, call.arguments) for call in calls))

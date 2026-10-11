@@ -11,8 +11,18 @@ from .logging_setup import configure_logging, scrub_log_file
 from .settings import PROJECT_ROOT, Settings
 
 
+def _load_secrets() -> None:
+    from .secrets_store import load_protected
+
+    try:
+        load_protected(Settings.from_environment().data_dir)
+    except (OSError, ValueError) as exc:
+        print(f"Warning: encrypted secrets could not be loaded ({exc}).")
+
+
 def main() -> None:
     load_dotenv(PROJECT_ROOT / ".env", override=False)
+    _load_secrets()
     parser = argparse.ArgumentParser(prog="atulya", description="Run the Atulya assistant.")
     commands = parser.add_subparsers(dest="command")
     commands.add_parser("serve", help="serve the WebUI and local API")
@@ -21,6 +31,8 @@ def main() -> None:
     commands.add_parser("doctor", help="check basic local configuration")
     password = commands.add_parser("set-password", help="set a password (read from stdin or prompt) for a user")
     password.add_argument("--user", default="admin")
+    secrets = commands.add_parser("secrets", help="encrypt API keys/tokens from .env at rest")
+    secrets.add_argument("action", choices=["protect", "status"])
     selftest = commands.add_parser("selftest", help="run real end-to-end checks against the running server")
     selftest.add_argument("--actions", action="store_true", help="also approve a real PC action (opens Calculator)")
     remote = commands.add_parser("remote", help="reach Atulya from your devices anywhere via Tailscale")
@@ -36,6 +48,20 @@ def main() -> None:
         secret = sys.stdin.readline().rstrip("\r\n") if not sys.stdin.isatty() else getpass.getpass("New password: ")
         AuthStore(Settings.from_environment().data_dir).set_password(args.user.strip().lower(), secret)
         print(f"Password set for '{args.user}'. It is stored only as a scrypt hash in data/auth.sqlite3.")
+        return
+    if args.command == "secrets":
+        from .secrets_store import SECRET_KEY, protect, secrets_path
+
+        data_dir = Settings.from_environment().data_dir
+        if args.action == "protect":
+            moved = protect(PROJECT_ROOT / ".env", data_dir)
+            print("Encrypted: " + (", ".join(moved) if moved else "nothing new (no plain-text secrets in .env)"))
+        else:
+            plain = [line.split("=", 1)[0] for line in (PROJECT_ROOT / ".env").read_text(encoding="utf-8").splitlines()
+                     if "=" in line and not line.lstrip().startswith("#") and SECRET_KEY.search(line.split("=", 1)[0].strip())
+                     and line.split("=", 1)[1].split("#")[0].strip()]
+            print(f"Encrypted store: {'present' if secrets_path(data_dir).is_file() else 'none'}")
+            print("Plain-text secrets still in .env: " + (", ".join(plain) if plain else "none"))
         return
     if args.command == "selftest":
         from tools.selftest import main as selftest_main

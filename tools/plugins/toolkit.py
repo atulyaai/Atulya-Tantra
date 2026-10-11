@@ -37,6 +37,8 @@ class Tool:
     # Side-effecting tools: the call only queues a request the user must approve.
     confirm: bool = False
     describe: Callable[[dict], str] | None = None
+    # Low-risk confirm tools run without asking when the user's profile safety is "ask_risky".
+    low_risk: bool = False
 
     def schema(self) -> dict:
         """OpenAI-style function definition, accepted by every supported provider."""
@@ -138,6 +140,20 @@ async def _search_chats(args: dict, ctx: PluginContext | None) -> str:
     )
 
 
+# --- profile ------------------------------------------------------------------
+
+async def _update_profile(args: dict, ctx: PluginContext | None) -> str:
+    from atulya.profiles import VOICE_EDITABLE
+
+    if ctx.profile is None:
+        return "Profiles are not available on this channel."
+    field = _text(args, "field", 30)
+    if field not in VOICE_EDITABLE:
+        return f"'{field}' can't be changed by chat. Editable: {', '.join(sorted(VOICE_EDITABLE))}."
+    profile = await asyncio.to_thread(ctx.profile.update, ctx.user_id, {field: _text(args, "value", 600)})
+    return f"Saved: {field} = {profile[field]}"
+
+
 # --- PC control (approval required) ---------------------------------------------
 
 def _pc(fn_name: str):
@@ -223,13 +239,20 @@ TOOLS: tuple[Tool, ...] = (
     Tool("open_url", "Open a web page in the computer's browser (asks the user first).",
          _params({"url": {"type": "string", "description": "Full http(s) URL"}}, ["url"]),
          _pc("open_url"), "pc-control", True, True, lambda a: f"Open website: {a.get('url', '')}"),
+    Tool("update_profile", "Save a lasting user preference: preferred_name, city, language "
+         "(auto/english/hindi/hinglish), tone (friendly/formal/brief/witty/jarvis), length (short/normal/detailed), "
+         "work_style, or about.",
+         _params({"field": {"type": "string", "enum": ["preferred_name", "city", "language", "tone", "length",
+                                                        "work_style", "about"]},
+                  "value": {"type": "string"}}, ["field", "value"]),
+         _update_profile, "personal-memory", True),
     Tool("search_files", "Find files by name in the user's Desktop, Documents, Downloads, Pictures, Music and Videos (asks first).",
          _params({"query": {"type": "string", "description": "Words in the file name"}}, ["query"]),
-         _pc("search_files"), "pc-control", True, True, lambda a: f"Search files for: {a.get('query', '')}"),
+         _pc("search_files"), "pc-control", True, True, lambda a: f"Search files for: {a.get('query', '')}", low_risk=True),
     Tool("media_control", "Play/pause, next/previous track, volume up/down, or mute on the computer (asks first).",
          _params({"command": {"type": "string", "enum": ["play_pause", "next", "previous", "volume_up", "volume_down", "mute"]},
                   "steps": {"type": "integer", "minimum": 1, "maximum": 10}}, ["command"]),
-         _pc("media_control"), "pc-control", True, True, _describe_media),
+         _pc("media_control"), "pc-control", True, True, _describe_media, low_risk=True),
     Tool("take_screenshot", "Capture the computer's screen to a file (asks first).", _params(),
          _pc("take_screenshot"), "pc-control", True, True, lambda a: "Take a screenshot"),
     Tool("use_skill", "Load a named multi-step skill (workflow instructions) and follow it.",
@@ -348,6 +371,10 @@ class Toolbox:
             args = raw_arguments if isinstance(raw_arguments, dict) else json.loads(raw_arguments or "{}")
             if not isinstance(args, dict):
                 raise ValueError("arguments must be an object")
+            if tool.confirm and tool.low_risk and self._safety() == "ask_risky":
+                result = (await asyncio.wait_for(tool.handler(args, self.context), timeout=20))[:4000]
+                record_activity(name, "ok (low risk, no approval)")
+                return result
             if tool.confirm:
                 actions = getattr(self.context, "actions", None)
                 if actions is None:
@@ -370,6 +397,15 @@ class Toolbox:
             logger.warning("Tool %s failed (%s)", name, type(exc).__name__)
             record_activity(name, "failed")
             return f"{name} is unavailable right now."
+
+    def _safety(self) -> str:
+        store = getattr(self.context, "profile", None)
+        if store is None:
+            return "ask_all"
+        try:
+            return store.get(self.context.user_id).get("safety", "ask_all")
+        except Exception:
+            return "ask_all"
 
     async def run_approved(self, action: PendingAction) -> str:
         """Execute an action the user approved (bypasses the confirmation step only)."""

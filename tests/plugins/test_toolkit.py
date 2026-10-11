@@ -158,3 +158,37 @@ def test_search_past_chats_is_scoped_to_the_user(tmp_path) -> None:
     history.append("c2", "m2", "user", "passport renewal next week", "u2")
     assert [row["content"] for row in history.search("passport", user_id="u1")] == ["my passport number ends in 42"]
     assert history.search("pass%", user_id="u1") == []
+
+
+def test_tool_calls_written_as_text_are_executed_not_shown() -> None:
+    from tools.plugins.brain.textcalls import TextCallFilter
+
+    class TextCallingProvider:
+        name = "local"
+        model = "qwen"
+
+        async def complete(self, messages):  # pragma: no cover
+            raise AssertionError
+
+        async def stream(self, messages, tools=None):
+            if not any(item.role == "tool" for item in messages):
+                for piece in ["Checking. <tool_", "call>\n<function=calculate>\n<parameter=expression>\n",
+                              "6*7\n</parameter>\n</function>\n</tool_call>"]:
+                    yield piece
+                return
+            yield "It is " + next(item.content for item in messages if item.role == "tool")
+
+    async def run() -> str:
+        toolbox = Toolbox.for_registry(build_default_registry(), None)
+        return "".join([c async for c in Brain(TextCallingProvider()).stream(
+            [Message(role="user", content="6 times 7?")], toolbox=toolbox)])
+
+    text = asyncio.run(run())
+    assert "<tool" not in text and "<function" not in text and "42" in text
+
+    hermes = TextCallFilter()
+    assert hermes.feed('<tool_call>{"name": "get_time", "arguments": {}}</tool_call>') == ""
+    calls, rest = hermes.finish()
+    assert [c.name for c in calls] == ["get_time"] and rest == ""
+    plain = TextCallFilter()
+    assert plain.feed("a < b is true") == "a < b is true"

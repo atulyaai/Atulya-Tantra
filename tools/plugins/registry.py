@@ -20,6 +20,8 @@ class PluginContext:
     actions: object | None = None
     # Searchable chat archive for this principal; None disables past-chat recall.
     history: object | None = None
+    # Per-user profile store (atulya/profiles.py); None disables profile tools.
+    profile: object | None = None
 
 
 CommandHandler = Callable[[str, PluginContext], Awaitable[str | None]]

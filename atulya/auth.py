@@ -182,15 +182,19 @@ class AuthStore:
             return db.execute("SELECT 1 FROM passwords LIMIT 1").fetchone() is not None
 
     def check_password(self, user_id: str, password: str, client: str) -> str:
-        """Returns 'ok', 'bad', or 'locked'. 5 failures per user+client lock it for 15 minutes."""
+        """Returns 'ok', 'bad', or 'locked'.
+
+        5 failures per user+client, or 20 per user from any mix of clients, lock password
+        sign-in for 15 minutes (passkeys keep working, so a lock cannot shut the owner out).
+        """
         key = f"{user_id}|{client}"
+        account_key = f"{user_id}|*"
         now = int(time.time())
         with self._session() as db:
-            failure = db.execute("SELECT count,first_at FROM login_failures WHERE key=?", (key,)).fetchone()
-            if failure and now - failure["first_at"] > 900:
-                db.execute("DELETE FROM login_failures WHERE key=?", (key,))
-                failure = None
-            if failure and failure["count"] >= 5:
+            db.execute("DELETE FROM login_failures WHERE ?-first_at>900", (now,))
+            failure = db.execute("SELECT count FROM login_failures WHERE key=?", (key,)).fetchone()
+            account = db.execute("SELECT count FROM login_failures WHERE key=?", (account_key,)).fetchone()
+            if (failure and failure["count"] >= 5) or (account and account["count"] >= 20):
                 return "locked"
             row = db.execute(
                 "SELECT p.salt,p.hash FROM passwords p JOIN users u ON u.id=p.user_id "
@@ -200,9 +204,10 @@ class AuthStore:
             if row and secrets.compare_digest(candidate, bytes(row["hash"])):
                 db.execute("DELETE FROM login_failures WHERE key=?", (key,))
                 return "ok"
-            db.execute(
-                "INSERT INTO login_failures(key,count,first_at) VALUES(?,1,?) "
-                "ON CONFLICT(key) DO UPDATE SET count=count+1", (key, now))
+            for failure_key in (key, account_key):
+                db.execute(
+                    "INSERT INTO login_failures(key,count,first_at) VALUES(?,1,?) "
+                    "ON CONFLICT(key) DO UPDATE SET count=count+1", (failure_key, now))
             return "bad"
 
     def create_device_link(self, user_id: str) -> str:

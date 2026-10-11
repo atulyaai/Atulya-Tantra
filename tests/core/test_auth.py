@@ -181,3 +181,25 @@ def test_password_login_is_hashed_rate_limited_and_closes_first_setup(project_te
         assert store.check_password("admin", "wrong", "c2") == "bad"
     assert store.check_password("admin", "a-long-test-password", "c2") == "locked"
     assert store.check_password("admin", "a-long-test-password", "c1") == "ok"
+
+
+def test_password_guessing_from_many_clients_locks_the_account(project_temp_dir: Path) -> None:
+    store = AuthStore(project_temp_dir)
+    store.set_password("admin", "a-long-test-password")
+    for attempt in range(20):
+        assert store.check_password("admin", "wrong", f"ip{attempt}") == "bad"
+    assert store.check_password("admin", "a-long-test-password", "fresh-ip") == "locked"
+
+
+def test_secrets_are_encrypted_and_reloaded(project_temp_dir: Path, monkeypatch) -> None:
+    from atulya.secrets_store import load_protected, protect, secrets_path
+
+    env = project_temp_dir / ".env"
+    env.write_text("ATULYA_PORT=8501\nOPENROUTER_API_KEY=sk-or-test-1234567890\n", encoding="utf-8")
+    assert protect(env, project_temp_dir) == ["OPENROUTER_API_KEY"]
+    assert "sk-or-test" not in env.read_text(encoding="utf-8")
+    assert b"sk-or-test" not in secrets_path(project_temp_dir).read_bytes()
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    assert load_protected(project_temp_dir) == 1
+    import os
+    assert os.environ["OPENROUTER_API_KEY"] == "sk-or-test-1234567890"

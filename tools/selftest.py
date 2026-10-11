@@ -120,6 +120,17 @@ def main(actions: bool = False) -> int:
                 return "mango" in reply.lower(), reply[:90], None
             _timed(report, "memory save + recall", memory)
 
+            def profile():
+                before = client.get("/api/profile").json()["profile"]
+                try:
+                    _stream_chat(client, "From now on please call me Captain.", conversation)
+                    saved = client.get("/api/profile").json()["profile"].get("preferred_name", "")
+                    reply, _, _ = _stream_chat(client, "Say hello to me in one short sentence.", conversation)
+                    return saved.lower() == "captain" and "captain" in reply.lower(), f"saved={saved!r} · {reply[:70]!r}", None
+                finally:
+                    client.put("/api/profile", json={"preferred_name": before.get("preferred_name", "")})
+            _timed(report, "profile learned by chat", profile)
+
             def voice_round_trip():
                 phrase = "Atulya, please set a reminder for the meeting tomorrow."
                 wav = client.post("/api/voice/synthesize", json={"text": phrase, "language": "en"}, timeout=120)
@@ -135,7 +146,9 @@ def main(actions: bool = False) -> int:
             def briefing():
                 r = client.post("/api/briefing", json={"conversation_id": conversation, "force": True}, timeout=180)
                 text = r.json().get("text", "")
-                return r.status_code == 200 and len(text) > 40, text[:90], None
+                lowered = text.lower()
+                asks = "could you" in lowered or "which city" in lowered or "please tell me" in lowered
+                return r.status_code == 200 and len(text) > 40 and not asks, text[:120], None
             _timed(report, "morning briefing", briefing)
 
             def approval_flow():

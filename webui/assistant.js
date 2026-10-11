@@ -602,6 +602,7 @@
     card.append(title, summary, buttons);
     messagesNode.append(card);
     messagesNode.scrollTop = messagesNode.scrollHeight;
+    card.dataset.created = String(Date.now());
     pendingActions.set(action.id, card);
   }
 
@@ -631,6 +632,10 @@
   // "yes" / "approve" / "haan" and "no" / "cancel" answer the newest waiting request.
   function approvalAnswer(text) {
     if (!pendingActions.size) return null;
+    // Spoken/typed "yes" only counts for a fresh request; older ones need a tap,
+    // so a stray "yes" from a TV or another person can't approve something stale.
+    const [latestCard] = [...pendingActions.values()].slice(-1);
+    if (Date.now() - Number(latestCard?.dataset.created || 0) > 60000) return null;
     const value = text.toLowerCase().replace(/[.!?,]/g, " ").trim();
     if (/^(?:yes|yeah|yep|sure|ok|okay|approve|approved|do it|go ahead|haan|ha|ji haan|confirm)(?: please| it)?$/.test(value)) return true;
     if (/^(?:no|nope|deny|cancel|stop|don't|do not|nahi|na)(?: please| it)?$/.test(value)) return false;

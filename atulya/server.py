@@ -202,6 +202,7 @@ from tools.plugins.brain import AutomaticProvider, Brain, BrainError, Message, O
 from tools.plugins.communications.channels import WebUIChannel
 from tools.plugins.communications.channels.telegram import TelegramChannel
 from . import sysmon
+from .profiles import ProfileStore, profile_instructions
 from .history import ConversationHistory
 from tools.plugins.productivity.calendar import CalendarStore
 from tools.plugins.personal.memory import PersonalMemory
@@ -213,6 +214,12 @@ from .settings import PROJECT_ROOT, Settings
 from tools.plugins.voice import LocalSupertonicTTS, LocalVoice, VoiceError
 
 load_dotenv(PROJECT_ROOT / ".env", override=False)
+try:
+    from .secrets_store import load_protected as _load_protected
+
+    _load_protected(Settings.from_environment().data_dir)
+except (OSError, ValueError):
+    pass
 
 
 class ChatMessage(BaseModel):
@@ -450,6 +457,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     reminders = ReminderStore(config.data_dir)
     personal_memory = PersonalMemory(config.data_dir)
     calendar = CalendarStore(config.data_dir)
+    profiles = ProfileStore(config.data_dir)
     _merge_web_owners(config.data_dir)
     command_plugins = build_default_registry()
     action_queue = ActionQueue(config.data_dir)
@@ -512,6 +520,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         personal_memory=personal_memory,
         calendar=calendar,
         briefing_log=briefing_log,
+        profiles=profiles,
     )
     app.state.telegram = telegram
 
@@ -1205,10 +1214,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             action_view = action_queue.view()
             toolbox = Toolbox.for_registry(command_plugins, PluginContext(
                 WEB_OWNER, personal_memory, calendar, str(http_request.state.user_id),
-                actions=action_view, history=history,
+                actions=action_view, history=history, profile=profiles,
             ))
+            style = profile_instructions(await asyncio.to_thread(profiles.get, str(http_request.state.user_id)))
             if not request.stream:
-                reply = await brain.respond_with_tools(messages, toolbox)
+                reply = await brain.respond_with_tools(messages, toolbox, system_instructions=style)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except BrainError as exc:
@@ -1217,7 +1227,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if request.stream:
             async def stream_events():
                 try:
-                    async for chunk in webui_channel.stream(messages, toolbox=toolbox):
+                    async for chunk in webui_channel.stream(messages, toolbox=toolbox, system_instructions=style):
                         for action in action_view.drain_new():
                             yield f"data: {json.dumps({'confirm': {'id': action.id, 'summary': action.summary}})}\n\n"
                         yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
@@ -1239,6 +1249,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"text": reply.text, "provider": reply.provider, "model": reply.model,
                 "confirm": [{"id": item.id, "summary": item.summary} for item in action_view.created]}
 
+    @app.get("/api/profile")
+    async def get_profile(http_request: Request) -> dict[str, object]:
+        from atulya.profiles import CHOICES, TEXT_FIELDS
+
+        return {"profile": await asyncio.to_thread(profiles.get, str(http_request.state.user_id)),
+                "choices": {key: list(values) for key, values in CHOICES.items()}, "text_fields": TEXT_FIELDS}
+
+    @app.put("/api/profile")
+    async def put_profile(body: dict[str, str], http_request: Request) -> dict[str, object]:
+        """The signed-in WebUI may change every field, including safety (voice/chat cannot)."""
+        try:
+            profile = await asyncio.to_thread(profiles.update, str(http_request.state.user_id), body, allow_safety=True)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {"profile": profile}
+
     @app.post("/api/briefing")
     async def morning_briefing(body: BriefingRequest, http_request: Request) -> dict[str, str | bool]:
         """Today's briefing, once per user per day unless `force` is set."""
@@ -1248,9 +1274,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not body.force and await asyncio.to_thread(briefing_log.sent_today, f"web_{user_id}"):
             return {"text": "", "already_sent": True}
         toolbox = Toolbox.for_registry(command_plugins, PluginContext(
-            WEB_OWNER, personal_memory, calendar, user_id, history=history))
+            WEB_OWNER, personal_memory, calendar, user_id, history=history, profile=profiles))
+        profile = await asyncio.to_thread(profiles.get, user_id)
         try:
-            reply = await brain.respond_with_tools([Message(role="user", content=briefing_prompt(briefing_city()))], toolbox)
+            reply = await brain.respond_with_tools(
+                [Message(role="user", content=briefing_prompt(profile.get("city") or briefing_city()))], toolbox,
+                system_instructions=profile_instructions(profile))
         except BrainError as exc:
             raise HTTPException(status_code=503, detail="The briefing could not be prepared right now.") from exc
         await asyncio.to_thread(briefing_log.mark, f"web_{user_id}")
