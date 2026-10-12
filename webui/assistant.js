@@ -1036,9 +1036,15 @@
   }
 
   function cameraCommand(text) {
-    const match = text.trim().toLowerCase().match(/^(?:(?:please\s+)?(?:turn|switch|activate|enable|deactivate|disable)\s+)?camera\s+(on|off|activate|deactivate|enable|disable)$/);
-    return match ? ["on", "activate", "enable"].includes(match[1]) : null;
+    const value = text.trim().toLowerCase().replace(/[.!?]+$/, "");
+    if (/^(?:please\s+)?(?:(?:turn|switch)\s+on|open|start|enable|activate)\s+(?:the\s+|my\s+)?camera$|^camera\s+on$|^(?:turn|switch)\s+(?:the\s+)?camera\s+on$/.test(value)) return true;
+    if (/^(?:please\s+)?(?:(?:turn|switch)\s+off|close|stop|disable|deactivate)\s+(?:the\s+|my\s+)?camera$|^camera\s+off$|^(?:turn|switch)\s+(?:the\s+)?camera\s+off$/.test(value)) return false;
+    return null;
   }
+
+  // Only questions that need eyes send a camera frame (privacy + speed); they also switch the camera on.
+  const VISION_INTENT = /\b(?:what do you see|what can you see|can you see|look at (?:this|that|me)|what(?:'s| is) (?:this|that) (?:in my hand|i'm holding|i am holding)|what am i holding|read (?:this|that|it)|scan (?:this|that)|describe (?:this|what you see|me)|how do i look|who is (?:this|that))\b|यह क्या है|ये क्या है|देखो|पढ़ो/i;
+  function needsVision(text) { return VISION_INTENT.test(text); }
 
   function captureCameraFrame() {
     if (!visionReady || !cameraStream || !cameraFeed.videoWidth || !cameraFeed.videoHeight) return null;
@@ -1535,7 +1541,12 @@
   layoutFocusExit?.addEventListener("click", exitFocusedLayout);
   layoutVoiceToggle?.addEventListener("click", toggleListening);
 
-  async function sendMessage(text, speakReply = false, includeVision = true) {
+  async function sendMessage(text, speakReply = false, includeVision = null) {
+    if (includeVision === null) includeVision = needsVision(String(text || ""));
+    if (includeVision && !cameraStream) {
+      const started = await enableCamera();
+      if (started) await new Promise((resolve) => setTimeout(resolve, 1200)); // let the first frame arrive
+    }
     const cleanText = text.trim();
     if (!cleanText) return;
     appendMessage("user", cleanText);
@@ -1918,6 +1929,20 @@
   window.addEventListener("pagehide", () => { stopCamera(); cameraBus?.close(); }, { once: true });
   resizeWave();
   refreshWave();
+
+  // A6: phones without WebGL (or a scene that never starts) get the hologram artwork as a still image.
+  (function hologramFallback() {
+    const webgl = (() => { try { const c = document.createElement("canvas"); return Boolean(c.getContext("webgl2") || c.getContext("webgl")); } catch { return false; } })();
+    const useFallback = () => {
+      if (sceneReady || document.body.classList.contains("scene-fallback")) return;
+      document.body.classList.add("scene-fallback");
+      window.__HUM_SCENE_READY = true;
+      window.dispatchEvent(new Event("atulya:scene-ready"));
+    };
+    // Slow but working devices keep the live scene: only fall back if no canvas was ever created.
+    if (!webgl) useFallback();
+    else window.setTimeout(() => { if (!document.querySelector("#root canvas")) useFallback(); }, 8000);
+  })();
 
   window.addEventListener("atulya:scene-ready", () => {
     sceneReady = true;

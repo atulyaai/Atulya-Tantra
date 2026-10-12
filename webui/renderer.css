@@ -364,3 +364,7 @@ body.non-admin #system-dashboard,body.non-admin #open-plugins{display:none!impor
   body.camera-on #camera-preview{height:26dvh!important}
 }
 body:not(.camera-on) #camera-preview{display:none!important}
+
+/* A6 fallback: still hologram artwork when the 3D scene cannot run */
+body.scene-fallback #root{background:#050b12 url("./scene/character/atulya-idle-v1.webp") center 30%/contain no-repeat!important}
+body.scene-fallback #root>*{display:none!important}

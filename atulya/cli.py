@@ -37,6 +37,9 @@ def main() -> None:
     secrets = commands.add_parser("secrets", help="encrypt API keys/tokens from .env at rest")
     secrets.add_argument("action", choices=["protect", "status", "set"])
     secrets.add_argument("name", nargs="?", help="for 'set': the variable name; the value is read from stdin")
+    backup = commands.add_parser("backup", help="make an encrypted backup now (or --restore FILE)")
+    backup.add_argument("--restore", metavar="FILE")
+    backup.add_argument("--show-key", action="store_true", help="also print the recovery key")
     selftest = commands.add_parser("selftest", help="run real end-to-end checks against the running server")
     selftest.add_argument("--actions", action="store_true", help="also approve a real PC action (opens Calculator)")
     remote = commands.add_parser("remote", help="reach Atulya from your devices anywhere via Tailscale")
@@ -81,6 +84,25 @@ def main() -> None:
                      and line.split("=", 1)[1].split("#")[0].strip()]
             print(f"Encrypted store: {'present' if secrets_path(data_dir).is_file() else 'none'}")
             print("Plain-text secrets still in .env: " + (", ".join(plain) if plain else "none"))
+        return
+    if args.command == "backup":
+        from pathlib import Path
+
+        from tools import backup as backups
+
+        data_dir = Settings.from_environment().data_dir
+        if args.restore:
+            import getpass
+
+            restored = backups.restore(Path(args.restore), getpass.getpass("Recovery key: "), data_dir)
+            print("Restored: " + ", ".join(restored) + ". Previous files kept in data/before-restore-*.")
+            return
+        path, created = backups.create(data_dir)
+        print(f"Backup saved: {path} ({path.stat().st_size // 1024} KB) · {backups.copy_offsite(path)}")
+        if created or args.show_key:
+            print("Recovery key (keep it in your password manager; without it backups cannot be opened):")
+            print("  " + backups.recovery_key() if args.show_key else
+                  "  run: python -m atulya.cli backup --show-key   (prints it on this PC only)")
         return
     if args.command == "selftest":
         from tools.selftest import main as selftest_main

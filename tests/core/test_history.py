@@ -238,3 +238,26 @@ def test_merging_chat_memories_with_duplicates_does_not_crash(project_temp_dir) 
     with closing(sqlite3.connect(project_temp_dir / "personal_memory.sqlite3")) as db:
         rows = sorted(db.execute("SELECT owner, fact FROM facts").fetchall())
     assert rows == [("tg123", "telegram fact"), ("web", "likes chai")]
+
+
+def test_encrypted_backup_round_trip(project_temp_dir, monkeypatch) -> None:
+    import sqlite3
+    from contextlib import closing
+
+    import pytest
+
+    from tools import backup
+
+    monkeypatch.delenv("ATULYA_BACKUP_KEY", raising=False)
+    with closing(sqlite3.connect(project_temp_dir / "memo.sqlite3")) as db, db:
+        db.execute("CREATE TABLE t(x)")
+        db.execute("INSERT INTO t VALUES ('keep me')")
+    path, created = backup.create(project_temp_dir)
+    assert created and b"keep me" not in path.read_bytes()          # encrypted at rest
+    key = backup.recovery_key()
+    with pytest.raises(Exception):
+        backup.decrypt(path, "A" * 43)                               # wrong key fails
+    (project_temp_dir / "memo.sqlite3").unlink()
+    assert "memo.sqlite3" in backup.restore(path, key, project_temp_dir)
+    with closing(sqlite3.connect(project_temp_dir / "memo.sqlite3")) as db:
+        assert db.execute("SELECT x FROM t").fetchone()[0] == "keep me"

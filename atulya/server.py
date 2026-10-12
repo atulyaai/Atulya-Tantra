@@ -707,6 +707,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         app.state.weather_task = asyncio.create_task(keep_home_weather_fresh())
 
+    async def daily_backups() -> None:
+        """Encrypted backup once a day (local, keep 14) plus an off-site copy to the owner's server."""
+        from tools import backup as backups
+
+        await asyncio.sleep(300)
+        while True:
+            try:
+                path, _created = await asyncio.to_thread(backups.create, config.data_dir)
+                result = await asyncio.to_thread(backups.copy_offsite, path)
+                logging.getLogger(__name__).info("Backup %s (%s)", path.name, result)
+            except Exception as exc:
+                logging.getLogger(__name__).warning("Backup failed (%s)", type(exc).__name__)
+            await asyncio.sleep(24 * 3600)
+
+    if os.environ.get("ATULYA_PRELOAD", "1").strip() not in {"0", "false", "no"}:
+        app.router.add_event_handler("startup", lambda: setattr(app.state, "backup_task", asyncio.create_task(daily_backups())))
+
     async def unload_idle_models() -> None:
         """On-demand resources: drop speech models from RAM after ATULYA_IDLE_UNLOAD_SECONDS idle (default 600)."""
         import gc
