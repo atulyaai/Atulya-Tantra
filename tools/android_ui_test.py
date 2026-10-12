@@ -146,7 +146,7 @@ if step("app unlocks and shows sign-in", field is not None):
     if step("sign-in offers password", use_password is not None):
         tap(use_password)
         time.sleep(1)
-        password_field = next((n for n in nodes() if re.fullmatch(r"password|#auth-password", n["label"], re.I)), None)
+        password_field = find(r"^(password|#auth-password)$", 10)
         if step("password field visible", password_field is not None):
             tap(password_field)
             type_text(PASSWORD)
