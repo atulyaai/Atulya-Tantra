@@ -48,6 +48,9 @@ def nodes() -> list[dict]:
             continue
         x1, y1, x2, y2 = map(int, match.groups())
         label = " ".join(filter(None, (node.get("text"), node.get("content-desc"), node.get("hint")))).strip()
+        rid = node.get("resource-id", "")
+        if rid and not label:
+            label = f"#{rid}"  # WebView exposes element ids; used when a field has no readable label
         found.append({"label": label, "box": (x1, y1, x2, y2), "class": node.get("class", "")})
     return found
 
@@ -103,7 +106,7 @@ time.sleep(5)
 adb("shell", "input", "text", "1357")
 adb("shell", "input", "keyevent", "KEYCODE_ENTER")
 
-field = find(r"username or email", 60)
+field = find(r"username or email|#auth-username", 60)
 if step("app unlocks and shows sign-in", field is not None):
     tap(field)
     type_text("admin")
@@ -112,13 +115,13 @@ if step("app unlocks and shows sign-in", field is not None):
     if step("sign-in offers password", use_password is not None):
         tap(use_password)
         time.sleep(1)
-        password_field = next((n for n in nodes() if re.fullmatch(r"password", n["label"], re.I)), None)
+        password_field = next((n for n in nodes() if re.fullmatch(r"password|#auth-password", n["label"], re.I)), None)
         if step("password field visible", password_field is not None):
             tap(password_field)
             type_text(PASSWORD)
             adb("shell", "input", "keyevent", "KEYCODE_ENTER")
 
-composer = find(r"Type a message", 40)
+composer = find(r"Type a message|#chat-prompt", 40)
 if step("signed in: chat input visible", composer is not None and inside_screen(composer),
         str(composer["box"]) if composer else ""):
     width, height = screen_size()
@@ -133,11 +136,11 @@ if step("signed in: chat input visible", composer is not None and inside_screen(
     adb("shell", "input", "keyevent", "KEYCODE_ENTER")
     time.sleep(2)
     chat_button = find(r"^CHAT$", 10)
-    still_composer = find(r"Type a message", 2)
+    still_composer = find(r"Type a message|#chat-prompt", 2)
     step("'hide chat' → full-screen hologram with CHAT button", chat_button is not None and still_composer is None)
     if chat_button:
         tap(chat_button)
-        step("CHAT brings the chat back", find(r"Type a message", 10) is not None)
+        step("CHAT brings the chat back", find(r"Type a message|#chat-prompt", 10) is not None)
 
     menu = find(r"^⋮$|Account and settings", 5)
     if step("account menu (⋮) present", menu is not None):
@@ -151,7 +154,7 @@ if step("signed in: chat input visible", composer is not None and inside_screen(
     adb("shell", "settings", "put", "system", "accelerometer_rotation", "0")
     adb("shell", "settings", "put", "system", "user_rotation", "1")
     time.sleep(5)
-    landscape = find(r"Type a message", 10)
+    landscape = find(r"Type a message|#chat-prompt", 10)
     step("landscape: chat input still on screen", landscape is not None and inside_screen(landscape))
     adb("shell", "settings", "put", "system", "user_rotation", "0")
     time.sleep(3)
@@ -159,7 +162,7 @@ if step("signed in: chat input visible", composer is not None and inside_screen(
 adb("shell", "input", "keyevent", "KEYCODE_HOME")
 time.sleep(2)
 adb("shell", "am", "start", "-n", f"{PKG}/.MainActivity")
-step("reopen within 2 min: no unlock prompt, still signed in", find(r"Type a message", 15) is not None)
+step("reopen within 2 min: no unlock prompt, still signed in", find(r"Type a message|#chat-prompt", 15) is not None)
 
 log = adb("logcat", "-d")
 (OUT / "logcat.txt").write_text(log, encoding="utf-8")

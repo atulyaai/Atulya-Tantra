@@ -48,7 +48,7 @@
       <p id="auth-message">Use your passkey, or enter your username or email.</p>
       <label class="auth-setup-token" id="auth-setup-token-wrap" hidden>
         <span>ADMIN SETUP TOKEN</span>
-        <input id="auth-setup-token" type="password" autocomplete="one-time-code" spellcheck="false">
+        <input id="auth-setup-token" aria-label="Administrator setup token" type="password" autocomplete="one-time-code" spellcheck="false">
       </label>
 
       <div class="auth-step" id="auth-step-start">
@@ -57,7 +57,7 @@
         <a id="auth-google" class="auth-code-start auth-google" href="/api/auth/google/start" hidden>CONTINUE WITH GOOGLE</a>
         <div class="auth-or"><span>or</span></div>
         <form class="auth-password" id="auth-identify">
-          <input id="auth-username" autocomplete="username webauthn" placeholder="username or email" spellcheck="false" autocapitalize="none" required>
+          <input id="auth-username" aria-label="username or email" autocomplete="username webauthn" placeholder="username or email" spellcheck="false" autocapitalize="none" required>
           <button type="submit">CONTINUE</button>
         </form>
         <button id="auth-signup-start" class="auth-link" type="button">Create an account</button>
@@ -68,13 +68,13 @@
         <button id="auth-code-start" class="auth-primary" type="button">SEND APPROVAL TO MY DEVICES</button>
         <div class="auth-code" id="auth-code" hidden>
           <p id="auth-code-status">Sending…</p>
-          <input id="auth-code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code">
+          <input id="auth-code-input" aria-label="6-digit code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code">
           <div><button id="auth-code-submit" type="button">CONFIRM</button><button id="auth-code-resend" type="button">RESEND</button></div>
         </div>
         <button id="auth-use-password" class="auth-code-start" type="button">USE PASSWORD</button>
         <form class="auth-password" id="auth-password-form" hidden>
           <div class="password-field">
-            <input id="auth-password" type="password" autocomplete="current-password" placeholder="password">
+            <input id="auth-password" aria-label="password" type="password" autocomplete="current-password" placeholder="password">
             <button id="auth-password-toggle" type="button" aria-label="Show password" aria-pressed="false">👁</button>
           </div>
           <button type="submit">SIGN IN</button>
@@ -82,10 +82,10 @@
       </div>
 
       <form class="auth-password" id="auth-signup-form" hidden>
-        <input id="signup-name" autocomplete="name" placeholder="your name" maxlength="80" required>
-        <input id="signup-email" type="email" autocomplete="email" placeholder="email" required>
+        <input id="signup-name" aria-label="your name" autocomplete="name" placeholder="your name" maxlength="80" required>
+        <input id="signup-email" aria-label="email" type="email" autocomplete="email" placeholder="email" required>
         <div class="password-field">
-          <input id="signup-password" type="password" autocomplete="new-password" placeholder="new password (10+ characters)" required>
+          <input id="signup-password" aria-label="new password" type="password" autocomplete="new-password" placeholder="new password (10+ characters)" required>
           <button class="password-eye" type="button" aria-label="Show password">👁</button>
         </div>
         <small id="signup-strength" class="signup-strength">Use 10+ characters with a mix of letters, numbers and symbols.</small>
@@ -97,7 +97,7 @@
         <summary>I have an invitation code</summary>
         <label class="auth-setup-token" id="auth-invite-wrap">
           <span>INVITATION CODE</span>
-          <input id="auth-invite-token" type="password" autocomplete="one-time-code" spellcheck="false">
+          <input id="auth-invite-token" aria-label="invitation code" type="password" autocomplete="one-time-code" spellcheck="false">
         </label>
         <button id="auth-join" type="button">JOIN WITH PASSKEY</button>
       </details>
@@ -171,7 +171,7 @@
     </div>
     <form id="chat-form" class="chat-form" autocomplete="off">
       <label class="visually-hidden" for="chat-prompt">Message Atulya</label>
-      <input id="chat-prompt" name="message" type="text" maxlength="20000" placeholder="Type a message…" autocomplete="off">
+      <input id="chat-prompt" aria-label="Type a message" name="message" type="text" maxlength="20000" placeholder="Type a message…" autocomplete="off">
     </form>
     <p class="panel-footnote" id="history-status" data-state="waiting">LOCAL HISTORY · CONNECTING</p>
   </aside>
