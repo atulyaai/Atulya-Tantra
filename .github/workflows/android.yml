@@ -31,7 +31,8 @@ jobs:
         run: |
           # Clean versions: each automatic release bumps the middle number (0.4.0, 0.5.0, ...).
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then V="${GITHUB_REF#refs/tags/v}"; else
-            LAST=$(gh release view --json tagName --jq .tagName 2>/dev/null || echo v0.3.0)
+            LAST=$(gh release list --limit 200 --json tagName --jq '.[].tagName' | sort -V | tail -1)
+            LAST=${LAST:-v0.3.0}
             MINOR=$(echo "${LAST#v}" | cut -d. -f2)
             V="0.$((MINOR + 1)).0"
           fi
