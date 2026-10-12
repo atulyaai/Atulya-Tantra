@@ -20,7 +20,9 @@ for i in $(seq 1 30); do
         echo "deployed $target (was $previous)"
         # Real end-to-end timings from the live server (sign-in, model + tools, voice), shown in the CI log.
         # Public repo: print only check name, result and timing (never reply text, places or names).
-        timeout 240 .venv/bin/python -m atulya.cli selftest 2>&1 | grep -E '^.(PASS|FAIL|SKIP).|checks passed' | cut -c1-49 || echo 'selftest did not finish'
+        code=0; timeout 240 .venv/bin/python -m atulya.cli selftest > data/selftest-last.txt 2>&1 || code=$?
+        grep -E "^.(PASS|FAIL|SKIP).|checks passed" data/selftest-last.txt | cut -c1-49 || true
+        echo "selftest exit $code, $(wc -l < data/selftest-last.txt) lines (full output: data/selftest-last.txt on the server)"
         exit 0
     fi
     sleep 2

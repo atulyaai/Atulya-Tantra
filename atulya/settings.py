@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -117,5 +118,10 @@ class Settings:
             hostname = urlsplit(self.public_origin).hostname
             if hostname and hostname not in hosts:
                 hosts.append(hostname)
+        # Private test networks only (the CI Android emulator reaches the runner as 10.0.2.2).
+        for extra in os.environ.get("ATULYA_TEST_HOSTS", "").split(","):
+            extra = extra.strip().lower()
+            if extra and re.fullmatch(r"10\.0\.2\.2|127\.\d+\.\d+\.\d+", extra) and extra not in hosts:
+                hosts.append(extra)
         return hosts
 

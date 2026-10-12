@@ -69,7 +69,7 @@ jobs:
           PW="ci$(openssl rand -hex 12)"
           echo "::add-mask::$PW"
           echo "TEST_PASSWORD=$PW" >> "$GITHUB_ENV"
-          export ATULYA_DATA_DIR="$RUNNER_TEMP/atulya-data" ATULYA_PUBLIC_ORIGIN="http://10.0.2.2:8501"
+          export ATULYA_DATA_DIR="$RUNNER_TEMP/atulya-data" ATULYA_TEST_HOSTS="10.0.2.2"
           echo "$PW" | .venv/bin/python -m atulya.cli set-password --user admin
           nohup .venv/bin/python -m atulya.cli serve > "$RUNNER_TEMP/server.log" 2>&1 &
           for i in $(seq 1 60); do curl -fs -o /dev/null -H "Host: 10.0.2.2:8501" http://127.0.0.1:8501/api/health && break; sleep 2; done
