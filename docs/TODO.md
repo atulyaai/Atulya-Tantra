@@ -77,6 +77,11 @@ Status: ✅ done (verified for real) · 🔧 in progress · ⬜ to do · ⛔ blo
 | G13 | ✅ | Phone chat panel grew with every message (old flex rule overrode its height) and covered the hologram; now fixed at 40 % and the messages scroll; status chips/footnote hidden on phones | Reproduced with 40 messages: 2297 px → 325 px, scrolls |
 | G14 | ✅ | Requests the page didn't understand ("hide chat options") now work: many more phrases + Hindi instantly, and a `screen_control` AI tool for any wording (hide/show chat, conversation mode, new chat, history, settings, camera, mute, reload) | Real model: "make the messages go away so I only see you" → hide_chat, "start a fresh chat" → new_chat |
 | G15 | ✅ | Phone hologram framing: ⋮ → VIEW: CLOSE-UP (fills the area) / WIDE (whole scene like the website); remembered per device | Local phone-size check |
+| G16 | 🔧 | Phone chat panel 30 % (owner: 20-30 %), compact rows | Owner check |
+| G17 | ✅ | Always the newest version on reopen: HTML no-cache (304 when unchanged), versioned assets cached 1 year (full cache wipe would re-download the scene each open) | Headers |
+| G18 | 🔧 | Chrome/Edge use the browser's own speech recognizer (Google, free, accurate) like the APK; Telegram keeps the server recognizer; falls back to the server after 3 errors | Owner check in Chrome |
+| G19 | 🔧 | Live server speed measured on every deploy: selftest timings in the deploy log (names/timings only — public repo) | Next deploy log |
+| G20 | 🔧 | APK UI test on a CI emulator against a private Atulya on the runner (no Cloudflare): sign in, layout, hide chat → CHAT, ⋮ menu, rotation, reopen, crash, memory; failure blocks the release | Next APK build |
 | G4 | 🔧 | Conversation mode: TALK button / "hide chat" → full-screen hologram, keeps listening, chat still recorded; CHAT button returns; phone chat sheet 48→40 % height | Owner check on phone |
 | G5 | 🔧 | App versions: automatic builds bump only the last number (0.5.1, 0.5.2…); middle number only for milestones | Next APK |
 | G6 | ⬜ | **Speech recognition quality** (biggest issue): Android app → native Android recognizer (free, on-device, Hindi); Chrome → browser recognizer; Telegram/others → better server STT (decision: Groq free Whisper-large vs. local) | Owner decision |

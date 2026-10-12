@@ -18,6 +18,9 @@ sudo systemctl restart atulya.service
 for i in $(seq 1 30); do
     if curl -fsS -o /dev/null -H "Host: localhost:8501" http://127.0.0.1:8501/api/health; then
         echo "deployed $target (was $previous)"
+        # Real end-to-end timings from the live server (sign-in, model + tools, voice), shown in the CI log.
+        # Public repo: print only check name, result and timing (never reply text, places or names).
+        timeout 240 .venv/bin/python -m atulya.cli selftest 2>&1 | grep -E '^.(PASS|FAIL|SKIP).|checks passed' | cut -c1-49 || echo 'selftest did not finish'
         exit 0
     fi
     sleep 2

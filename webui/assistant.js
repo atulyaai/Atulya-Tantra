@@ -1879,7 +1879,40 @@
 
   // ---- Android app: the phone's own speech recognizer (window.AtulyaNative, Atulya origin only) ----
   // More accurate than the server's small model, handles Hindi, and ignores background noise itself.
-  const nativeVoice = window.AtulyaNative && typeof window.AtulyaNative.postMessage === "function" ? window.AtulyaNative : null;
+  // Chrome/Edge: the browser's own recognizer (Google, free, accurate) behind the same message interface.
+  // Not in Telegram (its WebView lacks it) — there the server recognizer is used.
+  function browserSpeechBridge() {
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Recognition || window.Telegram?.WebApp?.initData || /Brave/i.test(navigator.userAgent)) return null;
+    let recognition = null;
+    const bridge = {
+      onmessage: null,
+      postMessage(raw) {
+        const command = JSON.parse(raw);
+        const send = (kind, text = "") => bridge.onmessage?.({ data: JSON.stringify({ kind, text }) });
+        if (command.cmd === "stop") { recognition?.abort(); return; }
+        recognition?.abort();
+        recognition = new Recognition();
+        recognition.lang = command.lang || "en-IN";
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+        let settled = false;
+        recognition.onstart = () => send("ready");
+        recognition.onspeechstart = () => send("speech");
+        recognition.onresult = (event) => { settled = true; send("result", event.results[0][0].transcript); };
+        recognition.onerror = (event) => {
+          settled = true;
+          send(["no-speech", "aborted"].includes(event.error) ? "nomatch"
+            : ["not-allowed", "service-not-allowed"].includes(event.error) ? "denied" : "error", event.error);
+        };
+        recognition.onend = () => { if (!settled) send("nomatch"); };
+        try { recognition.start(); } catch { send("error", "start"); }
+      },
+    };
+    return bridge;
+  }
+  let nativeVoice = window.AtulyaNative && typeof window.AtulyaNative.postMessage === "function"
+    ? window.AtulyaNative : browserSpeechBridge();
   let nativeVoiceErrors = 0;
   if (nativeVoice) {
     nativeVoice.onmessage = async (event) => {
@@ -1901,7 +1934,15 @@
       if (message.kind === "nomatch" || message.kind === "busy") { resumeLiveVoice(); return; } // silence: just listen again
       voiceSessionActive = false;
       if (message.kind === "denied") setPhase("idle", "Allow microphone", "Allow the microphone for Atulya in Android settings, then tap the wave.");
-      else if (++nativeVoiceErrors >= 3) setPhase("idle", "Voice paused", "The phone's speech service is not responding. Tap the wave to try again.");
+      else if (++nativeVoiceErrors >= 3) {
+        if (!window.AtulyaNative) { // browser recognizer unavailable here (offline, blocked): use the server's
+          nativeVoice = null;
+          voiceSessionActive = true;
+          startListening(true);
+          return;
+        }
+        setPhase("idle", "Voice paused", "The phone's speech service is not responding. Tap the wave to try again.");
+      }
       else { voiceSessionActive = true; resumeLiveVoice(); }
     };
   }

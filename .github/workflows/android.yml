@@ -57,21 +57,38 @@ jobs:
           path: |
             dist/Atulya-*.apk
             dist/Atulya-*.aab
-      - name: Build emulator test copy (screenshots allowed)
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Private Atulya server for the UI test (emulator reaches it at 10.0.2.2)
+        env:
+          ATULYA_SKIP_MODELS: "1"
+          ATULYA_PRELOAD: "0"
+        run: |
+          sh install.sh --no-start
+          PW="ci$(openssl rand -hex 12)"
+          echo "::add-mask::$PW"
+          echo "TEST_PASSWORD=$PW" >> "$GITHUB_ENV"
+          export ATULYA_DATA_DIR="$RUNNER_TEMP/atulya-data" ATULYA_PUBLIC_ORIGIN="http://10.0.2.2:8501"
+          echo "$PW" | .venv/bin/python -m atulya.cli set-password --user admin
+          nohup .venv/bin/python -m atulya.cli serve > "$RUNNER_TEMP/server.log" 2>&1 &
+          for i in $(seq 1 60); do curl -fs -o /dev/null -H "Host: 10.0.2.2:8501" http://127.0.0.1:8501/api/health && break; sleep 2; done
+          curl -fs -H "Host: 10.0.2.2:8501" http://127.0.0.1:8501/api/health
+      - name: Build UI-test copy (points at the private server, screenshots allowed)
         working-directory: android
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/atulya-release.p12"
           export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/atulya-release.p12"
-          gradle --no-daemon assembleRelease -PversionName="$VERSION" -PversionCode="$GITHUB_RUN_NUMBER" -PallowScreenshots=true
-          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/smoke.apk"
+          gradle --no-daemon assembleRelease -PversionName="$VERSION" -PversionCode="$GITHUB_RUN_NUMBER"             -PallowScreenshots=true -PtestServer=1 -PatulyaUrl=http://10.0.2.2:8501
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/uitest.apk"
           rm -f "$RUNNER_TEMP/atulya-release.p12"
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
           sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
-      - name: Emulator smoke test (install, launch, rotate, resume, app link)
+      - name: Emulator UI test (sign in, chat layout, hide chat, menu, rotation, reopen, crashes, memory)
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -79,7 +96,7 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          script: sh tools/android_smoke.sh "$RUNNER_TEMP/smoke.apk" dist/smoke
+          script: python3 tools/android_ui_test.py "$RUNNER_TEMP/uitest.apk" dist/smoke "$TEST_PASSWORD"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

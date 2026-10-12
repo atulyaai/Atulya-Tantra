@@ -18,6 +18,8 @@ android {
     defaultConfig {
         // Only the CI emulator smoke-test build sets -PallowScreenshots=true; released APKs keep FLAG_SECURE.
         buildConfigField("boolean", "ALLOW_SCREENSHOTS", (project.findProperty("allowScreenshots") ?: "false").toString())
+        // Only the CI UI-test build talks plain http to the runner's private server (http://10.0.2.2:8501).
+        manifestPlaceholders["cleartextTraffic"] = (project.findProperty("testServer") != null).toString()
     }
     buildFeatures { buildConfig = true }
     defaultConfig { resourceConfigurations += listOf("en", "hi") }

@@ -1869,6 +1869,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     if webui.is_dir():
         app.mount("/", StaticFiles(directory=webui, html=True), name="webui")
+
+    @app.middleware("http")
+    async def fresh_pages(request: Request, call_next):
+        """Every open gets the newest page: HTML is revalidated each time (a cheap 304 when unchanged),
+        versioned assets (?v=...) are cached for a year, and other static files revalidate too.
+        Without this, phones kept an old page (and its old scripts) for hours after a deploy."""
+        response = await call_next(request)
+        path = request.url.path
+        if path.startswith("/api/") or "cache-control" in response.headers:
+            return response
+        if path == "/" or path.endswith(".html") or path.endswith(".webmanifest"):
+            response.headers["Cache-Control"] = "no-cache"
+        elif request.url.query.startswith("v="):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        else:
+            response.headers["Cache-Control"] = "no-cache"
+        return response
     return app
 
 
