@@ -197,6 +197,21 @@ PIPER_PATHS = ("en/en_US/ryan/medium/en_US-ryan-medium", "hi/hi_IN/pratham/mediu
                "en/en_US/amy/medium/en_US-amy-medium", "hi/hi_IN/priyamvada/medium/hi_IN-priyamvada-medium")
 
 
+# Pinned SHA-256 for every light-voice file (_download rejects anything unverified).
+LIGHT_VOICE_SHA256 = {
+    "vosk-model-small-en-in-0.4.zip": "20663dcac4d5cb783a579c54d98339344a688e4ec6e1b4a4b059fd1235454cc7",
+    "vosk-model-small-hi-0.22.zip": "7c50a10866889f0ac21d912c20537a055a597ed09fc1d3e5bcd798f9f0017e48",
+    "en_US-ryan-medium.onnx": "abf4c274862564ed647ba0d2c47f8ee7c9b717d27bdad9219100eb310db4047a",
+    "en_US-ryan-medium.onnx.json": "44034c056cb15681b2ad494307c7f3f2e4499d1253c700c711fa0a4607ffe78d",
+    "hi_IN-pratham-medium.onnx": "169964b0871667f6793416d4b35e97357a68ba1ad01df8580c28048989ee7693",
+    "hi_IN-pratham-medium.onnx.json": "b68edd2cd7950dd436314013b7cd12e9699e5a3f6fe5af5af94294cf6aa7b9fd",
+    "en_US-amy-medium.onnx": "b3a6e47b57b8c7fbe6a0ce2518161a50f59a9cdd8a50835c02cb02bdd6206c18",
+    "en_US-amy-medium.onnx.json": "95a23eb4d42909d38df73bb9ac7f45f597dbfcde2d1bf9526fdeaf5466977d77",
+    "hi_IN-priyamvada-medium.onnx": "aa63bcf2cd493b55a450f280e23cf77f03afc9af7015e6e5acd43b652f166c88",
+    "hi_IN-priyamvada-medium.onnx.json": "5efc0ccf7529f3528996d46e0fac1f969f681d44a8e55bfa6236ff8841b5d52d",
+}
+
+
 def prepare_light_voice(models_dir: Path) -> None:
     """Small-server voice (ATULYA_VOICE_BACKEND=light): open-source Vosk + Piper and their models."""
     import zipfile
@@ -209,7 +224,7 @@ def prepare_light_voice(models_dir: Path) -> None:
         if not (vosk_dir / name).is_dir():
             print(f"Downloading speech recognition model {name}...", flush=True)
             archive = vosk_dir / f"{name}.zip"
-            _download(VOSK_URL.format(name=name), archive)
+            _download(VOSK_URL.format(name=name), archive, expected_sha256=LIGHT_VOICE_SHA256[f"{name}.zip"])
             with zipfile.ZipFile(archive) as bundle:
                 for member in bundle.namelist():
                     if member.startswith("/") or ".." in Path(member).parts:
@@ -223,7 +238,8 @@ def prepare_light_voice(models_dir: Path) -> None:
         for suffix in (".onnx", ".onnx.json"):
             if not (piper_dir / f"{name}{suffix}").is_file():
                 print(f"Downloading voice {name}{suffix}...", flush=True)
-                _download(PIPER_URL.format(path=path + suffix), piper_dir / f"{name}{suffix}")
+                _download(PIPER_URL.format(path=path + suffix), piper_dir / f"{name}{suffix}",
+                          expected_sha256=LIGHT_VOICE_SHA256[f"{name}{suffix}"])
 
 
 def main() -> int:
