@@ -85,6 +85,7 @@ def find(pattern: str, wait: float = 20) -> dict | None:
 def tap(node: dict) -> None:
     x1, y1, x2, y2 = node["box"]
     adb("shell", "input", "tap", str((x1 + x2) // 2), str((y1 + y2) // 2))
+    time.sleep(1.2)  # let focus move and the keyboard open before typing
 
 
 def type_text(text: str) -> None:
@@ -134,7 +135,12 @@ field = find(r"username or email|#auth-username", 60)
 if step("app unlocks and shows sign-in", field is not None):
     tap(field)
     type_text("admin")
-    adb("shell", "input", "keyevent", "KEYCODE_ENTER")
+    time.sleep(0.8)
+    continue_button = find(r"^CONTINUE$", 5)
+    if continue_button:
+        tap(continue_button)
+    else:
+        adb("shell", "input", "keyevent", "KEYCODE_ENTER")
     use_password = find(r"^USE PASSWORD$")
     if step("sign-in offers password", use_password is not None):
         tap(use_password)
@@ -143,6 +149,7 @@ if step("app unlocks and shows sign-in", field is not None):
         if step("password field visible", password_field is not None):
             tap(password_field)
             type_text(PASSWORD)
+            time.sleep(0.8)
             adb("shell", "input", "keyevent", "KEYCODE_ENTER")
 
 composer = find(r"Type a message|#chat-prompt", 40)
