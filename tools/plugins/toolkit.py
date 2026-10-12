@@ -729,7 +729,30 @@ class Toolbox:
 
     async def run_approved(self, action: PendingAction) -> str:
         """Execute an action the user approved (bypasses the confirmation step only)."""
-        tool = TOOLS_BY_NAME.get(action.tool)
+        tool = 
+
+    Tool('gmail_search', 'Search Gmail for messages matching a query.',
+         _params({'query': {'type': 'string'}}, ['query']),
+         _gmail_search, 'online-information'),
+    Tool('gmail_drafts', 'List Gmail drafts.',
+         _params({}, []),
+         _gmail_drafts, 'online-information'),
+    Tool('gmail_send', 'Send a Gmail message with approval.',
+         _params({'message': {'type': 'string'}}, ['message']),
+         _gmail_send, 'online-information', True),
+    Tool('calendar_search', 'Search Google Calendar for events.',
+         _params({'query': {'type': 'string'}}, ['query']),
+         _calendar_search, 'online-information'),
+    Tool('calendar_create', 'Create a Google Calendar event with approval.',
+         _params({'summary': {'type': 'string'}, 'when': {'type': 'string'}}, ['summary', 'when']),
+         _calendar_create, 'online-information', True),
+    Tool('github_search', 'Search GitHub repositories or issues.',
+         _params({'query': {'type': 'string'}}, ['query']),
+         _github_search, 'online-information'),
+    Tool('github_issues', 'List GitHub issues for a repository.',
+         _params({'owner': {'type': 'string'}, 'repo': {'type': 'string'}}, ['owner', 'repo']),
+         _github_issues, 'online-information', True),
+TOOLS_BY_NAME.get(action.tool)
         if tool is None:
             return "That action is no longer available."
         started = time.monotonic()
@@ -818,4 +841,27 @@ async def _restart_service(args: dict, ctx: PluginContext | None) -> str:
             f"Only read-only restart commands are allowed without approval.")
 
 
+
+
+    Tool('gmail_search', 'Search Gmail for messages matching a query.',
+         _params({'query': {'type': 'string'}}, ['query']),
+         _gmail_search, 'online-information'),
+    Tool('gmail_drafts', 'List Gmail drafts.',
+         _params({}, []),
+         _gmail_drafts, 'online-information'),
+    Tool('gmail_send', 'Send a Gmail message with approval.',
+         _params({'message': {'type': 'string'}}, ['message']),
+         _gmail_send, 'online-information', True),
+    Tool('calendar_search', 'Search Google Calendar for events.',
+         _params({'query': {'type': 'string'}}, ['query']),
+         _calendar_search, 'online-information'),
+    Tool('calendar_create', 'Create a Google Calendar event with approval.',
+         _params({'summary': {'type': 'string'}, 'when': {'type': 'string'}}, ['summary', 'when']),
+         _calendar_create, 'online-information', True),
+    Tool('github_search', 'Search GitHub repositories or issues.',
+         _params({'query': {'type': 'string'}}, ['query']),
+         _github_search, 'online-information'),
+    Tool('github_issues', 'List GitHub issues for a repository.',
+         _params({'owner': {'type': 'string'}, 'repo': {'type': 'string'}}, ['owner', 'repo']),
+         _github_issues, 'online-information', True),
 TOOLS_BY_NAME = {tool.name: tool for tool in TOOLS}

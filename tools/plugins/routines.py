@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 TRIGGER_RAIN = "rain"
 TRIGGER_DISK = "disk_full"
 TRIGGER_SITE_DOWN = "site_down"
+TRIGGER_GMAIL_CHECK = "gmail_check"
+TRIGGER_CALENDAR_SUMMARY = "calendar_summary"
+TRIGGER_GITHUB_ISSUES = "github_issues_check"
 TRIGGER_CUSTOM = "custom"
 
 # Workflow status
@@ -156,3 +159,28 @@ class RoutineScheduler:
             return {"status": "error", "message": f"Routine '{name}' not found"}
         
         return {"status": self.routines[name].status, "name": name}
+# H9 Account workflows
+
+H9_GMAIL_CHECK_WORKFLOW = {
+    "name": "gmail_check",
+    "description": "Check Gmail for new messages",
+    "trigger": TRIGGER_GMAIL_CHECK,
+    "actions": ["search_gmail", "list_drafts"],
+    "frequency": "every_30_minutes",
+}
+
+H9_CALENDAR_SUMMARY_WORKFLOW = {
+    "name": "calendar_summary",
+    "description": "Get Google Calendar daily summary",
+    "trigger": TRIGGER_CALENDAR_SUMMARY,
+    "actions": ["search_calendar_events"],
+    "frequency": "daily_morning",
+}
+
+H9_GITHUB_MONITOR_WORKFLOW = {
+    "name": "github_issues_check",
+    "description": "Check GitHub for new issues",
+    "trigger": TRIGGER_GITHUB_ISSUES,
+    "actions": ["search_github_issues"],
+    "frequency": "every_hour",
+}
