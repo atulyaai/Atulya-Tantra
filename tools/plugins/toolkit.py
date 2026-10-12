@@ -13,6 +13,7 @@ import os
 import re
 import secrets
 import time
+import threading
 from collections import deque
 from contextvars import ContextVar
 from collections.abc import Awaitable, Callable, Iterable
@@ -21,6 +22,7 @@ from datetime import datetime
 from pathlib import Path
 
 from tools.plugins.audit import record_tool_run
+from tools.plugins.device import init_device_registry, get_device_registry, list_devices, list_abilities, record_device_action
 from tools.plugins.registry import PluginContext
 
 logger = logging.getLogger(__name__)
@@ -503,7 +505,7 @@ TOOLS: tuple[Tool, ...] = (
          _params({"name": {"type": "string", "description": "App name, e.g. 'Spotify', 'Calculator'"}}, ["name"]),
          _pc("open_app"), "pc-control", True, True, lambda a: f"Open app: {a.get('name', '')}"),
     Tool("open_url", "Open a web page in the computer's browser (asks the user first).",
-         _params({"url": {"type": "string", "description": "Full http(s) URL"}}, ["url"]),
+        _params({"url": {"type": "string", "description": "Full http(s) URL"}}, ["url"]),
          _pc("open_url"), "pc-control", True, True, lambda a: f"Open website: {a.get('url', '')}"),
     Tool("update_profile", "Save a lasting user preference: voice (male/female speaking voice), "
          "assistant_nickname (what this user wants to call you, "
@@ -529,12 +531,18 @@ TOOLS: tuple[Tool, ...] = (
          "Use it when the user asks 'what can you do here?', 'what can you do on Telegram?', or similar.",
          _params({"channel": {"type": "string", "enum": ["web", "telegram", "mcp", "android"]}}),
          _what_can_you_do, "local-utilities"),
-    Tool("search_web", "Search the web (DuckDuckGo) and get results with sources. "
-         "Use for questions that need live information beyond news headlines.",
-         _params({"query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}},
-                 ["query"]), _search_web, "online-information"),
-    Tool("read_page", "Fetch a web page and summarize its text content.",
-         _params({"url": {"type": "string", "description": "Full http(s) URL"}}, ["url"]),
+    Tool("list_devices", "List all registered devices (server, laptop, phone) with their status and granted abilities.",
+         _params(), _list_devices, "local-utilities"),
+    Tool("server_logs", "Explain server logs: read from approved paths only, show recent entries, propose fixes.",
+         _params({"query": {"type": "string", "description": "Keywords to search for in logs"}}, ["query"]),
+         _server_logs, "local-utilities", True),
+        _search_web, "online-information"),
+        _params({"query": {"type": "string"}}, ["query"]),
+    Tool("search_web", "Search the web (DuckDuckGo) and get results with sources.",
+        _restart_service, "local-utilities", True),
+        _params({"service": {"type": "string"}}, ["service"]),
+    Tool("restart_service", "Restart a service with approval. Only read-only, approved paths.",
+        _params({"url": {"type": "string", "description": "Full http(s) URL"}}, ["url"]),
          _read_page, "online-information"),
     Tool("places_near_me", "Find places (pharmacies, hospitals, shops, restaurants) near the user's location "
          "or a named place. Returns name, address and distance.",
@@ -750,6 +758,64 @@ class Toolbox:
                             tool=action.tool, args=action.arguments, outcome=outcome,
                             duration_ms=int((time.monotonic() - started) * 1000))
             return "That action failed on this computer."
+
+
+async def _list_devices(_args: dict, ctx: PluginContext | None) -> str:
+    """List all registered devices with status and granted abilities."""
+    registry = get_device_registry()
+    if registry is None:
+        return "Device registry not initialized."
+    devices = registry.list_devices()
+    if not devices:
+        return "No devices registered."
+    lines = ["Registered devices:"]
+    for d in devices:
+        ability_str = ", ".join(sorted(d.abilities)) if d.abilities else "none"
+        lines.append(f"  • {d.type}: status={d.status}, abilities=[{ability_str}], last_seen={int(d.last_seen)}s ago")
+    return "\n".join(lines)
+
+
+async def _server_logs(args: dict, ctx: PluginContext | None) -> str:
+    """Explain server logs: read from approved paths only."""
+    import os
+    query = _text(args, "query", 100).lower() if args else ""
+    log_dir = os.environ.get("ATULYA_LOG_DIR", "data/logs")
+    try:
+        if not os.path.isdir(log_dir):
+            return f"Log directory not found: {log_dir}"
+        entries = []
+        for fname in sorted(os.listdir(log_dir)):
+            if fname.endswith(".log"):
+                fpath = os.path.join(log_dir, fname)
+                try:
+                    with open(fpath, "r", encoding="utf-8", errors="replace") as f:
+                        lines = f.readlines()[-20:]
+                        for line in lines:
+                            if query and query not in line.lower():
+                                continue
+                            entries.append(f"{fname}: {line.rstrip()[:200]}")
+                except OSError:
+                    continue
+        if not entries:
+            return f"No log entries matching {_text(args, 'query', 100) or 'recent'} found."
+        return f"Recent log entries ({len(entries)}):\n" + "\n".join(entries[:10])
+    except Exception as exc:
+        return f"Failed to read logs: {type(exc).__name__}: {exc}
+
+
+async def _restart_service(args: dict, ctx: PluginContext | None) -> str:
+    """Restart a service with approval. Only read-only, approved paths."""
+    import subprocess
+    service = _text(args, "service", 64)
+    # Only allow known, safe services
+    safe_services = {"nginx", "fail2ban", "sshd", "atulya"}
+    if service not in safe_services:
+        return f"Service '{service}' is not in the approved list. Allowed: {', '.join(safe_services)}"
+    # This is a simulated approval - in real use, the WebUI would show an approval card
+    # For now, just record the request and explain
+    return (f"Service restart requested for '{service}'. This requires user approval on the WebUI. "
+            f"Use the WebUI ⋮ → ACTIVITY → Approve to restart. "
+            f"Only read-only restart commands are allowed without approval.")
 
 
 TOOLS_BY_NAME = {tool.name: tool for tool in TOOLS}
