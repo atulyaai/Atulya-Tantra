@@ -23,11 +23,9 @@ Status: ✅ done (verified for real) · 🔧 in progress · ⬜ to do · ⛔ blo
 | A12 | ✅ | Sign-up with an existing email jumps to sign-in for that account | UI flow |
 | A13 | ✅ | App icon = the Atulya hologram face (web, PWA, Android launcher + round icon) | APK 0.2.1 |
 | A14 | ✅ | APK download: https://atulya.atulvij.com/download (always the newest signed APK) + README | Public URL |
-| A15 | 🔧 | APK: R8 code + resource shrinking, en/hi only, adaptive launcher icon (fits round/squircle/any mask, sharper head crop, webp); every android/ change on main auto-publishes the latest release so the in-app updater offers it | CI build size + phone install pending |
-| A16 | 🔧 | Voice fixes: pause keeps the mic granted (muted, released after 10 idle min) so Telegram does not ask again; reply sentences are synthesized one at a time so speech starts with the first sentence instead of after typing; gesture model now installed on the server (was red/yellow) | Owner check in Telegram/APK |
-
+| A17 | 🔧 | APK: R8 code + resource shrinking, en/hi only, adaptive launcher icon (fits round/squircle/any mask, sharper head crop, webp); every android/ change on main auto-publishes the latest release so the in-app updater offers it | CI build size + phone install pending |
+| A18 | 🔧 | Voice fixes: pause keeps the mic granted (muted, released after 10 idle min) so Telegram does not ask again; reply sentences are synthesized one at a time so speech starts with the first sentence instead of after typing; gesture model now installed on the server (was red/yellow) | Owner check in Telegram/APK |
 | A15 | ✅ | Camera turned itself on at load → on demand only (button / "turn on camera"), remembered per device | Public site |
-| A16 | 🔧 | Voice fixes: pause keeps the mic granted (muted, released after 10 idle min) so Telegram does not ask again; reply sentences are synthesized one at a time so speech starts with the first sentence instead of after typing; gesture model now installed on the server (was red/yellow) | Owner check in Telegram/APK |
 | A16 | ✅ | Greeting shown twice after reload → one greeting; "Welcome back" by voice | Public site |
 
 ## B. Server-first architecture (owner's server, always on)
@@ -68,6 +66,23 @@ Status: ✅ done (verified for real) · 🔧 in progress · ⬜ to do · ⛔ blo
 | E1 | ⬜ | openWakeWord "Hey Atulya" model for always-on listening (Whisper fallback stays) |
 | E2 | ✅ | Camera on demand: "turn on the camera" fixed; vision questions ("what do you see", "read this", "यह क्या है") switch it on; **only those send a frame to the AI** (privacy) | Pattern tests |
 | E3 | ✅ | First words: instant spoken acknowledgement from the request itself (29 ms laptop, 9-78 ms server) | Self-test |
+
+## G. Owner feedback 2026-10-12 (real phone use) — in order
+
+| # | Status | What | Proof / next |
+|---|---|---|---|
+| G1 | 🔧 | Speech starts on the opening clause (comma or ~8 words) instead of the whole first sentence; sentences synthesized one at a time | Target first audio ≈1 s; measure on server |
+| G2 | 🔧 | Passkeys: accept the Android app's own origin (apk-key-hash), exclude only this account's passkeys, clear error per failure reason, server logs the real cause | Owner retry on phone + web |
+| G3 | 🔧 | Misheard speech ("we look up" → VLOOKUP) corrected by the brain from context; memory checked before asking; lasting facts saved | Prompt rule; real phrase test pending |
+| G4 | 🔧 | Conversation mode: TALK button / "hide chat" → full-screen hologram, keeps listening, chat still recorded; CHAT button returns; phone chat sheet 48→40 % height | Owner check on phone |
+| G5 | 🔧 | Clean app versions 0.4.0, 0.5.0, … (middle number per release) | Next APK |
+| G6 | ⬜ | **Speech recognition quality** (biggest issue): Android app → native Android recognizer (free, on-device, Hindi); Chrome → browser recognizer; Telegram/others → better server STT (decision: Groq free Whisper-large vs. local) | Owner decision |
+| G7 | ⬜ | Noise: real voice-activity detection (Silero VAD in the browser) so clicks, nail clipping, "shh" and background talk don't trigger; ignore when nobody speaks; no "no speech" message for silence | |
+| G8 | ⬜ | Chat management: clear, archive, delete; history and settings reachable from conversation mode | |
+| G9 | ⬜ | Login: Telegram code auto-fill/magic link reliability; email magic link needs a mailbox (D2) | |
+| G10 | ⬜ | Professional look: app theme + icon redesign (owner to pick references) | |
+| G11 | ⬜ | Phone access in the Android app (notifications, contacts, calls/SMS with approval) | |
+| G12 | ⬜ | Hologram speaking animation matches speech in full-screen mode (renderer is owner's — needs owner OK) | |
 
 ## F. Later (after A-E)
 

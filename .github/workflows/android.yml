@@ -26,8 +26,15 @@ jobs:
         with:
           gradle-version: "8.9"
       - name: Version
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then V="${GITHUB_REF#refs/tags/v}"; else V="0.3.${GITHUB_RUN_NUMBER}"; fi
+          # Clean versions: each automatic release bumps the middle number (0.4.0, 0.5.0, ...).
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then V="${GITHUB_REF#refs/tags/v}"; else
+            LAST=$(gh release view --json tagName --jq .tagName 2>/dev/null || echo v0.3.0)
+            MINOR=$(echo "${LAST#v}" | cut -d. -f2)
+            V="0.$((MINOR + 1)).0"
+          fi
           echo "VERSION=$V" >> "$GITHUB_ENV"
       - name: Build signed release
         working-directory: android

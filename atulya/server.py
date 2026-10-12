@@ -14,6 +14,7 @@ import secrets
 from http.cookies import SimpleCookie
 from collections import defaultdict, deque
 from datetime import datetime
+from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 
@@ -829,6 +830,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if len(supplied) > 256 or not supplied.isascii() or not hmac.compare_digest(supplied, expected):
                 raise HTTPException(status_code=403, detail="Enter the administrator setup token from server configuration.")
 
+    def android_app_origins() -> list[str]:
+        """Passkeys made inside the Android app report the app's signing key as their origin, not the site."""
+        try:
+            links = json.loads((Path(__file__).resolve().parent.parent / "webui" / ".well-known" / "assetlinks.json")
+                               .read_text(encoding="utf-8"))
+            prints = [fp for link in links for fp in link.get("target", {}).get("sha256_cert_fingerprints", [])]
+        except (OSError, ValueError, AttributeError):
+            return []
+        return ["android:apk-key-hash:" + base64.urlsafe_b64encode(bytes.fromhex(fp.replace(":", ""))).decode().rstrip("=")
+                for fp in prints]
+
+    def passkey_origins(origin: str) -> list[str]:
+        return [origin, *android_app_origins()]
+
     def webauthn_origin(request: Request) -> tuple[str, str]:
         host = request.headers.get("host", "")
         # The local address keeps working after a public origin is added, so
@@ -905,8 +920,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         rp_id, _ = webauthn_origin(request)
         challenge = new_challenge()
         flow_id = new_flow_id()
+        # Exclude only this account's passkeys: excluding everyone's makes a phone that holds another
+        # user's passkey refuse to create one ("already registered").
         descriptors = [PublicKeyCredentialDescriptor(id=bytes(row["credential_id"]))
-                       for row in await asyncio.to_thread(auth_store.credentials)]
+                       for row in await asyncio.to_thread(auth_store.credentials)
+                       if str(row["user_id"]) == target_user_id]
         try:
             options = generate_registration_options(
                 rp_id=rp_id,
@@ -962,7 +980,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 credential=credential,
                 expected_challenge=challenge,
                 expected_rp_id=rp_id,
-                expected_origin=origin,
+                expected_origin=passkey_origins(origin),
                 require_user_verification=True,
             )
             credential_id = base64url_to_bytes(str(credential["rawId"]))
@@ -984,6 +1002,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except HTTPException:
             raise
         except Exception as exc:
+            logging.getLogger(__name__).warning("Passkey setup failed: %s: %s", type(exc).__name__, exc)
             raise HTTPException(status_code=400, detail="Passkey verification failed. Try setup again.") from exc
         display_name = str((await asyncio.to_thread(auth_store.user, target_user_id))["display_name"])
         response = JSONResponse({"authenticated": True, "user": display_name})
@@ -1028,12 +1047,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 credential=credential,
                 expected_challenge=challenge,
                 expected_rp_id=rp_id,
-                expected_origin=origin,
+                expected_origin=passkey_origins(origin),
                 credential_public_key=bytes(stored["public_key"]),
                 credential_current_sign_count=int(stored["sign_count"]),
                 require_user_verification=True,
             )
         except Exception as exc:
+            logging.getLogger(__name__).warning("Passkey sign-in failed: %s: %s", type(exc).__name__, exc)
             raise HTTPException(status_code=401, detail="Passkey verification failed. Try again.") from exc
         with auth_store._session() as db:
             db.execute(

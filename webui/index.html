@@ -11,9 +11,9 @@
   <link rel="icon" href="./icons/favicon-48.png" type="image/png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <link rel="stylesheet" href="./renderer.css?v=atulya-48">
+  <link rel="stylesheet" href="./renderer.css?v=atulya-49">
   <script type="module" crossorigin src="./renderer.js?v=atulya-10"></script>
-  <script defer src="./assistant.js?v=atulya-64"></script>
+  <script defer src="./assistant.js?v=atulya-66"></script>
 </head>
 <body>
   <div id="root"></div>
@@ -39,6 +39,7 @@
   </aside>
   <button class="layout-focus-exit" id="layout-focus-exit" type="button" hidden>EXIT FOCUS · ESC</button>
   <button class="layout-voice-toggle" id="layout-voice-toggle" type="button" hidden aria-label="Start live voice conversation">VOICE</button>
+  <button class="layout-chat-toggle" id="layout-chat-toggle" type="button" hidden aria-label="Show the chat">CHAT</button>
   <div class="layout-toast" id="layout-toast" role="status" aria-live="polite" hidden></div>
   <dialog class="auth-dialog" id="auth-dialog" aria-labelledby="auth-title">
     <div class="auth-card">
@@ -135,6 +136,7 @@
       <div class="panel-title"><strong>ATULYA</strong><span>LIVE SESSION</span></div>
       <span class="connection-dot" id="connection-dot" aria-label="Connecting"></span>
       <div class="history-tools" aria-label="Conversation controls">
+        <button id="talk-mode" type="button" title="Conversation mode: full-screen hologram, hands-free voice">TALK</button>
         <button id="new-conversation" type="button" title="Start a new conversation">NEW</button>
         <button id="open-history" type="button" title="Browse saved conversations">HISTORY</button>
         <button id="voice-replies" type="button" title="Speak replies on/off">🔊</button>

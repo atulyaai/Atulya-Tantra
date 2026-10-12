@@ -24,6 +24,8 @@
   const layoutToast = $("#layout-toast");
   const layoutFocusExit = $("#layout-focus-exit");
   const layoutVoiceToggle = $("#layout-voice-toggle");
+  const layoutChatToggle = $("#layout-chat-toggle");
+  const talkModeButton = $("#talk-mode");
   const cameraBus = "BroadcastChannel" in window ? new BroadcastChannel("atulya-camera") : null;
   const pageId = crypto.randomUUID?.() || `camera_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   const conversation = [];
@@ -1507,6 +1509,15 @@
       layoutVoiceToggle.textContent = voiceSessionActive ? "STOP VOICE" : "VOICE";
       layoutVoiceToggle.setAttribute("aria-label", voiceSessionActive ? "Stop live voice conversation" : "Start live voice conversation");
     }
+    if (layoutChatToggle) layoutChatToggle.hidden = !document.body.classList.contains("panel-chat-hidden");
+  }
+
+  // Conversation mode (like ChatGPT/Claude voice): hide the chat, keep it recorded, and keep listening.
+  async function setConversationMode(on) {
+    document.body.classList.toggle("panel-chat-hidden", on);
+    exitFocusedLayout();
+    if (on && voiceReady && !voiceSessionActive && !listening) await toggleListening();
+    syncLayoutControls();
   }
 
   async function applyLayoutCommand(command) {
@@ -1541,7 +1552,8 @@
       const enabled = await enableCamera();
       return enabled ? "Camera preview shown." : "Camera panel shown, but the camera could not start. Check camera access and try again.";
     }
-    document.body.classList.toggle(className, !command.visible);
+    if (command.name === "chat") await setConversationMode(!command.visible);
+    else document.body.classList.toggle(className, !command.visible);
     syncLayoutControls();
     const label = { camera: "camera preview", chat: "chat", status: "system status" }[command.name];
     if (command.name === "camera" && !command.visible) return "Camera preview hidden; the camera stays on for gestures. Say camera off to stop the camera.";
@@ -1549,7 +1561,9 @@
   }
 
   layoutFocusExit?.addEventListener("click", exitFocusedLayout);
-  layoutVoiceToggle?.addEventListener("click", toggleListening);
+  layoutVoiceToggle?.addEventListener("click", async () => { await toggleListening(); syncLayoutControls(); });
+  layoutChatToggle?.addEventListener("click", () => setConversationMode(false));
+  talkModeButton?.addEventListener("click", () => setConversationMode(true));
 
   async function sendMessage(text, speakReply = false, includeVision = null) {
     if (includeVision === null) includeVision = needsVision(String(text || ""));
@@ -1664,7 +1678,14 @@
             reply += event.text;
             if (speakReply && localTtsReady) {
               if (!speechStream) speechStream = createSpeechStream();
-              const [sentences, rest] = takeSentences(speechBuffer + event.text);
+              let [sentences, rest] = takeSentences(speechBuffer + event.text);
+              // First audio fast: speak the opening clause (comma or ~8 words) instead of waiting for
+              // the whole first sentence; server voice time grows with length (~0.15 s per word).
+              if (!speechStream.started && !sentences.length) {
+                const clause = rest.match(/^(.{12,}?[,;:—])\s+/) || rest.match(/^((?:\S+\s+){8})/);
+                if (clause) { sentences = [clause[1].trim()]; rest = rest.slice(clause[0].length); }
+              }
+              if (sentences.length) speechStream.started = true;
               speechBuffer = rest;
               sentences.forEach((sentence) => speechStream.push(sentence));
             }
@@ -2155,9 +2176,20 @@
     });
     const optionsBody = await optionsResponse.json().catch(() => ({}));
     if (!optionsResponse.ok) throw new Error(optionsBody.detail || "Passkey setup could not start.");
-    const credential = isRegistration
-      ? await navigator.credentials.create({ publicKey: decodePublicKey(optionsBody.options) })
-      : await navigator.credentials.get({ publicKey: decodePublicKey(optionsBody.options) });
+    let credential;
+    try {
+      credential = isRegistration
+        ? await navigator.credentials.create({ publicKey: decodePublicKey(optionsBody.options) })
+        : await navigator.credentials.get({ publicKey: decodePublicKey(optionsBody.options) });
+    } catch (error) {
+      const reasons = {
+        InvalidStateError: "This device already has a passkey for this account. Use SIGN IN WITH PASSKEY instead.",
+        NotAllowedError: "The passkey prompt was cancelled or timed out. Try again and confirm with your fingerprint, face or PIN.",
+        SecurityError: "Passkeys only work at https://atulya.atulvij.com. Open Atulya from that address.",
+        NotSupportedError: "This device has no passkey provider. On Android, turn on Google Password Manager (Settings → Passwords).",
+      };
+      throw new Error(reasons[error.name] || `Passkey failed (${error.name || "error"}): ${error.message || "unknown"}`);
+    }
     if (!credential) throw new Error("The passkey operation was cancelled.");
     const verifyResponse = await fetch(`/api/auth/${isRegistration ? "register" : "login"}/verify`, {
       method: "POST",

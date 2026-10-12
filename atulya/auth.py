@@ -151,7 +151,7 @@ class AuthStore:
     def credentials(self) -> list[sqlite3.Row]:
         with self._session() as db:
             return db.execute(
-                "SELECT credential_id,public_key,sign_count,transports FROM credentials ORDER BY created_at"
+                "SELECT credential_id,public_key,sign_count,transports,user_id FROM credentials ORDER BY created_at"
             ).fetchall()
 
     def credential(self, credential_id: bytes) -> sqlite3.Row | None:
