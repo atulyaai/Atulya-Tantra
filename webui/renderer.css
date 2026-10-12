@@ -399,3 +399,5 @@ body.scene-fallback #root>*{display:none!important}
   .assistant-panel>.wave-control{height:30px!important;min-height:0!important}
   #chat-messages{min-height:0!important;overflow-y:auto!important}
 }
+
+.account-menu-items .menu-note{display:block;padding:6px 10px;color:#7fa6b3;font:600 9px var(--font-ui);letter-spacing:.08em}

@@ -200,6 +200,13 @@ if step("signed in: chat input visible", composer is not None and inside_screen(
         labels = {n["label"] for n in nodes()}
         step("menu has RELOAD and VIEW", "RELOAD" in labels and any(label.startswith("VIEW:") for label in labels),
              ", ".join(sorted(label for label in labels if label.isupper())[:12]))
+        engine = next((label for label in labels if label.startswith("VOICE:")), "")
+        recognizers = adb("shell", "cmd", "package", "query-services", "-a", "android.speech.RecognitionService")
+        phone_has_recognizer = "packageName=" in recognizers
+        # The app must use the phone's recognizer whenever the phone has one (the CI image may not).
+        step("voice uses the phone's recognizer when available",
+             engine == "VOICE: PHONE RECOGNIZER" or (not phone_has_recognizer and engine.startswith("VOICE:")),
+             f"{engine or 'no label'}; phone recognizer installed: {phone_has_recognizer}")
         adb("shell", "input", "keyevent", "KEYCODE_BACK")
         time.sleep(1.5)
         still_open = find(r"Type a message|#chat-prompt", 5)
@@ -218,6 +225,17 @@ adb("shell", "input", "keyevent", "KEYCODE_HOME")
 time.sleep(2)
 adb("shell", "am", "start", "-n", f"{PKG}/.MainActivity")
 step("reopen within 2 min: no unlock prompt, still signed in", find(r"Type a message|#chat-prompt", 15) is not None)
+
+# The real launcher icon as the phone draws it (home screen app list).
+adb("shell", "input", "keyevent", "KEYCODE_HOME")
+time.sleep(2)
+adb("shell", "input", "swipe", "540", "2000", "540", "600", "300")  # open the app drawer
+time.sleep(2)
+icon = find(r"^Atulya$", 6)
+step("launcher shows the Atulya icon", icon is not None, str(icon["box"]) if icon else "")
+if icon:
+    x1, y1, x2, y2 = icon["box"]
+    (OUT / "icon-box.txt").write_text(f"{x1},{y1},{x2},{y2}", encoding="utf-8")
 
 log = adb("logcat", "-d")
 (OUT / "logcat.txt").write_text(log, encoding="utf-8")

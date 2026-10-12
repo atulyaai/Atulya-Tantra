@@ -1951,6 +1951,8 @@
       else if (++nativeVoiceErrors >= 3) {
         if (!window.AtulyaNative) { // browser recognizer unavailable here (offline, blocked): use the server's
           nativeVoice = null;
+          const engine = document.getElementById("voice-engine");
+          if (engine) engine.textContent = "VOICE: SERVER RECOGNIZER";
           voiceSessionActive = true;
           startListening(true);
           return;
@@ -1959,6 +1961,13 @@
       }
       else { voiceSessionActive = true; resumeLiveVoice(); }
     };
+  }
+
+  // Which recognizer this device uses (shown in the ⋮ menu; the emulator test reads it too).
+  {
+    const engine = document.getElementById("voice-engine");
+    if (engine) engine.textContent = window.AtulyaNative ? "VOICE: PHONE RECOGNIZER"
+      : nativeVoice ? "VOICE: BROWSER RECOGNIZER" : "VOICE: SERVER RECOGNIZER";
   }
 
   async function startListening(resume = false) {
