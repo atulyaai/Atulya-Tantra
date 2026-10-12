@@ -1,0 +1,32 @@
+name: Deploy to server
+
+# After the clean-machine tests pass on main, the server updates itself:
+# pull, install changed dependencies, restart, health check, automatic rollback on failure.
+# The deploy key can only run tools/deploy_server.sh on the server (forced command).
+on:
+  workflow_run:
+    workflows: ["Install and test (clean machines)"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency: deploy-server
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Deploy
+        env:
+          KEY: ${{ secrets.SERVER_DEPLOY_KEY }}
+          HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          install -m 600 /dev/null ~/deploy_key
+          printf '%s\n' "$KEY" > ~/deploy_key
+          ssh -i ~/deploy_key -o StrictHostKeyChecking=accept-new -o BatchMode=yes "ubuntu@$HOST" deploy
+          rm -f ~/deploy_key
+      - name: Public health check
+        run: |
+          for i in $(seq 1 20); do curl -fsS https://atulya.atulvij.com/api/health && exit 0; sleep 3; done; exit 1

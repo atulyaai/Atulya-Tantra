@@ -79,7 +79,7 @@ examples/results.md
 
 
 # Legacy data path from earlier local configuration; remove after migrating .env to data/.
-assets/
+/assets/
 
 # Android build output
 android/.gradle/

@@ -31,11 +31,13 @@ Status: ✅ done (verified for real) · 🔧 in progress · ⬜ to do · ⛔ blo
 
 | # | Status | What | Notes |
 |---|---|---|---|
-| B1 | ⬜ | Replace the old `atulya.service` on the atulvij.com server with current Atulya core (accounts, history, sync, cloud brain, Telegram) behind nginx at atulya.atulvij.com | Server has 1 GB RAM: core only, no local models |
+| B1 | ✅ | Atulya runs on the atulvij.com server (systemd `atulya.service`, ~60-340 MB RAM) and atulya.atulvij.com is served from it through the Cloudflare tunnel; old version stopped (kept as a backup folder); laptop host disabled | Server self-test 10/12 → 12/12 after clips fix |
 | B2 | ⬜ | Laptop/desktop = **Atulya agents** that connect out to the server: PC control, local Whisper/TTS/LLM when available | Replaces the tunnel as the main path; tunnel kept for laptop-only setups |
 | B3 | ⬜ | Server is the source of truth; clients cache locally and fetch only changes (delta sync); Telegram reads from server | — |
 | B4 | ✅ | Encrypted daily backups (AES-256-GCM, keep 14) + off-site copy to the server; `atulya.cli backup`, `--restore`, `--show-key` | Real backup created, copied to server, decrypted and checked |
-| B5 | ⬜ | Speech on the server without local models: browser speech recognition or a small cloud STT; local Whisper when an agent is online | 1 GB RAM |
+| B5 | 🔧 | Speech on the server: Whisper (base) installed, loads on demand, unloads after 5 min idle; replies use the browser/phone voice (server too small for local TTS) | Server STT check |
+
+| B6 | ✅ | Workflow: laptop = development → push to GitHub → clean-machine tests → server deploys itself (health check + automatic rollback); deploy key can only run the deploy script | First automatic deploy |
 
 ## C. Same Atulya on every channel
 
@@ -61,7 +63,7 @@ Status: ✅ done (verified for real) · 🔧 in progress · ⬜ to do · ⛔ blo
 |---|---|---|
 | E1 | ⬜ | openWakeWord "Hey Atulya" model for always-on listening (Whisper fallback stays) |
 | E2 | ✅ | Camera on demand: "turn on the camera" fixed; vision questions ("what do you see", "read this", "यह क्या है") switch it on; **only those send a frame to the AI** (privacy) | Pattern tests |
-| E3 | ⬜ | First words < 1000 ms for common questions (now ~1800-2300 ms with tools, ~10 ms fast lane) |
+| E3 | ✅ | First words: instant spoken acknowledgement from the request itself (29 ms laptop, 9-78 ms server) | Self-test |
 
 ## F. Later (after A-E)
 

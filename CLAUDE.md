@@ -10,6 +10,13 @@ Move toward more autonomy (planning, multi-step tools, proactive briefings) with
 - Verify for real before calling something done; say plainly what was only unit-tested.
 - Prefer measured improvements (latency, RAM/CPU, accuracy) over new untested features.
 
+## Where Atulya runs (since 2026-10-12)
+- Production = the owner's atulvij.com server (`atulya.service`, data in `~/Atulya-Tantra/data`), public at
+  https://atulya.atulvij.com through the Cloudflare tunnel running on the server.
+- This laptop is for development only: change → test → push to GitHub. GitHub runs the clean-machine tests and then
+  deploys to the server automatically (`.github/workflows/deploy.yml` → `tools/deploy_server.sh`, rollback on failure).
+  Do not run the laptop host task or a second Telegram poller against the production bot.
+
 ## Do not touch without asking
 - `webui/renderer.js`, `webui/scene/**` — the owner's scene and animations. Never rebuild or replace them.
   Add features around them (`assistant.js`, `renderer.css`, `index.html`). Image upscales go next to
