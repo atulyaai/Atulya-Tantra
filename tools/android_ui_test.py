@@ -182,7 +182,7 @@ if step("signed in: chat input visible", composer is not None and inside_screen(
     if talk:
         tap(talk)
     time.sleep(2)
-    chat_button = find(r"^CHAT$", 10)
+    chat_button = find(r"^CHAT$|^Show the chat$", 10)
     still_composer = find(r"Type a message|#chat-prompt", 2)
     step("TALK → full-screen hologram with CHAT button", chat_button is not None and still_composer is None)
     if chat_button:
