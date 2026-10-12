@@ -3,12 +3,30 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import re
 from collections.abc import Sequence
 
 from atulya.persona import build_system_prompt
 from .providers import ChatProvider
 from .textcalls import TextCallFilter
 from .types import BrainError, BrainReply, Message, ToolCall
+
+
+# Instant acknowledgements from the user's words alone (no model round trip): spoken within ms.
+_INTENT_FILLERS = (
+    (re.compile(r"\b(weather|temperature|rain|forecast|humid|मौसम|बारिश)\b", re.I), "Checking the weather."),
+    (re.compile(r"\b(news|headlines|खबर|समाचार)\b", re.I), "Pulling up the headlines."),
+    (re.compile(r"\b(meeting|calendar|schedule|appointment)s?\b", re.I), "Checking your calendar."),
+    (re.compile(r"\b(remember|recall|what did i (say|tell)|do you know my)\b", re.I), "Let me check what I remember."),
+    (re.compile(r"\b(status|server|uptime|health)\b", re.I), "Checking the systems."),
+)
+
+
+def instant_ack(text: str) -> str:
+    for pattern, phrase in _INTENT_FILLERS:
+        if pattern.search(text):
+            return phrase + " "
+    return ""
 
 
 _FILLERS = {
@@ -122,6 +140,12 @@ class Brain:
             system_instructions = "\n\n".join(item for item in (system_instructions, toolbox.instructions()) if item)
         messages = self._prepare_messages(conversation, system_instructions)
         rounds = toolbox.MAX_ROUNDS if toolbox else 1
+        latest = next((item.content for item in reversed(messages) if item.role == "user"), "")
+        early = instant_ack(latest) if toolbox else ""
+        spoken: set[str] = set()  # each acknowledgement at most once per reply
+        if early:
+            spoken.add(early.strip())
+            yield early  # spoken immediately while the model decides which tool to use
         try:
             if stream_method is None:
                 text = await self._provider.complete(messages)
@@ -154,7 +178,10 @@ class Brain:
                     return
                 if not text_parts:
                     # Say something immediately so voice users hear a reply while tools run.
-                    filler = _tool_filler(calls)
+                    filler = " ".join(part for part in _tool_filler(calls).replace(". ", ".|").split("|")
+                                      if part.strip() and part.strip() not in spoken).strip()
+                    filler = f"{filler} " if filler else ""
+                    spoken.update(part.strip() for part in filler.replace(". ", ".|").split("|") if part.strip())
                     if filler:
                         text_parts.append(filler)
                         yield filler
