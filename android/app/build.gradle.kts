@@ -16,6 +16,8 @@ android {
         buildConfigField("String", "ATULYA_URL", "\"${project.findProperty("atulyaUrl") ?: "https://atulya.atulvij.com"}\"")
     }
     buildFeatures { buildConfig = true }
+    androidResources { localeFilters += listOf("en", "hi") }
+    packaging { resources.excludes += listOf("META-INF/*.version", "kotlin/**", "DebugProbesKt.bin") }
     signingConfigs {
         create("release") {
             // CI decodes the keystore from the ANDROID_KEYSTORE_B64 secret; it is never committed.
@@ -31,7 +33,10 @@ android {
     }
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8: strip unused AndroidX code and resources (no JS bridges or reflection to keep).
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
             signingConfig = signingConfigs.getByName("release")
         }
     }
