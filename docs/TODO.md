@@ -35,9 +35,9 @@ Status: ✅ done (verified for real) · 🔧 in progress · ⬜ to do · ⛔ blo
 | B2 | ⬜ | Laptop/desktop = **Atulya agents** that connect out to the server: PC control, local Whisper/TTS/LLM when available | Replaces the tunnel as the main path; tunnel kept for laptop-only setups |
 | B3 | ⬜ | Server is the source of truth; clients cache locally and fetch only changes (delta sync); Telegram reads from server | — |
 | B4 | ✅ | Encrypted daily backups (AES-256-GCM, keep 14) + off-site copy to the server; `atulya.cli backup`, `--restore`, `--show-key` | Real backup created, copied to server, decrypted and checked |
-| B5 | 🔧 | Speech on the server: Whisper (base) installed, loads on demand, unloads after 5 min idle; replies use the browser/phone voice (server too small for local TTS) | Server STT check |
+| B5 | 🔧 | Speech on the server works (12/12) but is **slow: ~20 s per voice message** (Whisper base on 2 small CPUs). Fix: Whisper tiny + int8 on the server, or the browser's/phone's own speech recognition, or a connected PC agent | Server self-test timing |
 
-| B6 | ✅ | Workflow: laptop = development → push to GitHub → clean-machine tests → server deploys itself (health check + automatic rollback); deploy key can only run the deploy script | First automatic deploy |
+| B6 | ✅ | Workflow: laptop = development → push to GitHub → clean-machine tests → server deploys itself (server-side health check + automatic rollback); deploy key can only run the deploy script | First automatic deploy 3c39eea, server self-test 12/12 |
 
 ## C. Same Atulya on every channel
 
