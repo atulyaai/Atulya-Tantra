@@ -55,10 +55,27 @@ def nodes() -> list[dict]:
     return found
 
 
+def dismiss_system_dialogs(found: list[dict]) -> bool:
+    """The CI emulator's own launcher sometimes freezes ("isn't responding") over the app; that is the
+    virtual phone being slow, not Atulya. Tap Wait and carry on."""
+    if not any("isn't responding" in node["label"] for node in found):
+        return False
+    wait = next((node for node in found if node["label"] == "Wait"), None)
+    if wait:
+        tap(wait)
+    else:
+        adb("shell", "input", "keyevent", "KEYCODE_BACK")
+    time.sleep(1)
+    return True
+
+
 def find(pattern: str, wait: float = 20) -> dict | None:
     deadline = time.time() + wait
     while time.time() < deadline:
-        for node in nodes():
+        found = nodes()
+        if dismiss_system_dialogs(found):
+            continue
+        for node in found:
             if re.search(pattern, node["label"], re.I) and node["box"][2] > node["box"][0]:
                 return node
         time.sleep(1.5)
@@ -96,6 +113,13 @@ def inside_screen(node: dict) -> bool:
     return x1 >= 0 and y1 >= 0 and x2 <= width + 2 and y2 <= height + 2
 
 
+adb("shell", "settings", "put", "global", "hide_error_dialogs", "1")  # no system ANR pop-ups over the app
+adb("wait-for-device")
+for _ in range(60):  # let the emulator finish booting its launcher before the app starts
+    if adb("shell", "getprop", "sys.boot_completed").strip() == "1":
+        break
+    time.sleep(2)
+time.sleep(10)
 adb("install", "-r", APK, check=True)
 for permission in ("RECORD_AUDIO", "CAMERA"):
     adb("shell", "pm", "grant", PKG, f"android.permission.{permission}")
