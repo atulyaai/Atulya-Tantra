@@ -82,6 +82,8 @@ Status: ✅ done (verified for real) · 🔧 in progress · ⬜ to do · ⛔ blo
 | G18 | 🔧 | Chrome/Edge use the browser's own speech recognizer (Google, free, accurate) like the APK; Telegram keeps the server recognizer; falls back to the server after 3 errors | Owner check in Chrome |
 | G19 | 🔧 | Live server speed measured on every deploy: selftest timings in the deploy log (names/timings only — public repo) | Next deploy log |
 | G20 | 🔧 | APK UI test on a CI emulator against a private Atulya on the runner (no Cloudflare): sign in, layout, hide chat → CHAT, ⋮ menu, rotation, reopen, crash, memory; failure blocks the release | Next APK build |
+| G21 | ✅ | Phone sign-in box jumped when the keyboard closed → taps on CONTINUE missed; now anchored near the top | Emulator UI test passes with keyboard open |
+| G22 | 🔧 | Android Back closed the whole app (e.g. with the ⋮ menu open) → now closes menu/dialog/conversation mode first; unlock grace survives the screen being recreated | Emulator UI test |
 | G4 | 🔧 | Conversation mode: TALK button / "hide chat" → full-screen hologram, keeps listening, chat still recorded; CHAT button returns; phone chat sheet 48→40 % height | Owner check on phone |
 | G5 | 🔧 | App versions: automatic builds bump only the last number (0.5.1, 0.5.2…); middle number only for milestones | Next APK |
 | G6 | ⬜ | **Speech recognition quality** (biggest issue): Android app → native Android recognizer (free, on-device, Hindi); Chrome → browser recognizer; Telegram/others → better server STT (decision: Groq free Whisper-large vs. local) | Owner decision |

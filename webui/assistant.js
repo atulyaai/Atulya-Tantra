@@ -1539,6 +1539,20 @@
     try { actions[action]?.(); } catch { /* the spoken reply still explains */ }
   }
 
+  // Android Back button (MainActivity asks this first): close what is open instead of leaving the app.
+  window.atulyaBack = () => {
+    const menu = document.querySelector(".account-menu[open]");
+    if (menu) { menu.open = false; return true; }
+    const dialog = [...document.querySelectorAll("dialog[open]")].find((item) => item.id !== "auth-dialog");
+    if (dialog) { dialog.close(); return true; }
+    if (document.body.classList.contains("panel-chat-hidden")) { setConversationMode(false); return true; }
+    if (document.body.classList.contains("camera-focus") || document.body.classList.contains("status-focus")) {
+      exitFocusedLayout();
+      return true;
+    }
+    return false;
+  };
+
   // Conversation mode (like ChatGPT/Claude voice): hide the chat, keep it recorded, and keep listening.
   async function setConversationMode(on) {
     document.body.classList.toggle("panel-chat-hidden", on);

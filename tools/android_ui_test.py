@@ -178,13 +178,13 @@ if step("signed in: chat input visible", composer is not None and inside_screen(
     step("chat panel leaves the hologram visible (top in lower 40%)", panel_top > height * 0.6,
          f"panel top {panel_top}px of {height}px")
 
-    tap(composer)
-    type_text("hide chat")
-    adb("shell", "input", "keyevent", "KEYCODE_ENTER")
+    # TALK = conversation mode (typing "hide chat" needs a configured AI; the CI server has no keys)
+    if talk:
+        tap(talk)
     time.sleep(2)
     chat_button = find(r"^CHAT$", 10)
     still_composer = find(r"Type a message|#chat-prompt", 2)
-    step("'hide chat' → full-screen hologram with CHAT button", chat_button is not None and still_composer is None)
+    step("TALK → full-screen hologram with CHAT button", chat_button is not None and still_composer is None)
     if chat_button:
         tap(chat_button)
         step("CHAT brings the chat back", find(r"Type a message|#chat-prompt", 10) is not None)
@@ -197,6 +197,9 @@ if step("signed in: chat input visible", composer is not None and inside_screen(
         step("menu has RELOAD and VIEW", "RELOAD" in labels and any(label.startswith("VIEW:") for label in labels),
              ", ".join(sorted(label for label in labels if label.isupper())[:12]))
         adb("shell", "input", "keyevent", "KEYCODE_BACK")
+        time.sleep(1.5)
+        still_open = find(r"Type a message|#chat-prompt", 5)
+        step("Back closes the menu, app stays open", still_open is not None and find(r"^RELOAD$", 1) is None)
 
     adb("shell", "settings", "put", "system", "accelerometer_rotation", "0")
     adb("shell", "settings", "put", "system", "user_rotation", "1")

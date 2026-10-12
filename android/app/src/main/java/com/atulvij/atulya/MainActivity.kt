@@ -37,8 +37,14 @@ import org.json.JSONObject
  * the WebView gets microphone/camera only for that origin and only after Android grants them.
  */
 class MainActivity : AppCompatActivity() {
+    companion object {
+        // Lives as long as the app process: reopening within the grace period doesn't ask again,
+        // even when Android recreated the screen. A killed process always asks.
+        private var lastUnlockAt = 0L
+    }
+
     private lateinit var web: WebView
-    private var unlocked = false
+    private var unlocked = System.currentTimeMillis() - lastUnlockAt < 2 * 60 * 1000L
     private var leftAt = 0L
     private var pendingUrl: String? = null
     private val relockAfterMs = 2 * 60 * 1000L // quick trips (copying a code from Telegram) don't re-lock
@@ -63,12 +69,16 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         if (unlocked && leftAt > 0 && System.currentTimeMillis() - leftAt > relockAfterMs) unlocked = false
-        if (!unlocked) unlock() else openPending()
+        if (!unlocked) unlock() else {
+            if (pendingUrl == null && web.url == null) web.loadUrl(origin.toString()) // reopened within the grace period
+            openPending()
+        }
     }
 
     override fun onStop() {
         super.onStop()
         leftAt = System.currentTimeMillis()
+        if (unlocked) lastUnlockAt = leftAt // the 2-minute grace counts from leaving the app
         stopRecognition() // never keep listening in the background
     }
 
@@ -107,6 +117,7 @@ class MainActivity : AppCompatActivity() {
             object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     unlocked = true
+                    lastUnlockAt = System.currentTimeMillis()
                     leftAt = 0L
                     if (pendingUrl != null) openPending() else if (web.url == null) web.loadUrl(origin.toString())
                     checkForUpdate()
@@ -263,8 +274,15 @@ class MainActivity : AppCompatActivity() {
         if (missing.isNotEmpty()) ActivityCompat.requestPermissions(this, missing.toTypedArray(), 1)
     }
 
+    /** Back first closes whatever is open in Atulya (menu, dialog, conversation mode); only then leaves. */
     @Deprecated("Back navigation inside the web app")
     override fun onBackPressed() {
-        if (web.canGoBack()) web.goBack() else super.onBackPressed()
+        web.evaluateJavascript("(window.atulyaBack && window.atulyaBack()) ? 'handled' : 'none'") { result ->
+            if (result?.contains("handled") == true) return@evaluateJavascript
+            if (web.canGoBack()) web.goBack() else {
+                @Suppress("DEPRECATION")
+                super.onBackPressed()
+            }
+        }
     }
 }
