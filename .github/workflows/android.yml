@@ -29,12 +29,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Clean versions: each automatic release bumps the middle number (0.4.0, 0.5.0, ...).
+          # Automatic releases bump only the last number (0.5.1, 0.5.2, ...); a milestone tag (v0.6.0) moves the middle.
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then V="${GITHUB_REF#refs/tags/v}"; else
             LAST=$(gh release list --limit 200 --json tagName --jq '.[].tagName' | sort -V | tail -1)
             LAST=${LAST:-v0.3.0}
             MINOR=$(echo "${LAST#v}" | cut -d. -f2)
-            V="0.$((MINOR + 1)).0"
+            PATCH=$(echo "${LAST#v}" | cut -d. -f3)
+            V="0.${MINOR}.$((PATCH + 1))"
           fi
           echo "VERSION=$V" >> "$GITHUB_ENV"
       - name: Build signed release

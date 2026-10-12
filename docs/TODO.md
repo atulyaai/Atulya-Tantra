@@ -75,7 +75,7 @@ Status: ✅ done (verified for real) · 🔧 in progress · ⬜ to do · ⛔ blo
 | G2 | 🔧 | Passkeys: accept the Android app's own origin (apk-key-hash), exclude only this account's passkeys, clear error per failure reason, server logs the real cause | Owner retry on phone + web |
 | G3 | 🔧 | Misheard speech ("we look up" → VLOOKUP) corrected by the brain from context; memory checked before asking; lasting facts saved | Prompt rule; real phrase test pending |
 | G4 | 🔧 | Conversation mode: TALK button / "hide chat" → full-screen hologram, keeps listening, chat still recorded; CHAT button returns; phone chat sheet 48→40 % height | Owner check on phone |
-| G5 | 🔧 | Clean app versions 0.4.0, 0.5.0, … (middle number per release) | Next APK |
+| G5 | 🔧 | App versions: automatic builds bump only the last number (0.5.1, 0.5.2…); middle number only for milestones | Next APK |
 | G6 | ⬜ | **Speech recognition quality** (biggest issue): Android app → native Android recognizer (free, on-device, Hindi); Chrome → browser recognizer; Telegram/others → better server STT (decision: Groq free Whisper-large vs. local) | Owner decision |
 | G7 | ⬜ | Noise: real voice-activity detection (Silero VAD in the browser) so clicks, nail clipping, "shh" and background talk don't trigger; ignore when nobody speaks; no "no speech" message for silence | |
 | G8 | ⬜ | Chat management: clear, archive, delete; history and settings reachable from conversation mode | |
