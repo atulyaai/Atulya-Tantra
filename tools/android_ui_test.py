@@ -74,7 +74,11 @@ def type_text(text: str) -> None:
 def step(name: str, ok: bool, detail: str = "") -> bool:
     results.append((name, ok, detail))
     print(f"[{'PASS' if ok else 'FAIL'}] {name} {detail}", flush=True)
-    shot(name.replace(" ", "-").lower()[:40])
+    shot(re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40])
+    if not ok:  # what was on screen, to see why
+        seen = [n["label"] for n in nodes() if n["label"]][:25]
+        print("    on screen:", " | ".join(seen) or "(nothing readable)", flush=True)
+        (OUT / f"{len(results):02d}-ui.xml").write_text(adb("shell", "cat", "/sdcard/ui.xml"), encoding="utf-8")
     return ok
 
 
