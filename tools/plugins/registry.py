@@ -22,6 +22,8 @@ class PluginContext:
     history: object | None = None
     # Per-user profile store (atulya/profiles.py); None disables profile tools.
     profile: object | None = None
+    # Which channel this request came from (web, telegram, mcp, android).
+    channel: str = "web"
 
 
 CommandHandler = Callable[[str, PluginContext], Awaitable[str | None]]

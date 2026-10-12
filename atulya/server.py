@@ -580,6 +580,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     command_plugins.set_enabled(plugin_id, enabled)
                 except ValueError:
                     continue
+    from tools.plugins.audit import init_audit_log
+    init_audit_log(config.data_dir)
     app = FastAPI(title=config.assistant_name, docs_url=None, redoc_url=None)
     app.add_middleware(SessionAuthMiddleware, auth_store=auth_store)
     app.add_middleware(LocalApiSecurityMiddleware)
@@ -1575,6 +1577,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "label": issue_state["issue"]["message"] if issue_state["issue"] else "No active issues",
             },
         }
+
+    @app.get("/api/activity")
+    async def get_activity(http_request: Request, limit: int = Query(default=50, ge=1, le=200)) -> dict[str, object]:
+        """Audit log: recent tool runs with user, channel, tool, args, outcome, time."""
+        owner_id = str(http_request.state.user_id)
+        if not await asyncio.to_thread(auth_store.is_admin, owner_id):
+            raise HTTPException(status_code=403, detail="Activity log is for the owner only.")
+        from tools.plugins.audit import get_audit_log
+        audit_log = get_audit_log()
+        if audit_log is None:
+            return {"entries": [], "total": 0}
+        entries = audit_log.recent(limit)
+        return {"entries": entries, "total": len(entries)}
 
     @app.get("/api/memory")
     async def get_memory(conversation_id: str, http_request: Request) -> dict[str, list[str]]:

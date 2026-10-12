@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+from tools.plugins.audit import record_tool_run
 from tools.plugins.registry import PluginContext
 
 logger = logging.getLogger(__name__)
@@ -572,13 +573,19 @@ class Toolbox:
         tool = self._tools.get(name)
         if tool is None:
             return f"Tool '{name}' is not available."
+        started = time.monotonic()
+        channel = getattr(self.context, "channel", "web") if self.context else "web"
+        user_id = self.context.user_id if self.context else "unknown"
         try:
             args = raw_arguments if isinstance(raw_arguments, dict) else json.loads(raw_arguments or "{}")
             if not isinstance(args, dict):
                 raise ValueError("arguments must be an object")
             if tool.confirm and tool.low_risk and self._safety() == "ask_risky":
                 result = (await asyncio.wait_for(tool.handler(args, self.context), timeout=20))[:4000]
-                record_activity(name, "ok (low risk, no approval)")
+                outcome = "ok (low risk, no approval)"
+                record_activity(name, outcome)
+                record_tool_run(user_id=user_id, channel=channel, tool=name, args=args,
+                                outcome=outcome, duration_ms=int((time.monotonic() - started) * 1000))
                 return result
             if tool.confirm:
                 actions = getattr(self.context, "actions", None)
@@ -586,21 +593,39 @@ class Toolbox:
                     return "This action needs on-screen approval, which is only available in the Atulya WebUI."
                 summary = (tool.describe or (lambda _a: name))(args)[:200]
                 actions.add(name, args, summary, self.context.user_id)
-                record_activity(name, "awaiting approval")
+                outcome = "awaiting approval"
+                record_activity(name, outcome)
+                record_tool_run(user_id=user_id, channel=channel, tool=name, args=args,
+                                outcome=outcome, duration_ms=int((time.monotonic() - started) * 1000))
                 return (f"Approval requested on screen: '{summary}'. It has NOT run yet. Tell the user briefly "
                         "to tap Approve (or Deny); do not claim it is done.")
             result = (await asyncio.wait_for(tool.handler(args, self.context), timeout=20))[:4000]
-            record_activity(name, "ok")
+            outcome = "ok"
+            record_activity(name, outcome)
+            record_tool_run(user_id=user_id, channel=channel, tool=name, args=args,
+                            outcome=outcome, duration_ms=int((time.monotonic() - started) * 1000))
             return result
         except (ValueError, TypeError) as exc:
-            record_activity(name, "invalid input")
+            outcome = "invalid input"
+            record_activity(name, outcome)
+            record_tool_run(user_id=user_id, channel=channel,
+                            tool=name, args=raw_arguments if isinstance(raw_arguments, dict) else {},
+                            outcome=outcome, duration_ms=int((time.monotonic() - started) * 1000))
             return f"Invalid input for {name}: {exc}"
         except asyncio.TimeoutError:
-            record_activity(name, "timed out")
+            outcome = "timed out"
+            record_activity(name, outcome)
+            record_tool_run(user_id=user_id, channel=channel,
+                            tool=name, args={}, outcome=outcome,
+                            duration_ms=int((time.monotonic() - started) * 1000))
             return f"{name} timed out."
         except Exception as exc:
             logger.warning("Tool %s failed (%s)", name, type(exc).__name__)
-            record_activity(name, "failed")
+            outcome = "failed"
+            record_activity(name, outcome)
+            record_tool_run(user_id=user_id, channel=channel,
+                            tool=name, args={}, outcome=outcome,
+                            duration_ms=int((time.monotonic() - started) * 1000))
             return f"{name} is unavailable right now."
 
     def _safety(self) -> str:
@@ -617,16 +642,31 @@ class Toolbox:
         tool = TOOLS_BY_NAME.get(action.tool)
         if tool is None:
             return "That action is no longer available."
+        started = time.monotonic()
+        channel = getattr(self.context, "channel", "web") if self.context else "web"
+        user_id = self.context.user_id if self.context else "unknown"
         try:
             result = (await asyncio.wait_for(tool.handler(action.arguments, self.context), timeout=30))[:4000]
-            record_activity(action.tool, "approved · ok")
+            outcome = "approved · ok"
+            record_activity(action.tool, outcome)
+            record_tool_run(user_id=user_id, channel=channel,
+                            tool=action.tool, args=action.arguments, outcome=outcome,
+                            duration_ms=int((time.monotonic() - started) * 1000))
             return result
         except (ValueError, TypeError) as exc:
-            record_activity(action.tool, "approved · invalid input")
+            outcome = "approved · invalid input"
+            record_activity(action.tool, outcome)
+            record_tool_run(user_id=user_id, channel=channel,
+                            tool=action.tool, args=action.arguments, outcome=outcome,
+                            duration_ms=int((time.monotonic() - started) * 1000))
             return f"Couldn't do that: {exc}"
         except Exception as exc:
             logger.warning("Approved action %s failed (%s)", action.tool, type(exc).__name__)
-            record_activity(action.tool, "approved · failed")
+            outcome = "approved · failed"
+            record_activity(action.tool, outcome)
+            record_tool_run(user_id=user_id, channel=channel,
+                            tool=action.tool, args=action.arguments, outcome=outcome,
+                            duration_ms=int((time.monotonic() - started) * 1000))
             return "That action failed on this computer."
 
 
