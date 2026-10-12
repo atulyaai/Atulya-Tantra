@@ -1464,6 +1464,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         elif provider_name and model:
             model = f"{provider_name} · {model}"
         owner_id = str(http_request.state.user_id)
+        if not await asyncio.to_thread(auth_store.is_admin, owner_id):
+            raise HTTPException(status_code=403, detail="System status is for the owner only.")
         scheduled_reminders = await run_in_threadpool(reminders.list_for_user, owner_id, 1)
         next_reminder = scheduled_reminders[0] if scheduled_reminders else None
         meetings = []

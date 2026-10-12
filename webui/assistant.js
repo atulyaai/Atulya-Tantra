@@ -131,7 +131,7 @@
       const data = await response.json();
       gestureAssetsReady = data.gesture?.state === "ready" || gestureModelReady;
       systemDashboard.dataset.state = "online";
-      systemOverview.textContent = "LIVE · ON THIS DEVICE";
+      systemOverview.textContent = "LIVE";
       for (const key of ["service", "model", "cpu", "memory", "network", "host", "tools", "voice", "vision", "gesture", "telegram", "reminder", "calendar", "issue"]) {
         const item = data[key] || {};
         let label = item.label || "Unavailable";
@@ -559,10 +559,10 @@
       keepalive: true,
       });
       if (!response.ok) throw new Error("History save failed");
-      historyStatus.textContent = "CONVERSATION SAVED ON THIS DEVICE";
+      historyStatus.textContent = "CONVERSATION SAVED · ALL YOUR DEVICES";
       historyStatus.dataset.state = "saved";
     }).catch(() => {
-      historyStatus.textContent = "LOCAL HISTORY UNAVAILABLE";
+      historyStatus.textContent = "HISTORY OFFLINE · WILL SYNC";
       historyStatus.dataset.state = "error";
     });
   }
@@ -690,11 +690,11 @@
       }
       if (conversation.length > 38) conversation.splice(0, conversation.length - 38);
       historyReady = true;
-      historyStatus.textContent = "CONVERSATION HISTORY · ON THIS DEVICE";
+      historyStatus.textContent = "SYNCED · ALL YOUR DEVICES";
       historyStatus.dataset.state = "saved";
     } catch {
       historyReady = true;
-      historyStatus.textContent = "LOCAL HISTORY UNAVAILABLE";
+      historyStatus.textContent = "HISTORY OFFLINE · WILL SYNC";
       historyStatus.dataset.state = "error";
     }
   }
@@ -745,6 +745,7 @@
     showGestureResult(gestureAssetsReady ? "CAMERA OFF" : "PREPARING");
     if (cameraStream) cameraStream.getTracks().forEach((track) => track.stop());
     cameraStream = undefined;
+    document.body.classList.remove("camera-on");
     if (cameraFeed) cameraFeed.srcObject = null;
     cameraPreview?.classList.remove("is-live");
     cameraToggle?.setAttribute("aria-pressed", "false");
@@ -825,6 +826,7 @@
         }
         if (!stream) throw cameraError || new Error("No camera profile could be opened.");
         cameraStream = stream;
+        document.body.classList.add("camera-on");
         for (const track of stream.getVideoTracks()) {
           let capabilities = {};
           try { capabilities = track.getCapabilities?.() || {}; } catch { /* Use the camera's default controls. */ }
@@ -890,8 +892,10 @@
   async function toggleCamera() {
     if (cameraStream) {
       stopCamera();
+      try { localStorage.setItem("atulya.camera.on", "0"); } catch { /* ignore */ }
       return false;
     }
+    try { localStorage.setItem("atulya.camera.on", "1"); } catch { /* ignore */ }
     return startCamera();
   }
 
@@ -1048,9 +1052,29 @@
   const readFlag = (key, fallback) => {
     try { const value = localStorage.getItem(key); return value === null ? fallback : value === "1"; } catch { return fallback; }
   };
-  let wakeWordEnabled = readFlag("atulya.voice.wake", true);
+  // While the app is open the user is clearly talking to Atulya; the wake word is opt-in.
+  let wakeWordEnabled = readFlag("atulya.voice.wake", false);
+  // Voice-first: every reply is spoken unless muted.
+  let voiceReplies = readFlag("atulya.voice.replies", true);
   let bargeInEnabled = readFlag("atulya.voice.bargein", true);
   let awakeUntil = 0;
+
+  function updateVoiceRepliesButton() {
+    const button = document.getElementById("voice-replies");
+    if (!button) return;
+    button.textContent = voiceReplies ? "🔊" : "🔇";
+    button.setAttribute("aria-pressed", String(voiceReplies));
+    button.title = voiceReplies ? "Replies are spoken — tap to mute" : "Muted — tap to speak replies";
+  }
+  window.setTimeout(() => {
+    updateVoiceRepliesButton();
+    document.getElementById("voice-replies")?.addEventListener("click", () => {
+      voiceReplies = !voiceReplies;
+      setVoiceOption("atulya.voice.replies", voiceReplies);
+      updateVoiceRepliesButton();
+      if (!voiceReplies) releaseSpeech();
+    });
+  }, 0);
 
   function setVoiceOption(key, enabled) {
     try { localStorage.setItem(key, enabled ? "1" : "0"); } catch { /* storage unavailable */ }
@@ -1232,11 +1256,14 @@
   function greet() {
     if (greeted || !healthLoaded || !brainReady || !sceneReady || !historyReady) return;
     greeted = true;
-    const greeting = "Hi, I'm Atulya. How can I help?";
-    const returningSession = messagesNode.children.length > 0;
-    const greetingBubble = appendMessage("assistant", greeting, null, !returningSession);
-    if (!returningSession) conversation.push({ role: "assistant", content: greeting });
-    highlightSpokenReply(greetingBubble);
+    const returningSession = messagesNode.querySelectorAll(".chat-message.user, .chat-message.assistant").length > 0;
+    // A restored conversation already has its history on screen: greet by voice only, don't add another bubble.
+    const greeting = returningSession ? "Welcome back." : "Hi, I'm Atulya. How can I help?";
+    if (!returningSession) {
+      const greetingBubble = appendMessage("assistant", greeting, null, true);
+      conversation.push({ role: "assistant", content: greeting });
+      highlightSpokenReply(greetingBubble);
+    }
     // Speak only after the scene is ready, then open the mic automatically.
     // The browser still owns the permission prompt; Atulya never bypasses it.
     voiceSessionActive = voiceReady;
@@ -1517,6 +1544,16 @@
       else setPhase("idle", "Ready", reply || "");
       return;
     }
+    const muteCommand = cleanText.toLowerCase().match(/^(?:mute|unmute|voice (?:on|off)|stop speaking replies|speak replies)$/);
+    if (muteCommand) {
+      voiceReplies = !/^(?:mute|voice off|stop speaking replies)$/.test(muteCommand[0]);
+      setVoiceOption("atulya.voice.replies", voiceReplies);
+      updateVoiceRepliesButton();
+      const reply = voiceReplies ? "I'll speak my replies." : "Muted. I'll reply in text only.";
+      appendMessage("assistant", reply);
+      setPhase("idle", "Ready", reply);
+      return;
+    }
     const voiceOption = cleanText.toLowerCase().match(/^(?:turn |switch )?(wake ?word|interrupt(?:ion)?s?|barge[ -]?in)\s+(on|off)$|^(?:turn |switch )?(on|off)\s+(?:the )?(wake ?word|interrupt(?:ion)?s?|barge[ -]?in)$/);
     if (voiceOption) {
       const name = voiceOption[1] || voiceOption[4];
@@ -1634,6 +1671,16 @@
     }
   }
 
+  // Between turns keep the microphone stream (no new permission prompt); only drop the recorder/analyser.
+  async function pauseMicrophone() {
+    if (!voiceSessionActive) return releaseMicrophone();
+    if (microphoneContext) await microphoneContext.close().catch(() => {});
+    microphoneContext = undefined;
+    microphoneAnalyser = undefined;
+    recorder = undefined;
+    refreshWave();
+  }
+
   async function releaseMicrophone() {
     if (microphoneStream) microphoneStream.getTracks().forEach((track) => track.stop());
     microphoneStream = undefined;
@@ -1658,7 +1705,7 @@
     const activeRequest = voiceRequest;
     listening = false;
     const audio = await stopRecorder();
-    await releaseMicrophone();
+    await pauseMicrophone();
     if (activeRequest !== voiceRequest) return;
     if (!audio.size) {
       setPhase("idle", "No voice heard", "Try speaking again or type below.");
@@ -1747,7 +1794,9 @@
     recorderChunks = [];
     setPhase("listening", "Allow microphone", "Grant microphone access once. Speech sends automatically after each pause.");
     try {
-      microphoneStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      const reusable = microphoneStream?.getAudioTracks().some((track) => track.readyState === "live");
+      microphoneStream = reusable ? microphoneStream
+        : await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
       if (requestId !== voiceRequest) {
         microphoneStream.getTracks().forEach((track) => track.stop());
         microphoneStream = undefined;
@@ -1836,9 +1885,9 @@
       const typedText = prompt.value.trim();
       if (typedText) {
         cancelListening();
-        sendMessage(typedText);
+        sendMessage(typedText, voiceReplies);
       }
-    } else sendMessage(prompt.value);
+    } else sendMessage(prompt.value, voiceReplies);
   });
   window.addEventListener("resize", () => { resizeWave(); refreshWave(); });
   window.addEventListener("pagehide", () => { stopCamera(); cameraBus?.close(); }, { once: true });
@@ -1920,7 +1969,10 @@
         prompt.disabled = !brainReady;
         prompt.placeholder = brainReady ? "Type a message…" : "Chat is starting or unavailable";
         if (visionChannel) setChannelState(visionChannel, "off");
-        void startCamera();
+        // Camera on demand only (button, "turn on camera", or a question that needs vision).
+        let cameraWanted = false;
+        try { cameraWanted = localStorage.getItem("atulya.camera.on") === "1"; } catch { /* ignore */ }
+        if (cameraWanted) void startCamera();
         return restoreConversation().then(greet);
       })
       .catch(() => {
@@ -1968,6 +2020,7 @@
         window.setTimeout(enablePushNotifications, 4000);
         if (document.getElementById("add-voice-unlock")) document.getElementById("add-voice-unlock").hidden = false;
         if (manageUsersButton) manageUsersButton.hidden = !auth.is_admin;
+        document.body.classList.toggle("non-admin", !auth.is_admin);
         if (signOutButton) signOutButton.hidden = false;
         startAuthorizedApplication();
         return;
@@ -1989,10 +2042,8 @@
         try { hasKey = Boolean(localStorage.getItem("atulya.voiceUnlock")); } catch { /* storage blocked */ }
         voiceButton.hidden = !hasKey;
       }
-      const passwordForm = document.getElementById("auth-password-form");
-      if (passwordForm) passwordForm.hidden = !auth.password_login;
-      if (authInviteWrap) authInviteWrap.hidden = authSetupRequired;
-      if (authJoin) authJoin.hidden = authSetupRequired;
+      const usePassword = document.getElementById("auth-use-password");
+      if (usePassword) usePassword.hidden = !auth.password_login;
       if (!authDialog.open) authDialog.showModal();
     } catch (error) {
       document.body.classList.add("auth-required");
@@ -2102,7 +2153,38 @@
   }
   window.setTimeout(() => { signInFromLink().then((done) => { if (!done) resumePendingLogin(); }); }, 300);
 
+  // Google-style steps: start (passkey / identify) -> methods for that account.
+  function showAuthStep(step) {
+    document.getElementById("auth-step-start").hidden = step !== "start";
+    document.getElementById("auth-step-methods").hidden = step !== "methods";
+    document.getElementById("auth-signup-form").hidden = step !== "signup";
+  }
+  document.getElementById("auth-identify")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const who = document.getElementById("auth-username").value.trim();
+    if (!who) return;
+    document.getElementById("auth-who").textContent = who;
+    document.getElementById("auth-password-form").hidden = true;
+    codeBox.hidden = true;
+    showAuthStep("methods");
+    if (authMessage) authMessage.textContent = "Choose how to confirm it's you.";
+  });
+  document.getElementById("auth-change-user")?.addEventListener("click", () => showAuthStep("start"));
+  document.getElementById("auth-use-password")?.addEventListener("click", () => {
+    document.getElementById("auth-password-form").hidden = false;
+    document.getElementById("auth-password").focus();
+  });
+  document.getElementById("auth-signup-start")?.addEventListener("click", () => showAuthStep("signup"));
+  document.getElementById("auth-signup-back")?.addEventListener("click", () => showAuthStep("start"));
+  let lastCodeRequest = 0;
+  document.getElementById("auth-code-resend")?.addEventListener("click", () => {
+    const wait = 30 - Math.floor((Date.now() - lastCodeRequest) / 1000);
+    if (wait > 0) { codeStatus.textContent = `You can resend in ${wait}s.`; return; }
+    document.getElementById("auth-code-start").click();
+  });
+
   document.getElementById("auth-code-start")?.addEventListener("click", async () => {
+    lastCodeRequest = Date.now();
     codeBox.hidden = false;
     codeStatus.textContent = "Sending a code…";
     try {
@@ -2114,7 +2196,7 @@
       if (!response.ok) throw new Error(body.detail || "Could not start sign-in.");
       loginRequestId = body.id;
       try { sessionStorage.setItem("atulya.loginRequest", JSON.stringify({ id: body.id, at: Date.now() })); } catch { /* ignore */ }
-      codeStatus.textContent = `Code sent to ${body.channels.join(", ")}. Type or say it, or approve on a signed-in device. Expires in 5 minutes.`;
+      codeStatus.textContent = `Approve on ${body.channels.join(" or ")} — or type the 6-digit code from Telegram. Expires in 5 minutes.`;
       codeInput.focus();
       window.clearInterval(loginPoll);
       loginPoll = window.setInterval(async () => {
@@ -2135,33 +2217,6 @@
     if (!ok) codeStatus.textContent = "That code didn't match. Check it and try again.";
   });
   codeInput?.addEventListener("keydown", (event) => { if (event.key === "Enter") document.getElementById("auth-code-submit").click(); });
-
-  document.getElementById("auth-code-say")?.addEventListener("click", async () => {
-    if (!loginRequestId || !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return;
-    const button = document.getElementById("auth-code-say");
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
-      const chunks = [];
-      const recorder = new MediaRecorder(stream);
-      recorder.ondataavailable = (event) => { if (event.data?.size) chunks.push(event.data); };
-      button.disabled = true;
-      button.textContent = "LISTENING… 5s";
-      recorder.start();
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-      await new Promise((resolve) => { recorder.onstop = resolve; recorder.stop(); });
-      stream.getTracks().forEach((track) => track.stop());
-      const form = new FormData();
-      form.append("audio", new Blob(chunks, { type: recorder.mimeType || "audio/webm" }), "code.webm");
-      codeStatus.textContent = "Checking what you said…";
-      const ok = await finishCodeLogin(await fetch(`/api/auth/login-requests/${encodeURIComponent(loginRequestId)}/voice`, { method: "POST", body: form }));
-      if (!ok) codeStatus.textContent = "I couldn't match that. Say the six digits clearly, or type them.";
-    } catch {
-      codeStatus.textContent = "Microphone unavailable here. Type the code instead.";
-    } finally {
-      button.disabled = false;
-      button.textContent = "SAY CODE";
-    }
-  });
 
   // Signed-in devices: show and announce sign-in requests from other devices.
   const shownLoginRequests = new Set();
@@ -2389,10 +2444,7 @@
 
   // ---- Sign up / Google ------------------------------------------------------------
   const signupForm = document.getElementById("auth-signup-form");
-  document.getElementById("auth-signup-start")?.addEventListener("click", () => {
-    signupForm.hidden = !signupForm.hidden;
-    if (!signupForm.hidden) document.getElementById("signup-name").focus();
-  });
+
   document.querySelectorAll(".password-eye").forEach((eye) => eye.addEventListener("click", () => {
     const field = eye.previousElementSibling;
     field.type = field.type === "password" ? "text" : "password";
@@ -2413,10 +2465,19 @@
         email: document.getElementById("signup-email").value, password: document.getElementById("signup-password").value }),
     });
     const body = await response.json().catch(() => ({}));
+    const email = document.getElementById("signup-email").value.trim();
+    if (!response.ok && /already/i.test(body.detail || "")) {
+      // Existing account: go straight to signing in with it.
+      document.getElementById("auth-username").value = email;
+      document.getElementById("auth-who").textContent = email;
+      showAuthStep("methods");
+      if (authMessage) authMessage.textContent = "You already have an account. Confirm it's you to sign in.";
+      return;
+    }
     if (authMessage) authMessage.textContent = response.ok
-      ? "Account requested. You'll be able to sign in once the owner approves it."
+      ? "Account created. It becomes active as soon as it's verified."
       : (body.detail || "Sign-up failed.");
-    if (response.ok) { signupForm.reset(); signupForm.hidden = true; }
+    if (response.ok) { signupForm.reset(); showAuthStep("start"); }
   });
   fetch("/api/auth/options").then((r) => r.json()).then((options) => {
     const google = document.getElementById("auth-google");

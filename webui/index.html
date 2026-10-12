@@ -11,9 +11,9 @@
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icons/icon-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <link rel="stylesheet" href="./renderer.css?v=atulya-41">
+  <link rel="stylesheet" href="./renderer.css?v=atulya-47">
   <script type="module" crossorigin src="./renderer.js?v=atulya-10"></script>
-  <script defer src="./assistant.js?v=atulya-54"></script>
+  <script defer src="./assistant.js?v=atulya-58"></script>
 </head>
 <body>
   <div id="root"></div>
@@ -43,17 +43,43 @@
   <dialog class="auth-dialog" id="auth-dialog" aria-labelledby="auth-title">
     <div class="auth-card">
       <div class="panel-mark" aria-hidden="true"><i></i><i></i><i></i></div>
-      <strong id="auth-title">ATULYA ACCESS</strong>
-      <p id="auth-message">Unlock this local session with your device passkey.</p>
+      <strong id="auth-title">SIGN IN TO ATULYA</strong>
+      <p id="auth-message">Use your passkey, or enter your username or email.</p>
       <label class="auth-setup-token" id="auth-setup-token-wrap" hidden>
         <span>ADMIN SETUP TOKEN</span>
         <input id="auth-setup-token" type="password" autocomplete="one-time-code" spellcheck="false">
       </label>
-      <button id="auth-activate" type="button">SIGN IN WITH PASSKEY</button>
-      <button id="auth-voice-unlock" class="auth-code-start" type="button" hidden>UNLOCK WITH VOICE</button>
-      <button id="auth-code-start" class="auth-code-start" type="button">SIGN IN WITH A CODE</button>
-      <a id="auth-google" class="auth-code-start auth-google" href="/api/auth/google/start" hidden>CONTINUE WITH GOOGLE</a>
-      <button id="auth-signup-start" class="auth-code-start" type="button">CREATE ACCOUNT</button>
+
+      <div class="auth-step" id="auth-step-start">
+        <button id="auth-activate" class="auth-primary" type="button">CONTINUE WITH PASSKEY</button>
+        <button id="auth-voice-unlock" class="auth-code-start" type="button" hidden>UNLOCK WITH VOICE</button>
+        <a id="auth-google" class="auth-code-start auth-google" href="/api/auth/google/start" hidden>CONTINUE WITH GOOGLE</a>
+        <div class="auth-or"><span>or</span></div>
+        <form class="auth-password" id="auth-identify">
+          <input id="auth-username" autocomplete="username webauthn" placeholder="username or email" spellcheck="false" autocapitalize="none" required>
+          <button type="submit">CONTINUE</button>
+        </form>
+        <button id="auth-signup-start" class="auth-link" type="button">Create an account</button>
+      </div>
+
+      <div class="auth-step" id="auth-step-methods" hidden>
+        <p class="auth-who">Signing in as <b id="auth-who"></b> <button id="auth-change-user" class="auth-link" type="button">change</button></p>
+        <button id="auth-code-start" class="auth-primary" type="button">SEND APPROVAL TO MY DEVICES</button>
+        <div class="auth-code" id="auth-code" hidden>
+          <p id="auth-code-status">Sending…</p>
+          <input id="auth-code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code">
+          <div><button id="auth-code-submit" type="button">CONFIRM</button><button id="auth-code-resend" type="button">RESEND</button></div>
+        </div>
+        <button id="auth-use-password" class="auth-code-start" type="button">USE PASSWORD</button>
+        <form class="auth-password" id="auth-password-form" hidden>
+          <div class="password-field">
+            <input id="auth-password" type="password" autocomplete="current-password" placeholder="password">
+            <button id="auth-password-toggle" type="button" aria-label="Show password" aria-pressed="false">👁</button>
+          </div>
+          <button type="submit">SIGN IN</button>
+        </form>
+      </div>
+
       <form class="auth-password" id="auth-signup-form" hidden>
         <input id="signup-name" autocomplete="name" placeholder="your name" maxlength="80" required>
         <input id="signup-email" type="email" autocomplete="email" placeholder="email" required>
@@ -62,27 +88,19 @@
           <button class="password-eye" type="button" aria-label="Show password">👁</button>
         </div>
         <small id="signup-strength" class="signup-strength">Use 10+ characters with a mix of letters, numbers and symbols.</small>
-        <button type="submit">REQUEST ACCOUNT</button>
+        <button type="submit">CREATE ACCOUNT</button>
+        <button id="auth-signup-back" class="auth-link" type="button">Back to sign in</button>
       </form>
-      <div class="auth-code" id="auth-code" hidden>
-        <p id="auth-code-status">Sending a code…</p>
-        <input id="auth-code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code">
-        <div><button id="auth-code-submit" type="button">CONFIRM CODE</button><button id="auth-code-say" type="button">SAY CODE</button></div>
-      </div>
-      <form class="auth-password" id="auth-password-form" hidden>
-        <input id="auth-username" autocomplete="username" placeholder="username or email" value="atulya" spellcheck="false">
-        <div class="password-field">
-          <input id="auth-password" type="password" autocomplete="current-password" placeholder="password">
-          <button id="auth-password-toggle" type="button" aria-label="Show password" aria-pressed="false">👁</button>
-        </div>
-        <button type="submit">SIGN IN WITH PASSWORD</button>
-      </form>
-      <label class="auth-setup-token" id="auth-invite-wrap" hidden>
-        <span>INVITATION CODE</span>
-        <input id="auth-invite-token" type="password" autocomplete="one-time-code" spellcheck="false">
-      </label>
-      <button id="auth-join" type="button" hidden>JOIN WITH PASSKEY</button>
-      <p class="auth-footnote">Your passkey stays on your device. Windows Hello, Face ID, or a security key may be offered by your browser.</p>
+
+      <details class="auth-invite">
+        <summary>I have an invitation code</summary>
+        <label class="auth-setup-token" id="auth-invite-wrap">
+          <span>INVITATION CODE</span>
+          <input id="auth-invite-token" type="password" autocomplete="one-time-code" spellcheck="false">
+        </label>
+        <button id="auth-join" type="button">JOIN WITH PASSKEY</button>
+      </details>
+      <p class="auth-footnote">Passkeys use your fingerprint, face or screen lock and never leave your device.</p>
     </div>
   </dialog>
   <dialog class="history-dialog user-dialog" id="users-dialog" aria-labelledby="users-title">
@@ -116,14 +134,20 @@
       <div class="panel-mark" aria-hidden="true"><i></i><i></i><i></i></div>
       <div class="panel-title"><strong>ATULYA</strong><span>LIVE SESSION</span></div>
       <span class="connection-dot" id="connection-dot" aria-label="Connecting"></span>
-      <div class="history-tools" aria-label="Conversation archive controls">
-        <button id="add-passkey" type="button" title="Add a backup passkey" hidden>PASSKEY +</button>
-        <button id="add-voice-unlock" type="button" title="Unlock this device by saying a phrase" hidden>VOICE UNLOCK +</button>
-        <button id="manage-users" type="button" title="Manage local accounts" hidden>USERS</button>
-        <button id="sign-out" type="button" title="Lock this session" hidden>LOCK</button>
+      <div class="history-tools" aria-label="Conversation controls">
         <button id="new-conversation" type="button" title="Start a new conversation">NEW</button>
         <button id="open-history" type="button" title="Browse saved conversations">HISTORY</button>
-        <button id="open-plugins" type="button" title="Enable or disable built-in tools">TOOLS</button>
+        <button id="voice-replies" type="button" title="Speak replies on/off">🔊</button>
+        <details class="account-menu">
+          <summary title="Account and settings" aria-label="Account and settings">⋮</summary>
+          <div class="account-menu-items">
+            <button id="add-passkey" type="button" title="Add a passkey for this device" hidden>ADD PASSKEY</button>
+            <button id="add-voice-unlock" type="button" title="Unlock this device by saying a phrase" hidden>VOICE UNLOCK</button>
+            <button id="manage-users" type="button" title="Manage accounts" hidden>USERS</button>
+            <button id="open-plugins" type="button" title="Enable or disable built-in tools">TOOLS</button>
+            <button id="sign-out" type="button" title="Sign out of this device" hidden>SIGN OUT</button>
+          </div>
+        </details>
       </div>
     </header>
     <div class="channel-status" aria-label="Available interaction modes">
