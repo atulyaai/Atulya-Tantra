@@ -24,8 +24,10 @@ Status: ✅ done (verified for real) · 🔧 in progress · ⬜ to do · ⛔ blo
 | A13 | ✅ | App icon = the Atulya hologram face (web, PWA, Android launcher + round icon) | APK 0.2.1 |
 | A14 | ✅ | APK download: https://atulya.atulvij.com/download (always the newest signed APK) + README | Public URL |
 | A15 | 🔧 | APK: R8 code + resource shrinking, en/hi only, adaptive launcher icon (fits round/squircle/any mask, sharper head crop, webp); every android/ change on main auto-publishes the latest release so the in-app updater offers it | CI build size + phone install pending |
+| A16 | 🔧 | Voice fixes: pause keeps the mic granted (muted, released after 10 idle min) so Telegram does not ask again; reply sentences are synthesized one at a time so speech starts with the first sentence instead of after typing; gesture model now installed on the server (was red/yellow) | Owner check in Telegram/APK |
 
 | A15 | ✅ | Camera turned itself on at load → on demand only (button / "turn on camera"), remembered per device | Public site |
+| A16 | 🔧 | Voice fixes: pause keeps the mic granted (muted, released after 10 idle min) so Telegram does not ask again; reply sentences are synthesized one at a time so speech starts with the first sentence instead of after typing; gesture model now installed on the server (was red/yellow) | Owner check in Telegram/APK |
 | A16 | ✅ | Greeting shown twice after reload → one greeting; "Welcome back" by voice | Public site |
 
 ## B. Server-first architecture (owner's server, always on)

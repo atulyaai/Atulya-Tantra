@@ -1350,6 +1350,7 @@
     let closed = false;
     let wake;
     let failedText = "";
+    let synthChain = Promise.resolve();
     const cancelled = () => requestId !== activeAudioRequest;
     const synthesize = (text) => fetch("/api/voice/synthesize", {
       method: "POST",
@@ -1420,7 +1421,11 @@
       push(text) {
         const clean = String(text || "").trim();
         if (!clean || closed || cancelled()) return;
-        const item = { text: clean, audio: synthesize(clean) };
+        // One synthesis at a time, in order: parallel requests share the server's CPUs and
+        // delay the first sentence until all of them finish.
+        const audio = synthChain.catch(() => {}).then(() => (cancelled() ? null : synthesize(clean)));
+        synthChain = audio;
+        const item = { text: clean, audio };
         item.audio.catch(() => {});
         pending.push(item);
         wake?.();
@@ -1720,7 +1725,22 @@
     refreshWave();
   }
 
+  // Pause keeps the granted stream muted for a while instead of stopping it: stopping makes
+  // Telegram/WebViews ask for permission again on the next tap. Fully released after 10 idle minutes.
+  let microphoneHoldTimer = 0;
+  async function holdMicrophone() {
+    microphoneStream?.getAudioTracks().forEach((track) => { track.enabled = false; });
+    if (microphoneContext) await microphoneContext.close().catch(() => {});
+    microphoneContext = undefined;
+    microphoneAnalyser = undefined;
+    recorder = undefined;
+    clearTimeout(microphoneHoldTimer);
+    microphoneHoldTimer = setTimeout(() => { if (!voiceSessionActive) releaseMicrophone(); }, 10 * 60 * 1000);
+    refreshWave();
+  }
+
   async function releaseMicrophone() {
+    clearTimeout(microphoneHoldTimer);
     if (microphoneStream) microphoneStream.getTracks().forEach((track) => track.stop());
     microphoneStream = undefined;
     if (microphoneContext) await microphoneContext.close().catch(() => {});
@@ -1801,7 +1821,7 @@
       try { recorder.stop(); } catch {}
     }
     recorderChunks = [];
-    await releaseMicrophone();
+    await holdMicrophone();
     window.speechSynthesis?.cancel?.();
     releaseSpeech();
     restoreIdlePhase(message);
@@ -1836,6 +1856,7 @@
     setPhase("listening", "Allow microphone", "Grant microphone access once. Speech sends automatically after each pause.");
     try {
       const reusable = microphoneStream?.getAudioTracks().some((track) => track.readyState === "live");
+      if (reusable) microphoneStream.getAudioTracks().forEach((track) => { track.enabled = true; });
       microphoneStream = reusable ? microphoneStream
         : await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
       if (requestId !== voiceRequest) {

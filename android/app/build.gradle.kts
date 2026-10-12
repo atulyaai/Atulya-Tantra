@@ -16,7 +16,7 @@ android {
         buildConfigField("String", "ATULYA_URL", "\"${project.findProperty("atulyaUrl") ?: "https://atulya.atulvij.com"}\"")
     }
     buildFeatures { buildConfig = true }
-    androidResources { localeFilters += listOf("en", "hi") }
+    defaultConfig { resourceConfigurations += listOf("en", "hi") }
     packaging { resources.excludes += listOf("META-INF/*.version", "kotlin/**", "DebugProbesKt.bin") }
     signingConfigs {
         create("release") {

@@ -288,6 +288,7 @@ def main() -> int:
         settings = Settings.from_environment()
         if os.environ.get("ATULYA_VOICE_BACKEND", "").strip().lower() == "light":
             prepare_light_voice(settings.models_dir)
+            prepare_gesture_assets()  # browser-side model (~8 MB); the server only serves the files
         if os.environ.get("ATULYA_SKIP_MODELS", "").strip() == "1":
             # CI / quick installs: packages only; models download later on first real start.
             print("Skipping model downloads (ATULYA_SKIP_MODELS=1).", flush=True)
