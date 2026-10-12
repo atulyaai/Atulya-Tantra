@@ -104,6 +104,9 @@ class OpenAICompatibleProvider:
             payload["tools"] = list(tools)
         if self._max_tokens is not None:
             payload["max_tokens"] = self._max_tokens
+        # Gemini 2.5 "thinks" before answering by default (seconds of delay); a voice assistant wants the answer.
+        if "generativelanguage.googleapis.com" in self._base_url and "2.5" in str(payload.get("model", "")):
+            payload["reasoning_effort"] = "none" if "flash" in str(payload["model"]) else "low"
         return payload
 
     def _headers(self, *, stream: bool = False) -> dict[str, str]:
