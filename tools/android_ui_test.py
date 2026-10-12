@@ -136,6 +136,7 @@ if step("app unlocks and shows sign-in", field is not None):
     tap(field)
     type_text("admin")
     time.sleep(0.8)
+    # keyboard stays open on purpose: a real user taps CONTINUE like this
     continue_button = find(r"^CONTINUE$", 5)
     if continue_button:
         tap(continue_button)

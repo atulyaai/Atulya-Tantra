@@ -375,6 +375,9 @@ body.non-admin #system-dashboard,body.non-admin #open-plugins{display:none!impor
   .assistant-panel{flex:0 0 auto!important;max-height:30dvh!important}
   #chat-messages{min-height:0!important;overflow-y:auto!important;overscroll-behavior:contain}
   .assistant-panel>.channel-status,.assistant-panel>.panel-footnote,.assistant-panel>.session-state{display:none!important}
+  /* Sign-in box anchored near the top: when centred it jumped as the keyboard opened/closed, so a tap on
+     CONTINUE (which closes the keyboard) landed where the button had been and missed. */
+  .auth-dialog{margin:6vh auto auto!important;max-height:88vh;overflow:auto}
   .assistant-panel>.wave-control{height:30px!important;min-height:0!important}
   /* VIEW: WIDE — the scene keeps the website's wide framing (whole scene, smaller) instead of a close-up.
      The 3D engine fixes the vertical view, so a tall narrow box cuts the sides; a 16:10 box shows it all. */
