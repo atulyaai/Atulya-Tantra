@@ -89,7 +89,10 @@ def tap(node: dict) -> None:
 
 
 def type_text(text: str) -> None:
-    adb("shell", "input", "text", text.replace(" ", "%s"))
+    # adb typing into a WebView drops characters when fast: send small chunks.
+    for start in range(0, len(text), 5):
+        adb("shell", "input", "text", text[start:start + 5].replace(" ", "%s"))
+        time.sleep(0.25)
 
 
 def step(name: str, ok: bool, detail: str = "") -> bool:
@@ -149,8 +152,20 @@ if step("app unlocks and shows sign-in", field is not None):
         password_field = find(r"^(password|#auth-password)$", 10)
         if step("password field visible", password_field is not None):
             tap(password_field)
-            type_text(PASSWORD)
-            time.sleep(0.8)
+            show = find(r"^Show password$", 3)
+            if show:  # reveal the box so the typed text can be read back and checked
+                tap(show)
+                tap(password_field)
+            for attempt in range(3):
+                adb("shell", "input", "keyevent", "KEYCODE_MOVE_END")
+                for _ in range(40):
+                    adb("shell", "input", "keyevent", "KEYCODE_DEL")
+                type_text(PASSWORD)
+                time.sleep(0.8)
+                typed = next((n["label"] for n in nodes() if n["label"] == PASSWORD), None)
+                if typed or not show:
+                    break
+            step("password typed correctly", bool(typed) or not show, f"attempts {attempt + 1}")
             adb("shell", "input", "keyevent", "KEYCODE_ENTER")
 
 composer = find(r"Type a message|#chat-prompt", 40)
