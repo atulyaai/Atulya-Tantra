@@ -2174,7 +2174,7 @@
         ? "Remote first-time setup is locked. Configure ATULYA_ADMIN_SETUP_TOKEN on the server, then reload this page."
         : authSetupRequired
         ? "Create the first administrator passkey to protect Atulya on this device."
-        : "Unlock this local session with your device passkey.";
+        : "Sign in with your fingerprint, face or screen lock, or with your username.";
       if (authActivate) authActivate.textContent = authSetupRequired ? "CREATE ADMIN PASSKEY" : deviceLinkToken ? "ADD PASSKEY FOR THIS DEVICE" : "SIGN IN WITH PASSKEY";
       const voiceButton = document.getElementById("auth-voice-unlock");
       if (voiceButton) {
@@ -2309,6 +2309,8 @@
     document.getElementById("auth-step-start").hidden = step !== "start";
     document.getElementById("auth-step-methods").hidden = step !== "methods";
     document.getElementById("auth-signup-form").hidden = step !== "signup";
+    const title = document.getElementById("auth-title");
+    if (title && !authSetupRequired) title.textContent = step === "signup" ? "CREATE YOUR ACCOUNT" : "SIGN IN TO ATULYA";
   }
   document.getElementById("auth-identify")?.addEventListener("submit", (event) => {
     event.preventDefault();

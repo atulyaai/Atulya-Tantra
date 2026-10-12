@@ -336,8 +336,13 @@ body.status-focus .system-tile strong{font-size:13px;line-height:1.4}
 body.non-admin #system-dashboard,body.non-admin #open-plugins{display:none!important}
 
 /* Sign-in steps */
-.auth-step{display:grid;gap:9px}.auth-step[hidden]{display:none}
-.auth-primary{padding:11px!important;font-size:10px!important}
+.auth-step{display:grid;gap:9px;width:100%}.auth-step[hidden]{display:none}
+/* Every sign-in/sign-up step uses the same full card width (they were centred at content width). */
+.auth-card .auth-password,.auth-card .auth-step>*{width:100%;box-sizing:border-box}
+.auth-card .auth-password input{width:100%;box-sizing:border-box}
+.auth-primary{width:100%;padding:12px!important;border:1px solid rgba(80,219,247,.6);border-radius:999px;background:linear-gradient(180deg,rgba(40,170,215,.28),rgba(10,60,90,.35));color:#d8fbff;font:700 10px var(--font-ui)!important;letter-spacing:.12em;cursor:pointer;box-shadow:0 0 18px rgba(60,200,240,.18)}
+.auth-primary:hover{border-color:rgba(120,235,255,.9)}
+.auth-primary:disabled{opacity:.55;cursor:wait}
 .auth-or{display:flex;align-items:center;gap:8px;color:#7f98a3;font-size:10px;text-transform:uppercase;letter-spacing:.12em}
 .auth-or::before,.auth-or::after{content:"";flex:1;height:1px;background:rgba(105,234,255,.18)}
 .auth-link{background:none!important;border:0!important;color:#9fdcf0!important;font:600 11px var(--font-ui)!important;text-decoration:underline;cursor:pointer;padding:2px!important;letter-spacing:0!important}
