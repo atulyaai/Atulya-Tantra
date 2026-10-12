@@ -11,6 +11,8 @@ git reset -q --hard "$target"
 if ! git diff --quiet "$previous" "$target" -- requirements.lock.txt; then
     .venv/bin/python -m pip install -q -r requirements.lock.txt
 fi
+# New voices/models or packages declared in setup (models only; skips the large PC models).
+ATULYA_SKIP_MODELS=1 .venv/bin/python tools/bootstrap.py >/dev/null
 sudo systemctl restart atulya.service
 for i in $(seq 1 30); do
     if curl -fsS -o /dev/null -H "Host: localhost:8501" http://127.0.0.1:8501/api/health; then

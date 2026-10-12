@@ -190,6 +190,42 @@ def prepare_tts_model(models_dir: Path) -> bool:
     return model_assets_ready(models_dir)
 
 
+LIGHT_VOICE_PACKAGES = ("vosk==0.3.45", "piper-tts==1.8.0")
+VOSK_URL = "https://alphacephei.com/vosk/models/{name}.zip"
+PIPER_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main/{path}"
+PIPER_PATHS = ("en/en_US/ryan/medium/en_US-ryan-medium", "hi/hi_IN/pratham/medium/hi_IN-pratham-medium",
+               "en/en_US/amy/medium/en_US-amy-medium", "hi/hi_IN/priyamvada/medium/hi_IN-priyamvada-medium")
+
+
+def prepare_light_voice(models_dir: Path) -> None:
+    """Small-server voice (ATULYA_VOICE_BACKEND=light): open-source Vosk + Piper and their models."""
+    import zipfile
+
+    if importlib.util.find_spec("vosk") is None or importlib.util.find_spec("piper") is None:
+        subprocess.run([sys.executable, "-m", "pip", "install", *LIGHT_VOICE_PACKAGES], check=True, cwd=PROJECT_ROOT)
+    vosk_dir = models_dir / "voice" / "vosk"
+    vosk_dir.mkdir(parents=True, exist_ok=True)
+    for name in ("vosk-model-small-en-in-0.4", "vosk-model-small-hi-0.22"):
+        if not (vosk_dir / name).is_dir():
+            print(f"Downloading speech recognition model {name}...", flush=True)
+            archive = vosk_dir / f"{name}.zip"
+            _download(VOSK_URL.format(name=name), archive)
+            with zipfile.ZipFile(archive) as bundle:
+                for member in bundle.namelist():
+                    if member.startswith("/") or ".." in Path(member).parts:
+                        raise OSError("Unsafe path in the speech model archive")
+                bundle.extractall(vosk_dir)
+            archive.unlink(missing_ok=True)
+    piper_dir = models_dir / "voice" / "piper"
+    piper_dir.mkdir(parents=True, exist_ok=True)
+    for path in PIPER_PATHS:
+        name = path.rsplit("/", 1)[-1]
+        for suffix in (".onnx", ".onnx.json"):
+            if not (piper_dir / f"{name}{suffix}").is_file():
+                print(f"Downloading voice {name}{suffix}...", flush=True)
+                _download(PIPER_URL.format(path=path + suffix), piper_dir / f"{name}{suffix}")
+
+
 def main() -> int:
     if sys.version_info < (3, 10):
         print("Python 3.10 or newer is required.", file=sys.stderr)
@@ -250,6 +286,8 @@ def main() -> int:
         from tools.plugins.brain.local_llm import prepare_local_model
 
         settings = Settings.from_environment()
+        if os.environ.get("ATULYA_VOICE_BACKEND", "").strip().lower() == "light":
+            prepare_light_voice(settings.models_dir)
         if os.environ.get("ATULYA_SKIP_MODELS", "").strip() == "1":
             # CI / quick installs: packages only; models download later on first real start.
             print("Skipping model downloads (ATULYA_SKIP_MODELS=1).", flush=True)

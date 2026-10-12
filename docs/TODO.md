@@ -11,7 +11,7 @@ Status: ✅ done (verified for real) · 🔧 in progress · ⬜ to do · ⛔ blo
 |---|---|---|---|
 | A1 | 🔧 | Typed messages get no spoken reply → every reply spoken by default; 🔊/🔇 button; say "mute"/"unmute" | Built; needs your by-ear check |
 | A2 | 🔧 | App/Mini App keeps demanding "Hey Atulya" → wake word now **off by default** (say "wake word on" for always-on) | Built; needs your by-ear check |
-| A3 | 🔧 | Microphone permission asked repeatedly → one mic stream kept for the whole voice session | Built; needs check on phone |
+| A3 | 🔧 | Microphone permission asked repeatedly → one mic stream per session; the interrupt monitor reuses it (it used to open a second mic = second prompt); Telegram Mini App starts the mic on tap | Built; needs check in Telegram |
 | A4 | ✅ | Status panel/tools for non-admins → hidden in UI **and** `/api/status` refuses non-admins (403) | Server test + UI |
 | A5 | 🔧 | Overlap on phone/small windows → header on one line + account menu (⋮); phone = hologram top, chat bottom sheet; camera box only when camera is on | Screenshots desktop + 375 px phone ✅; Mini App/APK on a real phone pending |
 | A6 | 🔧 | Hologram on phone/Mini App → live 3D kept when it runs; still hologram artwork when WebGL is missing or the scene never starts | Desktop + 375 px phone ✅; real phone pending |
@@ -35,7 +35,7 @@ Status: ✅ done (verified for real) · 🔧 in progress · ⬜ to do · ⛔ blo
 | B2 | ⬜ | Laptop/desktop = **Atulya agents** that connect out to the server: PC control, local Whisper/TTS/LLM when available | Replaces the tunnel as the main path; tunnel kept for laptop-only setups |
 | B3 | ⬜ | Server is the source of truth; clients cache locally and fetch only changes (delta sync); Telegram reads from server | — |
 | B4 | ✅ | Encrypted daily backups (AES-256-GCM, keep 14) + off-site copy to the server; `atulya.cli backup`, `--restore`, `--show-key` | Real backup created, copied to server, decrypted and checked |
-| B5 | 🔧 | Speech on the server works (12/12) but is **slow: ~20 s per voice message** (Whisper base on 2 small CPUs). Fix: Whisper tiny + int8 on the server, or the browser's/phone's own speech recognition, or a connected PC agent | Server self-test timing |
+| B5 | 🔧 | Server voice = open source, CPU-only: **Vosk** recognition (~2.7 s) + **Piper** voices (~1.9 s/sentence), male + female, English + Hindi; loads on demand, unloads when idle. Whisper was 10-19 s on this server; Gemini is free-tier cloud (kept off) | Server benchmark; by-ear check pending |
 
 | B6 | ✅ | Workflow: laptop = development → push to GitHub → clean-machine tests → server deploys itself (server-side health check + automatic rollback); deploy key can only run the deploy script | First automatic deploy 3c39eea, server self-test 12/12 |
 
@@ -46,6 +46,7 @@ Status: ✅ done (verified for real) · 🔧 in progress · ⬜ to do · ⛔ blo
 | C1 | ✅ | One account across web, app and Telegram (owner's Telegram = main account), live sync ~10-13 ms |
 | C2 | ✅ | Telegram voice note → reply also as a voice note (local voice → OGG/Opus, plays inline) | Real TTS→Opus→Whisper round trip |
 | C3 | ⬜ | Mini App looks and behaves like the web app (signed in automatically, voice, hologram) |
+| C7 | ✅ | Male/female voice per person ("use a female voice"), used on web, app and Telegram voice notes | Code + server voices |
 | C4 | ✅ | Per-user nickname for the assistant ("call yourself Tony") — answers to it and wakes on it on that user's devices; system stays Atulya | Code + wake test |
 | C5 | ⛔ | WhatsApp — needs a Meta Business account + WhatsApp Cloud API number (owner) |
 | C6 | ⛔ | Push notifications inside the APK — needs a Firebase project (owner); web/PWA push already works |

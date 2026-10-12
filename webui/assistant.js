@@ -1131,8 +1131,12 @@
     const monitor = { stopped: false, stream: null, context: null };
     bargeMonitor = monitor;
     try {
-      monitor.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-      if (monitor.stopped) { monitor.stream.getTracks().forEach((track) => track.stop()); return; }
+      // Reuse the session's microphone: a second getUserMedia call makes Telegram/WebViews ask again.
+      const live = microphoneStream?.getAudioTracks().some((track) => track.readyState === "live");
+      if (!live) { bargeMonitor = null; return; }
+      monitor.stream = microphoneStream;
+      monitor.shared = true;
+      if (monitor.stopped) return;
       const AudioContextType = window.AudioContext || window.webkitAudioContext;
       monitor.context = new AudioContextType();
       const analyser = monitor.context.createAnalyser();
@@ -1169,7 +1173,7 @@
     bargeMonitor = null;
     if (!monitor) return;
     monitor.stopped = true;
-    monitor.stream?.getTracks().forEach((track) => track.stop());
+    if (!monitor.shared) monitor.stream?.getTracks().forEach((track) => track.stop());
     monitor.context?.close().catch(() => {});
   }
 
@@ -1293,7 +1297,8 @@
     }
     // Speak only after the scene is ready, then open the mic automatically.
     // The browser still owns the permission prompt; Atulya never bypasses it.
-    voiceSessionActive = voiceReady;
+    // Inside Telegram the mic starts when the user taps the voice wave (Telegram asks for permission per open).
+    voiceSessionActive = voiceReady && !window.Telegram?.WebApp?.initData;
     speak(greeting);
     deliverMorningBriefing();
   }

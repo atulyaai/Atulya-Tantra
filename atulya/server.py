@@ -5,6 +5,7 @@ import os
 import base64
 import binascii
 import asyncio
+import inspect
 import json
 import logging
 import time
@@ -537,6 +538,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     except ValueError:
         tts_speaker_id = 0
     speech_output = LocalSupertonicTTS(config.models_dir, speaker_id=tts_speaker_id)
+    if os.environ.get("ATULYA_VOICE_BACKEND", "").strip().lower() == "light":
+        # Small servers: open-source Vosk (recognition) + Piper (voice), fast on 1-2 CPU cores.
+        from tools.plugins.voice.light import PiperSpeech, VoskSpeech
+
+        voice, speech_output = VoskSpeech(config.models_dir), PiperSpeech(config.models_dir)
     history = ConversationHistory(config.data_dir)
     auth_store = AuthStore(config.data_dir)
     reminders = ReminderStore(config.data_dir)
@@ -1406,15 +1412,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"plugins": command_plugins.manifests}
 
     @app.post("/api/voice/synthesize")
-    async def synthesize_speech(request: SpeechRequest) -> Response:
+    async def synthesize_speech(request: SpeechRequest, http_request: Request) -> Response:
         if not speech_output.ready:
             raise HTTPException(status_code=503, detail="Local speech output is not installed.")
+        extra = {}
+        if "voice" in inspect.signature(speech_output.synthesize).parameters:
+            profile = await asyncio.to_thread(profiles.get, str(http_request.state.user_id))
+            extra["voice"] = profile.get("voice", "male")  # each person's chosen male/female voice
         try:
             audio = await run_in_threadpool(
                 speech_output.synthesize,
                 request.text,
                 language=request.language,
                 speaker_id=request.speaker_id,
+                **extra,
             )
         except VoiceError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc

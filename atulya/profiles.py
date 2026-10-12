@@ -22,10 +22,11 @@ CHOICES = {
     "tone": ("atulya", "friendly", "formal", "brief", "witty"),
     "length": ("short", "normal", "detailed"),
     "safety": ("ask_all", "ask_risky"),
+    "voice": ("male", "female"),
 }
 TEXT_FIELDS = {"assistant_nickname": 30, "preferred_name": 40, "city": 60, "about": 600, "work_style": 300}
-VOICE_EDITABLE = {"assistant_nickname", "preferred_name", "city", "about", "work_style", "language", "tone", "length"}
-DEFAULTS = {"language": "auto", "tone": "atulya", "length": "short", "safety": "ask_all"}
+VOICE_EDITABLE = {"voice", "assistant_nickname", "preferred_name", "city", "about", "work_style", "language", "tone", "length"}
+DEFAULTS = {"voice": "male", "language": "auto", "tone": "atulya", "length": "short", "safety": "ask_all"}
 
 
 def validate(field: str, value: str) -> str:

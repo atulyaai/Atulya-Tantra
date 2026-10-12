@@ -298,11 +298,12 @@ TOOLS: tuple[Tool, ...] = (
     Tool("open_url", "Open a web page in the computer's browser (asks the user first).",
          _params({"url": {"type": "string", "description": "Full http(s) URL"}}, ["url"]),
          _pc("open_url"), "pc-control", True, True, lambda a: f"Open website: {a.get('url', '')}"),
-    Tool("update_profile", "Save a lasting user preference: assistant_nickname (what this user wants to call you, "
+    Tool("update_profile", "Save a lasting user preference: voice (male/female speaking voice), "
+         "assistant_nickname (what this user wants to call you, "
          "e.g. 'call yourself Tony'), preferred_name, city, language "
          "(auto, english, hindi, hinglish, marathi, tamil, spanish, … lowercase name), tone "
          "(atulya/friendly/formal/brief/witty), length (short/normal/detailed), work_style, or about.",
-         _params({"field": {"type": "string", "enum": ["assistant_nickname", "preferred_name", "city", "language", "tone", "length",
+         _params({"field": {"type": "string", "enum": ["voice", "assistant_nickname", "preferred_name", "city", "language", "tone", "length",
                                                         "work_style", "about"]},
                   "value": {"type": "string"}}, ["field", "value"]),
          _update_profile, "personal-memory", True),

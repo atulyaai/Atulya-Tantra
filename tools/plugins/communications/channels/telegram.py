@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import logging
 import os
@@ -360,7 +361,10 @@ class TelegramChannel:
         try:
             from tools.plugins.voice.opus import wav_to_ogg_opus
 
-            wav = await asyncio.to_thread(self._speech.synthesize, text[:900])
+            extra = {}
+            if self._profiles is not None and "voice" in inspect.signature(self._speech.synthesize).parameters:
+                extra["voice"] = self._profiles.get(OWNER_USER).get("voice", "male")
+            wav = await asyncio.to_thread(self._speech.synthesize, text[:900], **extra)
             ogg = await asyncio.to_thread(wav_to_ogg_opus, wav)
             response = await client.post(self._url("sendVoice"), data={"chat_id": chat_id},
                                          files={"voice": ("reply.ogg", ogg, "audio/ogg")})

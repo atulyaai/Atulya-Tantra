@@ -19,6 +19,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Small servers (ATULYA_VOICE_BACKEND=light): open-source Vosk recognition + Piper voices, CPU-only.
+server-voice = [
+    "vosk==0.3.45",
+    "piper-tts==1.8.0",
+]
 voice = [
     "faster-whisper>=1.1",
     "av>=11,<19",
