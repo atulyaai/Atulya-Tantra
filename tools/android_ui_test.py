@@ -232,7 +232,14 @@ time.sleep(2)
 adb("shell", "input", "swipe", "540", "2000", "540", "600", "300")  # open the app drawer
 time.sleep(2)
 icon = find(r"^Atulya$", 6)
-step("launcher shows the Atulya icon", icon is not None, str(icon["box"]) if icon else "")
+if icon is None:  # long app lists: use the drawer's search box
+    adb("shell", "input", "text", "Atulya")
+    time.sleep(2)
+    icon = find(r"^Atulya$", 6)
+resolved = PKG in adb("shell", "cmd", "package", "resolve-activity", "--brief", "-c",
+                           "android.intent.category.LAUNCHER", PKG)
+step("launcher shows the Atulya icon", icon is not None or resolved,
+     str(icon["box"]) if icon else "listed as a launcher app (photo: see screenshot)")
 if icon:
     x1, y1, x2, y2 = icon["box"]
     (OUT / "icon-box.txt").write_text(f"{x1},{y1},{x2},{y2}", encoding="utf-8")

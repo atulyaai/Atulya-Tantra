@@ -1541,6 +1541,7 @@
     });
   }
   async function refreshLocationIfAllowed() {
+    if (document.hidden) return; // battery: never in the background, never continuous tracking
     try {
       const state = await navigator.permissions?.query({ name: "geolocation" });
       if (state?.state === "granted") sendDeviceLocation();
@@ -1944,7 +1945,8 @@
   // Not in Telegram (its WebView lacks it) — there the server recognizer is used.
   function browserSpeechBridge() {
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!Recognition || window.Telegram?.WebApp?.initData || /Brave/i.test(navigator.userAgent)) return null;
+    // Not inside an Android app WebView ("; wv)"): the API exists there but has no recognizer behind it.
+    if (!Recognition || window.Telegram?.WebApp?.initData || /Brave|; wv\)/i.test(navigator.userAgent)) return null;
     let recognition = null;
     const bridge = {
       onmessage: null,

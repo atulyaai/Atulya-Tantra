@@ -68,8 +68,17 @@ class MainActivity : AppCompatActivity() {
         requestMediaPermissions()
     }
 
+    override fun onPause() {
+        // Battery: in the background the page, its timers, the 3D scene and any location request all stop.
+        web.onPause()
+        web.pauseTimers()
+        super.onPause()
+    }
+
     override fun onResume() {
         super.onResume()
+        web.onResume()
+        web.resumeTimers()
         if (unlocked && leftAt > 0 && System.currentTimeMillis() - leftAt > relockAfterMs) unlocked = false
         if (!unlocked) unlock() else {
             if (pendingUrl == null && web.url == null) web.loadUrl(origin.toString()) // reopened within the grace period
@@ -161,7 +170,9 @@ class MainActivity : AppCompatActivity() {
         // Exposed as window.AtulyaNative only to the Atulya origin, never to other pages.
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER) &&
             SpeechRecognizer.isRecognitionAvailable(this)) {
-            WebViewCompat.addWebMessageListener(web, "AtulyaNative", setOf("${origin.scheme}://${origin.host}")) {
+            // The allowed origin must include a non-default port (e.g. the CI test server :8501), or the bridge is missing.
+            val allowedOrigin = "${origin.scheme}://${origin.host}" + if (origin.port != -1) ":${origin.port}" else ""
+            WebViewCompat.addWebMessageListener(web, "AtulyaNative", setOf(allowedOrigin)) {
                     _, message, _, isMainFrame, reply ->
                 if (!isMainFrame) return@addWebMessageListener
                 val command = try { JSONObject(message.data ?: "{}") } catch (_: Exception) { JSONObject() }

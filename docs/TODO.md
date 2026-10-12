@@ -13,7 +13,7 @@ to enable it. In this order (each step unlocks the next):
 
 | # | Status | What | Done when |
 |---|---|---|---|
-| H1 | 🔧 | **Forecast + location:** `get_weather(place?, when=now/next_hours/today/tomorrow/week)` with rain %, wind, UV, sunrise; `where_am_i`; device location by consent (web/app geolocation, Telegram 📍 button), stored with time stamp (stale ignored), home city fallback, asks once then re-answers automatically | ✅ real model, local: "rain tomorrow where I am" asks → location → "0 % rain"; "where am I" → Connaught Place; tests. ⏳ owner: phone + Telegram |
+| H1 | 🔧 | **Forecast + location** (2026-10-13 round 2: AQI/PM2.5/PM10, rain/snow mm, wind words + gusts, visibility, hot/cold verdict + change vs today, any colony/sector/full Indian address, saved places home/office, battery-safe location) — `get_weather(place?, when=now/next_hours/today/tomorrow/week)` with rain %, wind, UV, sunrise; `where_am_i`; device location by consent (web/app geolocation, Telegram 📍 button), stored with time stamp (stale ignored), home city fallback, asks once then re-answers automatically | ✅ real model, local: "rain tomorrow where I am" asks → location → "0 % rain"; "where am I" → Connaught Place; tests. ⏳ owner: phone + Telegram |
 | H2 | ⬜ | **Capability catalogue + honest status:** one registry the AI reads ("what can you do here / what's missing"), status per tool (available / needs location / needs connection / needs approval / unsupported) with the next step; MCP serves the same registry (remove its duplicate tools); ask "short or detailed?" when unclear | "What can you do on Telegram?" gives a true list; MCP weather = new forecast |
 | H3 | ⬜ | **Audit log:** every tool run recorded (user, channel, tool, args summary, result, time); viewable in ⋮ → ACTIVITY | Entry for each run; secrets never stored |
 | H4 | ⬜ | **Web + maps:** web search with sources, read a page, places near me, route + travel time (OpenStreetMap/OSRM, free) | "Pharmacies near me", "how long to the airport", "search X" work on all channels |
@@ -117,6 +117,166 @@ Assistant), learning from outcomes. Not before H1–H8 work for real.
 | G10 | 🔧 | Professional look: launcher icon v2 (whole head inside the safe zone, glow background; was cropped by round masks); app theme still to redo (owner to pick references) | Preview circle/squircle, light/dark |
 | G11 | ⬜ | Phone access in the Android app (notifications, contacts, calls/SMS with approval) | |
 | G12 | ⬜ | Hologram speaking animation matches speech in full-screen mode (renderer is owner's — needs owner OK) | |
+
+## I. Full backlog — every feature the owner listed (2026-10-13) + Claude's additions
+
+Priority: **P0** foundation · **P1** useful now · **P2** real agency · **P3** later/research. Status as in the rest
+of this file. Work happens in section H order; this is the complete list so nothing is lost. Status per item is
+also kept in `docs/CAPABILITIES.md`.
+
+### I-A. Platform, access, safety (P0 unless noted)
+- ⬜ PLT-01/02 Capability registry: schemas, versions, which channel/device/permission each needs; AI and UI read it (H2)
+- ⬜ PLT-03 Same execution path for web, Telegram, Android, desktop, MCP (✅ web+Telegram; MCP has copies → H2)
+- 🔧 PLT-04 Structured tool results + errors (location statuses done; general contract H2)
+- ✅ PLT-05 Identity: passkeys, password, Telegram, codes · ⬜ PLT-06 per-user/device/resource/action permissions (H5)
+- ✅ PLT-07 Approval before changes/sends · ⬜ PLT-08 status model: available / needs location / needs connection /
+  needs clarification / needs approval / unsupported / temporarily down — each with a next step (H2)
+- ⬜ PLT-09 Progress, cancel, timeouts for long work (H8) · ⬜ PLT-10 Audit trail + provenance (H3)
+- ⬜ PLT-11 (P1) Integration health checks · ✅ PLT-12 Secrets encrypted, redacted logs · ⬜ PLT-13 (P1) quotas, budgets
+- ⬜ PLT-14 (P1) Version compatibility · ⬜ PLT-15 Shared error taxonomy + retry policy
+
+### I-B. Cognition (P0–P2)
+- ⬜ COG-01 Intent classification · ⬜ COG-02 Goal decomposition + plans · ⬜ COG-03 (P1) prioritise by value/urgency/risk
+- ⬜ COG-04 (P1) Multi-step execution with dependencies · ⬜ COG-05 (P1) alternatives + trade-offs
+- ⬜ COG-06 (P1) Confidence/uncertainty · ⬜ COG-07 (P1) contradictions + assumptions · ⬜ COG-08 Verify results (no fake "done")
+- ⬜ COG-09 (P1) Change strategy after failure · 🔧 COG-10 (P1) Model routing (race NVIDIA/Gemini/OpenRouter; measured)
+- ⬜ COG-11 (P2) Parallel tasks · ⬜ COG-12 Escalate to the user when unsure · ⬜ COG-13 (P1) Persistent goals
+- ⬜ COG-14 (P1) Event interrupts · ⬜ COG-15 (P2) What-if analysis · ⬜ COG-16 (P2) Loop/stuck detection
+
+### I-C. Memory (P0–P2)
+- ✅ MEM-01 Conversation memory · ✅ MEM-02 Preferences (name, tone, language, short/detailed, voice) + saved places
+- ⬜ MEM-03 (P1) Episodic memory of actions/outcomes · 🔧 MEM-04 (P1) Semantic search (keyword now)
+- 🔧 MEM-05 (P1) Procedures = skills (1 skill) · ⬜ MEM-06 (P2) Knowledge graph (people, projects, files, decisions)
+- ⬜ MEM-07 (P1) Time-aware facts · ⬜ MEM-08 (P1) Source/confidence/freshness on facts · ⬜ MEM-09 (P2) Consolidation
+- ⬜ MEM-10 (P1) Correct contradictions · ✅ MEM-11 Search past chats · ⬜ MEM-12 (P1) Project memory (status, blockers, next)
+- ⬜ MEM-13 Export / delete / review memory · ✅ MEM-14 Separate users' memory · ⬜ MEM-15 (P1) Memory recall benchmarks
+
+### I-D. Research and live information (P1)
+- ⬜ RES-01 Web search with sources (H4) · ⬜ RES-02 Multi-source research with citations · ⬜ RES-03 Source/date checks
+- ⬜ RES-04 Read websites, extract data · ⬜ RES-05 Compare products/services · ⬜ RES-06 (P2) Watch pages for changes
+- ⬜ RES-07 Extract tables/entities/timelines · ⬜ RES-08 Research dossier · ⬜ RES-09/10 (P2) Knowledge bases, gap questions
+- ✅ News headlines
+
+### I-E. Weather, location, maps (P1)
+- ✅ LOC-01/02/03 Current, hourly, today/tomorrow/7-day; rain/snow amounts + chance; wind in words, gusts, direction;
+  humidity, visibility, UV, sunrise/sunset; hot/cold verdict and change vs today; week's hottest/coolest/wettest day
+- ✅ LOC-04 (part) Air quality now + tomorrow: AQI (US scale), PM2.5, PM10, NO2, ozone · ⬜ pollen, India CPCB AQI scale
+- ✅ LOC-05 Device location by consent (web/app/Telegram button), low-power, only when needed, stale after 6 h
+- ✅ LOC-06 Saved places (home, office, gym…) + home city fallback · ✅ any colony/sector/landmark/full Indian address
+- ✅ LOC-07 Where am I (address + map link) · ⬜ LOC-08 (P2) Routes, travel time, alternatives (OSRM) (H4)
+- ⬜ LOC-09 (P2) Nearby hospitals/pharmacies/fuel/shops/restaurants + opening hours (H4)
+- ✅ LOC-10 Local time · ⬜ time-zone conversion · ⬜ LOC-11 (P2) Location reminders ("when I reach office") — needs
+  OS geofencing, not live tracking · ⬜ LOC-12 (P2) Travel weather / city comparison · ⬜ severe-weather push alerts (H8)
+
+### I-F. Files and office work (P1–P2)
+- 🔧 FIL-01 Find files (local only) → any paired device (H6) · ⬜ FIL-02 Read/summarise PDF, TXT, MD, DOCX, code (H6)
+- ⬜ FIL-03 (P2) OCR scans/photos · ⬜ FIL-04 Create/edit/convert DOCX, PDF, TXT, MD, RTF (H7)
+- ⬜ FIL-05 Excel/CSV read, create, edit, formulas, pivots, charts · ⬜ FIL-06 (P2) PowerPoint create/edit, speaker notes
+- ⬜ FIL-07 Compare versions · ⬜ FIL-08 (P2) Extract invoices/forms/statements → Excel · ⬜ FIL-09 (P2) Batch organise/dedupe
+- ⬜ FIL-10 Templates · ⬜ FIL-11 Validate spreadsheets/totals · ⬜ FIL-12 (P2) Archives, metadata, integrity
+- ⬜ FIL-13 (P0) Preview before save + backup · ⬜ FIL-14 Cross-device search/transfer · ⬜ FIL-15 Safe batch edits + rollback
+- ⬜ PDF tools: merge, split, rotate, extract pages, redact · ⬜ Upload a file in chat on every channel (H6)
+
+### I-G. Devices: laptop, phone, server (P0–P2)
+- ⬜ DEV-01 (P0) Pair/register/revoke a desktop or phone agent · ⬜ DEV-02 (P0) List devices + resources + status (H5)
+- ⬜ DEV-03/04 Laptop files read/edit in approved folders (H6/H7) · 🔧 DEV-05 (P2) Screenshot (local) → explain screen
+- ⬜ DEV-06 (P2) Clipboard, windows · 🔧 DEV-07 (P2) Open apps (local) → remote via agent · ⬜ DEV-08 Approved commands, sandboxed
+- 🔧 DEV-09 CPU/RAM/disk/battery/network (server ✅, laptop via agent) · ⬜ DEV-10 Android share-to-Atulya + document picker
+- ✅ DEV-11 Phone mic/camera/voice (permission) · ⬜ DEV-12 (P2) Notifications (Firebase ⛔), deep links, open apps
+- ⬜ DEV-13 (P2) Offline queue + sync · ⬜ DEV-14 (P0) Heartbeat/health · ⬜ DEV-15 Secure outbound remote access for agents
+- ⬜ Multi-computer (home, office, dev) · ⬜ Process monitor, installed software, troubleshooting · ⬜ Lost-device help (official tools)
+
+### I-H. Email, calendar, communication (P2; needs Google OAuth D1)
+- ⬜ COM-01 Search/summarise email · ⬜ COM-02 Draft replies (any tone/language) · ⬜ COM-03 Send only with approval
+- ⬜ COM-04 Attachments → summarise/save · ⬜ COM-05 Calendar search/create/update, free slots, conflicts (local calendar ✅)
+- ⬜ COM-06 Meeting prep + notes → actions · ⬜ COM-07 Follow-up tracking · ⬜ COM-08 Contacts (with permission)
+- ✅ COM-09 Same account/history across channels · ⬜ COM-10 (P1) Delivery status, no duplicate messages
+- ✅ Telegram · ⛔ WhatsApp (Meta Business, C5) · ⬜ Inbox organisation (labels, priority, archive suggestions)
+
+### I-I. Websites and browser automation (P2)
+- ⬜ WEB-01 Browse/interact with approved sites · ⬜ WEB-02 Fill forms, stop before submit · ⬜ WEB-03 Download/file documents
+- ⬜ WEB-04 Secure website sessions · ⬜ WEB-05 Account status, invoices (official API first) · ⬜ WEB-06 (P3) Change detection
+- ⬜ WEB-07 (P0) Explicit OK for purchases/payments/submissions · ⬜ WEB-08 (P0) Prompt-injection defence for page/email text
+- ⬜ Bookmarks/reading list · ⬜ Price/availability checks · ⬜ Website troubleshooting
+
+### I-J. Server, DevOps, coding (P1–P2)
+- ✅ OPS-01 Server health (read-only) · ⬜ OPS-02 Diagnose app errors · ⬜ OPS-03 Inspect config safely (H5)
+- ✅ OPS-04 Encrypted backups (restore drill ⬜) · ✅ OPS-05 Deploy + verify + rollback · ⬜ OPS-06 Vulnerabilities, TLS expiry
+- ⬜ OPS-07 Understand repos · ⬜ OPS-08 Code changes + diffs · ⬜ OPS-09 Run tests/lint · ⬜ OPS-10 Stack traces
+- ⬜ OPS-11 (P2) GitHub branches/issues/PRs/CI (H9) · ⬜ OPS-12 (P2) Databases · ⬜ OPS-13 (P3) Multi-server
+- ✅ OPS-14 Post-deploy self-test (12 live checks each deploy) · ⬜ Disk cleanup preview · ⬜ Service restart with approval
+
+### I-K. Automation (P0–P3)
+- ✅ AUT-01 One-time reminders, morning briefing · ⬜ recurring routines · ⬜ AUT-02 (P1) Event/condition triggers
+- ⬜ AUT-03 (P1) Multi-step workflows · ⬜ AUT-04/05/06/07 (P0) Retries, checkpoints, pause/cancel, no duplicates, history
+- ⬜ AUT-08 (P0) Approval gates in workflows · ⬜ AUT-09/10 (P2) Parallel agents + checking their work
+- ⬜ AUT-11 (P1) Workflow templates (skills) · ⬜ AUT-12 (P3) Visual builder · ⬜ AUT-13 (P1) Failure/deadline notices
+- ⬜ AUT-14 (P0) Budgets, runaway-loop stop
+
+### I-L. Smart home (P2–P3, via Home Assistant first)
+- ⬜ IOT-01..05 Register devices; lights/fans/plugs/scenes; sensors; time/occupancy rules; health + manual override
+- ⬜ IOT-06 (P3) Energy analysis · ⬜ IOT-07 (P0 when used) Safety interlocks for heaters/locks
+
+### I-M. Data and decisions (P1–P3)
+- ⬜ DAT-01 CSV/Excel analysis · ⬜ DAT-02 Cleaning/validation · ⬜ DAT-03 (P2) Charts/dashboards/reports · ⬜ DAT-04 (P2) Statistics
+- ⬜ DAT-05 (P2) Trends/anomalies · ⬜ DAT-06 (P2) SQL · ⬜ DAT-07 (P3) Forecasting · ⬜ DAT-08 Reproducible calculations
+- ⬜ DAT-09 (P2) Budget/scenario comparisons · ✅ exact arithmetic (calculate tool)
+
+### I-N. Learning and evaluation (P1–P3)
+- ⬜ LRN-01 Record outcomes + failure types · ⬜ LRN-02 (P2) Failure → regression test · ⬜ LRN-03 Tool-success/recall benchmarks
+- 🔧 LRN-04 Model quality/latency comparison (provider benchmark done 2026-10-12) · ⬜ LRN-05 (P2) Suggest new skills
+- ⬜ LRN-06..08 (P3) Experts, curated traces, LoRA with rollback · ⬜ LRN-09 (P2) Memory consolidation · ⬜ LRN-10 Progress dashboard
+
+### I-O. Security, privacy, reliability (P0–P1)
+- ⬜ SEC-01 Least privilege · ✅ SEC-02 Encrypted secrets · ⬜ SEC-03 Prompt-injection defences · ⬜ SEC-04 Sandboxed execution
+- 🔧 SEC-05 Approval ✅ + audit ⬜ · ⬜ SEC-06 Retention/deletion controls · 🔧 SEC-07 Backups ✅, restore drills ⬜
+- 🔧 SEC-08 Metrics (self-test timings ✅, tracing ⬜) · ⬜ SEC-09/10 Graceful degradation, partial-failure recovery
+- ⬜ SEC-11 Adversarial tests · ✅ SEC-12 Separate users' data · ✅ IP bans, rate limits on sign-in
+
+### I-P. Ecosystem (P1–P2)
+- 🔧 ECO-01 MCP server (duplicate tools → shared registry, H2) · ⬜ ECO-02 (P2) Use outside MCP servers with approvals
+- ⬜ ECO-03 Plugin manifests/versions · 🔧 ECO-04 Skill format (1 skill) · ⬜ ECO-05..10 SDK, webhooks, signed plugins, plugin tests
+
+### I-Q. Voice and UX (P0–P2)
+- ✅ UX-01 Streaming answers · 🔧 UX-02 Voice in/out, interruption (phone/Chrome recognizer ✅, VAD ⬜, wake word ⬜)
+- ✅ UX-03 Hindi/English · 🔧 UX-04 Short/detailed (profile ✅; ask when unclear ⬜) · ✅ UX-05 Approval cards (diff previews ⬜)
+- ⬜ UX-06 Unified task inbox · 🔧 UX-07 Searchable history (chats ✅, actions ⬜) · 🔧 UX-08 Accessibility (labels ✅)
+- ⬜ UX-09 Device/connection/permission status screen · ⬜ UX-10 Clear limits + recovery steps (H2)
+
+### I-R. Creativity and simulation (P1–P3)
+- ⬜ CRE-01 (P2) Images/audio/video/presentations · ⬜ CRE-02 Iterative design with versions · ⬜ CRE-03/04 (P1) Several distinct
+  options + critique against a rubric · ⬜ CRE-05..10 Style guides, simulations, experiments, synthetic tests, prior art, idea log
+
+### I-S. Everyday life (P1–P3)
+- ⬜ PER-01 Tasks/deadlines/commitments · ⬜ PER-02 Daily/weekly planning · ⬜ PER-03 Shopping comparison · ⬜ PER-04 Travel plans
+- ⬜ PER-05 Warranty/subscription/renewal tracking · ⬜ PER-06 Personal documents · ⬜ PER-07 (P3) Home inventory/maintenance
+- ⬜ PER-08 (P3) Expenses/budget · ⬜ PER-09 Forms/paperwork (stop before submit) · ⬜ PER-10 Routines + reminders
+
+### I-T. Teams (P2, after personal use works)
+- ⬜ ENT-01..10 Roles, shared knowledge with boundaries, team tasks, approval chains, federated search, reports,
+  decision log, multi-tenant isolation, import/export, usage/cost reports
+
+### I-U. Cognitive OS modules (research track, P2–P3; only once H works)
+- ⬜ Manas event bus · Vivek attention/judgement · Chitta working memory · Smriti long-term memory · Aham identity/limits ·
+  Nirikshak verification/failure analysis · Yantra typed actions · planner · sleep/consolidation — as shared services, not demos
+
+### I-V. Claude's additions (not in the owner's lists)
+- ⬜ **Activity log with "undo"** per action (H3) — the fastest way to trust autonomy
+- ⬜ **"What can you do here?"** command per channel, generated from the registry (H2) — kills "I can't do that" surprises
+- ⬜ **Real-request test set:** 50 of the owner's actual questions run after every deploy, scored (did it use the right tool,
+  was the answer correct) — measures progress instead of counting features
+- ⬜ **Telegram location reminders** using Telegram's *live location for a set time* (15 min/1 h/8 h), never 24×7
+- ⬜ **India-specific:** CPCB AQI scale, IMD weather warnings, PIN-code lookup, Hindi place names
+- ⬜ **Cost/latency meter** per reply (model, tools, ms) visible to the owner
+- ⬜ **Offline-safe answers:** when a service is down, say so with the last known value and its time, never invent
+- ⬜ **Privacy switch:** "forget my location" / "pause location" commands; location history never kept, only the latest
+- ⬜ **Personal shortcuts:** user-defined phrases ("goodnight" → lights off, alarms, briefing tomorrow)
+
+### What Claude would do better (process)
+1. Fewer, deeper features: each step in H ships only when it works from **all three** channels with a real test.
+2. Every tool reports what really happened (no "saved" unless saved) — the office bug of 2026-10-13 shows why.
+3. Measure with the owner's real questions after each deploy, not unit tests alone.
+4. Ask the owner for one 5-minute phone check per milestone instead of many small ones.
 
 ## F. Later (after A-E)
 

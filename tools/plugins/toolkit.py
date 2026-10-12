@@ -74,6 +74,47 @@ def _ask_for_location() -> None:
         actions.append("share_location")  # web/app: location prompt; Telegram: 'Share location' button
 
 
+def _near(ctx: PluginContext | None) -> tuple[float, float] | None:
+    """Where the user is (device) or lives (saved home): bias place lookups to their own city."""
+    if ctx is None or ctx.profile is None:
+        return None
+    device = ctx.profile.location(ctx.user_id, max_age=7 * 86400)
+    if device:
+        return device["lat"], device["lon"]
+    home = ctx.profile.places(ctx.user_id).get("home")
+    return (home["lat"], home["lon"]) if home else None
+
+
+def _saved_place(ctx: PluginContext | None, name: str) -> dict | None:
+    if ctx is None or ctx.profile is None:
+        return None
+    key = " ".join(name.lower().replace("my ", "").replace("the ", "").split())
+    spot = ctx.profile.places(ctx.user_id).get(key)
+    return {"latitude": spot["lat"], "longitude": spot["lon"], "label": f"{key} ({spot['label']})"} if spot else None
+
+
+async def _save_place(args: dict, ctx: PluginContext | None) -> str:
+    """Save home/office/any named place, from an address or the user's current device location."""
+    if ctx is None or ctx.profile is None:
+        return "Saved places need a signed-in user."
+    from tools.plugins.information.weather import address, find_place
+    name = _text(args, "name", 30)
+    where = str(args.get("place") or "").strip()[:120]
+    if not where or where.lower() in {"here", "current location", "my location", "this location"}:
+        device = ctx.profile.location(ctx.user_id, max_age=3600)
+        if not device:
+            _ask_for_location()
+            return ("NEEDS_LOCATION: to save the current spot, the user must share their location (prompt shown), "
+                    "or say the address.")
+        spot = {"latitude": device["lat"], "longitude": device["lon"], "label": await address(device["lat"], device["lon"])}
+    else:
+        spot = await find_place(where, near=_near(ctx))
+        if spot is None:
+            return f"I couldn't find {where}. Try adding the area or city."
+    key = ctx.profile.set_place(ctx.user_id, name, spot["latitude"], spot["longitude"], spot["label"])
+    return f"Saved '{key}' as {spot['label']}."
+
+
 async def _weather(args: dict, ctx: PluginContext | None) -> str:
     """Forecast for a named place, else the device's recent location, else the saved home city."""
     from tools.plugins.information.weather import forecast, find_place
@@ -82,7 +123,7 @@ async def _weather(args: dict, ctx: PluginContext | None) -> str:
         when = "now"
     place_name = str(args.get("place") or args.get("city") or "").strip()[:80]
     if place_name and place_name.casefold() not in {"here", "my location", "current location", "where i am"}:
-        place = await find_place(place_name)
+        place = _saved_place(ctx, place_name) or await find_place(place_name, near=_near(ctx))
         if place is None:
             return f"I couldn't find a place named {place_name}."
         return await forecast(place["latitude"], place["longitude"], place["label"], when)
@@ -95,6 +136,11 @@ async def _weather(args: dict, ctx: PluginContext | None) -> str:
             label = f"your location ({device['lat']:.3f}, {device['lon']:.3f})"
         report = await forecast(device["lat"], device["lon"], label, when)
         return f"{report}\n(Location from your device, {device['age_minutes']} min ago.)"
+    saved_home = _saved_place(ctx, "home")
+    if saved_home:
+        _ask_for_location()
+        report = await forecast(saved_home["latitude"], saved_home["longitude"], saved_home["label"], when)
+        return f"{report}\n(Using your saved home; share your location for where you are now.)"
     home = ctx.profile.get(ctx.user_id).get("city", "") if ctx is not None and ctx.profile is not None else ""
     if home:
         place = await find_place(home)
@@ -342,11 +388,16 @@ TOOLS: tuple[Tool, ...] = (
          _params({"action": {"type": "string", "enum": list(SCREEN_ACTIONS)}}, ["action"]),
          _screen_control, "local-utilities"),
     Tool("get_weather", "Weather and forecast: current conditions, next hours, today, tomorrow or the 7-day "
-         "week (rain chance, temperatures, wind, UV, sunrise/sunset). Leave 'place' empty for where the user is "
-         "now (device location) or their home city.",
+         "week: rain/snow amounts and chance, temperatures and feels-like, hot/cold verdict and change vs today, wind "
+         "and gusts, humidity, visibility, UV, sunrise/sunset, air quality (AQI, PM2.5, PM10). 'place' = any city, "
+         "colony, sector or landmark, or a saved place name (home, office); empty = where the user is now.",
          _params({"place": {"type": "string", "description": "City or place; empty = user's location"},
                   "when": {"type": "string", "enum": ["now", "next_hours", "today", "tomorrow", "week"]}}),
          _weather, "online-information"),
+    Tool("save_place", "Save a named place for later (home, office, gym, parents...): from an address/area or "
+         "'here' (the user's current device location). Then use the name as get_weather place.",
+         _params({"name": {"type": "string"}, "place": {"type": "string", "description": "Address/area, or 'here'"}},
+                 ["name"]), _save_place, "online-information", needs_context=True),
     Tool("where_am_i", "The user's current address/area from their device location (with their consent).",
          _params(), _where_am_i, "online-information", needs_context=True),
     Tool("get_news", "Latest BBC News headlines.",
