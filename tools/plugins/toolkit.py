@@ -505,7 +505,7 @@ TOOLS: tuple[Tool, ...] = (
          _params({"name": {"type": "string", "description": "App name, e.g. 'Spotify', 'Calculator'"}}, ["name"]),
          _pc("open_app"), "pc-control", True, True, lambda a: f"Open app: {a.get('name', '')}"),
     Tool("open_url", "Open a web page in the computer's browser (asks the user first).",
-        _params({"url": {"type": "string", "description": "Full http(s) URL"}}, ["url"]),
+         _params({"url": {"type": "string", "description": "Full http(s) URL"}}, ["url"]),
          _pc("open_url"), "pc-control", True, True, lambda a: f"Open website: {a.get('url', '')}"),
     Tool("update_profile", "Save a lasting user preference: voice (male/female speaking voice), "
          "assistant_nickname (what this user wants to call you, "
@@ -542,7 +542,7 @@ TOOLS: tuple[Tool, ...] = (
         _restart_service, "local-utilities", True),
         _params({"service": {"type": "string"}}, ["service"]),
     Tool("restart_service", "Restart a service with approval. Only read-only, approved paths.",
-        _params({"url": {"type": "string", "description": "Full http(s) URL"}}, ["url"]),
+         _params({"url": {"type": "string", "description": "Full http(s) URL"}}, ["url"]),
          _read_page, "online-information"),
     Tool("places_near_me", "Find places (pharmacies, hospitals, shops, restaurants) near the user's location "
          "or a named place. Returns name, address and distance.",
