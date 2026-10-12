@@ -267,7 +267,8 @@
   function drawWave() {
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
-    if (!width || !height) return;
+    // No early return when the wave is hidden (conversation mode): the analysis below also feeds the
+    // hologram's glow and detects the end of each spoken turn. Only the drawing is skipped.
     const center = height / 2;
     const time = performance.now() / 1000;
     const analyser = listening ? microphoneAnalyser : speaking ? speechAnalyser : null;
@@ -301,6 +302,10 @@
       window.__HUM_ENERGY = 0.48 + Math.abs(Math.sin(time * 5.4)) * 0.38;
     } else if (!speaking) window.__HUM_ENERGY = 0;
 
+    if (!width || !height) {
+      animationFrame = requestAnimationFrame(drawWave); // keep analysing while hidden
+      return;
+    }
     ctx.clearRect(0, 0, width, height);
     const gradient = ctx.createLinearGradient(0, 0, width, 0);
     gradient.addColorStop(0, "#139de8");
@@ -1834,6 +1839,7 @@
   }
 
   async function cancelListening(message = "Voice capture stopped.") {
+    nativeVoice?.postMessage(JSON.stringify({ cmd: "stop" }));
     voiceRequest += 1;
     voiceSessionActive = false;
     listening = false;
@@ -1848,8 +1854,44 @@
     restoreIdlePhase(message);
   }
 
+  // ---- Android app: the phone's own speech recognizer (window.AtulyaNative, Atulya origin only) ----
+  // More accurate than the server's small model, handles Hindi, and ignores background noise itself.
+  const nativeVoice = window.AtulyaNative && typeof window.AtulyaNative.postMessage === "function" ? window.AtulyaNative : null;
+  let nativeVoiceErrors = 0;
+  if (nativeVoice) {
+    nativeVoice.onmessage = async (event) => {
+      let message = {};
+      try { message = JSON.parse(event.data); } catch { return; }
+      if (message.kind === "ready") { setPhase("listening", "Listening", "Speak naturally. I'll answer when you pause."); return; }
+      if (message.kind === "speech" || message.kind === "end") return;
+      listening = false;
+      refreshWave();
+      if (!voiceSessionActive) return;
+      if (message.kind === "result") {
+        nativeVoiceErrors = 0;
+        const transcript = applyWakeWord(String(message.text || "").trim());
+        if (!transcript) { resumeLiveVoice(); return; } // not addressed to Atulya, or just the name
+        await sendMessage(transcript, true);
+        if (!speaking) resumeLiveVoice();
+        return;
+      }
+      if (message.kind === "nomatch" || message.kind === "busy") { resumeLiveVoice(); return; } // silence: just listen again
+      voiceSessionActive = false;
+      if (message.kind === "denied") setPhase("idle", "Allow microphone", "Allow the microphone for Atulya in Android settings, then tap the wave.");
+      else if (++nativeVoiceErrors >= 3) setPhase("idle", "Voice paused", "The phone's speech service is not responding. Tap the wave to try again.");
+      else { voiceSessionActive = true; resumeLiveVoice(); }
+    };
+  }
+
   async function startListening(resume = false) {
     if (!resume) voiceSessionActive = true;
+    if (nativeVoice) {
+      listening = true;
+      setPhase("listening", "Listening", "Speak naturally. I'll answer when you pause.");
+      refreshWave();
+      nativeVoice.postMessage(JSON.stringify({ cmd: "listen", lang: /^hi/i.test(navigator.language || "") ? "hi-IN" : "en-IN" }));
+      return;
+    }
     if (!voiceReady) {
       voiceSessionActive = false;
       setPhase("idle", "Voice unavailable", "Local speech input is not ready. Restart Atulya after voice setup completes.");
@@ -1930,7 +1972,7 @@
       startListening();
       return;
     }
-    const shouldSendFinalSpeech = listening && speechDetected && recorder;
+    const shouldSendFinalSpeech = !nativeVoice && listening && speechDetected && recorder;
     voiceSessionActive = false;
     if (shouldSendFinalSpeech) finishListening();
     else cancelListening("Live voice stopped.");
@@ -2518,6 +2560,8 @@
       addPasskeyButton.disabled = false;
     }
   });
+
+  $("#reload-app")?.addEventListener("click", () => window.location.reload());
 
   signOutButton?.addEventListener("click", async () => {
     await fetch("/api/auth/logout", { method: "POST", headers: { Accept: "application/json" } }).catch(() => {});

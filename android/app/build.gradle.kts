@@ -15,6 +15,10 @@ android {
         // Server the app opens; change at build time with -PatulyaUrl=https://...
         buildConfigField("String", "ATULYA_URL", "\"${project.findProperty("atulyaUrl") ?: "https://atulya.atulvij.com"}\"")
     }
+    defaultConfig {
+        // Only the CI emulator smoke-test build sets -PallowScreenshots=true; released APKs keep FLAG_SECURE.
+        buildConfigField("boolean", "ALLOW_SCREENSHOTS", (project.findProperty("allowScreenshots") ?: "false").toString())
+    }
     buildFeatures { buildConfig = true }
     defaultConfig { resourceConfigurations += listOf("en", "hi") }
     packaging { resources.excludes += listOf("META-INF/*.version", "kotlin/**", "DebugProbesKt.bin") }

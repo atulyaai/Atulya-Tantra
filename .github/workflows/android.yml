@@ -56,6 +56,34 @@ jobs:
           path: |
             dist/Atulya-*.apk
             dist/Atulya-*.aab
+      - name: Build emulator test copy (screenshots allowed)
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/atulya-release.p12"
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/atulya-release.p12"
+          gradle --no-daemon assembleRelease -PversionName="$VERSION" -PversionCode="$GITHUB_RUN_NUMBER" -PallowScreenshots=true
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/smoke.apk"
+          rm -f "$RUNNER_TEMP/atulya-release.p12"
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - name: Emulator smoke test (install, launch, rotate, resume, app link)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: sh tools/android_smoke.sh "$RUNNER_TEMP/smoke.apk" dist/smoke
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-${{ env.VERSION }}
+          path: dist/smoke
       - name: APK size
         run: echo "APK $(du -k dist/*.apk | cut -f1) KB" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Publish release

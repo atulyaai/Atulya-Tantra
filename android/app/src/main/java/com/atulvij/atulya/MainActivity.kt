@@ -6,6 +6,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import android.view.WindowManager
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
@@ -19,8 +22,11 @@ import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.biometric.BiometricPrompt
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.webkit.JavaScriptReplyProxy
 import androidx.webkit.WebSettingsCompat
+import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
+import org.json.JSONObject
 
 /**
  * Atulya for Android.
@@ -37,10 +43,15 @@ class MainActivity : AppCompatActivity() {
     private var pendingUrl: String? = null
     private val relockAfterMs = 2 * 60 * 1000L // quick trips (copying a code from Telegram) don't re-lock
     private val origin: Uri = Uri.parse(BuildConfig.ATULYA_URL)
+    private var recognizer: SpeechRecognizer? = null
+    private var voiceReply: JavaScriptReplyProxy? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        // Screens stay private (no screenshots/recents preview); only the CI emulator test build allows capture.
+        if (!BuildConfig.ALLOW_SCREENSHOTS) {
+            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        }
         web = WebView(this)
         setContentView(web)
         configureWebView()
@@ -58,6 +69,7 @@ class MainActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         leftAt = System.currentTimeMillis()
+        stopRecognition() // never keep listening in the background
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -131,6 +143,21 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
         }
+        // Native voice input: the phone's own recognizer (free, accurate, Hindi, built-in noise handling).
+        // Exposed as window.AtulyaNative only to the Atulya origin, never to other pages.
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER) &&
+            SpeechRecognizer.isRecognitionAvailable(this)) {
+            WebViewCompat.addWebMessageListener(web, "AtulyaNative", setOf("${origin.scheme}://${origin.host}")) {
+                    _, message, _, isMainFrame, reply ->
+                if (!isMainFrame) return@addWebMessageListener
+                val command = try { JSONObject(message.data ?: "{}") } catch (_: Exception) { JSONObject() }
+                voiceReply = reply
+                when (command.optString("cmd")) {
+                    "listen" -> startRecognition(command.optString("lang", "en-IN"))
+                    "stop" -> stopRecognition()
+                }
+            }
+        }
         web.webChromeClient = object : WebChromeClient() {
             override fun onPermissionRequest(request: PermissionRequest) {
                 val sameOrigin = request.origin.host == origin.host && request.origin.scheme == "https"
@@ -141,6 +168,57 @@ class MainActivity : AppCompatActivity() {
                 else request.deny()
             }
         }
+    }
+
+    private fun sendVoice(kind: String, text: String = "") {
+        val payload = JSONObject().put("kind", kind).put("text", text).toString()
+        runOnUiThread { try { voiceReply?.postMessage(payload) } catch (_: Exception) { } }
+    }
+
+    private fun startRecognition(language: String) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestMediaPermissions()
+            sendVoice("denied")
+            return
+        }
+        val engine = recognizer ?: SpeechRecognizer.createSpeechRecognizer(this).also { recognizer = it }
+        engine.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) = sendVoice("ready")
+            override fun onBeginningOfSpeech() = sendVoice("speech")
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() = sendVoice("end")
+            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+            override fun onResults(results: Bundle?) {
+                val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+                sendVoice(if (text.isBlank()) "nomatch" else "result", text)
+            }
+            override fun onError(error: Int) {
+                sendVoice(when (error) {
+                    SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "nomatch"
+                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "denied"
+                    SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "busy"
+                    else -> "error"
+                }, error.toString())
+            }
+        })
+        engine.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, language)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 900L)
+        })
+    }
+
+    private fun stopRecognition() {
+        recognizer?.cancel()
+    }
+
+    override fun onDestroy() {
+        recognizer?.destroy()
+        recognizer = null
+        super.onDestroy()
     }
 
     /** Native-shell updates: the web UI updates itself; this only offers a newer signed APK. */
