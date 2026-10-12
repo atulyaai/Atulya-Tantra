@@ -27,6 +27,5 @@ jobs:
           printf '%s\n' "$KEY" > ~/deploy_key
           ssh -i ~/deploy_key -o StrictHostKeyChecking=accept-new -o BatchMode=yes "ubuntu@$HOST" deploy
           rm -f ~/deploy_key
-      - name: Public health check
-        run: |
-          for i in $(seq 1 20); do curl -fsS https://atulya.atulvij.com/api/health && exit 0; sleep 3; done; exit 1
+          # deploy_server.sh health-checks on the server itself and rolls back on failure.
+          # (A public check from GitHub is blocked by Cloudflare's bot protection, by design.)
