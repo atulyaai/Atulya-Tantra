@@ -107,6 +107,10 @@ def step(name: str, ok: bool, detail: str = "") -> bool:
 
 
 def screen_size() -> tuple[int, int]:
+    """Current screen size in its current orientation (wm size always reports portrait)."""
+    found = nodes()
+    if found:
+        return max(n["box"][2] for n in found), max(n["box"][3] for n in found)
     match = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size"))
     return (int(match.group(1)), int(match.group(2))) if match else (1080, 2400)
 
@@ -205,7 +209,8 @@ if step("signed in: chat input visible", composer is not None and inside_screen(
     adb("shell", "settings", "put", "system", "user_rotation", "1")
     time.sleep(5)
     landscape = find(r"Type a message|#chat-prompt", 10)
-    step("landscape: chat input still on screen", landscape is not None and inside_screen(landscape))
+    step("landscape: chat input still on screen", landscape is not None and inside_screen(landscape),
+         str(landscape["box"]) if landscape else "")
     adb("shell", "settings", "put", "system", "user_rotation", "0")
     time.sleep(3)
 
