@@ -362,6 +362,14 @@ async def _use_skill(args: dict, _ctx: PluginContext | None) -> str:
     return f"Follow these skill instructions using your other tools:\n\n{body}"
 
 
+async def _what_can_you_do(args: dict, _ctx: PluginContext | None) -> str:
+    from tools.plugins.capabilities import catalogue_for_channel
+    channel = str(args.get("channel") or "web").strip().lower()
+    if channel not in {"web", "telegram", "mcp", "android"}:
+        channel = "web"
+    return catalogue_for_channel(channel)
+
+
 # Screen actions the WebUI performs itself (hide chat, new chat, camera, ...). The chat stream drains this
 # per-request list and sends each action to the browser, so any phrasing of a request works, not only the
 # fixed phrases the page recognizes instantly.
@@ -450,6 +458,10 @@ TOOLS: tuple[Tool, ...] = (
          _pc("take_screenshot"), "pc-control", True, True, lambda a: "Take a screenshot"),
     Tool("use_skill", "Load a named multi-step skill (workflow instructions) and follow it.",
          _params({"name": {"type": "string"}}, ["name"]), _use_skill, "skills"),
+    Tool("what_can_you_do", "What Atulya can do on this channel, with honest status for each capability. "
+         "Use it when the user asks 'what can you do here?', 'what can you do on Telegram?', or similar.",
+         _params({"channel": {"type": "string", "enum": ["web", "telegram", "mcp", "android"]}}),
+         _what_can_you_do, "local-utilities"),
 )
 
 

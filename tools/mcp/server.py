@@ -1,31 +1,29 @@
-"""Optional MCP server exposing Atulya's public plugin tools and every skill.
+"""Optional MCP server exposing Atulya's shared tool registry and skills.
 
 Tools come from the same plugin set the assistant uses (tools/plugins/), and
 plugins disabled in the WebUI are left out. Each tools/skills/<name>/SKILL.md
 is published as an MCP prompt. Private data (memory, calendar, history) is
 never exposed here.
+
+The MCP server no longer has its own copies of weather, news, time or
+calculate — it exposes the same Tool handlers from toolkit.TOOLS, so there is
+one shared path for all channels (PLT-01/03).
 """
 from __future__ import annotations
 
-import json
 import logging
-from collections.abc import Awaitable, Callable
 
 from mcp.server.mcpserver import MCPServer
 
 from atulya.settings import Settings
-from tools.plugins.information.news import headlines as get_headlines
-from tools.plugins.information.weather import weather as get_weather
+from tools.plugins.capabilities import catalogue_for_channel
 from tools.plugins.toolkit import list_skills, read_skill
-from tools.plugins.utilities.calculator import calculate as run_calculation
-from tools.plugins.utilities.clock import current_time
 
-WeatherLookup = Callable[[str], Awaitable[str]]
-HeadlinesLookup = Callable[[int], Awaitable[str]]
 logger = logging.getLogger(__name__)
 
 
 def _disabled_plugins() -> set[str]:
+    import json
     try:
         path = Settings.from_environment().data_dir / "plugin_settings.json"
         saved = json.loads(path.read_text(encoding="utf-8"))
@@ -35,12 +33,15 @@ def _disabled_plugins() -> set[str]:
 
 
 def create_server(
-    weather_lookup: WeatherLookup = get_weather,
-    headlines_lookup: HeadlinesLookup = get_headlines,
     *,
     disabled_plugins: set[str] | None = None,
 ) -> MCPServer:
-    """Create the explicitly allowlisted Atulya MCP server."""
+    """Create the explicitly allowlisted Atulya MCP server.
+
+    Exposes the shared toolkit tool handlers (not duplicates) plus skills as prompts.
+    Each wrapper has an explicit signature so the MCP SDK can generate the schema;
+    the actual logic lives in toolkit.py — one source of truth.
+    """
     disabled = _disabled_plugins() if disabled_plugins is None else disabled_plugins
     server = MCPServer(
         "Atulya",
@@ -49,38 +50,41 @@ def create_server(
     )
 
     if "online-information" not in disabled:
-        @server.tool()
-        async def weather(city: str) -> str:
-            """Get current weather for a city using Open-Meteo."""
-            try:
-                return await weather_lookup(city)
-            except Exception as exc:
-                logger.warning("MCP weather lookup failed (%s)", type(exc).__name__)
-                return "Weather is unavailable for that city right now. Check the city name or try again later."
+        from tools.plugins.toolkit import TOOLS_BY_NAME
 
         @server.tool()
-        async def news_headlines(limit: int = 5) -> str:
-            """Get up to ten current BBC News headlines."""
-            bounded_limit = max(1, min(int(limit), 10))
-            try:
-                return await headlines_lookup(bounded_limit)
-            except Exception as exc:
-                logger.warning("MCP news lookup failed (%s)", type(exc).__name__)
-                return "News headlines are unavailable right now. Try again later."
+        async def get_weather(place: str = "", when: str = "now") -> str:
+            """Weather and forecast: current conditions, next hours, today, tomorrow or the 7-day week."""
+            handler = TOOLS_BY_NAME["get_weather"].handler
+            return (await handler({"place": place, "when": when}, None))[:4000]
+
+        @server.tool()
+        async def get_news(limit: int = 5) -> str:
+            """Latest BBC News headlines."""
+            handler = TOOLS_BY_NAME["get_news"].handler
+            return (await handler({"limit": limit}, None))[:4000]
 
     if "local-utilities" not in disabled:
+        from tools.plugins.toolkit import TOOLS_BY_NAME
+
         @server.tool()
         def get_time() -> str:
-            """Current local date and time on the Atulya host."""
-            return current_time()
+            """Current local date and time on the host."""
+            import asyncio
+            handler = TOOLS_BY_NAME["get_time"].handler
+            return asyncio.run(handler({}, None))[:4000]
 
         @server.tool()
         def calculate(expression: str) -> str:
             """Evaluate an arithmetic expression exactly (+ - * / % and parentheses)."""
-            try:
-                return run_calculation(expression[:200])
-            except ValueError as exc:
-                return str(exc)
+            import asyncio
+            handler = TOOLS_BY_NAME["calculate"].handler
+            return asyncio.run(handler({"expression": expression}, None))[:4000]
+
+        @server.tool()
+        def what_can_you_do(channel: str = "mcp") -> str:
+            """What Atulya can do on this channel, with honest status for each capability."""
+            return catalogue_for_channel(channel)
 
     for skill in list_skills():
         _register_skill_prompt(server, skill["name"], skill["description"])

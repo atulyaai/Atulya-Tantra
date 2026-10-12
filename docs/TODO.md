@@ -278,6 +278,282 @@ also kept in `docs/CAPABILITIES.md`.
 3. Measure with the owner's real questions after each deploy, not unit tests alone.
 4. Ask the owner for one 5-minute phone check per milestone instead of many small ones.
 
+## I-W. Ideas backlog (2026-10-13, 302 items — not yet in the main track)
+
+These are feature ideas from the owner, grouped by category. They do NOT repeat anything in sections A–V.
+Most should never be built just because they are possible. The owner's top picks are marked with a star (⭐).
+
+### Seeing, hearing, sensing
+- ⬜ 90. Read any text in a photo (signboards, menus, documents) and translate it
+- ⬜ 91. Identify plants, birds, insects and dog breeds from a photo
+- ⬜ 92. Food photo → rough calories and nutrition (estimate, clearly marked)
+- ⬜ 93. Read a medicine strip/label → name, dosage on the label, expiry (no medical advice)
+- ⬜ 94. Scan a barcode or QR code → what it is, whether the link is safe
+- ⬜ 95. Describe a scene for low-vision use ("what's in front of me?")
+- ⬜ 96. Count objects in a photo (people in a queue, items on a shelf)
+- ⬜ 97. Read meters (electricity, water) from a photo and log readings
+- ⬜ 98. Handwriting → typed text (notes, whiteboards)
+- ⬜ 99. Recognise songs playing nearby and save them to a playlist
+- ⬜ 100. Sound alerts: doorbell, pressure cooker whistle, baby crying (on-device, opt-in)
+- ⬜ 101. Room noise level and a "too loud for calls" warning
+- ⬜ 102. Measure things from a photo with a reference object (approximate)
+- ⬜ 103. Compare two photos for differences (before/after repair, document changes)
+- ⬜ 104. Detect a damaged parcel from a delivery photo, for a claim
+
+### Knowledge and answers
+- ⬜ 105. Explain any topic at any level, with examples from your life
+- ⭐ ⬜ 106. Fact-check a forwarded WhatsApp message, with sources
+- ⬜ 107. Explain a legal notice, contract or agreement in simple words (not legal advice)
+- ⬜ 108. Explain bills, insurance policies and terms-and-conditions clauses
+- ⬜ 109. "Explain like I'm 10" / "explain like an expert" toggle
+- ⬜ 110. Answers with confidence levels and "how I know this"
+- ⬜ 111. Local knowledge: best time to visit places, crowd levels (where data exists)
+- ⬜ 112. Unit conversions in Indian units (gaj, bigha, lakh/crore)
+- ⬜ 113. Historical "on this day" for your interests
+- ⬜ 114. Compare two things side by side (phones, cities, courses)
+- ⬜ 115. Settle debates with evidence ("who's right?")
+
+### Language
+- ⬜ 116. Speak and understand 20+ Indian languages (as models allow)
+- ⬜ 117. Live conversation interpreter (you speak Hindi, they hear English)
+- ⬜ 118. Rewrite in any tone: formal, polite, firm, funny
+- ⬜ 119. Grammar and spelling coach that explains the mistakes
+- ⬜ 120. Write letters: complaint, leave application, RTI, landlord notice
+- ⬜ 121. Transliteration (Hinglish ↔ Devanagari)
+- ⬜ 122. Summaries of long text in your language
+- ⬜ 123. Pronunciation help with audio
+- ⬜ 124. Speech-writing for weddings, events and speeches
+
+### Creative
+- ⬜ 125. Poems, shayari and songs in your style
+- ⬜ 126. Story writing with you, chapter by chapter
+- ⬜ 127. Image generation for posters, invitations and logos
+- ⬜ 128. Photo editing by voice ("remove background", "brighten")
+- ⬜ 129. Short video from photos with music and captions
+- ⬜ 130. Voice-over for videos in your chosen voice
+- ⬜ 131. Presentation design from a topic
+- ⬜ 132. Greeting cards for festivals, auto-personalised
+- ⬜ 133. Song lyrics meaning and translation (discussion only)
+- ⬜ 134. Comic strips and storyboards
+- ⬜ 135. Interior-design ideas from a room photo
+- ⬜ 136. Outfit suggestions from your wardrobe photos and the weather
+- ⬜ 137. Name ideas (business, baby, pet, project) with domain checks
+- ⬜ 138. Brainstorming partner that argues the other side
+
+### Work and career
+- ⬜ 139. Resume and LinkedIn improvement for a specific job
+- ⬜ 140. Job search alerts matching your skills
+- ⬜ 141. Mock interviews by voice, with feedback
+- ⬜ 142. Salary research for a role and city
+- ⬜ 143. Cover letters tailored per job
+- ⬜ 144. Daily standup notes from your activity
+- ⬜ 145. Email triage: urgent / later / ignore
+- ⬜ 146. Delegation tracker ("what did I ask whom?")
+- ⬜ 147. Meeting cost and time tracker
+- ⬜ 148. Skill-gap plan for a target role
+- ⬜ 149. Freelance proposal writer
+- ⬜ 150. Workload balance warning ("too many deadlines this week")
+
+### Business (for your companies)
+- ⬜ 151. Business plan and pitch-deck drafts
+- ⬜ 152. Market research summaries with sources
+- ⬜ 153. Competitor monitoring (public pages)
+- ⬜ 154. Customer-support reply drafts from your FAQ
+- ⬜ 155. Inventory tracking from photos or spreadsheets
+- ⬜ 156. GST return preparation help (draft only)
+- ⬜ 157. Simple CRM: leads, follow-ups, deals
+- ⬜ 158. Website chatbot powered by Atulya for atulvij.com visitors
+- ⬜ 159. Marketing calendar and post drafts
+- ⬜ 160. Price-change monitoring on suppliers' public pages
+- ⬜ 161. Contract renewal and vendor reminders
+- ⬜ 162. Daily business dashboard (sales, traffic, support) on Telegram
+
+### Money (read-only and advice-free)
+- ⬜ 163. Net-worth tracker from statements you upload
+- ⬜ 164. Budget envelopes with alerts
+- ⬜ 165. Insurance renewal and coverage summary
+- ⬜ 166. Tax-saving checklist (80C and others, informational)
+- ⬜ 167. Investment portfolio summary from statements (no buy/sell advice)
+- ⬜ 168. "Can I afford this?" based on your budget rules
+- ⬜ 169. Loan, credit-card and due-date tracking
+- ⬜ 170. Detect unusual charges in statements
+- ⬜ 171. Shared household expense ledger
+- ⬜ 172. Gift budget per festival/person
+
+### Health, fitness, wellbeing (information only)
+- ⬜ 173. Workout plans by goal and equipment, with voice coaching
+- ⬜ 174. Step/sleep data summaries (from connected fitness apps)
+- ⬜ 175. Meal plans by diet preference (veg, Jain, diabetic-friendly; not medical advice)
+- ⬜ 176. Yoga and breathing sessions guided by voice
+- ⬜ 177. Period/cycle tracking (private, local)
+- ⬜ 178. Mood check-ins and journalling prompts
+- ⬜ 179. Mental-health resources and helplines when needed (never therapy)
+- ⭐ ⬜ 180. Vaccination schedule reminders for family members
+- ⬜ 181. Lab report organiser: trends over time (no diagnosis)
+- ⬜ 182. Posture reminders while working
+
+### Education (for you and family)
+- ⬜ 183. Homework helper that teaches, not just answers
+- ⬜ 184. Exam schedules and revision plans
+- ⬜ 185. Practice questions from textbook photos
+- ⬜ 186. Course recommendations for a goal
+- ⬜ 187. Coding tutor with exercises
+- ⬜ 188. Math step-by-step solver with explanations
+- ⬜ 189. Reading-level stories for kids
+- ⬜ 190. Quiz games for family learning
+
+### Home
+- ⬜ 191. Smart-home routines by time, weather or AQI (purifier on when AQI is bad)
+- ⬜ 192. Energy-saving tips from electricity bills
+- ⬜ 193. Plant watering reminders by weather
+- ⬜ 194. Home maintenance calendar (cleaning, pest control, servicing)
+- ⬜ 195. Water-tank and RO-filter schedules
+- ⬜ 196. Security camera summaries ("anyone at the door today?"), your own cameras only
+- ⬜ 197. Power-cut and water-supply schedule alerts (where published)
+- ⬜ 198. Moving-house checklist and address-change list
+- ⬜ 199. Rent agreement and payment reminders
+- ⬜ 200. Furniture fit check with room measurements
+
+### Family and relationships
+- ⬜ 201. Shared family calendar
+- ⬜ 202. Gift ideas from what people like
+- ⬜ 203. Event planning: guest list, invites, RSVPs, menu, budget
+- ⬜ 204. Kids' screen-time summaries (your own devices, with their knowledge)
+- ⬜ 205. Family tree and stories archive
+- ⬜ 206. Elder-care medicine and appointment coordination
+- ⬜ 207. "Remember what X likes" (with their knowledge)
+
+### Shopping
+- ⬜ 208. Product comparison with reviews summarised
+- ⬜ 209. Price-drop alerts (public prices)
+- ⬜ 210. Warranty registration from invoices
+- ⬜ 211. Return/refund deadline tracking
+- ⬜ 212. "Buy again" reminders for consumables
+- ⬜ 213. Size guide across brands
+- ⬜ 214. Fake-review warning signs
+
+### Travel and transport
+- ⬜ 215. Cab fare estimate and route comparison
+- ⬜ 216. Parking reminders ("where did I park?" photo + location)
+- ⬜ 217. Vehicle service, insurance and PUC reminders
+- ⬜ 218. Fuel log and mileage
+- ⬜ 219. Traffic-aware "leave now" alerts for meetings
+- ⬜ 220. Train/bus seat-availability alerts (official sources)
+- ⬜ 221. Airport checklists and timings
+- ⬜ 222. Lost-luggage claim helper
+- ⬜ 223. Road-trip planner with stops, fuel and food
+
+### Government and legal (help to understand and prepare, never to submit for you)
+- ⬜ 224. RTI application drafts
+- ⬜ 225. Consumer-complaint drafts (consumer forum, e-Daakhil)
+- ⬜ 226. Document checklists per government service
+- ⬜ 227. Scheme eligibility checker (government schemes)
+- ⬜ 228. Property-document checklist
+- ⬜ 229. Police complaint / FIR draft help (you submit)
+- ⬜ 230. Explain court notices in simple words
+- ⬜ 231. Voter ID and registration reminders
+
+### Vehicles and machines
+- ⬜ 232. Car fault codes explained (from an OBD reader app)
+- ⬜ 233. Two-wheeler maintenance schedule
+- ⬜ 234. EV charging-station finder
+- ⬜ 235. Appliance error codes explained by model
+
+### Developer and tech (beyond the current list)
+- ⬜ 236. Write and run small scripts in a sandbox
+- ⬜ 237. Explain any codebase by voice
+- ⬜ 238. Generate APIs, databases and websites from a description
+- ⬜ 239. Docker/server setup guides tailored to your server
+- ⬜ 240. Log anomaly detection with explanations
+- ⬜ 241. Load and performance testing for your sites
+- ⬜ 242. Accessibility audit of your website
+- ⬜ 243. Security headers / SSL / DNS audit
+- ⬜ 244. Git commit-message and PR-description writer
+- ⬜ 245. Natural language → SQL queries over your data
+- ⬜ 246. Website change monitor for your own sites (visual diff)
+- ⬜ 247. Generate test data and test cases
+- ⬜ 248. Wake-on-LAN and remote PC status
+
+### Security and privacy
+- ⬜ 249. Privacy check of the app permissions on your phone (your own)
+- ⬜ 250. Two-factor setup reminders per account
+- ⬜ 251. "Is this email real?" header analysis
+- ⬜ 252. Suspicious-link sandbox preview
+- ⬜ 253. Personal data exposure check (your own data, public sources)
+- ⬜ 254. Secure notes vault (encrypted)
+- ⬜ 255. Emergency info card (blood group, contacts) on the lock screen
+
+### Social and community
+- ⬜ 256. Neighbourhood notices summary (RWA groups you're in)
+- ⬜ 257. Volunteering opportunities nearby
+- ⬜ 258. Event discovery by your interests (public listings)
+- ⬜ 259. Social-media drafts in your voice (you post)
+- ⬜ 260. Group-decision helper (polls, summarising opinions)
+
+### Entertainment and fun
+- ⬜ 261. Trivia and quiz games by voice
+- ⬜ 262. Interactive stories and text adventures
+- ⬜ 263. Chess/ludo-style games with the hologram
+- ⬜ 264. Jokes and riddles in Hindi/English
+- ⬜ 265. Movie and series tracker with release alerts
+- ⬜ 266. Daily "fun fact" in your interests
+- ⬜ 267. Karaoke mode with lyrics on screen (licensed sources)
+- ⬜ 268. Hologram reactions and emotions during games
+
+### Science, nature, environment
+- ⬜ 269. Stargazing guide: what's visible tonight from your location
+- ⬜ 270. Satellite pass times (ISS)
+- ⬜ 271. Earthquake alerts and information
+- ⬜ 272. Carbon-footprint estimate of trips and bills
+- ⬜ 273. Gardening by season and climate
+- ⬜ 274. Weather history ("was last October hotter?")
+
+### Agriculture and rural (useful across India)
+- ⬜ 275. Crop advice by soil, season and weather (informational)
+- ⬜ 276. Mandi prices for crops
+- ⬜ 277. Pest identification from leaf photos
+- ⬜ 278. Irrigation timing by rain forecast
+
+### Accessibility
+- ⬜ 279. Full voice-only operation
+- ⬜ 280. Large-text / high-contrast modes
+- ⬜ 281. Screen-reader-friendly answers
+- ⬜ 282. Sign-language learning resources
+- ⬜ 283. Simplified mode for elderly users
+- ⬜ 284. Dyslexia-friendly reading mode
+
+### AI autonomy (later, always with approval and limits)
+- ⬜ 285. Agents that work for hours on a goal and report progress
+- ⬜ 286. Atulya calling businesses for you (where allowed), with a full transcript
+- ⬜ 287. Negotiation drafts (price, rent), which you approve
+- ⬜ 288. Self-improving skills from your corrections
+- ⬜ 289. Multiple Atulya "personas" for work, family and fun
+- ⬜ 290. Atulya-to-Atulya coordination between family members' assistants (opt-in)
+- ⬜ 291. Simulations before big decisions (job change, move, purchase)
+- ⬜ 292. Long-term goal coach (fitness, learning, savings) with weekly check-ins
+- ⬜ 293. Predict what you'll need ("you usually order groceries on Sunday")
+- ⬜ 294. Explainable decisions: "why did you suggest this?"
+- ⬜ 295. Personal knowledge base built from everything you approve
+
+### Hardware and physical world (future)
+- ⬜ 296. Smart-glasses mode: what you see, described and translated
+- ⬜ 297. Car mode: voice-only, driving-safe answers
+- ⬜ 298. Smartwatch quick replies and alerts
+- ⬜ 299. Robot vacuum and appliance control
+- ⬜ 300. Drone/camera control for your own property (where legal)
+- ⬜ 301. Wearable health alerts (falls, abnormal heart rate) from certified devices only
+- ⬜ 302. Desk hologram display device for Atulya's face (your scene on dedicated hardware)
+
+### Owner's top picks (build first when their category comes up)
+1. ⭐ 69/252 — Scam and link checker (useful daily, easy to build)
+2. ⭐ 27 — Telegram group summaries
+3. ⭐ 106 — Fact-check forwarded messages
+4. ⭐ 14/180 — Medicine and vaccination reminders
+5. ⭐ 163–170 — Money summaries (read-only)
+6. ⭐ 219 — "Leave now" traffic alerts
+7. ⭐ 191 — Air-purifier-on-bad-AQI routine
+8. ⭐ 3/4 — PNR and flight status
+
 ## F. Later (after A-E)
 
 Smart home (Home Assistant) · Gmail/Calendar sync · music · file/PDF answers · routines & proactive notices ·
