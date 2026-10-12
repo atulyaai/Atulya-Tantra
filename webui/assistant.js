@@ -1486,10 +1486,14 @@
     if (/^(?:exit|leave|close) (?:the )?(?:camera )?(?:full ?screen|focus)(?: view)?$|^go back to (?:the )?normal layout$/.test(command)) return { type: "exit-focus" };
     if (/^(?:(?:show|open|go to|make) (?:it )?)?(?:full ?screen|fullscreen) (?:the )?(?:camera|camera preview)$|^(?:show|open) (?:the )?(?:camera|camera preview) (?:full ?screen|fullscreen)$/.test(command)) return { type: "focus-camera" };
     if (/^(?:(?:show|open|go to|make) (?:it )?)?(?:full ?screen|fullscreen) (?:the )?(?:system )?status(?: panel| section)?$|^(?:show|open) (?:the )?(?:system )?status(?: panel| section)? (?:full ?screen|fullscreen)$/.test(command)) return { type: "focus-status" };
-    const panel = command.match(/^(show|open|display|add|hide|remove|close) (camera(?: preview)?|chat|conversation|system status|status|system)(?: (?:preview|panel|section))?$/);
+    if (/^(?:start |open |go to |enable |switch to )?(?:conversation|talk|talking|voice|hands ?free) mode$|^(?:only|just) (?:show )?(?:the )?hologram$|^full ?screen hologram$|^chat (?:chupao|chhupao|band karo|hatao)$/.test(command)) {
+      return { type: "panel", name: "chat", visible: false };
+    }
+    if (/^(?:exit|stop|close|leave) (?:conversation|talk|voice) mode$|^chat (?:dikhao|kholo|wapas)$/.test(command)) return { type: "panel", name: "chat", visible: true };
+    const panel = command.match(/^(show|open|display|add|hide|remove|close|minimi[sz]e|collapse|bring back) (camera(?: preview)?|chat|chats|conversation|messages|text|system status|status|system)(?: (?:preview|panel|section|window|area|options?|screen|part|view|bar))*$/);
     if (panel) {
-      const name = panel[2].startsWith("camera") ? "camera" : ["chat", "conversation"].includes(panel[2]) ? "chat" : "status";
-      return { type: "panel", name, visible: ["show", "open", "display", "add"].includes(panel[1]) };
+      const name = panel[2].startsWith("camera") ? "camera" : ["chat", "chats", "conversation", "messages", "text"].includes(panel[2]) ? "chat" : "status";
+      return { type: "panel", name, visible: ["show", "open", "display", "add", "bring back"].includes(panel[1]) };
     }
     if (/^(?:add|show) (?:a )?(?:new )?section\b/.test(command)) return { type: "unknown-section" };
     return null;
@@ -1515,6 +1519,24 @@
       layoutVoiceToggle.setAttribute("aria-label", voiceSessionActive ? "Stop live voice conversation" : "Start live voice conversation");
     }
     if (layoutChatToggle) layoutChatToggle.hidden = !document.body.classList.contains("panel-chat-hidden");
+  }
+
+  // Screen actions requested by the brain (tool screen_control), so any phrasing works.
+  function runScreenAction(action) {
+    const actions = {
+      hide_chat: () => setConversationMode(true),
+      conversation_mode: () => setConversationMode(true),
+      show_chat: () => setConversationMode(false),
+      new_chat: () => document.getElementById("new-conversation")?.click(),
+      open_history: () => { setConversationMode(false); document.getElementById("open-history")?.click(); },
+      open_settings: () => { setConversationMode(false); const menu = document.querySelector(".account-menu"); if (menu) menu.open = true; },
+      camera_on: () => enableCamera(),
+      camera_off: () => stopCamera(),
+      voice_replies_on: () => { if (!voiceReplies) document.getElementById("voice-replies")?.click(); },
+      voice_replies_off: () => { if (voiceReplies) document.getElementById("voice-replies")?.click(); },
+      reload: () => window.setTimeout(() => window.location.reload(), 1500),
+    };
+    try { actions[action]?.(); } catch { /* the spoken reply still explains */ }
   }
 
   // Conversation mode (like ChatGPT/Claude voice): hide the chat, keep it recorded, and keep listening.
@@ -1679,6 +1701,7 @@
           const event = JSON.parse(dataLine.slice(5).trim());
           if (event.error) streamError = String(event.error);
           if (event.confirm) showActionRequest(event.confirm);
+          if (event.ui) runScreenAction(String(event.ui));
           if (typeof event.text === "string" && event.text) {
             reply += event.text;
             if (speakReply && localTtsReady) {
@@ -2566,6 +2589,20 @@
   });
 
   $("#reload-app")?.addEventListener("click", () => window.location.reload());
+
+  // Phone hologram framing: close-up (fills the area) or wide (whole scene, as on the website).
+  const sceneViewButton = $("#scene-view");
+  function applySceneView(wide) {
+    document.body.classList.toggle("scene-wide", wide);
+    if (sceneViewButton) sceneViewButton.textContent = wide ? "VIEW: WIDE" : "VIEW: CLOSE-UP";
+    window.dispatchEvent(new Event("resize")); // the scene re-measures its box
+  }
+  applySceneView(readFlag("atulya.scene.wide", false));
+  sceneViewButton?.addEventListener("click", () => {
+    const wide = !document.body.classList.contains("scene-wide");
+    try { localStorage.setItem("atulya.scene.wide", wide ? "1" : "0"); } catch { /* ignore */ }
+    applySceneView(wide);
+  });
 
   signOutButton?.addEventListener("click", async () => {
     await fetch("/api/auth/logout", { method: "POST", headers: { Accept: "application/json" } }).catch(() => {});

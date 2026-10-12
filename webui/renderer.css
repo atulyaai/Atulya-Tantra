@@ -368,8 +368,17 @@ body.non-admin #system-dashboard,body.non-admin #open-plugins{display:none!impor
   body:not(.camera-on) #camera-preview{display:none!important}
   #root{top:0!important;left:0!important;right:0!important;bottom:40dvh!important}
   .session-stack{position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;width:100%!important;display:flex!important;flex-direction:column!important;gap:6px!important;padding:0 6px 6px!important;z-index:900}
-  .assistant-panel{position:relative!important;inset:auto!important;transform:none!important;width:100%!important;height:40dvh!important;min-height:260px!important;border-radius:18px!important;grid-template-rows:30px 24px auto minmax(60px,1fr) 56px 40px 12px!important}
+  .assistant-panel{position:relative!important;inset:auto!important;transform:none!important;width:100%!important;height:40dvh!important;min-height:260px!important;border-radius:18px!important;grid-template-rows:30px auto minmax(80px,1fr) 40px 40px!important;gap:4px!important}
   body.camera-on #camera-preview{height:26dvh!important}
+  /* An older rule makes the panel a growing flex item (flex:1 1 0%), which overrides its height:
+     every message made it taller and it covered the hologram instead of scrolling. Pin it. */
+  .assistant-panel{flex:0 0 auto!important;max-height:40dvh!important}
+  #chat-messages{min-height:0!important;overflow-y:auto!important;overscroll-behavior:contain}
+  .assistant-panel>.channel-status,.assistant-panel>.panel-footnote{display:none!important}
+  /* VIEW: WIDE — the scene keeps the website's wide framing (whole scene, smaller) instead of a close-up.
+     The 3D engine fixes the vertical view, so a tall narrow box cuts the sides; a 16:10 box shows it all. */
+  body.scene-wide #root{bottom:auto!important;height:62.5vw!important;top:calc((60dvh - 62.5vw) / 2)!important}
+  body.scene-wide.panel-chat-hidden #root{top:calc((100dvh - 62.5vw) / 2)!important}
 }
 body:not(.camera-on) #camera-preview{display:none!important}
 

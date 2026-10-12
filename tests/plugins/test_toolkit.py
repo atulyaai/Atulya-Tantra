@@ -192,3 +192,20 @@ def test_tool_calls_written_as_text_are_executed_not_shown() -> None:
     assert [c.name for c in calls] == ["get_time"] and rest == ""
     plain = TextCallFilter()
     assert plain.feed("a < b is true") == "a < b is true"
+
+
+def test_screen_control_queues_ui_action_only_inside_a_chat_stream():
+    import asyncio
+
+    from tools.plugins import toolkit
+
+    assert "only work" in asyncio.run(toolkit._screen_control({"action": "hide_chat"}, None))
+    queued: list[str] = []
+
+    async def run():
+        toolkit.UI_ACTIONS.set(queued)
+        await toolkit._screen_control({"action": "hide_chat"}, None)
+        return await toolkit._screen_control({"action": "format_disk"}, None)
+
+    assert "Unknown" in asyncio.run(run())
+    assert queued == ["hide_chat"]

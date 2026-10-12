@@ -1762,13 +1762,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         if request.stream:
             async def stream_events():
+                ui_actions: list[str] = []
+                _toolkit.UI_ACTIONS.set(ui_actions)
                 try:
                     async for chunk in webui_channel.stream(messages, toolbox=toolbox, system_instructions=style):
                         for action in action_view.drain_new():
                             yield f"data: {json.dumps({'confirm': {'id': action.id, 'summary': action.summary}})}\n\n"
+                        while ui_actions:
+                            yield f"data: {json.dumps({'ui': ui_actions.pop(0)})}\n\n"
                         yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
                     for action in action_view.drain_new():
                         yield f"data: {json.dumps({'confirm': {'id': action.id, 'summary': action.summary}})}\n\n"
+                    while ui_actions:
+                        yield f"data: {json.dumps({'ui': ui_actions.pop(0)})}\n\n"
                     yield f"data: {json.dumps({'done': True, 'provider': brain.provider_name, 'model': brain.model_name})}\n\n"
                     if issue_state["issue"] and issue_state["issue"].get("source") == "chat":
                         issue_state["issue"] = None

@@ -14,6 +14,7 @@ import re
 import secrets
 import time
 from collections import deque
+from contextvars import ContextVar
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -264,7 +265,31 @@ async def _use_skill(args: dict, _ctx: PluginContext | None) -> str:
     return f"Follow these skill instructions using your other tools:\n\n{body}"
 
 
+# Screen actions the WebUI performs itself (hide chat, new chat, camera, ...). The chat stream drains this
+# per-request list and sends each action to the browser, so any phrasing of a request works, not only the
+# fixed phrases the page recognizes instantly.
+UI_ACTIONS: ContextVar[list | None] = ContextVar("atulya_ui_actions", default=None)
+SCREEN_ACTIONS = ("hide_chat", "show_chat", "conversation_mode", "new_chat", "open_history", "camera_on",
+                  "camera_off", "voice_replies_on", "voice_replies_off", "reload", "open_settings")
+
+
+async def _screen_control(args: dict, _ctx: PluginContext | None) -> str:
+    action = _text(args, "action", 32)
+    if action not in SCREEN_ACTIONS:
+        return "Unknown screen action. Use one of: " + ", ".join(SCREEN_ACTIONS)
+    actions = UI_ACTIONS.get()
+    if actions is None:
+        return "Screen controls only work in the Atulya app or website, not in this channel."
+    actions.append(action)
+    return f"Done: {action.replace('_', ' ')} (the screen updates now). Confirm briefly."
+
+
 TOOLS: tuple[Tool, ...] = (
+    Tool("screen_control", "Change the Atulya screen the user is looking at: hide or show the chat, "
+         "conversation mode (full-screen hologram, hands-free), new chat, open history or settings, camera "
+         "on/off, spoken replies on/off, reload. Use it whenever the user asks to change what they see.",
+         _params({"action": {"type": "string", "enum": list(SCREEN_ACTIONS)}}, ["action"]),
+         _screen_control, "local-utilities"),
     Tool("get_weather", "Current weather for a city (Open-Meteo).",
          _params({"city": {"type": "string", "description": "City name, e.g. 'Delhi'"}}, ["city"]),
          _weather, "online-information"),
