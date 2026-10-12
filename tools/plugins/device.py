@@ -71,7 +71,7 @@ class DeviceRegistry:
                     owner_id=d.get("owner_id", "admin"),
                 )
         except (OSError, json.JSONDecodeError, KeyError, TypeError) as exc:
-            logger.warning("Failed to load devices: %s", exp)
+            logger.warning("Failed to load devices: %s", exc)
 
     def _save(self) -> None:
         try:
@@ -79,7 +79,7 @@ class DeviceRegistry:
             payload = {did: _device_to_dict(d) for did, d in self._buffer.items()}
             self._path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         except OSError as exc:
-            logger.warning("Failed to save devices: %s", exp)
+            logger.warning("Failed to save devices: %s", exc)
 
     def register(self, did: str, dtype: str, abilities: list[str] | None = None,
                  status: str = "online", owner_id: str = "admin") -> Device:
