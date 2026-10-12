@@ -66,6 +66,7 @@ class TelegramChannel:
         data_dir=None,
         actions=None,
         voice=None,
+        speech_output=None,
         webapp_url: str = "",
     ) -> None:
         self._token = token.strip()
@@ -81,6 +82,7 @@ class TelegramChannel:
         self._profiles = profiles
         self._actions = actions          # shared approval queue (PC actions)
         self._voice = voice              # local Whisper for voice notes
+        self._speech = speech_output     # local TTS for voice-note replies
         self._webapp_url = webapp_url    # Mini App button on every reply
         self._pending_cards: list = []
         self._members_path = (data_dir / "telegram_members.json") if data_dir else None
@@ -351,6 +353,21 @@ class TelegramChannel:
         except httpx.HTTPError:
             pass  # never log bot URLs, tokens or chat ids
 
+    async def _send_voice(self, client: httpx.AsyncClient, chat_id: str, text: str) -> None:
+        """Speak the reply with the local voice and send it as a Telegram voice note (plays inline)."""
+        if self._speech is None or not getattr(self._speech, "ready", False):
+            return
+        try:
+            from tools.plugins.voice.opus import wav_to_ogg_opus
+
+            wav = await asyncio.to_thread(self._speech.synthesize, text[:900])
+            ogg = await asyncio.to_thread(wav_to_ogg_opus, wav)
+            response = await client.post(self._url("sendVoice"), data={"chat_id": chat_id},
+                                         files={"voice": ("reply.ogg", ogg, "audio/ogg")})
+            response.raise_for_status()
+        except Exception as exc:
+            logger.info("Voice-note reply skipped (%s)", type(exc).__name__)
+
     async def _transcribe_voice(self, client: httpx.AsyncClient, voice: dict) -> str:
         if self._voice is None or int(voice.get("file_size", 0) or 0) > 20 * 1024 * 1024:
             return ""
@@ -420,6 +437,7 @@ class TelegramChannel:
         if chat.get("type") != "private" or not user_id.isdigit() or not chat_id.lstrip("-").isdigit():
             return
         text = str(message.get("text") or "").strip()
+        came_as_voice = not text and bool(message.get("voice") or message.get("audio"))
         if not text and (message.get("voice") or message.get("audio")):
             text = await self._transcribe_voice(client, message.get("voice") or message.get("audio"))
             if not text:
@@ -464,6 +482,8 @@ class TelegramChannel:
             if reply is None:
                 reply = await self._answer(user_id, message_id, text)
         await self._send(client, chat_id, reply)
+        if came_as_voice:
+            await self._send_voice(client, chat_id, reply)  # voice in -> voice out
         cards, self._pending_cards = self._pending_cards, []
         for action in cards:
             await self._send(client, chat_id, f"Approval needed: {action.summary}", buttons=[

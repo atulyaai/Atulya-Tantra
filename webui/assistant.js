@@ -677,6 +677,16 @@
     keep.forEach((card) => messagesNode.append(card));
   }
 
+  // An old cached page talking to a newer server: reload once quietly instead of asking the user.
+  function selfHealReload() {
+    let last = 0;
+    try { last = Number(sessionStorage.getItem("atulya.selfHealAt") || 0); } catch { /* ignore */ }
+    if (Date.now() - last < 60000) return false;
+    try { sessionStorage.setItem("atulya.selfHealAt", String(Date.now())); } catch { /* ignore */ }
+    location.reload();
+    return true;
+  }
+
   async function restoreConversation() {
     try {
       const response = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}`, { headers: { Accept: "application/json" } });
@@ -1081,9 +1091,20 @@
   }
 
   // Returns the text to send, or null when the utterance should be ignored.
+  // The user's own nickname for the assistant ("Tony") also wakes it on their devices.
+  let nicknamePattern = null;
+  async function loadNickname() {
+    try {
+      const { profile } = await (await fetch("/api/profile", { headers: { Accept: "application/json" } })).json();
+      const nick = String(profile?.assistant_nickname || "").trim();
+      const safe = nick.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      nicknamePattern = nick ? new RegExp(`^\\s*(?:(?:hey|hi|ok|okay|हे)[\\s,]+)?${safe}(?=$|[\\s,.!?:।-])[\\s,.!?:।-]*`, "iu") : null;
+    } catch { nicknamePattern = null; }
+  }
+
   function applyWakeWord(transcript) {
     if (!wakeWordEnabled) return transcript;
-    const match = transcript.match(WAKE_PATTERN);
+    const match = transcript.match(WAKE_PATTERN) || (nicknamePattern && transcript.match(nicknamePattern));
     if (match) {
       const rest = transcript.slice(match[0].length).trim();
       if (rest) return rest;
@@ -1591,10 +1612,12 @@
         body: JSON.stringify({ messages: conversation, image: includeVision ? captureCameraFrame() : null, conversation_id: conversationId, stream: true }),
       });
       if (!response.ok) {
+        if (response.status === 401) { await refreshAuthState(); throw new Error("Please sign in again to continue."); }
+        if ([404, 405].includes(response.status) && selfHealReload()) return;
         const body = await response.json().catch(() => ({}));
         serviceUnavailable = [404, 405, 503].includes(response.status);
         const message = [404, 405].includes(response.status)
-          ? "Atulya needs to restart to update chat. Restart the app, then try again."
+          ? "Atulya was just updated. Reload the page once to continue."
           : response.status === 503
             ? "Chat is unavailable right now. You can still use the scene and camera preview."
             : "Atulya couldn't complete that message. Please try again.";
@@ -1720,9 +1743,11 @@
       const response = await fetch("/api/voice/transcribe", { method: "POST", body: formData });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
+        if (response.status === 401) { await refreshAuthState(); throw new Error("Please sign in again to continue."); }
+        if ([404, 405].includes(response.status) && selfHealReload()) return;
         const backendDetail = typeof body.detail === "string" ? body.detail.trim() : "";
         const message = [404, 405].includes(response.status)
-          ? "Atulya needs to restart to update voice support. Restart the app, then try again."
+          ? "Atulya was just updated. Reload the page once to continue."
           : response.status === 503
             ? backendDetail || "Local speech recognition is unavailable. Finish voice setup, then restart Atulya."
             : "Speech recognition failed. Try again or type below.";
@@ -2017,6 +2042,7 @@
         document.body.classList.remove("auth-required");
         if (addPasskeyButton) addPasskeyButton.hidden = false;
         startLiveSync();
+        void loadNickname();
         window.setTimeout(enablePushNotifications, 4000);
         if (document.getElementById("add-voice-unlock")) document.getElementById("add-voice-unlock").hidden = false;
         if (manageUsersButton) manageUsersButton.hidden = !auth.is_admin;

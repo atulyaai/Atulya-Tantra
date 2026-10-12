@@ -1,7 +1,7 @@
 // Atulya service worker: makes the WebUI installable and opens the shell fast.
 // API calls, voice, and auth always go to the network and are never cached.
-const CACHE = "atulya-shell-v2";
-const SHELL = ["./", "./index.html", "./renderer.css", "./assistant.js", "./manifest.webmanifest", "./icons/icon.svg"];
+const CACHE = "atulya-shell-v3";
+const SHELL = ["./", "./index.html", "./renderer.css", "./assistant.js", "./manifest.webmanifest", "./icons/icon-192.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));

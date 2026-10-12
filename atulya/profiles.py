@@ -23,8 +23,8 @@ CHOICES = {
     "length": ("short", "normal", "detailed"),
     "safety": ("ask_all", "ask_risky"),
 }
-TEXT_FIELDS = {"preferred_name": 40, "city": 60, "about": 600, "work_style": 300}
-VOICE_EDITABLE = {"preferred_name", "city", "about", "work_style", "language", "tone", "length"}
+TEXT_FIELDS = {"assistant_nickname": 30, "preferred_name": 40, "city": 60, "about": 600, "work_style": 300}
+VOICE_EDITABLE = {"assistant_nickname", "preferred_name", "city", "about", "work_style", "language", "tone", "length"}
 DEFAULTS = {"language": "auto", "tone": "atulya", "length": "short", "safety": "ask_all"}
 
 
@@ -102,6 +102,9 @@ def profile_instructions(profile: dict[str, str]) -> str:
     length = {"short": "Keep answers to 1-3 sentences unless asked for more; replies are often spoken aloud.",
               "normal": "Use moderate length.", "detailed": "Give thorough answers."}[profile.get("length", "short")]
     lines = [f"Style: {tone}. {language} {length}"]
+    if profile.get("assistant_nickname"):
+        lines.append(f"This user calls you {profile['assistant_nickname']}; answer to that name with them. "
+                     "(Your system name stays Atulya.)")
     if profile.get("preferred_name"):
         lines.append(f"Address the user as {profile['preferred_name']}.")
     if profile.get("city"):

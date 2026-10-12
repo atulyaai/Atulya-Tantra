@@ -15,14 +15,14 @@ Status: ✅ done (verified for real) · 🔧 in progress · ⬜ to do · ⛔ blo
 | A4 | ✅ | Status panel/tools for non-admins → hidden in UI **and** `/api/status` refuses non-admins (403) | Server test + UI |
 | A5 | 🔧 | Overlap on phone/small windows → header on one line + account menu (⋮); phone = hologram top, chat bottom sheet; camera box only when camera is on | Screenshots desktop + 375 px phone ✅; Mini App/APK on a real phone pending |
 | A6 | ⬜ | Hologram animation does not load on phone/Mini App → find why (WebGL/load), add fallback | APK + Mini App |
-| A7 | ⬜ | "Update/reload page" prompt on desktop → find the trigger, remove false prompts | Desktop browser |
-| A8 | ✅ | Password sign-in with `atulya` → works on the public site in a real browser (the failed attempt used `Prince1989@`, one @) | Public site, real browser |
+| A7 | ✅ | "Update/reload page" prompt → an old cached page now reloads itself once; expired sessions show sign-in instead of an error | Code + UI |
+| A8 | ✅ | Password sign-in with `atulya` → works on the public site in a real browser (the failed attempt was a mistyped password) | Public site, real browser |
 | A9 | ✅ | Google-style sign-in: Continue with passkey → or username/email → Send approval to my devices / code / Use password; invitation + create account as links | Public site |
 | A10 | ✅ | "Say code" removed; Resend added (30 s cooldown) | Public site |
 | A11 | ✅ | Add passkey: account menu (⋮ → ADD PASSKEY) + offered after password/code sign-in | Public site |
 | A12 | ✅ | Sign-up with an existing email jumps to sign-in for that account | UI flow |
-| A13 | ⬜ | App icon is a plain orange circle → icon from the Atulya hologram artwork | APK on phone |
-| A14 | ⬜ | APK hard to find → download link in README, site footer and `/download` | Public site |
+| A13 | ✅ | App icon = the Atulya hologram face (web, PWA, Android launcher + round icon) | APK 0.2.1 |
+| A14 | ✅ | APK download: https://atulya.atulvij.com/download (always the newest signed APK) + README | Public URL |
 
 | A15 | ✅ | Camera turned itself on at load → on demand only (button / "turn on camera"), remembered per device | Public site |
 | A16 | ✅ | Greeting shown twice after reload → one greeting; "Welcome back" by voice | Public site |
@@ -31,7 +31,7 @@ Status: ✅ done (verified for real) · 🔧 in progress · ⬜ to do · ⛔ blo
 
 | # | Status | What | Notes |
 |---|---|---|---|
-| B1 | ⬜ | Replace the old `atulya.service` on 137.23.42.211 with current Atulya core (accounts, history, sync, cloud brain, Telegram) behind nginx at atulya.atulvij.com | Server has 1 GB RAM: core only, no local models |
+| B1 | ⬜ | Replace the old `atulya.service` on the atulvij.com server with current Atulya core (accounts, history, sync, cloud brain, Telegram) behind nginx at atulya.atulvij.com | Server has 1 GB RAM: core only, no local models |
 | B2 | ⬜ | Laptop/desktop = **Atulya agents** that connect out to the server: PC control, local Whisper/TTS/LLM when available | Replaces the tunnel as the main path; tunnel kept for laptop-only setups |
 | B3 | ⬜ | Server is the source of truth; clients cache locally and fetch only changes (delta sync); Telegram reads from server | — |
 | B4 | ⬜ | Encrypted automatic backups of the server data (daily, keep 14) | Biggest data-loss risk today |
@@ -42,9 +42,9 @@ Status: ✅ done (verified for real) · 🔧 in progress · ⬜ to do · ⛔ blo
 | # | Status | What |
 |---|---|---|
 | C1 | ✅ | One account across web, app and Telegram (owner's Telegram = main account), live sync ~10-13 ms |
-| C2 | ⬜ | Telegram voice note → reply as a voice note (Opus), auto-play where Telegram supports it |
+| C2 | ✅ | Telegram voice note → reply also as a voice note (local voice → OGG/Opus, plays inline) | Real TTS→Opus→Whisper round trip |
 | C3 | ⬜ | Mini App looks and behaves like the web app (signed in automatically, voice, hologram) |
-| C4 | ⬜ | Per-user nickname for the assistant ("call yourself Tony") — per device or everywhere; the system stays Atulya |
+| C4 | ✅ | Per-user nickname for the assistant ("call yourself Tony") — answers to it and wakes on it on that user's devices; system stays Atulya | Code + wake test |
 | C5 | ⛔ | WhatsApp — needs a Meta Business account + WhatsApp Cloud API number (owner) |
 | C6 | ⛔ | Push notifications inside the APK — needs a Firebase project (owner); web/PWA push already works |
 

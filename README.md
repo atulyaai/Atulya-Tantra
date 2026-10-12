@@ -59,6 +59,8 @@ your memories and meetings, multi-step skills — and, after you approve, your c
 
 ## Install
 
+**Android app:** download the newest signed APK from **https://atulya.atulvij.com/download** (or [GitHub Releases](https://github.com/atulyaai/Atulya-Tantra/releases/latest)).
+
 **Windows** (PowerShell, no admin rights):
 
 ```powershell

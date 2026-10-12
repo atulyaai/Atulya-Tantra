@@ -656,6 +656,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         data_dir=config.data_dir,
         actions=action_queue,
         voice=voice,
+        speech_output=speech_output,
         webapp_url=(config.public_origin + "/") if config.public_origin else "",
     )
     app.state.telegram = telegram
@@ -1295,6 +1296,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response = JSONResponse({"authenticated": True})
         set_session_cookie(response, request, await asyncio.to_thread(auth_store.create_session, user_id))
         return response
+
+    @app.get("/download")
+    async def download_app() -> Response:
+        """Always the newest signed Android build (public; no account data)."""
+        latest = await latest_app_release()
+        url = str(latest.get("url") or "https://github.com/atulyaai/Atulya-Tantra/releases/latest")
+        return Response(status_code=302, headers={"Location": url})
 
     @app.get("/api/auth/pending-logins")
     async def list_pending_logins(http_request: Request) -> dict[str, list[dict]]:

@@ -10,7 +10,8 @@
         android:allowBackup="false"
         android:dataExtractionRules="@xml/no_backup"
         android:fullBackupContent="false"
-        android:icon="@drawable/ic_atulya"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="Atulya"
         android:usesCleartextTraffic="false"
         android:theme="@style/Theme.Atulya">
