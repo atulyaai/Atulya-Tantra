@@ -84,6 +84,7 @@ Status: ✅ done (verified for real) · 🔧 in progress · ⬜ to do · ⛔ blo
 | G20 | 🔧 | APK UI test on a CI emulator against a private Atulya on the runner (no Cloudflare): sign in, layout, hide chat → CHAT, ⋮ menu, rotation, reopen, crash, memory; failure blocks the release | Next APK build |
 | G21 | ✅ | Phone sign-in box jumped when the keyboard closed → taps on CONTINUE missed; now anchored near the top | Emulator UI test passes with keyboard open |
 | G22 | 🔧 | Android Back closed the whole app (e.g. with the ⋮ menu open) → now closes menu/dialog/conversation mode first; unlock grace survives the screen being recreated | Emulator UI test |
+| G23 | ✅ | Phone landscape: chat panel ran past the bottom (message box cut), chips overlapped the title, system panel took ⅓ width → fits the screen | Local 915×412 check + emulator |
 | G4 | 🔧 | Conversation mode: TALK button / "hide chat" → full-screen hologram, keeps listening, chat still recorded; CHAT button returns; phone chat sheet 48→40 % height | Owner check on phone |
 | G5 | 🔧 | App versions: automatic builds bump only the last number (0.5.1, 0.5.2…); middle number only for milestones | Next APK |
 | G6 | ⬜ | **Speech recognition quality** (biggest issue): Android app → native Android recognizer (free, on-device, Hindi); Chrome → browser recognizer; Telegram/others → better server STT (decision: Groq free Whisper-large vs. local) | Owner decision |

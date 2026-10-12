@@ -389,3 +389,13 @@ body:not(.camera-on) #camera-preview{display:none!important}
 /* A6 fallback: still hologram artwork when the 3D scene cannot run */
 body.scene-fallback #root{background:#050b12 url("./scene/character/atulya-idle-v1.webp") center 30%/contain no-repeat!important}
 body.scene-fallback #root>*{display:none!important}
+
+/* Phone held sideways (short screen): the chat panel ran past the bottom (message box cut off), the status
+   chips overlapped the title, and the system panel took a third of the width. Fit everything in view. */
+@media (max-height: 500px) and (orientation: landscape) {
+  #system-dashboard{display:none!important}
+  .assistant-panel{top:8px!important;bottom:8px!important;height:auto!important;max-height:calc(100dvh - 28px)!important;min-height:0!important;transform:none!important;grid-template-rows:28px minmax(40px,1fr) 30px 38px!important;gap:3px!important;padding:6px 8px!important}
+  .assistant-panel>.channel-status,.assistant-panel>.panel-footnote,.assistant-panel>.session-state{display:none!important}
+  .assistant-panel>.wave-control{height:30px!important;min-height:0!important}
+  #chat-messages{min-height:0!important;overflow-y:auto!important}
+}
