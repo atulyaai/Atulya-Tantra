@@ -16,6 +16,7 @@ from atulya.history import ConversationHistory
 from tools.plugins.productivity.reminders import ReminderStore
 from tools.plugins.registry import PluginContext, PluginExecutionError, PluginRegistry
 from tools.plugins.productivity.briefing import briefing_city, briefing_prompt, briefing_time
+from tools.plugins import toolkit as _toolkit
 from tools.plugins.toolkit import Toolbox
 
 logger = logging.getLogger(__name__)
@@ -86,6 +87,8 @@ class TelegramChannel:
         self._speech = speech_output     # local TTS for voice-note replies
         self._webapp_url = webapp_url    # Mini App button on every reply
         self._pending_cards: list = []
+        self._location_wanted: dict[str, str] = {}  # chat_id -> question waiting for the user's location
+        self._last_wants_location = False
         self._members_path = (data_dir / "telegram_members.json") if data_dir else None
         self._briefing_task: asyncio.Task | None = None
         self._offset = 0
@@ -340,13 +343,19 @@ class TelegramChannel:
         self._save_member(user_id, member)
         return f"{member.get('name', user_id)} is now {member['state']}."
 
-    async def _send(self, client: httpx.AsyncClient, chat_id: str, text: str, buttons: list | None = None) -> None:
+    async def _send(self, client: httpx.AsyncClient, chat_id: str, text: str, buttons: list | None = None, *,
+                    request_location: bool = False, remove_keyboard: bool = False) -> None:
         """Send a reply; every message carries an 'Open Atulya' Mini App button when one is configured."""
         rows = list(buttons or [])
         if self._webapp_url and not buttons:
             rows.append([{"text": "Open Atulya", "web_app": {"url": self._webapp_url}}])
         payload = {"chat_id": chat_id, "text": text[:4000]}
-        if rows:
+        if request_location:  # Telegram's own one-tap "share location" button (the user decides)
+            payload["reply_markup"] = {"keyboard": [[{"text": "📍 Share my location", "request_location": True}]],
+                                       "one_time_keyboard": True, "resize_keyboard": True}
+        elif remove_keyboard:
+            payload["reply_markup"] = {"remove_keyboard": True}
+        elif rows:
             payload["reply_markup"] = {"inline_keyboard": rows}
         try:
             response = await client.post(self._url("sendMessage"), json=payload)
@@ -441,6 +450,20 @@ class TelegramChannel:
         if chat.get("type") != "private" or not user_id.isdigit() or not chat_id.lstrip("-").isdigit():
             return
         text = str(message.get("text") or "").strip()
+        location = message.get("location")
+        if location and user_id in self._allowed and self._profiles is not None:
+            try:
+                await asyncio.to_thread(self._profiles.set_location, OWNER_USER, float(location["latitude"]),
+                                        float(location["longitude"]),
+                                        accuracy=float(location.get("horizontal_accuracy") or 0), source="telegram")
+            except (KeyError, TypeError, ValueError):
+                await self._send(client, chat_id, "I couldn't read that location.")
+                return
+            text = self._location_wanted.pop(chat_id, "")
+            if not text:
+                await self._send(client, chat_id, "Got your location. Ask me about the weather or places near you.",
+                                 remove_keyboard=True)
+                return
         came_as_voice = not text and bool(message.get("voice") or message.get("audio"))
         if not text and (message.get("voice") or message.get("audio")):
             text = await self._transcribe_voice(client, message.get("voice") or message.get("audio"))
@@ -485,7 +508,12 @@ class TelegramChannel:
                     reply = "That feature is unavailable right now."
             if reply is None:
                 reply = await self._answer(user_id, message_id, text)
-        await self._send(client, chat_id, reply)
+        if self._last_wants_location:
+            self._last_wants_location = False
+            self._location_wanted[chat_id] = text
+            await self._send(client, chat_id, reply, request_location=True)
+        else:
+            await self._send(client, chat_id, reply, remove_keyboard=bool(location))
         if came_as_voice:
             await self._send_voice(client, chat_id, reply)  # voice in -> voice out
         cards, self._pending_cards = self._pending_cards, []
@@ -508,8 +536,11 @@ class TelegramChannel:
                 toolbox = Toolbox.for_registry(self._command_plugins, PluginContext(
                     OWNER_MEMORY, self._personal_memory, self._calendar, scoped_user, history=self._history,
                     profile=self._profiles, actions=view))
+                ui_actions: list[str] = []
+                _toolkit.UI_ACTIONS.set(ui_actions)
                 reply = await self._brain.respond_with_tools(conversation, toolbox,
                                                              system_instructions=self._style(scoped_user))
+                self._last_wants_location = "share_location" in ui_actions
                 if view is not None:
                     self._pending_cards.extend(view.created)
             else:

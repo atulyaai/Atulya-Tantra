@@ -80,9 +80,42 @@ class ProfileStore:
                 raise ValueError("Safety level can only be changed in the WebUI profile settings")
             profile[field] = validate(field, value)
         with closing(sqlite3.connect(self.path)) as db, db:
+            row = db.execute("SELECT data FROM profiles WHERE user_id=?", (user_id,)).fetchone()
+            try:
+                kept = {k: v for k, v in (json.loads(row[0]) if row else {}).items() if k.startswith("_")}
+            except ValueError:
+                kept = {}
             db.execute("INSERT OR REPLACE INTO profiles(user_id,data,updated_at) VALUES(?,?,?)",
-                       (user_id, json.dumps(profile), int(time.time())))
+                       (user_id, json.dumps({**profile, **kept}), int(time.time())))
         return profile
+
+    # --- device location (not a preference: shared by a device with consent, never editable by the model) ---
+    def set_location(self, user_id: str, latitude: float, longitude: float, *, accuracy: float = 0.0,
+                     source: str = "device") -> None:
+        if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+            raise ValueError("Invalid coordinates")
+        with closing(sqlite3.connect(self.path)) as db, db:
+            row = db.execute("SELECT data FROM profiles WHERE user_id=?", (user_id,)).fetchone()
+            try:
+                stored = json.loads(row[0]) if row else {}
+            except ValueError:
+                stored = {}
+            stored["_location"] = {"lat": round(latitude, 5), "lon": round(longitude, 5),
+                                   "accuracy": round(max(0.0, accuracy)), "source": source[:20], "at": int(time.time())}
+            db.execute("INSERT OR REPLACE INTO profiles(user_id,data,updated_at) VALUES(?,?,?)",
+                       (user_id, json.dumps(stored), int(time.time())))
+
+    def location(self, user_id: str, max_age: int = 6 * 3600) -> dict | None:
+        """Last device location if it is recent enough, else None (stale positions must not be used)."""
+        with closing(sqlite3.connect(self.path)) as db:
+            row = db.execute("SELECT data FROM profiles WHERE user_id=?", (user_id,)).fetchone()
+        try:
+            found = json.loads(row[0]).get("_location") if row else None
+        except ValueError:
+            return None
+        if not found or time.time() - found.get("at", 0) > max_age:
+            return None
+        return {**found, "age_minutes": int((time.time() - found["at"]) // 60)}
 
 
 def profile_instructions(profile: dict[str, str]) -> str:

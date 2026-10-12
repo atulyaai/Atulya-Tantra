@@ -1,0 +1,86 @@
+"""Location-aware weather: which place is used, freshness of device locations, and the instant shortcut."""
+from __future__ import annotations
+
+import asyncio
+from pathlib import Path
+
+from atulya.profiles import ProfileStore
+from tools.plugins import toolkit
+from tools.plugins.registry import PluginContext
+
+
+def _context(profiles: ProfileStore) -> PluginContext:
+    return PluginContext("web", memory=None, calendar=None, user_id="admin", profile=profiles)
+
+
+def test_device_location_is_kept_across_profile_edits_and_expires(project_temp_dir: Path) -> None:
+    profiles = ProfileStore(project_temp_dir)
+    profiles.set_location("admin", 28.6315, 77.2167, accuracy=35, source="browser")
+    profiles.update("admin", {"preferred_name": "AJ"})  # editing preferences must not wipe the location
+    found = profiles.location("admin")
+    assert found and found["lat"] == 28.6315 and found["source"] == "browser"
+    assert "_location" not in profiles.get("admin")  # never exposed as an editable preference
+    assert profiles.location("admin", max_age=-1) is None  # stale positions are not used
+
+
+def test_weather_uses_place_then_device_then_home_then_asks(project_temp_dir: Path, monkeypatch) -> None:
+    from tools.plugins.information import weather
+
+    calls: list[str] = []
+
+    async def fake_find(name):
+        return {"latitude": 1.0, "longitude": 2.0, "label": name.title()}
+
+    async def fake_forecast(lat, lon, label, when):
+        calls.append(f"{label}|{when}")
+        return f"forecast for {label}"
+
+    async def fake_address(lat, lon):
+        return "Connaught Place, New Delhi"
+
+    monkeypatch.setattr(weather, "find_place", fake_find)
+    monkeypatch.setattr(weather, "forecast", fake_forecast)
+    monkeypatch.setattr(weather, "address", fake_address)
+    profiles = ProfileStore(project_temp_dir)
+    ctx = _context(profiles)
+
+    async def run(args):
+        queued: list[str] = []
+        toolkit.UI_ACTIONS.set(queued)
+        return await toolkit._weather(args, ctx), queued
+
+    reply, asked = asyncio.run(run({"when": "tomorrow"}))
+    assert reply.startswith("NEEDS_LOCATION") and asked == ["share_location"]
+
+    profiles.update("admin", {"city": "Pune"})
+    reply, asked = asyncio.run(run({}))
+    assert "forecast for Pune" in reply and asked == ["share_location"]  # home city, but still offers live location
+
+    profiles.set_location("admin", 28.6, 77.2)
+    reply, asked = asyncio.run(run({"when": "week"}))
+    assert "Connaught Place" in reply and asked == []
+
+    reply, _ = asyncio.run(run({"place": "Mumbai", "when": "today"}))
+    assert reply == "forecast for Mumbai" and calls[-1] == "Mumbai|today"
+
+
+def test_where_am_i_needs_a_recent_device_location(project_temp_dir: Path, monkeypatch) -> None:
+    from tools.plugins.information import weather
+
+    async def fake_address(lat, lon):
+        return "Connaught Place, New Delhi"
+
+    monkeypatch.setattr(weather, "address", fake_address)
+    profiles = ProfileStore(project_temp_dir)
+    ctx = _context(profiles)
+    assert asyncio.run(toolkit._where_am_i({}, ctx)).startswith("NEEDS_LOCATION")
+    profiles.set_location("admin", 28.6315, 77.2167, accuracy=35)
+    reply = asyncio.run(toolkit._where_am_i({}, ctx))
+    assert "Connaught Place" in reply and "35 m" in reply and "openstreetmap.org" in reply
+
+
+def test_instant_weather_shortcut_leaves_timed_questions_to_the_model() -> None:
+    from tools.plugins.information.commands import handle
+
+    for text in ("weather in Delhi tomorrow", "weather in Mumbai this week", "weather in delhi kal"):
+        assert asyncio.run(handle(text, None)) is None

@@ -5,6 +5,9 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- Location only while Atulya is open, when a question needs it ("weather where I am"). -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <!-- Android 11+: lets the app find the phone's speech recognizer (Google) for native voice input. -->
     <queries>
         <intent>

@@ -5,6 +5,27 @@ same commit as the fix. History of finished work: `git log` and `docs/archive/`.
 
 Status: ✅ done (verified for real) · 🔧 in progress · ⬜ to do · ⛔ blocked on the owner (reason given)
 
+## H. Capability platform — THE MAIN TRACK (owner, 2026-10-13: less APK polish, more real abilities)
+
+Build every ability **once on the server**; web, app, Telegram and MCP all use it. Full map with status:
+`docs/CAPABILITIES.md`. Rule: no channel-specific copies, nothing "can't do" without saying what's missing and how
+to enable it. In this order (each step unlocks the next):
+
+| # | Status | What | Done when |
+|---|---|---|---|
+| H1 | 🔧 | **Forecast + location:** `get_weather(place?, when=now/next_hours/today/tomorrow/week)` with rain %, wind, UV, sunrise; `where_am_i`; device location by consent (web/app geolocation, Telegram 📍 button), stored with time stamp (stale ignored), home city fallback, asks once then re-answers automatically | ✅ real model, local: "rain tomorrow where I am" asks → location → "0 % rain"; "where am I" → Connaught Place; tests. ⏳ owner: phone + Telegram |
+| H2 | ⬜ | **Capability catalogue + honest status:** one registry the AI reads ("what can you do here / what's missing"), status per tool (available / needs location / needs connection / needs approval / unsupported) with the next step; MCP serves the same registry (remove its duplicate tools); ask "short or detailed?" when unclear | "What can you do on Telegram?" gives a true list; MCP weather = new forecast |
+| H3 | ⬜ | **Audit log:** every tool run recorded (user, channel, tool, args summary, result, time); viewable in ⋮ → ACTIVITY | Entry for each run; secrets never stored |
+| H4 | ⬜ | **Web + maps:** web search with sources, read a page, places near me, route + travel time (OpenStreetMap/OSRM, free) | "Pharmacies near me", "how long to the airport", "search X" work on all channels |
+| H5 | ⬜ | **Device registry + server ops:** list devices (server, laptop, phone) with status and granted abilities; server logs explained (approved paths, read-only), service restart with approval | "Check the server logs and explain the error" |
+| H6 | ⬜ | **Files:** read/summarize PDF, DOCX, XLSX, CSV, code; upload in chat on all channels; **laptop agent** (outbound connection, approved folders, read-only first); phone files via Android picker | From Telegram: "find my latest budget sheet on my laptop and summarize it" |
+| H7 | ⬜ | **Safe file edits + documents:** preview diff, save as new copy, approval, undo; create Word/Excel/PDF/PowerPoint | Edit shows diff, original kept |
+| H8 | ⬜ | **Routines + watchers:** recurring tasks, rain/disk/site-down alerts, multi-step jobs that survive restarts | "Every weekday 8am: weather + calendar + server health on Telegram" |
+| H9 | ⛔/⬜ | **Accounts:** Gmail + Google Calendar (needs D1 OAuth), GitHub (token) — read/draft free, send/change only with approval | "Summarize today's important emails and draft replies" |
+
+Later (after H): browser actions on websites, outside MCP servers as tools, project memory, smart home (Home
+Assistant), learning from outcomes. Not before H1–H8 work for real.
+
 ## A. Broken basics reported from real use (fix first)
 
 | # | Status | Problem → fix | Verified by |

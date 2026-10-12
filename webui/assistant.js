@@ -1521,6 +1521,46 @@
     if (layoutChatToggle) layoutChatToggle.hidden = !document.body.classList.contains("panel-chat-hidden");
   }
 
+  // ---- Device location (asked only when a question needs it; refreshed silently once allowed) ----
+  function sendDeviceLocation({ prompt = false } = {}) {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) { resolve(false); return; }
+      navigator.geolocation.getCurrentPosition(async (position) => {
+        try {
+          const response = await fetch("/api/location", {
+            method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({ latitude: position.coords.latitude, longitude: position.coords.longitude,
+              accuracy: position.coords.accuracy, source: window.AtulyaNative ? "app" : "browser" }),
+          });
+          resolve(response.ok);
+        } catch { resolve(false); }
+      }, () => {
+        if (prompt) showLayoutToast("Location not shared. You can name a city instead.");
+        resolve(false);
+      }, { enableHighAccuracy: false, timeout: 12000, maximumAge: 5 * 60 * 1000 });
+    });
+  }
+  async function refreshLocationIfAllowed() {
+    try {
+      const state = await navigator.permissions?.query({ name: "geolocation" });
+      if (state?.state === "granted") sendDeviceLocation();
+    } catch { /* permissions API unavailable */ }
+  }
+  window.setTimeout(refreshLocationIfAllowed, 4000);
+  window.setInterval(refreshLocationIfAllowed, 30 * 60 * 1000);
+  let locationRetry = "";
+  async function shareLocationAndRetry() {
+    const question = [...conversation].reverse().find((item) => item.role === "user")?.content || "";
+    if (!question || locationRetry === question) return; // re-ask once, never loop
+    locationRetry = question;
+    if (await sendDeviceLocation({ prompt: true })) {
+      for (let waited = 0; chatInFlight > 0 && waited < 60000; waited += 250) {
+        await new Promise((resolve) => setTimeout(resolve, 250)); // let the current reply finish first
+      }
+      sendMessage(question, voiceReplies && voiceSessionActive);
+    }
+  }
+
   // Screen actions requested by the brain (tool screen_control), so any phrasing works.
   function runScreenAction(action) {
     const actions = {
@@ -1535,6 +1575,7 @@
       voice_replies_on: () => { if (!voiceReplies) document.getElementById("voice-replies")?.click(); },
       voice_replies_off: () => { if (voiceReplies) document.getElementById("voice-replies")?.click(); },
       reload: () => window.setTimeout(() => window.location.reload(), 1500),
+      share_location: () => shareLocationAndRetry(),
     };
     try { actions[action]?.(); } catch { /* the spoken reply still explains */ }
   }
@@ -1606,7 +1647,13 @@
   layoutChatToggle?.addEventListener("click", () => setConversationMode(false));
   talkModeButton?.addEventListener("click", () => setConversationMode(true));
 
-  async function sendMessage(text, speakReply = false, includeVision = null) {
+  let chatInFlight = 0;
+  async function sendMessage(...args) {
+    chatInFlight += 1;
+    try { return await sendMessageNow(...args); } finally { chatInFlight -= 1; }
+  }
+
+  async function sendMessageNow(text, speakReply = false, includeVision = null) {
     if (includeVision === null) includeVision = needsVision(String(text || ""));
     if (includeVision && !cameraStream) {
       const started = await enableCamera();

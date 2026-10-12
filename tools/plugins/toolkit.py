@@ -63,9 +63,60 @@ def _text(args: dict, key: str, limit: int = 300) -> str:
 
 # --- information -----------------------------------------------------------
 
-async def _weather(args: dict, _ctx: PluginContext | None) -> str:
-    from tools.plugins.information.weather import weather
-    return await weather(_text(args, "city", 80))
+NEEDS_LOCATION = ("NEEDS_LOCATION: no recent location for this user. A 'share location' prompt has been shown "
+                  "on their device. Ask them in one short sentence to share their location or name a place, "
+                  "then answer. Do not guess a city.")
+
+
+def _ask_for_location() -> None:
+    actions = UI_ACTIONS.get()
+    if actions is not None and "share_location" not in actions:
+        actions.append("share_location")  # web/app: location prompt; Telegram: 'Share location' button
+
+
+async def _weather(args: dict, ctx: PluginContext | None) -> str:
+    """Forecast for a named place, else the device's recent location, else the saved home city."""
+    from tools.plugins.information.weather import forecast, find_place
+    when = str(args.get("when") or "now").strip().lower()
+    if when not in {"now", "next_hours", "today", "tomorrow", "week"}:
+        when = "now"
+    place_name = str(args.get("place") or args.get("city") or "").strip()[:80]
+    if place_name and place_name.casefold() not in {"here", "my location", "current location", "where i am"}:
+        place = await find_place(place_name)
+        if place is None:
+            return f"I couldn't find a place named {place_name}."
+        return await forecast(place["latitude"], place["longitude"], place["label"], when)
+    device = ctx.profile.location(ctx.user_id) if ctx is not None and ctx.profile is not None else None
+    if device:
+        from tools.plugins.information.weather import address
+        try:
+            label = await address(device["lat"], device["lon"])
+        except Exception:
+            label = f"your location ({device['lat']:.3f}, {device['lon']:.3f})"
+        report = await forecast(device["lat"], device["lon"], label, when)
+        return f"{report}\n(Location from your device, {device['age_minutes']} min ago.)"
+    home = ctx.profile.get(ctx.user_id).get("city", "") if ctx is not None and ctx.profile is not None else ""
+    if home:
+        place = await find_place(home)
+        if place is not None:
+            _ask_for_location()
+            report = await forecast(place["latitude"], place["longitude"], place["label"], when)
+            return f"{report}\n(Using your saved home city; share your location for where you are now.)"
+    _ask_for_location()
+    return NEEDS_LOCATION
+
+
+async def _where_am_i(_args: dict, ctx: PluginContext | None) -> str:
+    device = ctx.profile.location(ctx.user_id, max_age=2 * 3600) if ctx is not None and ctx.profile is not None else None
+    if not device:
+        _ask_for_location()
+        return ("NEEDS_LOCATION: no recent location from this user's device. A 'share location' prompt has been "
+                "shown; ask them in one short sentence to allow it. Do not ask for a city name.")
+    from tools.plugins.information.weather import address
+    place = await address(device["lat"], device["lon"])
+    accuracy = f", accurate to about {device['accuracy']} m" if device.get("accuracy") else ""
+    return (f"{place} (from your {device.get('source', 'device')} {device['age_minutes']} min ago{accuracy}). "
+            f"Map: https://www.openstreetmap.org/?mlat={device['lat']}&mlon={device['lon']}#map=16/{device['lat']}/{device['lon']}")
 
 
 async def _news(args: dict, _ctx: PluginContext | None) -> str:
@@ -290,9 +341,14 @@ TOOLS: tuple[Tool, ...] = (
          "on/off, spoken replies on/off, reload. Use it whenever the user asks to change what they see.",
          _params({"action": {"type": "string", "enum": list(SCREEN_ACTIONS)}}, ["action"]),
          _screen_control, "local-utilities"),
-    Tool("get_weather", "Current weather for a city (Open-Meteo).",
-         _params({"city": {"type": "string", "description": "City name, e.g. 'Delhi'"}}, ["city"]),
+    Tool("get_weather", "Weather and forecast: current conditions, next hours, today, tomorrow or the 7-day "
+         "week (rain chance, temperatures, wind, UV, sunrise/sunset). Leave 'place' empty for where the user is "
+         "now (device location) or their home city.",
+         _params({"place": {"type": "string", "description": "City or place; empty = user's location"},
+                  "when": {"type": "string", "enum": ["now", "next_hours", "today", "tomorrow", "week"]}}),
          _weather, "online-information"),
+    Tool("where_am_i", "The user's current address/area from their device location (with their consent).",
+         _params(), _where_am_i, "online-information", needs_context=True),
     Tool("get_news", "Latest BBC News headlines.",
          _params({"limit": {"type": "integer", "minimum": 1, "maximum": 10}}),
          _news, "online-information"),

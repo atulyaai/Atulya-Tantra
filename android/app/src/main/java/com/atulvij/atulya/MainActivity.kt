@@ -10,6 +10,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.view.WindowManager
+import android.webkit.GeolocationPermissions
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -50,6 +51,7 @@ class MainActivity : AppCompatActivity() {
     private val relockAfterMs = 2 * 60 * 1000L // quick trips (copying a code from Telegram) don't re-lock
     private val origin: Uri = Uri.parse(BuildConfig.ATULYA_URL)
     private var recognizer: SpeechRecognizer? = null
+    private var pendingGeo: Pair<String, GeolocationPermissions.Callback>? = null
     private var voiceReply: JavaScriptReplyProxy? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -138,6 +140,7 @@ class MainActivity : AppCompatActivity() {
         web.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
+            setGeolocationEnabled(true)
             mediaPlaybackRequiresUserGesture = false
             allowFileAccess = false
             allowContentAccess = false
@@ -170,6 +173,20 @@ class MainActivity : AppCompatActivity() {
             }
         }
         web.webChromeClient = object : WebChromeClient() {
+            override fun onGeolocationPermissionsShowPrompt(requestOrigin: String,
+                                                            callback: GeolocationPermissions.Callback) {
+                val trusted = Uri.parse(requestOrigin).host == origin.host
+                if (!trusted) { callback.invoke(requestOrigin, false, false); return }
+                if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.ACCESS_COARSE_LOCATION)
+                    == PackageManager.PERMISSION_GRANTED) {
+                    callback.invoke(requestOrigin, true, false)
+                } else {
+                    pendingGeo = requestOrigin to callback // answered in onRequestPermissionsResult
+                    ActivityCompat.requestPermissions(this@MainActivity, arrayOf(
+                        Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION), 2)
+                }
+            }
+
             override fun onPermissionRequest(request: PermissionRequest) {
                 val sameOrigin = request.origin.host == origin.host && request.origin.scheme == "https"
                 val wanted = request.resources.filter {
@@ -265,6 +282,17 @@ class MainActivity : AppCompatActivity() {
             if (x != y) return x > y
         }
         return false
+    }
+
+    @Deprecated("Location answer for the web page's geolocation request")
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        @Suppress("DEPRECATION")
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 2) {
+            val granted = grantResults.any { it == PackageManager.PERMISSION_GRANTED }
+            pendingGeo?.let { (requestOrigin, callback) -> callback.invoke(requestOrigin, granted, false) }
+            pendingGeo = null
+        }
     }
 
     private fun requestMediaPermissions() {

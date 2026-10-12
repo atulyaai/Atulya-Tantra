@@ -311,6 +311,13 @@ class ChatRequest(BaseModel):
     stream: bool = False
 
 
+class LocationBody(BaseModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    accuracy: float | None = Field(default=None, ge=0, le=100_000)
+    source: Literal["browser", "app", "telegram"] = "browser"
+
+
 class MemoryRequest(BaseModel):
     conversation_id: str = Field(min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
     fact: str = Field(min_length=1, max_length=500)
@@ -1797,6 +1804,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         return {"profile": await asyncio.to_thread(profiles.get, str(http_request.state.user_id)),
                 "choices": {key: list(values) for key, values in CHOICES.items()}, "text_fields": TEXT_FIELDS}
+
+    @app.post("/api/location")
+    async def share_location(body: LocationBody, http_request: Request) -> dict[str, object]:
+        """The signed-in device shares its position (browser/app geolocation, after the user allowed it).
+        Stored per user with a time stamp; tools only use it while recent."""
+        try:
+            await asyncio.to_thread(profiles.set_location, str(http_request.state.user_id), body.latitude,
+                                    body.longitude, accuracy=body.accuracy or 0.0, source=body.source)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"saved": True}
 
     @app.put("/api/profile")
     async def put_profile(body: dict[str, str], http_request: Request) -> dict[str, object]:
