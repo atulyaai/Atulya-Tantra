@@ -371,6 +371,72 @@ async def _what_can_you_do(args: dict, _ctx: PluginContext | None) -> str:
     return catalogue_for_channel(channel)
 
 
+async def _search_web(args: dict, _ctx: PluginContext | None) -> str:
+    from tools.plugins.information.search import search_web
+    query = _text(args, "query", 200)
+    limit = max(1, min(int(args.get("limit", 5)), 10))
+    results = await search_web(query, limit)
+    if not results:
+        return f"I couldn't find any results for '{query}'."
+    lines = [f"Results for '{query}':"]
+    for i, r in enumerate(results, 1):
+        lines.append(f"  {i}. {r['title']} — {r.get('url', '')}")
+        if r.get("snippet"):
+            lines.append(f"     {r['snippet'][:150]}")
+    return "\n".join(lines)
+
+
+async def _read_page(args: dict, _ctx: PluginContext | None) -> str:
+    from tools.plugins.information.search import read_page
+    url = _text(args, "url", 500)
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+    text = await read_page(url)
+    if len(text) > 1500:
+        text = text[:1500] + "…"
+    return text
+
+
+async def _places_near_me(args: dict, ctx: PluginContext | None) -> str:
+    from tools.plugins.information.maps import search_places
+    query = _text(args, "query", 60)
+    place_name = str(args.get("place") or "").strip()[:80]
+    near = _near(ctx)
+    if not near and place_name:
+        from tools.plugins.information.weather import find_place
+        spot = await find_place(place_name)
+        if spot:
+            near = (spot["latitude"], spot["longitude"])
+    if not near:
+        _ask_for_location()
+        return ("NEEDS_LOCATION: no recent location. A 'share location' prompt has been shown; "
+                "ask them to share their location or name a city.")
+    places = await search_places(query, near=near)
+    if not places:
+        return f"I couldn't find any '{query}' near you."
+    lines = [f"'{query}' near you:"]
+    for i, p in enumerate(places, 1):
+        lines.append(f"  {i}. {p['name']} — {p['display'][:100]}")
+    return "\n".join(lines)
+
+
+async def _route_time(args: dict, ctx: PluginContext | None) -> str:
+    from tools.plugins.information.maps import route_text
+    from tools.plugins.information.weather import find_place
+    from_label = _text(args, "from_place", 80)
+    to_label = _text(args, "to_place", 80)
+    from_spot = await find_place(from_label)
+    to_spot = await find_place(to_label)
+    if from_spot is None:
+        return f"I couldn't find '{from_label}'."
+    if to_spot is None:
+        return f"I couldn't find '{to_label}'."
+    return await route_text(
+        from_label, from_spot["latitude"], from_spot["longitude"],
+        to_label, to_spot["latitude"], to_spot["longitude"],
+    )
+
+
 # Screen actions the WebUI performs itself (hide chat, new chat, camera, ...). The chat stream drains this
 # per-request list and sends each action to the browser, so any phrasing of a request works, not only the
 # fixed phrases the page recognizes instantly.
@@ -463,6 +529,22 @@ TOOLS: tuple[Tool, ...] = (
          "Use it when the user asks 'what can you do here?', 'what can you do on Telegram?', or similar.",
          _params({"channel": {"type": "string", "enum": ["web", "telegram", "mcp", "android"]}}),
          _what_can_you_do, "local-utilities"),
+    Tool("search_web", "Search the web (DuckDuckGo) and get results with sources. "
+         "Use for questions that need live information beyond news headlines.",
+         _params({"query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}},
+                 ["query"]), _search_web, "online-information"),
+    Tool("read_page", "Fetch a web page and summarize its text content.",
+         _params({"url": {"type": "string", "description": "Full http(s) URL"}}, ["url"]),
+         _read_page, "online-information"),
+    Tool("places_near_me", "Find places (pharmacies, hospitals, shops, restaurants) near the user's location "
+         "or a named place. Returns name, address and distance.",
+         _params({"query": {"type": "string", "description": "What to find, e.g. 'pharmacy', 'hospital'"},
+                 "place": {"type": "string", "description": "Area or city; empty = user's location"}},
+                ["query"]), _places_near_me, "online-information", True),
+    Tool("route_time", "How long does it take to get from A to B by car? "
+         "Returns duration and distance via OSRM (OpenStreetMap).",
+         _params({"from_place": {"type": "string"}, "to_place": {"type": "string"}},
+                ["from_place", "to_place"]), _route_time, "online-information", True),
 )
 
 
