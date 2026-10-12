@@ -2311,6 +2311,8 @@
     document.getElementById("auth-signup-form").hidden = step !== "signup";
     const title = document.getElementById("auth-title");
     if (title && !authSetupRequired) title.textContent = step === "signup" ? "CREATE YOUR ACCOUNT" : "SIGN IN TO ATULYA";
+    const subtitle = document.getElementById("auth-message");
+    if (subtitle && !authSetupRequired && step === "signup") subtitle.textContent = "Your account is ready once the owner approves it.";
   }
   document.getElementById("auth-identify")?.addEventListener("submit", (event) => {
     event.preventDefault();

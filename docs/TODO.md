@@ -56,7 +56,7 @@ Status: ✅ done (verified for real) · 🔧 in progress · ⬜ to do · ⛔ blo
 
 | # | Status | What |
 |---|---|---|
-| D1 | 🔧 | Google sign-in — Google Cloud project "Atulya" created; consent screen + OAuth client next |
+| D1 | 🔧 | Google sign-in — server code ready (verified email only; new emails become sign-ups for owner approval). Needs: owner creates the OAuth client (Web, redirect https://atulya.atulvij.com/api/auth/google/callback) → GOOGLE_CLIENT_ID/SECRET in server .env. **APK gap:** Google blocks sign-in inside WebViews → open in a Chrome Custom Tab and return a one-time code via App Link |
 | D2 | ⛔ | Email verification / codes by email — needs a mailbox to send from (Gmail app password or hosting SMTP); none found on this PC |
 
 ## E. Voice and assistant quality
@@ -80,7 +80,7 @@ Status: ✅ done (verified for real) · 🔧 in progress · ⬜ to do · ⛔ blo
 | G7 | ⬜ | Noise: real voice-activity detection (Silero VAD in the browser) so clicks, nail clipping, "shh" and background talk don't trigger; ignore when nobody speaks; no "no speech" message for silence | |
 | G8 | ⬜ | Chat management: clear, archive, delete; history and settings reachable from conversation mode | |
 | G9 | ⬜ | Login: Telegram code auto-fill/magic link reliability; email magic link needs a mailbox (D2) | |
-| G10 | ⬜ | Professional look: app theme + icon redesign (owner to pick references) | |
+| G10 | 🔧 | Professional look: launcher icon v2 (whole head inside the safe zone, glow background; was cropped by round masks); app theme still to redo (owner to pick references) | Preview circle/squircle, light/dark |
 | G11 | ⬜ | Phone access in the Android app (notifications, contacts, calls/SMS with approval) | |
 | G12 | ⬜ | Hologram speaking animation matches speech in full-screen mode (renderer is owner's — needs owner OK) | |
 
