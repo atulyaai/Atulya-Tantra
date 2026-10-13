@@ -1,43 +1,29 @@
 # Atulya-Tantra — working rules for AI assistants
 
 ## Goal
-Make Atulya a Jarvis that **actually works in daily use**: automated, fast, low-resource, tested for real
-(real server, real model calls, real audio files, real OS actions) — not only unit tests with fakes.
-Move toward more autonomy (planning, multi-step tools, proactive briefings) without losing safety.
+Make Atulya a Jarvis that works in daily use: short replies, voice-first, proactive, multi-channel, and safe.
 
 ## How to work
-- Push back. If a better/faster approach exists, say so and argue for it; do not just agree.
-- Verify for real before calling something done; say plainly what was only unit-tested.
-- Prefer measured improvements (latency, RAM/CPU, accuracy) over new untested features.
+- Prefer measured improvements over new untested features.
+- Verify on the live server before calling something done.
+- Push back if a better approach exists.
 
-## Where Atulya runs (since 2026-10-12)
-- Production = the owner's atulvij.com server (`atulya.service`, data in `~/Atulya-Tantra/data`), public at
-  https://atulya.atulvij.com through the Cloudflare tunnel running on the server.
-- This laptop is for development only: change → test → push to GitHub. GitHub runs the clean-machine tests and then
-  deploys to the server automatically (`.github/workflows/deploy.yml` → `tools/deploy_server.sh`, rollback on failure).
-  Do not run the laptop host task or a second Telegram poller against the production bot.
+## Where it runs
+- Production: https://atulya.atulvij.com (ubuntu@137.23.42.211, `/home/ubuntu/Atulya-Tantra`, `atulya.service` on :8501).
+- Secrets in `data/secrets.enc` and `.env`. Never commit them.
+- Laptop is for development; GitHub Actions deploys after clean tests.
 
 ## Do not touch without asking
-- `webui/renderer.js`, `webui/scene/**` — the owner's scene and animations. Never rebuild or replace them.
-  Add features around them (`assistant.js`, `renderer.css`, `index.html`). Image upscales go next to
-  the originals for comparison, never over them.
+- `webui/renderer.js`, `webui/scene/**` — owner’s hologram scene. Add features around them.
 
-## Safety invariants
-- Anything that changes the computer or sends outside goes through the approval queue (`confirm=True` in
-  `tools/plugins/toolkit.py`).
-- Secrets live only in `.env` / `data/`; logs are redacted (`atulya/logging_setup.py`). Never commit them.
+## Safety
+- Side-effecting tools use `confirm=True` and the approval queue.
+- Logs are redacted.
 
-## Checks
-```
-.venv/Scripts/python -m pytest -q
-.venv/Scripts/python -m ruff check .
-node --check webui/assistant.js
-.venv/Scripts/python -m atulya.cli selftest   # real end-to-end checks against this machine
-```
+## Current status (2026-10-13)
+- 40 tools loaded. Voice, routines, Gmail/Calendar (after re-auth), free multimodal vision, gesture model present.
+- Persona is short Jarvis style. Morning briefing ~40 words. Calendar reminder routine added.
+- Telegram allowlist merges into admin account.
 
-## Open goals (see docs/TODO.md for detail)
-1. Real daily use: sign in, voice, approvals, Telegram — fix what breaks.
-2. Wake word via a small always-on model (openWakeWord), Whisper fallback.
-3. One-command public access at atulya.atulvij.com (Cloudflare Tunnel) with strong auth.
-4. Lowest resource profile that still works; measured peak/idle.
-5. Agentic automation: multi-step plans, scheduled routines, proactive notices.
+## Open
+See `docs/TODO.md`. Highest: always-on wake word, laptop agent running, stronger cross-session memory, WebUI polish.

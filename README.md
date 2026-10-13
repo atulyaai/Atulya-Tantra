@@ -114,26 +114,21 @@ tool calling fall back to plain chat automatically.
 
 ---
 
-## Jarvis features
+## Jarvis features (live)
 
 | Ability | How to use it | State |
 |---|---|---|
-| Wake word | Turn on live voice, then "Hey Atulya, …". 8 s follow-up window after each reply. "wake word off" to disable | Implemented · needs a by-ear check |
-| Interrupt (barge-in) | Talk over Atulya; it stops and listens. "interrupt off" to disable | Implemented · needs a by-ear check |
-| Fast speech | Local Supertonic voice starts on the first sentence while the rest streams | Working |
-| Tools, chosen by the model | "What's it like outside in Delhi and what's 17×23?" — runs both tools at once | Verified live |
-| Computer control, with approval | "open Spotify", "find my resume", "volume up", "take a screenshot" → **APPROVE / DENY** (or say "yes"/"no") | Verified: the model only requests; nothing runs without approval |
-| Memory | "remember that…", "what did I say about the trip last week?" (searches your past chats) | Working |
-| Calendar & reminders | "add meeting: Standup \| tomorrow at 10am", Telegram `/remind 10m stretch` | Working |
-| Morning briefing | `ATULYA_BRIEFING_CITY`, `ATULYA_BRIEFING_TIME` — Telegram at that time, WebUI on the first visit of the day | Implemented |
-| Live system panel | CPU, memory, network, disk, uptime, battery, tool activity — refreshed every 3 s | Working |
-| Camera & gestures | Local MediaPipe hand gestures (open palm = stop, thumbs up/down = yes/no) | Working · camera framing to tune |
-| Skills | `tools/skills/<name>/SKILL.md` — multi-step instructions the model loads when needed | Working |
-| MCP server | `python -m atulya.cli mcp` exposes public tools and every skill to Claude Desktop, VS Code… | Working |
-| Telegram | Private, allowlisted chat with the same tools (no PC control) | Working |
-| Phone app | Installable PWA once served over HTTPS | Implemented · install not yet checked in Chrome |
+| Voice | Say stop, repeat, mute, wake word on, barge-in on. Mic auto-starts after first permission. | Working |
+| Short replies | Persona is Jarvis-style (1–2 sentences, no filler). Greeting is time-aware. | Working |
+| Tools | Weather, news, web search, places, routes, Gmail/Calendar (after Google re-auth), routines. | 40 tools loaded |
+| Routines | Weekday 08:00 briefing (~40 words), 07:30 rain check, 08:15 calendar reminder. | Working |
+| Vision | Free multimodal model (gemma-4). Allow camera for live view. | vision_ready true |
+| Gesture | MediaPipe model on disk. Thumbs up/down, open palm. | Model ready · needs camera |
+| Memory | remember / recall / search past chats. | Basic |
+| Telegram | Allowlisted ID merges into admin account. | Working |
+| Laptop agent | Outbound agent code present. Start on PC with token. | Code ready |
 
-The honest, item-by-item list of what is verified and what is still pending lives in **[docs/TODO.md](docs/TODO.md)**.
+Full list: **[docs/TODO.md](docs/TODO.md)**. Architecture: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
 ---
 
