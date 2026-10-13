@@ -3,7 +3,9 @@ package com.atulvij.atulya
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Message
 import android.webkit.GeolocationPermissions
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
@@ -25,6 +27,7 @@ class InAppBrowser(
 ) : LinearLayout(context) {
     val page = WebView(context)
     private val address = TextView(context)
+    private val temporaryWindows = mutableSetOf<WebView>()
 
     init {
         orientation = VERTICAL
@@ -59,6 +62,45 @@ class InAppBrowser(
             mediaPlaybackRequiresUserGesture = true
         }
         page.webChromeClient = object : WebChromeClient() {
+            override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
+                if (!isUserGesture) return false
+                val transport = resultMsg.obj as? WebView.WebViewTransport ?: return false
+                // Capture the requested URL with an unprivileged, non-visible WebView, then reuse this surface.
+                val popup = WebView(context)
+                temporaryWindows.add(popup)
+                popup.settings.apply {
+                    javaScriptEnabled = false
+                    allowFileAccess = false
+                    allowContentAccess = false
+                    setGeolocationEnabled(false)
+                }
+                var routed = false
+                fun dispose() {
+                    if (temporaryWindows.remove(popup)) {
+                        popup.stopLoading()
+                        popup.destroy()
+                    }
+                }
+                fun route(url: String) {
+                    if (routed || url == "about:blank") return
+                    routed = true
+                    open(Uri.parse(url))
+                    popup.post { dispose() }
+                }
+                popup.webViewClient = object : WebViewClient() {
+                    override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                        if (!request.isForMainFrame) return false
+                        route(request.url.toString())
+                        return true
+                    }
+                    override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
+                        route(url)
+                    }
+                }
+                transport.webView = popup
+                resultMsg.sendToTarget()
+                return true
+            }
             override fun onPermissionRequest(request: PermissionRequest) = request.deny()
             override fun onGeolocationPermissionsShowPrompt(origin: String, callback: GeolocationPermissions.Callback) {
                 callback.invoke(origin, false, false)
@@ -81,13 +123,16 @@ class InAppBrowser(
     }
 
     fun open(uri: Uri) {
-        if (uri.scheme == "https" && !uri.host.isNullOrBlank() && uri.userInfo == null) {
-            address.text = uri.host
-            page.loadUrl(uri.toString())
-        }
+        if (isAtulya(uri)) { openAtulya(uri); return }
+        if (uri.scheme != "https" || uri.host.isNullOrBlank() || uri.userInfo != null) return
+        if (uri.host == "accounts.google.com") { openAuthentication(uri); return }
+        address.text = uri.host
+        page.loadUrl(uri.toString())
     }
 
     fun destroy() {
+        temporaryWindows.toList().forEach { popup -> popup.stopLoading(); popup.destroy() }
+        temporaryWindows.clear()
         page.stopLoading()
         removeView(page)
         page.destroy()
