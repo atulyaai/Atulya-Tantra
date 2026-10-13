@@ -1507,10 +1507,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/download")
     async def download_app() -> Response:
-        """Always the newest signed Android build (public; no account data)."""
+        """Download page for the Android app. Redirects to the APK when a release exists."""
         latest = await latest_app_release()
-        url = str(latest.get("url") or "https://github.com/atulyaai/Atulya-Tantra/releases/latest")
-        return Response(status_code=302, headers={"Location": url})
+        url = str(latest.get("url") or "")
+        if url:
+            return Response(status_code=302, headers={"Location": url})
+        html = """<!doctype html>
+<html><head><meta charset="utf-8"><title>Atulya for Android</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{font-family:system-ui;background:#050b12;color:#e8f4ff;padding:2rem;max-width:36rem;margin:auto}
+a{color:#69eaff}h1{font-weight:500}</style></head>
+<body><h1>Atulya for Android</h1>
+<p>No signed APK is published yet.</p>
+<p>The app source is in the <a href="https://github.com/atulyaai/Atulya-Tantra">GitHub repo</a>.
+A release will appear here once a signed build is uploaded.</p>
+<p>For now, open <a href="https://atulya.atulvij.com">atulya.atulvij.com</a> in Chrome and use Add to Home Screen.</p>
+</body></html>"""
+        return Response(content=html, media_type="text/html")
 
     @app.get("/api/auth/pending-logins")
     async def list_pending_logins(http_request: Request) -> dict[str, list[dict]]:
