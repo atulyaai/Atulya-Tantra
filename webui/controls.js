@@ -242,7 +242,8 @@
   });
   $("#quick-status").addEventListener("click", async () => {
     open("Dashboard");
-    content.replaceChildren(node("p", `Camera on this device: ${document.body.classList.contains("camera-on") ? "on" : "off"}. ${$("#gesture-result")?.textContent || ""}`));
+    const cameraOn = document.body.classList.contains("camera-on");
+    content.replaceChildren(node("p", `Camera on this device: ${cameraOn ? "on" : "off"}. ${cameraOn ? ($("#gesture-result")?.textContent || "") : "Gesture detection waits for the camera."}`));
     content.append(node("p", "Connections manages granted MCP tools. Maintenance can diagnose issues and propose edits to permitted WebUI and skill files. Recent tool runs below show what actually executed."));
     try {
       const data = await api("/api/status?conversation_id=controls");
