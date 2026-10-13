@@ -1197,6 +1197,7 @@
 
   // Keep the monitor running exactly while Atulya is speaking in a live session.
   window.setInterval(() => {
+    if (speaking && listening && !bargeInEnabled) cancelListening();
     const wanted = bargeInEnabled && voiceSessionActive && speaking && !listening;
     if (wanted && !bargeMonitor) startBargeMonitor();
     else if (!wanted && bargeMonitor) stopBargeMonitor();
