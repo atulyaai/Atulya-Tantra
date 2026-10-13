@@ -608,14 +608,6 @@ async def _calendar_create(args: dict, ctx: PluginContext | None) -> str:
     return "Creating a calendar event requires approval. Use the WebUI to confirm."
 
 
-async def _github_search(args: dict, _ctx: PluginContext | None) -> str:
-    return "GitHub search needs a personal access token in the server .env (not yet configured)."
-
-
-async def _github_issues(args: dict, _ctx: PluginContext | None) -> str:
-    return "GitHub issues needs a personal access token in the server .env (not yet configured)."
-
-
 TOOLS: tuple[Tool, ...] = (
     Tool("screen_control", "Change the Atulya screen the user is looking at: hide or show the chat, "
          "conversation mode (full-screen hologram, hands-free), new chat, open history or settings, camera "
@@ -744,12 +736,6 @@ TOOLS: tuple[Tool, ...] = (
     Tool("calendar_create", "Create a Google Calendar event with approval.",
          _params({"summary": {"type": "string"}, "when": {"type": "string"}}, ["summary", "when"]),
          _calendar_create, "online-information", needs_context=True, confirm=True),
-    Tool("github_search", "Search GitHub repositories or issues.",
-         _params({"query": {"type": "string"}}, ["query"]),
-         _github_search, "online-information"),
-    Tool("github_issues", "List GitHub issues for a repository.",
-         _params({"owner": {"type": "string"}, "repo": {"type": "string"}}, ["owner", "repo"]),
-         _github_issues, "online-information", confirm=True),
 
 )
 
