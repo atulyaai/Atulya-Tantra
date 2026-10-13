@@ -136,7 +136,7 @@ def main(actions: bool = False) -> int:
                 try:
                     _stream_chat(client, "From now on please call me Captain.", conversation)
                     saved = client.get("/api/profile").json()["profile"].get("preferred_name", "")
-                    reply, _, _ = _stream_chat(client, "Say hello to me in one short sentence.", conversation)
+                    reply, _, _ = _stream_chat(client, "What name should you use to address me? Answer with only my saved preferred name.", conversation)
                     return saved.lower() == "captain" and "captain" in reply.lower(), f"saved={saved!r} · {reply[:70]!r}", None
                 finally:
                     client.put("/api/profile", json={"preferred_name": before.get("preferred_name", "")})

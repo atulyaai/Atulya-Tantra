@@ -63,7 +63,7 @@ class InAppBrowser(
         }
         page.webChromeClient = object : WebChromeClient() {
             override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
-                if (!isUserGesture) return false
+                if (!isUserGesture || temporaryWindows.size >= 3) return false
                 val transport = resultMsg.obj as? WebView.WebViewTransport ?: return false
                 // Capture the requested URL with an unprivileged, non-visible WebView, then reuse this surface.
                 val popup = WebView(context)
