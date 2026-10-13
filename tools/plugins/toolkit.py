@@ -673,7 +673,7 @@ TOOLS: tuple[Tool, ...] = (
          "Use it when the user asks 'what can you do here?', 'what can you do on Telegram?', or similar.",
          _params({"channel": {"type": "string", "enum": ["web", "telegram", "mcp", "android"]}}),
          _what_can_you_do, "local-utilities"),
-    Tool("list_devices", "List all registered devices (server, laptop, phone) with their status and granted abilities.",
+    Tool("list_registered_devices", "List all registered devices (server, laptop, phone) with their status and granted abilities.",
          _params(), _list_devices, "local-utilities"),
     Tool("server_logs", "Explain server logs: read from approved paths only, show recent entries, propose fixes.",
          _params({"query": {"type": "string", "description": "Keywords to search for in logs"}}, ["query"]),
