@@ -76,6 +76,11 @@ def test_gesture_model_is_served_from_project_model_directory(project_temp_dir: 
     model_path = models_dir / "gesture" / "gesture_recognizer.task"
     model_path.parent.mkdir(parents=True)
     model_path.write_bytes(b"local gesture model")
+    from tools.bootstrap import MEDIAPIPE_FILES
+    for name in MEDIAPIPE_FILES:
+        asset = models_dir / "runtime" / "mediapipe" / name
+        asset.parent.mkdir(parents=True, exist_ok=True)
+        asset.write_bytes(b"test runtime asset")
     settings = Settings(
         assistant_name="Atulya",
         host="127.0.0.1",

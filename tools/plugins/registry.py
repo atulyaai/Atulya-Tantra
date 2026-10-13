@@ -24,6 +24,10 @@ class PluginContext:
     profile: object | None = None
     # Which channel this request came from (web, telegram, mcp, android).
     channel: str = "web"
+    # Web reminders are delivered and acknowledged by an authenticated browser.
+    reminders: object | None = None
+    maintenance: object | None = None
+    mcp_connections: object | None = None
 
 
 CommandHandler = Callable[[str, PluginContext], Awaitable[str | None]]

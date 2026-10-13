@@ -9,17 +9,12 @@ Provides:
 """
 from __future__ import annotations
 
-import asyncio
-import json
 import logging
-import os
 import re
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
-import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -214,7 +209,6 @@ async def extract_invoice(
     }
 
     # Look for invoice number patterns
-    import re
     patterns = {
         "invoice_number": r"(?:Invoice #? ?#? ?|INV[:\s])?([A-Za-z0-9\-]+)",
         "date": r"(?:Date|Invoice.Date)[:\s]?(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",

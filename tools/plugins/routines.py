@@ -9,12 +9,8 @@ Provides:
 """
 from __future__ import annotations
 
-import asyncio
-import json
 import logging
-from datetime import datetime, time as dt_time
-from pathlib import Path
-from typing import Any, Callable, Optional
+from datetime import datetime
 
 import httpx
 
@@ -78,7 +74,6 @@ class RainTrigger(TriggerCondition):
     
     def check(self) -> bool:
         """Check if rain is forecast above threshold."""
-        from tools.plugins.information.document import read_document
         # In a real implementation, check weather forecast
         # For now, return False
         return False
@@ -137,7 +132,6 @@ class Workflow:
             self.status = WORKFLOW_COMPLETED
             return {"status": WORKFLOW_COMPLETED, "message": "Workflow completed"}
         
-        step = self.steps[self.step_index]
         # In a real implementation, execute the step action
         # For now, just advance and return
         self.step_index += 1
