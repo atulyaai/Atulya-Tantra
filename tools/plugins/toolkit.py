@@ -365,6 +365,66 @@ async def _use_skill(args: dict, _ctx: PluginContext | None) -> str:
     return f"Follow these skill instructions using your other tools:\n\n{body}"
 
 
+
+
+async def _list_devices(_args: dict, _ctx: PluginContext | None) -> str:
+    from atulya.settings import Settings
+    from tools.plugins.system.agents import AgentHub
+    rows = AgentHub(Settings.from_environment().data_dir).devices()
+    if not rows:
+        return "No laptop agent is connected. On the computer run agents/laptop_agent.py with ATULYA_AGENT_TOKEN."
+    return "Devices:\n" + "\n".join(f"• {row['name']} — seen {row['seen']} — {', '.join(row['abilities'])}" for row in rows)
+
+
+async def _ask_device(args: dict, _ctx: PluginContext | None) -> str:
+    from atulya.settings import Settings
+    from tools.plugins.system.agents import AgentHub
+    hub = AgentHub(Settings.from_environment().data_dir)
+    try:
+        job = hub.enqueue(_text(args, "device", 40), str(args.get("command") or "ping"), str(args.get("detail") or ""))
+    except ValueError as exc:
+        return str(exc)
+    return f"Sent {job['kind']} to {job['device']}. The laptop will pick it up within a few seconds."
+
+
+async def _list_routines(_args: dict, _ctx: PluginContext | None) -> str:
+    from atulya.settings import Settings
+    from tools.plugins.productivity.routines import RoutineStore
+    store = RoutineStore(Settings.from_environment().data_dir)
+    return RoutineStore.format_list(store.list_items())
+
+
+async def _add_routine(args: dict, _ctx: PluginContext | None) -> str:
+    from atulya.settings import Settings
+    from tools.plugins.productivity.routines import RoutineStore
+    store = RoutineStore(Settings.from_environment().data_dir)
+    try:
+        item = store.add(
+            _text(args, "name", 80),
+            _text(args, "when", 5),
+            str(args.get("days") or "all"),
+            str(args.get("action") or "message"),
+            str(args.get("message") or ""),
+        )
+    except ValueError as exc:
+        return str(exc)
+    return (
+        f"Routine saved: {item['name']} — {item['days']} at {item['when']} ({item['action']}). "
+        "It runs once that day inside 20 minutes of that time, including after a restart."
+    )
+
+
+async def _remove_routine(args: dict, _ctx: PluginContext | None) -> str:
+    from atulya.settings import Settings
+    from tools.plugins.productivity.routines import RoutineStore
+    store = RoutineStore(Settings.from_environment().data_dir)
+    try:
+        removed = store.remove(_text(args, "name", 80))
+    except ValueError as exc:
+        return str(exc)
+    return f"Removed {removed} routine."
+
+
 async def _what_can_you_do(args: dict, _ctx: PluginContext | None) -> str:
     from tools.plugins.capabilities import catalogue_for_channel
     channel = str(args.get("channel") or "web").strip().lower()
@@ -458,6 +518,88 @@ async def _screen_control(args: dict, _ctx: PluginContext | None) -> str:
     return f"Done: {action.replace('_', ' ')} (the screen updates now). Confirm briefly."
 
 
+async def _list_devices(_args: dict, ctx: PluginContext | None) -> str:
+    """List all registered devices with status and granted abilities."""
+    registry = get_device_registry()
+    if registry is None:
+        return "Device registry not initialized."
+    devices = registry.list_devices()
+    if not devices:
+        return "No devices registered."
+    lines = ["Registered devices:"]
+    for d in devices:
+        ability_str = ", ".join(sorted(d.abilities)) if d.abilities else "none"
+        lines.append(f"  • {d.type}: status={d.status}, abilities=[{ability_str}], last_seen={int(d.last_seen)}s ago")
+    return "\n".join(lines)
+
+
+async def _server_logs(args: dict, ctx: PluginContext | None) -> str:
+    """Explain server logs: read from approved paths only."""
+    import os
+    query = _text(args, "query", 100).lower() if args else ""
+    log_dir = os.environ.get("ATULYA_LOG_DIR", "data/logs")
+    try:
+        if not os.path.isdir(log_dir):
+            return f"Log directory not found: {log_dir}"
+        entries = []
+        for fname in sorted(os.listdir(log_dir)):
+            if fname.endswith(".log"):
+                fpath = os.path.join(log_dir, fname)
+                try:
+                    with open(fpath, "r", encoding="utf-8", errors="replace") as f:
+                        lines = f.readlines()[-20:]
+                        for line in lines:
+                            if query and query not in line.lower():
+                                continue
+                            entries.append(f"{fname}: {line.rstrip()[:200]}")
+                except OSError:
+                    continue
+        if not entries:
+            return f"No log entries matching {_text(args, 'query', 100) or 'recent'} found."
+        return f"Recent log entries ({len(entries)}):\n" + "\n".join(entries[:10])
+    except Exception as exc:
+        return f"Failed to read logs: {type(exc).__name__}: {exc}"
+
+
+async def _restart_service(args: dict, ctx: PluginContext | None) -> str:
+    """Restart a service with approval. Only read-only, approved paths."""
+    import subprocess
+    service = _text(args, "service", 64)
+    # Only allow known, safe services
+    safe_services = {"nginx", "fail2ban", "sshd", "atulya"}
+    if service not in safe_services:
+        return f"Service '{service}' is not in the approved list. Allowed: {', '.join(safe_services)}"
+    # This is a simulated approval - in real use, the WebUI would show an approval card
+    # For now, just record the request and explain
+    return (f"Service restart requested for '{service}'. This requires user approval on the WebUI. "
+            f"Use the WebUI ⋮ → ACTIVITY → Approve to restart. "
+            f"Only read-only restart commands are allowed without approval.")
+
+
+
+
+    Tool('gmail_search', 'Search Gmail for messages matching a query.',
+         _params({'query': {'type': 'string'}}, ['query']),
+         _gmail_search, 'online-information'),
+    Tool('gmail_drafts', 'List Gmail drafts.',
+         _params({}, []),
+         _gmail_drafts, 'online-information'),
+    Tool('gmail_send', 'Send a Gmail message with approval.',
+         _params({'message': {'type': 'string'}}, ['message']),
+         _gmail_send, 'online-information', True),
+    Tool('calendar_search', 'Search Google Calendar for events.',
+         _params({'query': {'type': 'string'}}, ['query']),
+         _calendar_search, 'online-information'),
+    Tool('calendar_create', 'Create a Google Calendar event with approval.',
+         _params({'summary': {'type': 'string'}, 'when': {'type': 'string'}}, ['summary', 'when']),
+         _calendar_create, 'online-information', True),
+    Tool('github_search', 'Search GitHub repositories or issues.',
+         _params({'query': {'type': 'string'}}, ['query']),
+         _github_search, 'online-information'),
+    Tool('github_issues', 'List GitHub issues for a repository.',
+         _params({'owner': {'type': 'string'}, 'repo': {'type': 'string'}}, ['owner', 'repo']),
+         _github_issues, 'online-information', True),
+
 TOOLS: tuple[Tool, ...] = (
     Tool("screen_control", "Change the Atulya screen the user is looking at: hide or show the chat, "
          "conversation mode (full-screen hologram, hands-free), new chat, open history or settings, camera "
@@ -550,6 +692,24 @@ TOOLS: tuple[Tool, ...] = (
          _params({"query": {"type": "string", "description": "What to find, e.g. 'pharmacy', 'hospital'"},
                  "place": {"type": "string", "description": "Area or city; empty = user's location"}},
                 ["query"]), _places_near_me, "online-information", True),
+    Tool("list_devices", "List laptop agents that are connected out to Atulya.",
+         _params(), _list_devices, "pc-control", True),
+    Tool("ask_device", "Send an allowlisted command to a connected laptop: ping, open_url, list_files, or say.",
+         _params({"device": {"type": "string"},
+                  "command": {"type": "string", "enum": ["ping", "open_url", "list_files", "say"]},
+                  "detail": {"type": "string"}}, ["device", "command"]),
+         _ask_device, "pc-control", True),
+    Tool("list_routines", "List saved recurring routines (name, time, days, action).",
+         _params(), _list_routines, "productivity-calendar", True),
+    Tool("add_routine", "Save a recurring routine. when is local HH:MM. days: all, weekdays, or weekends. "
+         "action: message (needs message text), weather, or briefing. Fires once per day near that time.",
+         _params({"name": {"type": "string"}, "when": {"type": "string", "description": "Local time HH:MM"},
+                  "days": {"type": "string", "enum": ["all", "weekdays", "weekends"]},
+                  "action": {"type": "string", "enum": ["message", "weather", "briefing"]},
+                  "message": {"type": "string"}}, ["name", "when"]),
+         _add_routine, "productivity-calendar", True),
+    Tool("remove_routine", "Delete a routine by its name or id.",
+         _params({"name": {"type": "string"}}, ["name"]), _remove_routine, "productivity-calendar", True),
     Tool("route_time", "How long does it take to get from A to B by car? "
          "Returns duration and distance via OSRM (OpenStreetMap).",
          _params({"from_place": {"type": "string"}, "to_place": {"type": "string"}},
@@ -761,85 +921,5 @@ class Toolbox:
             return "That action failed on this computer."
 
 
-async def _list_devices(_args: dict, ctx: PluginContext | None) -> str:
-    """List all registered devices with status and granted abilities."""
-    registry = get_device_registry()
-    if registry is None:
-        return "Device registry not initialized."
-    devices = registry.list_devices()
-    if not devices:
-        return "No devices registered."
-    lines = ["Registered devices:"]
-    for d in devices:
-        ability_str = ", ".join(sorted(d.abilities)) if d.abilities else "none"
-        lines.append(f"  • {d.type}: status={d.status}, abilities=[{ability_str}], last_seen={int(d.last_seen)}s ago")
-    return "\n".join(lines)
 
-
-async def _server_logs(args: dict, ctx: PluginContext | None) -> str:
-    """Explain server logs: read from approved paths only."""
-    import os
-    query = _text(args, "query", 100).lower() if args else ""
-    log_dir = os.environ.get("ATULYA_LOG_DIR", "data/logs")
-    try:
-        if not os.path.isdir(log_dir):
-            return f"Log directory not found: {log_dir}"
-        entries = []
-        for fname in sorted(os.listdir(log_dir)):
-            if fname.endswith(".log"):
-                fpath = os.path.join(log_dir, fname)
-                try:
-                    with open(fpath, "r", encoding="utf-8", errors="replace") as f:
-                        lines = f.readlines()[-20:]
-                        for line in lines:
-                            if query and query not in line.lower():
-                                continue
-                            entries.append(f"{fname}: {line.rstrip()[:200]}")
-                except OSError:
-                    continue
-        if not entries:
-            return f"No log entries matching {_text(args, 'query', 100) or 'recent'} found."
-        return f"Recent log entries ({len(entries)}):\n" + "\n".join(entries[:10])
-    except Exception as exc:
-        return f"Failed to read logs: {type(exc).__name__}: {exc}"
-
-
-async def _restart_service(args: dict, ctx: PluginContext | None) -> str:
-    """Restart a service with approval. Only read-only, approved paths."""
-    import subprocess
-    service = _text(args, "service", 64)
-    # Only allow known, safe services
-    safe_services = {"nginx", "fail2ban", "sshd", "atulya"}
-    if service not in safe_services:
-        return f"Service '{service}' is not in the approved list. Allowed: {', '.join(safe_services)}"
-    # This is a simulated approval - in real use, the WebUI would show an approval card
-    # For now, just record the request and explain
-    return (f"Service restart requested for '{service}'. This requires user approval on the WebUI. "
-            f"Use the WebUI ⋮ → ACTIVITY → Approve to restart. "
-            f"Only read-only restart commands are allowed without approval.")
-
-
-
-
-    Tool('gmail_search', 'Search Gmail for messages matching a query.',
-         _params({'query': {'type': 'string'}}, ['query']),
-         _gmail_search, 'online-information'),
-    Tool('gmail_drafts', 'List Gmail drafts.',
-         _params({}, []),
-         _gmail_drafts, 'online-information'),
-    Tool('gmail_send', 'Send a Gmail message with approval.',
-         _params({'message': {'type': 'string'}}, ['message']),
-         _gmail_send, 'online-information', True),
-    Tool('calendar_search', 'Search Google Calendar for events.',
-         _params({'query': {'type': 'string'}}, ['query']),
-         _calendar_search, 'online-information'),
-    Tool('calendar_create', 'Create a Google Calendar event with approval.',
-         _params({'summary': {'type': 'string'}, 'when': {'type': 'string'}}, ['summary', 'when']),
-         _calendar_create, 'online-information', True),
-    Tool('github_search', 'Search GitHub repositories or issues.',
-         _params({'query': {'type': 'string'}}, ['query']),
-         _github_search, 'online-information'),
-    Tool('github_issues', 'List GitHub issues for a repository.',
-         _params({'owner': {'type': 'string'}, 'repo': {'type': 'string'}}, ['owner', 'repo']),
-         _github_issues, 'online-information', True),
 TOOLS_BY_NAME = {tool.name: tool for tool in TOOLS}
