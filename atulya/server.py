@@ -1507,22 +1507,45 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/download")
     async def download_app() -> Response:
-        """Download page for the Android app. Redirects to the APK when a release exists."""
+        """Public download page for the Android app."""
         latest = await latest_app_release()
+        version = str(latest.get("version") or "")
         url = str(latest.get("url") or "")
-        if url:
-            return Response(status_code=302, headers={"Location": url})
-        html = """<!doctype html>
+        notes = str(latest.get("notes") or "")
+        if not url:
+            html = """<!doctype html>
 <html><head><meta charset="utf-8"><title>Atulya for Android</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<style>body{font-family:system-ui;background:#050b12;color:#e8f4ff;padding:2rem;max-width:36rem;margin:auto}
-a{color:#69eaff}h1{font-weight:500}</style></head>
-<body><h1>Atulya for Android</h1>
-<p>No signed APK is published yet.</p>
-<p>The app source is in the <a href="https://github.com/atulyaai/Atulya-Tantra">GitHub repo</a>.
-A release will appear here once a signed build is uploaded.</p>
-<p>For now, open <a href="https://atulya.atulvij.com">atulya.atulvij.com</a> in Chrome and use Add to Home Screen.</p>
-</body></html>"""
+<style>
+body{font-family:system-ui,sans-serif;background:#050b12;color:#e8f4ff;margin:0;padding:2rem}
+.card{max-width:32rem;margin:2rem auto;background:#0c1620;border:1px solid #1a3a4a;border-radius:12px;padding:2rem}
+h1{font-weight:500;margin:0 0 .5rem}a{color:#69eaff;text-decoration:none}
+.btn{display:inline-block;background:#69eaff;color:#050b12;padding:.75rem 1.5rem;border-radius:8px;font-weight:600;margin-top:1rem}
+</style></head>
+<body><div class="card"><h1>Atulya</h1><p>No signed APK is published yet.</p>
+<p>Source: <a href="https://github.com/atulyaai/Atulya-Tantra">GitHub</a></p>
+<p>Use <a href="/">the web app</a> in Chrome and Add to Home Screen for now.</p>
+</div></body></html>"""
+            return Response(content=html, media_type="text/html")
+        html = f"""<!doctype html>
+<html><head><meta charset="utf-8"><title>Atulya {version}</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{{font-family:system-ui,sans-serif;background:#050b12;color:#e8f4ff;margin:0;padding:2rem}}
+.card{{max-width:32rem;margin:2rem auto;background:#0c1620;border:1px solid #1a3a4a;border-radius:12px;padding:2rem}}
+h1{{font-weight:500;margin:0 0 .25rem}}.ver{{color:#69eaff;font-size:.9rem}}
+.btn{{display:inline-block;background:#69eaff;color:#050b12;padding:.8rem 1.6rem;border-radius:8px;font-weight:600;text-decoration:none;margin:1rem 0}}
+ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
+</style></head>
+<body><div class="card">
+<h1>Atulya</h1>
+<div class="ver">Android {version}</div>
+<p>Private voice assistant for your phone. Uses the phone's own speech recognizer.</p>
+<a class="btn" href="{url}">Download APK</a>
+<p style="font-size:.85rem;color:#8aa">After download: open the file, allow install from this source, then open Atulya.</p>
+{"<p>"+notes+"</p>" if notes else ""}
+<p style="margin-top:1.5rem;font-size:.85rem"><a href="/">Open web app</a> · <a href="https://github.com/atulyaai/Atulya-Tantra">Source</a></p>
+</div></body></html>"""
         return Response(content=html, media_type="text/html")
 
     @app.get("/api/auth/pending-logins")
