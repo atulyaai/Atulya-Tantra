@@ -27,10 +27,9 @@ def briefing_prompt(city: str) -> str:
     weather = (f"current weather for {city}, " if city else
                "no weather (no home city is saved; end with one short line: say 'my city is <name>' to add it), ")
     return (
-        f"Give me my morning briefing for {today}. This is a one-way report: do not ask me questions. "
-        f"Use your tools: {weather}the top five headlines, and my meetings today (say if there are none). "
-        "Start with a one-line greeting, keep it under 120 words, plain text, no markdown tables. "
-        "Report any part that fails as unavailable."
+        f"Morning briefing for {today}. One-way, no questions. "
+        f"Use tools: {weather}meetings today (or none), and only the single most important headline. "
+        "Max 40 words. Start with time-of-day greeting. Plain text. Skip anything unavailable."
     )
 
 
