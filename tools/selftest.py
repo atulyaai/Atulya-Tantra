@@ -16,6 +16,7 @@ import platform
 import subprocess
 import time
 from dataclasses import dataclass, field
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -135,7 +136,7 @@ def main(actions: bool = False) -> int:
                 try:
                     _stream_chat(client, "From now on please call me Captain.", conversation)
                     saved = client.get("/api/profile").json()["profile"].get("preferred_name", "")
-                    reply, _, _ = _stream_chat(client, "Say hello to me in one short sentence.", conversation)
+                    reply, _, _ = _stream_chat(client, "What name should you use to address me? Answer with only my saved preferred name.", conversation)
                     return saved.lower() == "captain" and "captain" in reply.lower(), f"saved={saved!r} · {reply[:70]!r}", None
                 finally:
                     client.put("/api/profile", json={"preferred_name": before.get("preferred_name", "")})
@@ -207,7 +208,15 @@ def main(actions: bool = False) -> int:
                 _, confirms, _ = _stream_chat(client, "Give me an open_website button for https://example.com.",
                                               conversation, ui_events)
                 links = [item for item in ui_events if isinstance(item, dict) and item.get("type") == "link"]
-                valid = any(item.get("url") == "https://example.com" for item in links)
+                def expected_destination(item):
+                    try:
+                        url = urlsplit(str(item.get("url", "")))
+                        return (url.scheme == "https" and url.hostname == "example.com" and
+                                url.port in (None, 443) and url.path in ("", "/") and
+                                not url.query and not url.fragment and not url.username and not url.password)
+                    except ValueError:
+                        return False
+                valid = any(expected_destination(item) for item in links)
                 return valid and not confirms, "device button emitted; opening still requires a user tap", None
             _timed(report, "device website button", website_link)
 

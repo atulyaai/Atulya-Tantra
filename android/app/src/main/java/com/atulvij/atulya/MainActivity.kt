@@ -359,7 +359,7 @@ class MainActivity : AppCompatActivity() {
     @Deprecated("Back navigation inside the web app")
     override fun onBackPressed() {
         browser?.let { surface ->
-            if (surface.page.canGoBack()) surface.page.goBack() else closeWebsite()
+            surface.navigateBack()
             return
         }
         web.evaluateJavascript("(window.atulyaBack && window.atulyaBack()) ? 'handled' : 'none'") { result ->
