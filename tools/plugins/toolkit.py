@@ -911,7 +911,7 @@ class Toolbox:
         if context is not None and context.channel == "telegram":
             self._tools.pop("screen_control", None)
         if context is not None and (context.channel in {"telegram", "android"} or
-                                    (os.name != "nt" and not os.environ.get("DISPLAY") and
+                                    (os.name != "nt" and not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY") and
                                      __import__("sys").platform != "darwin")):
             for tool in list(self._tools.values()):
                 if tool.plugin_id == "pc-control":

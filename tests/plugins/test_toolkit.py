@@ -128,7 +128,8 @@ def test_secrets_are_redacted_from_logs() -> None:
     assert "AAFakeTest" not in record.getMessage()
 
 
-def test_pc_actions_wait_for_approval_and_only_run_for_that_user(tmp_path) -> None:
+def test_pc_actions_wait_for_approval_and_only_run_for_that_user(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("DISPLAY", ":test-desktop")
     from tools.plugins.toolkit import ActionQueue
 
     queue = ActionQueue(tmp_path)
@@ -144,7 +145,8 @@ def test_pc_actions_wait_for_approval_and_only_run_for_that_user(tmp_path) -> No
     assert queue.take(pending.id, "u1") is None  # single use
 
 
-def test_pc_actions_are_refused_without_an_approval_channel() -> None:
+def test_pc_actions_are_refused_without_an_approval_channel(monkeypatch) -> None:
+    monkeypatch.setenv("DISPLAY", ":test-desktop")
     context = PluginContext("tg1", object(), object(), "tg_1")  # e.g. Telegram: no actions queue
     toolbox = Toolbox.for_registry(build_default_registry(), context)
     assert "only available in the Atulya WebUI" in asyncio.run(toolbox.call("take_screenshot", {}))
@@ -209,3 +211,18 @@ def test_screen_control_queues_ui_action_only_inside_a_chat_stream():
 
     assert "Unknown" in asyncio.run(run())
     assert queued == ["hide_chat"]
+
+
+def test_headless_server_does_not_offer_desktop_control(monkeypatch) -> None:
+    import os
+    import sys
+    import pytest
+    if os.name == "nt" or sys.platform == "darwin":
+        pytest.skip("Headless server filtering applies to Linux")
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    context = PluginContext("conv", object(), object(), "owner")
+    toolbox = Toolbox.for_registry(build_default_registry(), context)
+    names = {item["function"]["name"] for item in toolbox.schemas}
+    assert "open_url" not in names and "take_screenshot" not in names
+    assert "open_website" in names and "find_music" in names

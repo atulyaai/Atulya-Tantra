@@ -243,7 +243,7 @@
   $("#quick-status").addEventListener("click", async () => {
     open("Dashboard");
     content.replaceChildren(node("p", `Camera on this device: ${document.body.classList.contains("camera-on") ? "on" : "off"}. ${$("#gesture-result")?.textContent || ""}`));
-    content.append(node("p", "MCP exposes a limited tool set. It does not grant code editing or camera diagnostics. A recorded tool run is evidence of execution; plain chat text is not."));
+    content.append(node("p", "Connections manages granted MCP tools. Maintenance can diagnose issues and propose edits to permitted WebUI and skill files. Recent tool runs below show what actually executed."));
     try {
       const data = await api("/api/status?conversation_id=controls");
       const grid = node("div", undefined, "dashboard-grid"); content.append(grid);
