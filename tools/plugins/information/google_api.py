@@ -76,14 +76,14 @@ async def gmail_search(user_id: str, query: str, limit: int = 5) -> str:
         lines = [f"Gmail results for {query!r}:"]
         for msg in messages[:limit]:
             detail = await client.get(
-                f"{GMAIL_API}/messages/{msg[id]}",
+                f"{GMAIL_API}/messages/{msg['id']}",
                 params={"format": "metadata", "metadataHeaders": "Subject,From,Date"},
                 headers={"Authorization": f"Bearer {token}"},
             )
             if detail.status_code != 200:
                 continue
             headers = {h["name"]: h["value"] for h in detail.json().get("payload", {}).get("headers", [])}
-            lines.append(f"- {headers.get(\"Date\", \"\")} | {headers.get(\"From\", \"\")} | {headers.get(\"Subject\", \"(no subject)\")}")
+            lines.append(f"- {headers.get('Date', '')} | {headers.get('From', '')} | {headers.get('Subject', '(no subject)')}")
         return "\n".join(lines)
 
 
@@ -123,5 +123,5 @@ async def calendar_search(user_id: str, query: str) -> str:
         lines = [f"Calendar events for {query!r}:"]
         for item in items:
             start = (item.get("start") or {}).get("dateTime") or (item.get("start") or {}).get("date") or ""
-            lines.append(f"- {start} | {item.get(\"summary\", \"(no title)\")}")
+            lines.append(f"- {start} | {item.get('summary', '(no title)')}")
         return "\n".join(lines)
