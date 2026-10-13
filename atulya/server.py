@@ -875,7 +875,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 (config.model_provider_auto and (
                     (config.models_dir / "vision" / "mmproj-Qwen_Qwen3.5-2B-bf16.gguf").is_file()
                     or any(token in os.environ.get("ATULYA_OPENROUTER_MODEL", "").lower()
-                           for token in ("gemini", "vision", "vl", "gpt-4o", "claude", "qwen"))
+                           for token in ("gemini", "vision", "vl", "gpt-4o", "claude", "qwen", "gemma", "omni", "multimodal"))
                 ))
                 or
                 (config.model_provider == "local"
