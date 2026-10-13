@@ -85,7 +85,7 @@ class InAppBrowser(
                     if (routed || url == "about:blank") return
                     routed = true
                     open(Uri.parse(url))
-                    popup.post { dispose() }
+                    page.post { dispose() }
                 }
                 popup.webViewClient = object : WebViewClient() {
                     override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
