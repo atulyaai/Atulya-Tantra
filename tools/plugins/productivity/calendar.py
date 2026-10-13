@@ -91,6 +91,23 @@ class CalendarStore:
             cur = db.execute("DELETE FROM events WHERE user_id=? AND owner=? AND id=?", (user_id, owner, event_id))
             return cur.rowcount > 0
 
+    def edit(self, owner: str, event_id: int, *, user_id: str = "admin", title: str | None = None,
+             starts_at: datetime | None = None) -> bool:
+        owner, user_id = self._owner(owner), self._user_id(user_id)
+        if title is not None and (not title.strip() or len(title) > 300):
+            raise ValueError("Event title must be 1 to 300 characters")
+        if starts_at is not None and (starts_at.tzinfo is None or starts_at <= datetime.now(timezone.utc)):
+            raise ValueError("Meeting time must be in the future and include a timezone")
+        if title is None and starts_at is None:
+            raise ValueError("Specify a new title or time")
+        with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
+            cur = db.execute("UPDATE events SET title=COALESCE(?,title),starts_at=COALESCE(?,starts_at) "
+                             "WHERE owner=? AND user_id=? AND id=?",
+                             (title.strip() if title is not None else None,
+                              starts_at.astimezone(timezone.utc).isoformat(timespec="seconds") if starts_at else None,
+                              owner, user_id, event_id))
+            return cur.rowcount > 0
+
     def due_reminder(self, owner: str, now: datetime | None = None, user_id: str = "admin") -> dict | None:
         owner = self._owner(owner)
         user_id = self._user_id(user_id)

@@ -8,15 +8,30 @@
   <title>Atulya</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="icon" href="./icons/favicon-48.png" type="image/png">
+  <link rel="icon" href="./icons/atulya-mark.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="stylesheet" href="./renderer.css?v=atulya-59">
+  <link rel="stylesheet" href="./controls.css?v=5">
   <script type="module" crossorigin src="./renderer.js?v=atulya-10"></script>
-  <script defer src="./assistant.js?v=atulya-78"></script>
+  <script defer src="./assistant.js?v=atulya-80"></script>
+  <script defer src="./controls.js?v=4"></script>
 </head>
 <body>
   <div id="root"></div>
+  <nav class="quick-controls" aria-label="Atulya controls">
+    <button id="quick-camera" type="button" aria-pressed="false">Camera off</button>
+    <button id="quick-gesture" type="button" aria-pressed="true">Gestures on</button>
+    <button id="quick-reminders" type="button">Reminders</button>
+    <button id="quick-status" type="button">Dashboard</button>
+    <button id="quick-connections" type="button">Connections</button>
+    <button id="quick-maintenance" type="button">Maintenance</button>
+  </nav>
+  <section id="reminder-notices" aria-live="assertive" aria-label="Due reminders"></section>
+  <dialog id="control-dialog" aria-labelledby="control-title">
+    <header><h2 id="control-title">Reminders</h2><button id="close-control" type="button" aria-label="Close controls">Close</button></header>
+    <div id="control-content"></div>
+  </dialog>
   <aside class="system-dashboard" id="system-dashboard" aria-label="Atulya system status">
     <header class="system-dashboard-header"><span class="system-pulse" aria-hidden="true"></span><div><strong>SYSTEM</strong><small id="system-overview">CONNECTING</small></div></header>
     <div class="system-status-grid">

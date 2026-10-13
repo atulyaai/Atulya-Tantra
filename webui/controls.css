@@ -1,0 +1,43 @@
+.quick-controls{position:fixed;top:12px;left:12px;z-index:1100;display:flex;flex-wrap:wrap;gap:8px;max-width:calc(100vw - 24px);font-family:system-ui,sans-serif}
+body.auth-required .quick-controls{visibility:hidden}
+body.non-admin #quick-status,body.non-admin #quick-connections,body.non-admin #quick-maintenance{display:none}
+.quick-controls button,#control-dialog button,#control-dialog input,#reminder-notices button{font:inherit;font-size:14px;min-height:44px;border:1px solid #437181;border-radius:9px;padding:9px 12px;background:#102b37;color:#f1fbff;cursor:pointer}
+.quick-controls button[aria-pressed=true]{background:#17654b;border-color:#78ddb4}
+.dashboard-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+#control-dialog .dashboard-grid .control-row{padding:14px;border:1px solid #34515d;border-radius:10px;background:#102630}
+#control-dialog .dashboard-grid [data-state=error]{border-color:#de7676}
+#control-dialog{box-sizing:border-box;width:min(760px,calc(100vw - 24px));max-height:85dvh;overflow:auto;border:1px solid #528697;border-radius:16px;background:#081b25;color:#eefaff;padding:20px;font:16px/1.5 system-ui,sans-serif;box-shadow:0 20px 80px #0009}
+#control-dialog::backdrop{background:#000a;backdrop-filter:blur(4px)}
+#control-dialog header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+#control-dialog h2{font-size:22px;margin:0}#control-dialog h3{font-size:18px;margin:20px 0 8px}
+#control-dialog form{display:grid;gap:10px}#control-dialog label{display:grid;gap:5px}
+#control-dialog input{width:100%;box-sizing:border-box;background:#102630;color:#fff;cursor:text;color-scheme:dark}
+#control-dialog p{overflow-wrap:anywhere}#control-dialog .control-row{padding:12px 0;border-bottom:1px solid #34515d;overflow-wrap:anywhere}
+#control-dialog pre{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.5 monospace;background:#031018;padding:12px;border-radius:8px;max-height:350px;overflow:auto}
+#control-dialog summary{cursor:pointer;padding:10px 0;color:#9ee6fa}
+#control-dialog .control-row button{margin:5px}
+#control-dialog article{padding:12px;border:1px solid #88dfba;border-radius:8px;background:#173c33}
+#control-dialog .control-row strong,#control-dialog .control-row small{display:block}#control-dialog small{color:#b3cdd8;font-size:14px}
+#control-dialog .control-error{color:#ffb4b4}#control-dialog .control-actions{display:flex;flex-wrap:wrap;gap:8px}
+#reminder-notices{position:fixed;z-index:1200;top:72px;left:12px;width:min(440px,calc(100vw - 24px));max-height:45dvh;overflow:auto;font:16px/1.5 system-ui,sans-serif}
+#reminder-notices article{background:#173c33;color:#fff;border:1px solid #88dfba;border-radius:12px;padding:16px;margin-bottom:10px;overflow-wrap:anywhere}
+#reminder-notices article strong{display:block;margin-bottom:8px}
+@media(max-width:700px){.quick-controls{gap:5px;top:8px;left:8px;max-width:calc(100vw - 16px)}.quick-controls button{font-size:13px;padding:8px}#control-dialog{padding:16px}.chat-message{font-size:14px!important;line-height:1.5!important}}
+
+/* Readable controls and conversation without changing the scene. */
+.quick-controls{padding:7px;border:1px solid #34515d;border-radius:16px;background:rgba(5,18,27,.94);box-shadow:0 6px 24px #0006;backdrop-filter:blur(12px)}
+.quick-controls button{background:transparent;border-color:transparent;white-space:nowrap;flex-shrink:0}
+.quick-controls button:hover{background:#173948;border-color:#528697}
+.quick-controls button:focus-visible,#control-dialog button:focus-visible,#control-dialog input:focus-visible{outline:2px solid #65e7f5;outline-offset:3px}
+.chat-message{font-family:system-ui,sans-serif!important;font-size:15px!important;line-height:1.6!important;padding:10px 12px!important}
+.chat-form input,.chat-form textarea{font-size:16px!important}
+#control-dialog button:hover{border-color:#65e7f5}
+#control-dialog h2{letter-spacing:-.03em}
+#control-dialog .dashboard-grid .control-row{background:linear-gradient(145deg,#163342,#0b202c)}
+@media(max-width:700px){
+ .quick-controls{top:max(8px,env(safe-area-inset-top));left:8px;right:8px;max-width:none;flex-wrap:nowrap;overflow-x:auto;gap:3px;scrollbar-width:thin;padding:5px;border-radius:13px}
+ .quick-controls button{font-size:13px;padding:8px 10px;min-height:44px}
+ #control-dialog{max-height:calc(100dvh - 32px);border-radius:18px}
+ #reminder-notices{top:78px}
+ .chat-message{font-size:14px!important}
+}

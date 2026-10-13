@@ -32,6 +32,8 @@ class ReminderStore:
                 ("next_attempt_at", "TEXT"),
                 ("retry_count", "INTEGER NOT NULL DEFAULT 0"),
                 ("failed_at", "TEXT"),
+                ("cancelled_at", "TEXT"),
+                ("telegram_message_id", "INTEGER"),
             ):
                 if name not in columns:
                     connection.execute(f"ALTER TABLE reminders ADD COLUMN {name} {declaration}")
@@ -61,19 +63,53 @@ class ReminderStore:
         with closing(sqlite3.connect(self.path, timeout=5)) as connection:
             connection.row_factory = sqlite3.Row
             rows = connection.execute(
-                "SELECT id,message,due_at FROM reminders WHERE user_id=? AND delivered_at IS NULL AND failed_at IS NULL "
+                "SELECT id,message,due_at FROM reminders WHERE user_id=? AND delivered_at IS NULL AND failed_at IS NULL AND cancelled_at IS NULL "
                 "ORDER BY due_at LIMIT ?", (user_id, max(1, min(limit, 50))),
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def edit(self, user_id: str, reminder_id: int, message: str | None = None, due_at: datetime | None = None) -> bool:
+        if message is not None and (not message.strip() or len(message) > 1000):
+            raise ValueError("Reminder text must contain 1 to 1000 characters")
+        if due_at is not None and (due_at.tzinfo is None or due_at <= datetime.now(timezone.utc)):
+            raise ValueError("Reminder time must be in the future and include a timezone")
+        if message is None and due_at is None:
+            raise ValueError("Specify new text or a new time")
+        with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
+            current = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            result = db.execute(
+                "UPDATE reminders SET message=COALESCE(?,message),due_at=COALESCE(?,due_at), "
+                "next_attempt_at=NULL,retry_count=0 WHERE id=? AND user_id=? AND delivered_at IS NULL "
+                "AND failed_at IS NULL AND cancelled_at IS NULL AND (claimed_until IS NULL OR claimed_until<=?)",
+                (message.strip() if message is not None else None,
+                 due_at.astimezone(timezone.utc).isoformat(timespec="seconds") if due_at else None,
+                 reminder_id, user_id, current))
+            return result.rowcount > 0
+
+    def cancel(self, user_id: str, reminder_id: int) -> bool:
+        current = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
+            result = db.execute("UPDATE reminders SET cancelled_at=? WHERE id=? AND user_id=? "
+                                "AND delivered_at IS NULL AND cancelled_at IS NULL "
+                                "AND (claimed_until IS NULL OR claimed_until<=?)", (current, reminder_id, user_id, current))
+            return result.rowcount > 0
 
     def next_due(self) -> dict[str, str | int] | None:
         with closing(sqlite3.connect(self.path, timeout=5)) as connection:
             connection.row_factory = sqlite3.Row
             row = connection.execute(
                 "SELECT id,message,due_at FROM reminders "
-                "WHERE delivered_at IS NULL AND failed_at IS NULL ORDER BY due_at LIMIT 1"
+                "WHERE delivered_at IS NULL AND failed_at IS NULL AND cancelled_at IS NULL ORDER BY due_at LIMIT 1"
             ).fetchone()
         return dict(row) if row else None
+
+    def history(self, user_id: str, limit: int = 20) -> list[dict]:
+        with closing(sqlite3.connect(self.path, timeout=5)) as db:
+            db.row_factory = sqlite3.Row
+            rows = db.execute("SELECT id,message,due_at,delivered_at,failed_at,cancelled_at,retry_count,telegram_message_id "
+                              "FROM reminders WHERE user_id=? ORDER BY id DESC LIMIT ?",
+                              (user_id, max(1, min(limit, 50)))).fetchall()
+        return [dict(row) for row in rows]
 
     def claim_due(self, now: datetime | None = None) -> list[dict[str, str | int]]:
         moment = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
@@ -84,7 +120,7 @@ class ReminderStore:
             connection.execute("BEGIN IMMEDIATE")
             rows = connection.execute(
                 "SELECT id,user_id,chat_id,message,due_at,retry_count FROM reminders "
-                "WHERE delivered_at IS NULL AND failed_at IS NULL AND due_at<=? "
+                "WHERE delivered_at IS NULL AND failed_at IS NULL AND cancelled_at IS NULL AND due_at<=? "
                 "AND (claimed_until IS NULL OR claimed_until<=?) "
                 "AND (next_attempt_at IS NULL OR next_attempt_at<=?) "
                 "AND retry_count<5 ORDER BY due_at LIMIT 100", (current, current, current),
@@ -97,13 +133,13 @@ class ReminderStore:
             connection.commit()
         return [dict(row) for row in rows]
 
-    def mark_delivered(self, reminder_id: int, delivered_at: datetime | None = None) -> None:
+    def mark_delivered(self, reminder_id: int, delivered_at: datetime | None = None, telegram_message_id: int | None = None) -> None:
         timestamp = (delivered_at or datetime.now(timezone.utc)).astimezone(timezone.utc).isoformat(timespec="seconds")
         with closing(sqlite3.connect(self.path, timeout=5)) as connection:
             connection.execute(
-                "UPDATE reminders SET delivered_at=?,claimed_until=NULL,next_attempt_at=NULL "
+                "UPDATE reminders SET delivered_at=?,telegram_message_id=?,claimed_until=NULL,next_attempt_at=NULL "
                 "WHERE id=? AND delivered_at IS NULL",
-                (timestamp, reminder_id),
+                (timestamp, telegram_message_id, reminder_id),
             )
             connection.commit()
 

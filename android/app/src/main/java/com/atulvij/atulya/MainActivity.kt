@@ -10,6 +10,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.view.WindowManager
+import android.widget.FrameLayout
 import android.webkit.GeolocationPermissions
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
@@ -34,7 +35,7 @@ import org.json.JSONObject
  *
  * Security: the app is locked with fingerprint/face (or the device PIN) every time it comes
  * to the foreground; screenshots and the recent-apps preview are blocked; only the
- * configured Atulya origin is loaded inside the app (other links open in the browser);
+ * configured Atulya origin has privileged features; other websites use a separate browser view;
  * the WebView gets microphone/camera only for that origin and only after Android grants them.
  */
 class MainActivity : AppCompatActivity() {
@@ -45,6 +46,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var web: WebView
+    private lateinit var content: FrameLayout
+    private var browser: InAppBrowser? = null
     private var unlocked = System.currentTimeMillis() - lastUnlockAt < 2 * 60 * 1000L
     private var leftAt = 0L
     private var pendingUrl: String? = null
@@ -61,7 +64,9 @@ class MainActivity : AppCompatActivity() {
             window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
         }
         web = WebView(this)
-        setContentView(web)
+        content = FrameLayout(this)
+        content.addView(web, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        setContentView(content)
         configureWebView()
         if (savedInstanceState != null) web.restoreState(savedInstanceState)
         pendingUrl = linkFrom(intent)
@@ -71,6 +76,7 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         // Battery: in the background the page, its timers, the 3D scene and any location request all stop.
         web.onPause()
+        browser?.page?.onPause()
         web.pauseTimers()
         super.onPause()
     }
@@ -78,6 +84,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         web.onResume()
+        browser?.page?.onResume()
         web.resumeTimers()
         if (unlocked && leftAt > 0 && System.currentTimeMillis() - leftAt > relockAfterMs) unlocked = false
         if (!unlocked) unlock() else {
@@ -113,7 +120,37 @@ class MainActivity : AppCompatActivity() {
     private fun openPending() {
         val url = pendingUrl ?: return
         pendingUrl = null
+        closeWebsite()
         web.loadUrl(url)
+    }
+
+    private fun isAtulya(uri: Uri): Boolean {
+        fun port(value: Uri) = if (value.port != -1) value.port else if (value.scheme == "https") 443 else 80
+        return uri.scheme == origin.scheme && uri.host == origin.host && port(uri) == port(origin) && uri.userInfo == null
+    }
+
+    private fun openWebsite(uri: Uri) {
+        if (uri.scheme != "https" || uri.host.isNullOrBlank() || uri.userInfo != null) return
+        if (uri.host == "accounts.google.com") {
+            startActivity(Intent(Intent.ACTION_VIEW, uri))
+            return
+        }
+        stopRecognition()
+        val surface = browser ?: InAppBrowser(this, ::isAtulya, { target ->
+            closeWebsite()
+            web.loadUrl(target.toString())
+        }, { target -> startActivity(Intent(Intent.ACTION_VIEW, target)) }, ::closeWebsite).also {
+            browser = it
+            content.addView(it, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        }
+        surface.open(uri)
+    }
+
+    private fun closeWebsite() {
+        val surface = browser ?: return
+        browser = null
+        content.removeView(surface)
+        surface.destroy()
     }
 
     private fun unlock() {
@@ -160,9 +197,13 @@ class MainActivity : AppCompatActivity() {
         }
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                if (!request.isForMainFrame) return false
                 val url = request.url
-                if (url.scheme == origin.scheme && url.host == origin.host) return false
-                startActivity(Intent(Intent.ACTION_VIEW, url)) // anything else opens outside the app
+                if (isAtulya(url)) return false
+                if (url.scheme == "https") openWebsite(url)
+                else if (request.hasGesture() && url.scheme in setOf("mailto", "tel")) {
+                    try { startActivity(Intent(Intent.ACTION_VIEW, url)) } catch (_: Exception) { }
+                }
                 return true
             }
         }
@@ -255,6 +296,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        closeWebsite()
         recognizer?.destroy()
         recognizer = null
         super.onDestroy()
@@ -316,6 +358,10 @@ class MainActivity : AppCompatActivity() {
     /** Back first closes whatever is open in Atulya (menu, dialog, conversation mode); only then leaves. */
     @Deprecated("Back navigation inside the web app")
     override fun onBackPressed() {
+        browser?.let { surface ->
+            if (surface.page.canGoBack()) surface.page.goBack() else closeWebsite()
+            return
+        }
         web.evaluateJavascript("(window.atulyaBack && window.atulyaBack()) ? 'handled' : 'none'") { result ->
             if (result?.contains("handled") == true) return@evaluateJavascript
             if (web.canGoBack()) web.goBack() else {

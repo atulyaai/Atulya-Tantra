@@ -187,6 +187,7 @@ def test_telegram_approve_button_runs_only_for_its_owner_once(tmp_path) -> None:
     asyncio.run(press(333, f"act:{action.id}:1"))                 # a stranger: refused
     assert posts[-1][1]["text"] == "Not allowed."
     asyncio.run(press(111, f"act:{action.id}:1"))
-    assert "No files matching" in posts[-1][1]["text"]
+    # Server Telegram has no local-PC control grant, including for stale queued actions.
+    assert posts[-1][1]["text"] == "That action is no longer available."
     asyncio.run(press(111, f"act:{action.id}:1"))                 # single use
     assert "expired or was already handled" in posts[-1][1]["text"]

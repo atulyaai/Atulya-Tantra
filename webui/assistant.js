@@ -73,6 +73,10 @@
   let gestureCurrent = "";
   let gestureModelReady = false;
   let gestureAssetsReady = false;
+  let gesturesEnabled = true;
+  let gestureIssue = "";
+  let gestureInitializationPromise;
+  let gestureFrameErrors = 0;
   let gestureCommandCandidate = "";
   let gestureCommandCandidateSince = 0;
   let gestureNeutralSince = 0;
@@ -157,6 +161,8 @@
           item.state = cameraStream ? "live" : "ready";
           label = gestureCurrent || (cameraStream ? "Scanning for hand" : "Model ready · awaiting camera");
         }
+        if (key === "gesture" && gestureIssue) { item.state = "error"; label = gestureIssue; }
+        if (key === "gesture" && !gesturesEnabled) { item.state = "off"; label = "Gestures off"; }
         if (key === "vision" && cameraStream) {
           item.state = "live";
           label = `Camera live${cameraFormat ? ` · ${cameraFormat}` : " · on device"}${cameraFocus ? ` · ${cameraFocus}` : ""}${cameraDeviceLabel ? ` · ${cameraDeviceLabel}` : ""}`;
@@ -756,6 +762,9 @@
   function stopCamera() {
     if (gestureFrame) cancelAnimationFrame(gestureFrame);
     gestureFrame = 0;
+    gestureRecognizer?.close?.();
+    gestureRecognizer = undefined;
+    gestureModelReady = false;
     gestureCurrent = "";
     const gestureRegion = $("#gesture-region");
     if (gestureRegion) gestureRegion.dataset.state = gestureAssetsReady ? "ready" : "setup";
@@ -882,7 +891,7 @@
         if (label) label.textContent = `CAMERA LIVE${cameraFormat ? ` · ${cameraFormat}` : ""}`;
         setSystemTile("vision", "live", `Camera live${cameraFormat ? ` · ${cameraFormat}` : " · on device"}${cameraFocus ? ` · focus ${cameraFocus}` : ""}${cameraDeviceLabel ? ` · ${cameraDeviceLabel}` : ""}`);
         if (status.textContent === "Camera unavailable") restoreIdlePhase();
-        await initializeGestureRecognition();
+        if (gesturesEnabled) await initializeGestureRecognition();
         return true;
       } catch (error) {
         stopCamera();
@@ -926,7 +935,17 @@
     setPhase("idle", label, detail);
   }
 
-  async function initializeGestureRecognition() {
+  function initializeGestureRecognition() {
+    if (gestureModelReady && gestureRecognizer) return Promise.resolve();
+    if (gestureInitializationPromise) return gestureInitializationPromise;
+    gestureInitializationPromise = initializeGestureRecognitionNow().finally(() => { gestureInitializationPromise = undefined; });
+    return gestureInitializationPromise;
+  }
+
+  async function initializeGestureRecognitionNow() {
+    if (!gesturesEnabled || !cameraStream) return;
+    const activeStream = cameraStream;
+    gestureIssue = "";
     if (!cameraStream || !cameraFeed.videoWidth || !cameraFeed.videoHeight) {
       await new Promise((resolve) => cameraFeed.addEventListener("loadedmetadata", resolve, { once: true }));
     }
@@ -947,6 +966,11 @@
         options.baseOptions.delegate = "CPU";
         gestureRecognizer = await GestureRecognizer.createFromOptions(vision, options);
       }
+      if (!gesturesEnabled || cameraStream !== activeStream) {
+        gestureRecognizer?.close?.(); gestureRecognizer = undefined;
+        return;
+      }
+      gestureFrameErrors = 0;
       gestureModelReady = true;
       const gestureRegion = $("#gesture-region");
       const gestureChannel = $("#gesture-channel");
@@ -958,24 +982,29 @@
       if (gestureChannel) setChannelState(gestureChannel, "live");
       setSystemTile("gesture", "live", "Scanning for hand");
       scanGestures();
-    } catch {
+    } catch (error) {
       gestureModelReady = false;
+      gestureIssue = `Gesture recognition failed: ${String(error.message || error.name || "Unknown error").slice(0, 200)}. Open Maintenance to check runtime assets.`;
       const gestureRegion = $("#gesture-region");
       const gestureChannel = $("#gesture-channel");
       showGestureResult("MODEL ERROR");
       if (gestureRegion) gestureRegion.dataset.state = "error";
       if (gestureChannel) setChannelState(gestureChannel, "setup");
-      setSystemTile("gesture", "error", "Recognizer could not start");
+      setSystemTile("gesture", "error", gestureIssue);
+      const copy = $("#gesture-copy");
+      if (copy) copy.title = gestureIssue;
+      document.dispatchEvent(new CustomEvent("atulya-device-status", { detail: { gesture: gestureIssue } }));
     }
   }
 
   function scanGestures() {
-    if (!cameraStream || !gestureRecognizer) return;
+    if (!gesturesEnabled || !cameraStream || !gestureRecognizer) return;
     const now = performance.now();
     if (now - lastGestureFrameAt >= 125 && cameraFeed.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
       lastGestureFrameAt = now;
       try {
         const result = gestureRecognizer.recognizeForVideo(cameraFeed, now);
+        gestureFrameErrors = 0;
         const category = result.gestures?.[0]?.[0];
         const categoryName = category && category.categoryName !== "None" && category.score >= 0.58 ? category.categoryName : "";
         updateGestureCommand(categoryName, category?.score || 0, now);
@@ -989,6 +1018,14 @@
           setSystemTile("gesture", "live", recognized);
         }
       } catch {
+        gestureFrameErrors += 1;
+        if (gestureFrameErrors >= 10) {
+          gestureIssue = "Gesture processing failed repeatedly. Turn gestures off and on to retry; camera preview remains available.";
+          gestureRecognizer?.close?.(); gestureRecognizer = undefined; gestureModelReady = false;
+          showGestureResult("RETRY NEEDED"); setSystemTile("gesture", "error", gestureIssue);
+          document.dispatchEvent(new CustomEvent("atulya-device-status", { detail: { gesture: gestureIssue } }));
+          return;
+        }
         setSystemTile("gesture", "error", "Frame recognition failed");
       }
     }
@@ -1583,6 +1620,18 @@
 
   // Screen actions requested by the brain (tool screen_control), so any phrasing works.
   function runScreenAction(action) {
+    if (action && typeof action === "object" && action.type === "link") {
+      let url;
+      try { url = new URL(action.url); } catch { return; }
+      if (url.protocol !== "https:" || url.username || url.password) return;
+      const card = document.createElement("article"); card.className = "chat-message notice";
+      const link = document.createElement("a"); link.href = url.href;
+      link.textContent = action.label || "Open website";
+      link.target = /Android/i.test(navigator.userAgent) || window.AtulyaNative ? "_self" : "_blank";
+      link.rel = "noopener noreferrer";
+      card.append(link); messagesNode.append(card); messagesNode.scrollTop = messagesNode.scrollHeight;
+      return;
+    }
     const actions = {
       hide_chat: () => setConversationMode(true),
       conversation_mode: () => setConversationMode(true),
@@ -1813,7 +1862,7 @@
           const event = JSON.parse(dataLine.slice(5).trim());
           if (event.error) streamError = String(event.error);
           if (event.confirm) showActionRequest(event.confirm);
-          if (event.ui) runScreenAction(String(event.ui));
+          if (event.ui) runScreenAction(event.ui);
           if (typeof event.text === "string" && event.text) {
             reply += event.text;
             if (speakReply && localTtsReady) {
@@ -2166,6 +2215,31 @@
 
   waveform.addEventListener("click", toggleListening);
   cameraToggle?.addEventListener("click", toggleCamera);
+  $("#quick-gesture")?.addEventListener("click", async (event) => {
+    gesturesEnabled = !gesturesEnabled;
+    event.currentTarget.setAttribute("aria-pressed", String(gesturesEnabled));
+    event.currentTarget.textContent = gesturesEnabled ? "Gestures on · Turn off" : "Gestures off · Turn on";
+    if (!gesturesEnabled) {
+      if (gestureFrame) cancelAnimationFrame(gestureFrame);
+      gestureFrame = 0;
+      gestureRecognizer?.close?.(); gestureRecognizer = undefined; gestureModelReady = false;
+      showGestureResult("OFF"); setSystemTile("gesture", "off", "Gestures off");
+    } else {
+      if (cameraStream) await initializeGestureRecognition();
+      else await enableCamera();
+    }
+  });
+  $("#quick-camera")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    button.textContent = "Camera starting…";
+    try { await toggleCamera(); }
+    finally {
+      button.disabled = false;
+      button.textContent = cameraStream ? "Camera on · Turn off" : "Camera off · Turn on";
+      button.setAttribute("aria-pressed", String(Boolean(cameraStream)));
+    }
+  });
   cameraDevice?.addEventListener("click", (event) => event.stopPropagation());
   cameraDevice?.addEventListener("change", async () => {
     selectedCameraDeviceId = cameraDevice.value;

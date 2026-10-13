@@ -149,24 +149,24 @@ async def _read_code(path: Path) -> dict:
 async def summarize_text(text: str, max_lines: int = 100) -> str:
     if not text:
         return ""
-    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
     if not lines:
         return ""
     if len(lines) <= max_lines:
         return "\n".join(lines)
     keywords = {"error", "warning", "failure", "success", "result", "summary",
                 "total", "average", "max", "min", "top", "best"}
-    important = [l for l in lines if any(k in l.lower() for k in keywords)]
+    important = [line for line in lines if any(k in line.lower() for k in keywords)]
     summary = lines[:3]
     if important:
         summary.extend(important[:3])
     summary.extend(lines[-3:])
     seen: set[str] = set()
     deduped = []
-    for l in summary:
-        if l not in seen:
-            seen.add(l)
-            deduped.append(l)
+    for line in summary:
+        if line not in seen:
+            seen.add(line)
+            deduped.append(line)
     return "\n".join(deduped)
 
 

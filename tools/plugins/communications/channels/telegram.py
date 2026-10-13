@@ -18,6 +18,7 @@ from tools.plugins.registry import PluginContext, PluginExecutionError, PluginRe
 from tools.plugins.productivity.briefing import briefing_city, briefing_prompt, briefing_time
 from tools.plugins import toolkit as _toolkit
 from tools.plugins.toolkit import Toolbox
+from tools.plugins.productivity.web_reminders import TelegramReminderAccess
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,8 @@ class TelegramChannel:
         voice=None,
         speech_output=None,
         webapp_url: str = "",
+        maintenance=None,
+        mcp_connections=None,
     ) -> None:
         self._token = token.strip()
         self._allowed = {value for value in allowed_user_ids if value.isdigit()}
@@ -86,6 +89,9 @@ class TelegramChannel:
         self._voice = voice              # local Whisper for voice notes
         self._speech = speech_output     # local TTS for voice-note replies
         self._webapp_url = webapp_url    # Mini App button on every reply
+        self._maintenance = maintenance
+        self._mcp_connections = mcp_connections
+        self._pending_links: list[dict] = []
         self._pending_cards: list = []
         self._location_wanted: dict[str, str] = {}  # chat_id -> question waiting for the user's location
         self._last_wants_location = False
@@ -409,7 +415,9 @@ class TelegramChannel:
             else:
                 toolbox = Toolbox.for_registry(self._command_plugins, PluginContext(
                     OWNER_MEMORY, self._personal_memory, self._calendar, OWNER_USER, actions=self._actions.view(),
-                    history=self._history, profile=self._profiles))
+                    history=self._history, profile=self._profiles, channel="telegram",
+                    reminders=TelegramReminderAccess(self._reminders, user_id, str((query.get("message") or {}).get("chat", {}).get("id", user_id))),
+                    maintenance=self._maintenance, mcp_connections=self._mcp_connections))
                 answer = await toolbox.run_approved(action)
         try:
             await client.post(self._url("answerCallbackQuery"), json={"callback_query_id": query.get("id"), "text": answer[:190]})
@@ -482,14 +490,39 @@ class TelegramChannel:
         command_args = command_parts[1] if len(command_parts) > 1 else ""
         if command in {"/start", "/help"}:
             reply = ("Atulya is here. Type or send a voice note. Tap Open Atulya for the full app. "
-                     "Commands: /status, /reminders, /remind 10m take a break, /members, /approve <id>, /deny <id>.")
+                     "Commands: /status, /reminders, /remind 10m take a break, /cancelreminder <id>, "
+                     "/editreminder <id> | 10m | new text, /meetings, /members. "
+                     "You can also ask me to save, edit, or cancel a reminder/meeting directly.")
         elif command == "/status":
             reply = self._status_summary()
         elif command == "/reminders":
             items = await asyncio.to_thread(self._reminders.list_for_user, user_id)
             reply = self._format_reminders(items)
+        elif command == "/reminderhistory":
+            items = await asyncio.to_thread(self._reminders.history, user_id)
+            rows = []
+            for item in items:
+                state = "Cancelled" if item["cancelled_at"] else "Failed" if item["failed_at"] else "Sent to Telegram (phone alert unverified)" if item["delivered_at"] else "Scheduled"
+                rows.append(f"#{item['id']} · {item['message']} · {state}")
+            reply = "Reminder history:\n" + "\n".join(rows) if rows else "No Telegram reminders saved."
         elif command == "/remind":
             reply = await self._create_reminder(user_id, chat_id, command_args.strip())
+        elif command == "/cancelreminder":
+            try:
+                changed = await asyncio.to_thread(self._reminders.cancel, user_id, int(command_args.strip()))
+                reply = "Reminder cancelled." if changed else "Reminder unavailable, already delivered, or delivery in progress."
+            except ValueError:
+                reply = "Use /cancelreminder <id>. See /reminders for IDs."
+        elif command == "/editreminder":
+            try:
+                reminder_id, when, message_text = (part.strip() for part in command_args.split("|", 2))
+                changed = await asyncio.to_thread(self._reminders.edit, user_id, int(reminder_id), message_text, _parse_due(when))
+                reply = "Reminder updated." if changed else "Reminder unavailable, already delivered, or delivery in progress."
+            except ValueError:
+                reply = "Use /editreminder <id> | 10m | new text. See /reminders for IDs."
+        elif command == "/meetings" and self._calendar is not None:
+            from tools.plugins.toolkit import _list_meetings
+            reply = await _list_meetings({}, PluginContext(OWNER_MEMORY, self._personal_memory, self._calendar, OWNER_USER, channel="telegram"))
         elif command in {"/approve", "/deny"}:
             reply = self._decide_member(command_args.strip(), command == "/approve")
         elif command == "/members":
@@ -502,18 +535,20 @@ class TelegramChannel:
                 try:
                     reply = await self._command_plugins.dispatch(
                         text, PluginContext(OWNER_MEMORY, self._personal_memory, self._calendar, OWNER_USER,
-                                            history=self._history, profile=self._profiles)
+                                            history=self._history, profile=self._profiles, channel="telegram")
                     )
                 except PluginExecutionError:
                     reply = "That feature is unavailable right now."
             if reply is None:
-                reply = await self._answer(user_id, message_id, text)
+                reply = await self._answer(user_id, message_id, text, chat_id=chat_id)
+        links, self._pending_links = self._pending_links, []
+        link_buttons = [[{"text": item["label"], "url": item["url"]}] for item in links[:4]]
         if self._last_wants_location:
             self._last_wants_location = False
             self._location_wanted[chat_id] = text
             await self._send(client, chat_id, reply, request_location=True)
         else:
-            await self._send(client, chat_id, reply, remove_keyboard=bool(location))
+            await self._send(client, chat_id, reply, buttons=link_buttons or None, remove_keyboard=bool(location))
         if came_as_voice:
             await self._send_voice(client, chat_id, reply)  # voice in -> voice out
         cards, self._pending_cards = self._pending_cards, []
@@ -522,7 +557,7 @@ class TelegramChannel:
                 [{"text": "✅ Approve", "callback_data": f"act:{action.id}:1"},
                  {"text": "✖ Deny", "callback_data": f"act:{action.id}:0"}]])
 
-    async def _answer(self, user_id: str, message_id: str, text: str) -> str:
+    async def _answer(self, user_id: str, message_id: str, text: str, chat_id: str | None = None) -> str:
         if self._brain is None:
             return "Text chat is not available right now."
         conversation_id = OWNER_THREAD
@@ -535,12 +570,18 @@ class TelegramChannel:
                 view = self._actions.view() if self._actions is not None else None
                 toolbox = Toolbox.for_registry(self._command_plugins, PluginContext(
                     OWNER_MEMORY, self._personal_memory, self._calendar, scoped_user, history=self._history,
-                    profile=self._profiles, actions=view))
+                    profile=self._profiles, actions=view, channel="telegram",
+                    reminders=TelegramReminderAccess(self._reminders, user_id, chat_id or user_id),
+                    maintenance=self._maintenance, mcp_connections=self._mcp_connections))
                 ui_actions: list[str] = []
-                _toolkit.UI_ACTIONS.set(ui_actions)
-                reply = await self._brain.respond_with_tools(conversation, toolbox,
-                                                             system_instructions=self._style(scoped_user))
+                token = _toolkit.UI_ACTIONS.set(ui_actions)
+                try:
+                    reply = await self._brain.respond_with_tools(conversation, toolbox,
+                                                                 system_instructions=self._style(scoped_user))
+                finally:
+                    _toolkit.UI_ACTIONS.reset(token)
                 self._last_wants_location = "share_location" in ui_actions
+                self._pending_links = [item for item in ui_actions if isinstance(item, dict) and item.get("type") == "link"]
                 if view is not None:
                     self._pending_cards.extend(view.created)
             else:
@@ -603,11 +644,11 @@ class TelegramChannel:
             due_at = _parse_due(parts[0])
             if due_at <= datetime.now(timezone.utc):
                 return "That time has already passed. Choose a future time."
-            await asyncio.to_thread(self._reminders.add, user_id, chat_id, parts[1], due_at)
+            reminder_id = await asyncio.to_thread(self._reminders.add, user_id, chat_id, parts[1], due_at)
         except ValueError as exc:
             return str(exc)
         local_time = due_at.astimezone().strftime("%b %d at %I:%M %p %Z")
-        return f"Reminder saved for {local_time}: {parts[1].strip()}"
+        return f"Reminder #{reminder_id} saved for {local_time}: {parts[1].strip()}. Delivery: Telegram message; sound depends on your notification settings."
 
     @staticmethod
     def _format_reminders(items: list[dict]) -> str:
@@ -616,7 +657,7 @@ class TelegramChannel:
         rows = ["Upcoming reminders:"]
         for item in items:
             due = datetime.fromisoformat(str(item["due_at"])).astimezone().strftime("%b %d, %I:%M %p %Z")
-            rows.append(f"• {due} — {item['message']}")
+            rows.append(f"• #{item['id']} · {due} — {item['message']}")
         return "\n".join(rows)
 
     async def _deliver_reminders(self) -> None:
@@ -634,10 +675,14 @@ class TelegramChannel:
                             text = f"Reminder: {reminder['message']}"
                             response = await client.post(
                                 self._url("sendMessage"),
-                                json={"chat_id": reminder["chat_id"], "text": text[:4000]},
+                                json={"chat_id": reminder["chat_id"], "text": text[:4000], "disable_notification": False},
                             )
                             response.raise_for_status()
-                            await asyncio.to_thread(self._reminders.mark_delivered, reminder_id)
+                            receipt = response.json()
+                            if receipt.get("ok") is not True:
+                                raise ValueError("Telegram did not accept the reminder")
+                            message_id = (receipt.get("result") or {}).get("message_id")
+                            await asyncio.to_thread(self._reminders.mark_delivered, reminder_id, telegram_message_id=message_id)
                         except asyncio.CancelledError:
                             raise
                         except Exception as exc:
