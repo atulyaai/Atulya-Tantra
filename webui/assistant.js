@@ -1310,6 +1310,14 @@
     voiceSessionActive = voiceReady && !window.Telegram?.WebApp?.initData;
     speak(greeting);
     deliverMorningBriefing();
+    // Auto-start mic if permission already granted (no extra click needed).
+    if (voiceSessionActive && navigator.permissions) {
+      navigator.permissions.query({ name: "microphone" }).then((result) => {
+        if (result.state === "granted") {
+          window.setTimeout(() => { if (voiceSessionActive && !listening) startListening(true); }, 800);
+        }
+      }).catch(() => {});
+    }
   }
 
   // First visit of the day: show and read the morning briefing once the greeting ends.
