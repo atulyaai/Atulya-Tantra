@@ -1296,7 +1296,9 @@
     greeted = true;
     const returningSession = messagesNode.querySelectorAll(".chat-message.user, .chat-message.assistant").length > 0;
     // A restored conversation already has its history on screen: greet by voice only, don't add another bubble.
-    const greeting = returningSession ? "Welcome back." : "Hi, I'm Atulya. How can I help?";
+    const hour = new Date().getHours();
+    const timeGreet = hour < 12 ? "Good morning." : hour < 17 ? "Good afternoon." : "Good evening.";
+    const greeting = returningSession ? "Welcome back." : timeGreet;
     if (!returningSession) {
       const greetingBubble = appendMessage("assistant", greeting, null, true);
       conversation.push({ role: "assistant", content: greeting });
@@ -1457,6 +1459,14 @@
       consumed = pattern.lastIndex;
     }
     let rest = buffer.slice(consumed);
+    // Start speaking a long first clause at a comma instead of waiting for the full sentence.
+    if (!flush && !sentences.length && rest.length > 80) {
+      const comma = rest.lastIndexOf(", ", 100);
+      if (comma > 24) {
+        sentences.push(rest.slice(0, comma).trim());
+        rest = rest.slice(comma + 2);
+      }
+    }
     if (flush && rest.trim()) {
       sentences.push(rest.trim());
       rest = "";
@@ -1666,6 +1676,37 @@
     conversation.push({ role: "user", content: cleanText });
     while (conversation.length > 38) conversation.shift();
     prompt.value = "";
+    const quick = cleanText.toLowerCase().replace(/[.!?।]/g, "").trim();
+    if (/^(?:stop|stop talking|quiet|chup|bas|enough|shant)$/.test(quick)) {
+      releaseSpeech();
+      const reply = "Stopped.";
+      appendMessage("assistant", reply);
+      setPhase("idle", "Ready", reply);
+      return;
+    }
+    if (/^(?:repeat|say that again|phir se bolo|repeat that)$/.test(quick)) {
+      const last = [...conversation].reverse().find((item) => item.role === "assistant" && item !== conversation.at(-1))?.content
+        || [...conversation].reverse().find((item) => item.role === "assistant")?.content
+        || "";
+      const reply = last || "I have nothing to repeat yet.";
+      const assistantMessage = appendMessage("assistant", reply);
+      conversation.push({ role: "assistant", content: reply });
+      if (speakReply && last) {
+        highlightSpokenReply(assistantMessage);
+        await speak(reply);
+      } else setPhase("idle", "Ready", reply);
+      return;
+    }
+    if (/^(?:what can you do|help|commands)$/.test(quick)) {
+      const reply = "Voice commands: weather, news, hide chat, show chat, mute, unmute, stop, repeat, camera on, wake word on, add a weekday 8:00 briefing, places near me. The hologram follows listening, thinking, and speaking.";
+      const assistantMessage = appendMessage("assistant", reply);
+      conversation.push({ role: "assistant", content: reply });
+      if (speakReply) {
+        highlightSpokenReply(assistantMessage);
+        await speak(reply);
+      } else setPhase("idle", "Ready", reply);
+      return;
+    }
     const layoutCommand = parseLayoutCommand(cleanText);
     if (layoutCommand) {
       const reply = await applyLayoutCommand(layoutCommand);
