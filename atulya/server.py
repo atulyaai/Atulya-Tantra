@@ -835,6 +835,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     if getattr(telegram, "configured", False):
                         sent = await telegram.notify(body)
                     logging.getLogger(__name__).info("Routine %s delivered to %s chat(s)", item.get("id"), sent)
+                    try:
+                        from tools.plugins.audit import record_tool_run
+                        record_tool_run(user_id="admin", channel="telegram", tool=f"routine:{item.get("name")}", args={"action": action}, outcome="ok")
+                    except Exception:
+                        pass
                     await asyncio.to_thread(store.mark_fired, str(item["id"]))
             except Exception as exc:
                 logging.getLogger(__name__).warning("Routine runner failed (%s)", type(exc).__name__)
