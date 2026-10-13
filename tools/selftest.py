@@ -43,7 +43,8 @@ def _timed(report: Report, name: str, fn) -> object:
     return value
 
 
-def _stream_chat(client: httpx.Client, text: str, conversation: str) -> tuple[str, list[dict], float | None]:
+def _stream_chat(client: httpx.Client, text: str, conversation: str,
+                 ui_events: list | None = None) -> tuple[str, list[dict], float | None]:
     started = time.perf_counter()
     first = None
     reply, confirms = "", []
@@ -58,6 +59,8 @@ def _stream_chat(client: httpx.Client, text: str, conversation: str) -> tuple[st
             if event.get("text"):
                 first = first or time.perf_counter() - started
                 reply += event["text"]
+            if ui_events is not None and event.get("ui"):
+                ui_events.append(event["ui"])
             if event.get("confirm"):
                 confirms.append(event["confirm"])
             if event.get("error"):
@@ -199,7 +202,18 @@ def main(actions: bool = False) -> int:
                 return r.status_code == 200 and len(text) > 40 and not asks, text[:120], None
             _timed(report, "morning briefing", briefing)
 
+            def website_link():
+                ui_events = []
+                _, confirms, _ = _stream_chat(client, "Give me an open_website button for https://example.com.",
+                                              conversation, ui_events)
+                links = [item for item in ui_events if isinstance(item, dict) and item.get("type") == "link"]
+                valid = any(item.get("url") == "https://example.com" for item in links)
+                return valid and not confirms, "device button emitted; opening still requires a user tap", None
+            _timed(report, "device website button", website_link)
+
             def approval_flow():
+                if platform.system() == "Linux" and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+                    return True, "skipped: this server has no desktop; device buttons tested separately", None
                 plugins = client.get("/api/plugins").json().get("plugins", [])
                 if not any(item.get("id") == "pc-control" and item.get("enabled") for item in plugins):
                     return True, "skipped: PC control is off on this host (servers use PC agents)", None
