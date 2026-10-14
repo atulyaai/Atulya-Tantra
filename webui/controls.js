@@ -346,6 +346,37 @@
   $("#open-connections")?.addEventListener("click", connectionsPanel);
   $("#quick-devices")?.addEventListener("click", devicesPanel);
 
+  async function weatherPanel(city="", period="today") {
+    open("Weather & outlook");
+    const form = node("form"),label = node("label","City"),input = node("input"),submit=node("button","Show weather");
+    input.value=city;input.maxLength=100;label.append(input);submit.type="submit";form.append(label,submit);
+    content.replaceChildren(form);
+    form.addEventListener("submit",event=>{event.preventDefault();weatherPanel(input.value,period);});
+    try {
+      const data=await api(`/api/weather?city=${encodeURIComponent(city)}&when=${period}`);
+      const card=node("p",data.summary);card.style.whiteSpace="pre-line";content.append(card);
+      for (const [name,value] of [["Today","today"],["Tomorrow","tomorrow"],["7 days","week"]]) {
+        const button=node("button",name);button.setAttribute("aria-pressed",String(value===period));
+        button.addEventListener("click",()=>weatherPanel(input.value,value));content.append(button);
+      }
+      const daily=data.daily,days=daily.time || [],highs=daily.temperature_2m_max || [],lows=daily.temperature_2m_min || [];
+      const points=days.map((day,i)=>({day,hi:highs[i],lo:lows[i],rain:daily.precipitation_probability_max?.[i]})).filter(p=>Number.isFinite(p.hi)&&Number.isFinite(p.lo));
+      if (points.length) {
+        const ns="http://www.w3.org/2000/svg",svg=document.createElementNS(ns,"svg");svg.setAttribute("viewBox","0 0 560 180");svg.setAttribute("role","img");svg.setAttribute("aria-label","Daily low and high temperature forecast, degrees Celsius");
+        const title=document.createElementNS(ns,"title");title.textContent="Daily low and high temperatures (°C)";svg.append(title);
+        const min=Math.min(...points.map(p=>p.lo))-2,max=Math.max(...points.map(p=>p.hi))+2;
+        for (const [index,point] of points.entries()) {
+          const x=40+index*480/Math.max(1,points.length-1),y=v=>130-(v-min)/(max-min)*105;
+          const line=document.createElementNS(ns,"line");line.setAttribute("x1",x);line.setAttribute("x2",x);line.setAttribute("y1",y(point.hi));line.setAttribute("y2",y(point.lo));line.setAttribute("stroke","#65e7f5");line.setAttribute("stroke-width","10");svg.append(line);
+          const text=document.createElementNS(ns,"text");text.setAttribute("x",x);text.setAttribute("y","158");text.setAttribute("text-anchor","middle");text.setAttribute("fill","#eefaff");text.setAttribute("font-size","11");text.textContent=`${point.lo}–${point.hi}°`;svg.append(text);
+        }
+        content.append(svg,node("small","Forecast range by day · Open-Meteo"));
+        for (const point of points) content.append(node("p",`${point.day}: ${point.lo}–${point.hi}°C · rain ${point.rain ?? "?"}%`));
+      }
+    } catch(error){errorMessage(error);}
+  }
+  $("#quick-weather")?.addEventListener("click",()=>weatherPanel());
+
   async function phonePanel() {
     open("Phone actions");
     try {

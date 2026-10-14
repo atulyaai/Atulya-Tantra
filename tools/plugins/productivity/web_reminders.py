@@ -103,6 +103,9 @@ class TelegramReminderAccess:
     def edit(self, _user_id, reminder_id, message=None, due_at=None):
         return self.store.edit(self.user_id, reminder_id, message, due_at)
 
+    def cancel_all(self, _user_id):
+        return self.store.cancel_all(self.user_id)
+
     def cancel(self, _user_id, reminder_id):
         return self.store.cancel(self.user_id, reminder_id)
 
