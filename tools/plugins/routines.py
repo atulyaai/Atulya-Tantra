@@ -110,7 +110,7 @@ class SiteDownTrigger(TriggerCondition):
 
 
 class Workflow:
-    """A multi-step workflow that can survive restarts."""
+    """Prototype workflow catalogue; action execution is not connected."""
     
     def __init__(self, name: str, steps: list[dict], trigger: TriggerCondition | None = None):
         self.name = name
@@ -132,16 +132,15 @@ class Workflow:
             self.status = WORKFLOW_COMPLETED
             return {"status": WORKFLOW_COMPLETED, "message": "Workflow completed"}
         
-        # In a real implementation, execute the step action
-        # For now, just advance and return
-        self.step_index += 1
-        
-        if self.step_index >= len(self.steps):
-            self.status = WORKFLOW_COMPLETED
-            return {"status": WORKFLOW_COMPLETED, "message": "Workflow completed"}
-        
-        return {"status": WORKFLOW_RUNNING, "message": f"Step {self.step_index} of {len(self.steps)}"}
-    
+        # This catalogue has no action executor. Keep the pending step in place
+        # and report failure instead of silently claiming its action ran.
+        self.status = WORKFLOW_FAILED
+        return {
+            "status": WORKFLOW_FAILED,
+            "message": "Workflow action execution is unavailable; no step was executed.",
+            "step_index": self.step_index,
+        }
+
     def pause(self):
         """Pause the workflow."""
         self.status = WORKFOLDER_PAUSED
