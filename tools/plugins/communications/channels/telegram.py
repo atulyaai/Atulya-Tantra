@@ -542,6 +542,21 @@ class TelegramChannel:
             members = self._members()
             reply = "\n".join(f"{uid}: {info.get('name', '?')} — {info.get('state')}" for uid, info in members.items()) \
                 or "No registered Telegram users yet."
+        elif command == "/expenses":
+            from tools.plugins.productivity.expenses import ExpenseStore
+            store = ExpenseStore()
+            recent = store.list_recent(OWNER_USER, limit=8)
+            summary = store.summary(OWNER_USER)
+            lines = [f"📊 Financial Summary:\nTotal Spent: ₹{summary['total_spent']:,.2f} ({summary['total_transactions']} transactions)"]
+            if recent:
+                lines.append("\nRecent:")
+                for r in recent:
+                    lines.append(f"• ₹{r['amount']:,.2f} at {r['merchant']} ({r['category']})")
+            reply = "\n".join(lines)
+        elif command == "/scene":
+            from tools.plugins.system.smart_home import execute_smart_home
+            scene_name = command_args.strip() or "movie_mode"
+            reply = await execute_smart_home("smart_home", scene_name)
         else:
             reply = None
             if self._command_plugins is not None and self._personal_memory is not None and self._calendar is not None:

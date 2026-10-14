@@ -351,6 +351,24 @@ class CalendarRequest(BaseModel):
     reminder_minutes: int = Field(default=15, ge=0, le=1440)
 
 
+class ExpenseCreateRequest(BaseModel):
+    amount: float = Field(gt=0)
+    merchant: str = Field(min_length=1, max_length=100)
+    category: str = Field(default="General", max_length=50)
+    notes: str = Field(default="", max_length=200)
+
+
+class SmsParseRequest(BaseModel):
+    sms_text: str = Field(min_length=5, max_length=1000)
+
+
+class SmartHomeSceneRequest(BaseModel):
+    scene: str = Field(min_length=1, max_length=50)
+    device: str = Field(default="", max_length=50)
+    action: str = Field(default="", max_length=50)
+    brightness: int | None = Field(default=None, ge=0, le=100)
+
+
 class HistoryMessage(BaseModel):
     message_id: str = Field(min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
     role: Literal["user", "assistant", "notice"]
@@ -1833,6 +1851,43 @@ ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return {"deleted": deleted}
+
+    @app.get("/api/expenses")
+    async def get_expenses(http_request: Request):
+        from tools.plugins.productivity.expenses import ExpenseStore
+        store = ExpenseStore(config.data_dir)
+        user_id = str(http_request.state.user_id)
+        recent = await asyncio.to_thread(store.list_recent, user_id, 20)
+        summary = await asyncio.to_thread(store.summary, user_id)
+        return {"summary": summary, "recent": recent}
+
+    @app.post("/api/expenses", status_code=201)
+    async def create_expense(request: ExpenseCreateRequest, http_request: Request):
+        from tools.plugins.productivity.expenses import ExpenseStore
+        store = ExpenseStore(config.data_dir)
+        try:
+            entry = await asyncio.to_thread(store.log, str(http_request.state.user_id), request.amount, request.merchant, request.category, notes=request.notes)
+            return entry
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+    @app.post("/api/expenses/parse-sms")
+    async def parse_sms(request: SmsParseRequest, http_request: Request):
+        from tools.plugins.productivity.expenses import ExpenseStore, parse_transaction_sms
+        parsed = parse_transaction_sms(request.sms_text)
+        if not parsed:
+            return {"parsed": False, "message": "No transaction pattern detected."}
+        store = ExpenseStore(config.data_dir)
+        entry = await asyncio.to_thread(store.log, str(http_request.state.user_id), parsed["amount"], parsed["merchant"], parsed["category"], notes=request.sms_text[:120])
+        return {"parsed": True, "entry": entry}
+
+    @app.post("/api/smarthome/scene")
+    async def trigger_scene(request: SmartHomeSceneRequest, _http_request: Request):
+        from tools.plugins.system.smart_home import execute_smart_home
+        target = request.scene or request.device
+        action = request.action or request.scene
+        result = await execute_smart_home(target, action, request.brightness)
+        return {"result": result}
 
     @app.get("/api/events")
     async def live_events(http_request: Request) -> StreamingResponse:
