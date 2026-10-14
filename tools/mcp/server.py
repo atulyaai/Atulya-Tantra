@@ -16,8 +16,7 @@ import logging
 from mcp.server.mcpserver import MCPServer
 
 from atulya.settings import Settings
-from tools.plugins.capabilities import catalogue_for_channel
-from tools.plugins.toolkit import list_skills, read_skill
+from tools.plugins.toolkit import TOOLS, TOOLS_BY_NAME, Toolbox, list_skills, read_skill
 
 logger = logging.getLogger(__name__)
 
@@ -49,42 +48,38 @@ def create_server(
                      "No account, memory, or device data is exposed.",
     )
 
-    if "online-information" not in disabled:
-        from tools.plugins.toolkit import TOOLS_BY_NAME
+    toolbox = Toolbox((tool for tool in TOOLS if tool.plugin_id not in disabled), public_only=True)
 
-        @server.tool()
+    def shared_tool(name):
+        # Signatures remain SDK adapters; descriptions and execution are shared.
+        return server.tool(name=name, description=TOOLS_BY_NAME[name].description)
+
+    if "online-information" not in disabled:
+        @shared_tool("get_weather")
         async def get_weather(place: str = "", when: str = "now") -> str:
             """Weather and forecast: current conditions, next hours, today, tomorrow or the 7-day week."""
-            handler = TOOLS_BY_NAME["get_weather"].handler
-            return (await handler({"place": place, "when": when}, None))[:4000]
+            return await toolbox.call("get_weather", {"place": place, "when": when})
 
-        @server.tool()
+        @shared_tool("get_news")
         async def get_news(limit: int = 5) -> str:
             """Latest BBC News headlines."""
-            handler = TOOLS_BY_NAME["get_news"].handler
-            return (await handler({"limit": limit}, None))[:4000]
+            return await toolbox.call("get_news", {"limit": limit})
 
     if "local-utilities" not in disabled:
-        from tools.plugins.toolkit import TOOLS_BY_NAME
-
-        @server.tool()
-        def get_time() -> str:
+        @shared_tool("get_time")
+        async def get_time() -> str:
             """Current local date and time on the host."""
-            import asyncio
-            handler = TOOLS_BY_NAME["get_time"].handler
-            return asyncio.run(handler({}, None))[:4000]
+            return await toolbox.call("get_time", {})
 
-        @server.tool()
-        def calculate(expression: str) -> str:
+        @shared_tool("calculate")
+        async def calculate(expression: str) -> str:
             """Evaluate an arithmetic expression exactly (+ - * / % and parentheses)."""
-            import asyncio
-            handler = TOOLS_BY_NAME["calculate"].handler
-            return asyncio.run(handler({"expression": expression}, None))[:4000]
+            return await toolbox.call("calculate", {"expression": expression})
 
-        @server.tool()
-        def what_can_you_do(channel: str = "mcp") -> str:
+        @shared_tool("what_can_you_do")
+        async def what_can_you_do(channel: str = "mcp") -> str:
             """What Atulya can do on this channel, with honest status for each capability."""
-            return catalogue_for_channel(channel)
+            return await toolbox.call("what_can_you_do", {})
 
     for skill in list_skills():
         _register_skill_prompt(server, skill["name"], skill["description"])

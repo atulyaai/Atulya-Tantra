@@ -69,3 +69,18 @@ The old list incorrectly described laptop agents and Gmail/Calendar as done, cla
 - Google app return and explicit Gmail/Calendar connection drafted with security tests; nonce/consent/replay tests passed. Real owner OAuth remains required.
 - Music queue/player and phone composer/dialer request UI implemented locally. Physical Android and playback verification pending.
 - These entries do not mean deployed or verified on the owner's phone. Update each corresponding checkbox only when its stated verification is complete.
+
+## H2 — shared capability registry (local implementation)
+
+- [x] Replace the static feature catalogue with per-tool entries derived from `toolkit.TOOLS` and the request's enabled plugins, channel, dependencies and approval policy. Each entry includes status, next step and an explicit verification limitation.
+- [x] Make `what_can_you_do`, the authenticated `/api/capabilities` endpoint and Connections tool readiness use the same registry. Refresh readiness after plugin toggles; check Google scopes for the current user.
+- [x] Route public MCP calls through Toolbox and reuse Tool descriptions, filtering the catalogue to public MCP access. Keep the small explicit SDK signature adapters; no private tools are exported. The Connections MCP tool list now respects enabled plugins and the shared public allowlist.
+- [x] Verify registry coverage, assistant/status parity, disabled plugins, missing dependencies, location, approval, Google scopes and MCP boundaries: 20 focused tests passed, one existing test skipped (`tests/plugins/test_capabilities.py`, `tests/plugins/test_toolkit.py`, `tests/mcp/test_server.py`). Python compilation and UI JavaScript syntax checks passed.
+- [ ] Deploy and verify the Connections panel and assistant on the owner's devices. Runtime readiness is not a provider health probe, execution receipt or proof of device verification; the P0 deployment/verification item remains open.
+
+## Cross-Channel Architecture & Google Integration
+- [x] Fix FastAPI `ResponseValidationError` on `POST /api/briefing` response type model for structured links.
+- [x] Document `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env.example` and sync with production server (`137.23.42.211`).
+- [ ] Unified Identity: Map Web session, APK PKCE handoff, Telegram user ID, and WhatsApp phone number to single internal `user_id`.
+- [ ] Channel-Native Google Actions: Execute immediate sanitized reads (`gmail_search`, `calendar_search`) across all channels; implement interactive approval buttons on Telegram inline keyboards and WhatsApp webhooks for side-effecting operations (`gmail_send`, `calendar_create`).
+- [ ] Expand Google ecosystem to Google Contacts (People API) for recipient resolution and Google Tasks for native mobile reminder sync.

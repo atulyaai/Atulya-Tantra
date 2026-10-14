@@ -187,12 +187,25 @@
             const result = await api(`/api/plugins/${encodeURIComponent(plugin.id)}`, {
               method: "POST", body: JSON.stringify({ enabled: !plugin.enabled }) });
             plugin.enabled = result.plugin.enabled;
+            await refreshCapabilities();
             toggle.textContent = plugin.enabled ? "Enabled · Disable" : "Disabled · Enable";
           } catch (error) { errorMessage(error); }
           finally { toggle.disabled = false; }
         });
         row.append(toggle); content.append(row);
       }
+      const capabilityPanel = node("div");
+      async function refreshCapabilities() {
+        const result = await api("/api/capabilities");
+        capabilityPanel.replaceChildren(node("h3", "Tool readiness"), node("p", "Readiness does not confirm execution or device verification."));
+        for (const cap of result.capabilities) {
+          const row = node("div", undefined, "control-row");
+          row.append(node("strong", `${cap.name} · ${cap.status.replaceAll("_", " ")}`), node("small", cap.description), node("small", cap.next_step));
+          capabilityPanel.append(row);
+        }
+      }
+      content.append(capabilityPanel);
+      await refreshCapabilities();
       const googleAccount = node("button", "Google, Gmail & Calendar accounts");
       googleAccount.addEventListener("click", connectionsPanel); content.prepend(googleAccount);
       content.append(node("h3", "Skills"), node("p", "Skills provide workflow instructions. Their actions require connected tools and the same approvals."));
@@ -447,6 +460,14 @@
         } catch (error) { errorMessage(error); stop.disabled = false; }
       });
       content.append(stop, node("small", data.delivery));
+      const history=await api("/api/notifications");
+      content.append(node("h3","Recent scheduled messages"),node("small",history.note));
+      for(const item of history.deliveries) {
+        const row=node("div",undefined,"control-row");
+        row.append(node("strong",`${item.source} · ${item.status}`),node("small",new Date(item.created*1000).toLocaleString()),node("p",item.text));
+        content.append(row);
+      }
+
     } catch (error) { errorMessage(error); }
   }
   $("#quick-schedules")?.addEventListener("click", schedulesPanel);

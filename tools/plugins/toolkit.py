@@ -936,7 +936,10 @@ class Toolbox:
 
     MAX_ROUNDS = 4
 
-    def __init__(self, tools: Iterable[Tool], context: PluginContext | None = None) -> None:
+    def __init__(self, tools: Iterable[Tool], context: PluginContext | None = None, *, public_only: bool = False) -> None:
+        tools = tuple(tools)
+        self.public_only = public_only
+        self.enabled_plugins = {tool.plugin_id for tool in tools}
         self._tools = {tool.name: tool for tool in tools if context is not None or not tool.needs_context}
         if context is None or context.reminders is None:
             for name in ("create_reminder", "list_reminders", "edit_reminder", "cancel_reminder", "cancel_all_reminders"):
@@ -948,7 +951,7 @@ class Toolbox:
             for name in ("mcp_list_connections", "mcp_call_tool"):
                 self._tools.pop(name, None)
         self.context = context
-        if context is not None and "what_can_you_do" in self._tools:
+        if "what_can_you_do" in self._tools:
             self._tools["what_can_you_do"] = replace(self._tools["what_can_you_do"], handler=self._connected_capabilities)
         if context is not None and context.channel == "telegram":
             self._tools.pop("screen_control", None)
@@ -959,17 +962,24 @@ class Toolbox:
                 if tool.plugin_id == "pc-control":
                     self._tools.pop(tool.name, None)
 
+        if public_only:
+            from tools.plugins.capabilities import MCP_PUBLIC_TOOLS
+            self._tools = {name: tool for name, tool in self._tools.items() if name in MCP_PUBLIC_TOOLS}
+
+    @property
+    def capabilities(self):
+        from tools.plugins.capabilities import tool_capabilities
+        return tool_capabilities(self)
+
     @classmethod
     def for_registry(cls, registry, context: PluginContext | None) -> "Toolbox":
         enabled = {item["id"] for item in registry.manifests if item.get("enabled")} | {"skills"}
         return cls((tool for tool in TOOLS if tool.plugin_id in enabled), context)
 
     async def _connected_capabilities(self, args, ctx):
-        return (f"Tools actually connected on {ctx.channel} for this request:\n" +
-                ", ".join(sorted(self._tools)) +
-                "\nThese current tool schemas are authoritative; a roadmap or old reply does not grant access. "
-                "Tools not listed cannot be claimed as available. Website/music buttons require a device tap. "
-                "Maintenance stages reviewed proposals, not unrestricted core/setup edits. MCP calls require owner grants and approval.")
+        from tools.plugins.capabilities import format_capabilities
+        channel = getattr(ctx, "channel", "mcp" if self.public_only else "web")
+        return format_capabilities(self.capabilities, channel)
 
     def __bool__(self) -> bool:
         return bool(self._tools)
@@ -1007,6 +1017,7 @@ class Toolbox:
         if skills:
             lines.append("Skills available through use_skill: " + "; ".join(
                 f"{s['name']} ({s['description']})" for s in skills))
+        lines.append("Read what_can_you_do for current per-tool readiness and next steps; availability does not establish delivery or device verification.")
         return "\n".join(lines)
 
     async def call(self, name: str, raw_arguments: str | dict) -> str:
@@ -1039,7 +1050,8 @@ class Toolbox:
                                 outcome=outcome, duration_ms=int((time.monotonic() - started) * 1000))
                 return (f"Approval requested on screen: '{summary}'. It has NOT run yet. Tell the user briefly "
                         "to tap Approve (or Deny); do not claim it is done.")
-            result = (await asyncio.wait_for(tool.handler(args, self.context), timeout=20))[:4000]
+            result = await asyncio.wait_for(tool.handler(args, self.context), timeout=20)
+            result = result if name == "what_can_you_do" else result[:4000]
             outcome = "ok"
             record_activity(name, outcome)
             record_tool_run(user_id=user_id, channel=channel, tool=name, args=args,
