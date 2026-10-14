@@ -173,6 +173,8 @@ class SessionAuthMiddleware:
         "/api/auth/signup",
         "/api/auth/google/start",
         "/api/auth/google/callback",
+        "/api/auth/google/app",
+        "/api/auth/google/finish",
         "/api/auth/options",
         "/api/push/key",
         "/api/agents/register",
@@ -180,9 +182,10 @@ class SessionAuthMiddleware:
         "/api/agents/result",
     }
 
-    def __init__(self, app, auth_store: AuthStore):
+    def __init__(self, app, auth_store: AuthStore, public_origin: str = ""):
         self.app = app
         self.auth_store = auth_store
+        self.secure_session = public_origin.startswith("https://")
 
     @staticmethod
     def _session_token(headers: dict[bytes, bytes]) -> str | None:
@@ -211,13 +214,27 @@ class SessionAuthMiddleware:
             await self.app(scope, receive, send)
             return
         headers = {key.lower(): value for key, value in scope.get("headers", [])}
-        user_id = await asyncio.to_thread(self.auth_store.user_for_session, self._session_token(headers))
+        token = self._session_token(headers)
+        user_id = await asyncio.to_thread(self.auth_store.user_for_session, token)
         if user_id is None:
             response = JSONResponse({"detail": "Sign in with your Atulya passkey to continue."}, status_code=401)
             await response(scope, receive, send)
             return
         scope.setdefault("state", {})["user_id"] = user_id
-        await self.app(scope, receive, send)
+        async def authenticated_send(message):
+            if message["type"] == "http.response.start" and path == "/api/profile":
+                if await asyncio.to_thread(self.auth_store.renew_session, token):
+                    cookies = SimpleCookie()
+                    cookies[SESSION_COOKIE] = token
+                    cookie = cookies[SESSION_COOKIE]
+                    cookie["path"] = "/"
+                    cookie["max-age"] = str(SESSION_MAX_AGE)
+                    cookie["httponly"] = True
+                    cookie["samesite"] = "strict"
+                    cookie["secure"] = self.secure_session or scope.get("scheme") == "https"
+                    message.setdefault("headers", []).append((b"set-cookie", cookie.OutputString().encode("latin1")))
+            await send(message)
+        await self.app(scope, receive, authenticated_send)
 
 from tools.plugins.brain import AutomaticProvider, Brain, BrainError, Message, OllamaProvider, OpenAICompatibleProvider
 from tools.plugins.communications.channels import WebUIChannel
@@ -229,7 +246,7 @@ from tools.plugins.productivity.calendar import CalendarStore
 from tools.plugins.personal.memory import PersonalMemory
 from tools.plugins.productivity.reminders import ReminderStore
 from tools.plugins.registry import PluginContext, PluginExecutionError, build_default_registry
-from tools.plugins.productivity.briefing import BriefingLog, briefing_city, briefing_prompt
+from tools.plugins.productivity.briefing import BriefingLog, briefing_city
 from tools.plugins.toolkit import TOOL_ACTIVITY, TOOLS, ActionQueue, Toolbox
 from .settings import PROJECT_ROOT, Settings
 from tools.plugins.voice import LocalSupertonicTTS, LocalVoice, VoiceError
@@ -600,6 +617,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     init_audit_log(config.data_dir)
     app = FastAPI(title=config.assistant_name, docs_url=None, redoc_url=None)
     register_reminder_routes(app, web_reminders)
+    from atulya.automation_api import register_automation_routes
     from .maintenance import Maintenance
     from .mcp_connections import MCPConnections
     from .workspace_api import register_workspace_routes
@@ -635,7 +653,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.router.add_event_handler("startup", start_maintenance)
     app.router.add_event_handler("shutdown", stop_maintenance)
-    app.add_middleware(SessionAuthMiddleware, auth_store=auth_store)
+    app.add_middleware(SessionAuthMiddleware, auth_store=auth_store, public_origin=config.public_origin)
     app.add_middleware(LocalApiSecurityMiddleware)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=config.trusted_hosts)
     app.state.settings = config
@@ -695,6 +713,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         item.strip() for item in os.environ.get("ATULYA_TELEGRAM_ALLOWLIST", "").split(",") if item.strip()
     }
     _merge_telegram_owner(config.data_dir, telegram_allowlist)
+    register_automation_routes(app, auth_store, config.data_dir, telegram_allowlist, reminders, web_reminders)
 
     # ---- live sync hub: one queue per open screen, keyed by user ----
     event_queues: dict[str, set[asyncio.Queue]] = defaultdict(set)
@@ -818,9 +837,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     async def _house_watch(store, telegram_channel) -> None:
         import shutil
-        from tools.plugins.information.weather import find_place, forecast
-        from tools.plugins.productivity.briefing import briefing_city
-
         store.ensure_defaults()
         if not getattr(telegram_channel, "configured", False):
             return
@@ -830,22 +846,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if percent >= 90 and _watch_day["disk"] != today:
             await telegram_channel.notify(f"Disk alert: the server disk is {percent:.0f}% full.")
             _watch_day["disk"] = today
-        now = datetime.now().astimezone()
-        if _watch_day["rain"] != today and (7, 20) <= (now.hour, now.minute) <= (9, 0):
-            city = briefing_city() or "Delhi"
-            spot = await find_place(city)
-            _watch_day["rain"] = today
-            if spot:
-                report = await forecast(spot["latitude"], spot["longitude"], city, "tomorrow")
-                if any(word in report.lower() for word in ("rain", "shower", "drizzle", "storm")):
-                    await telegram_channel.notify(f"Rain check for {city}:\n{report[:900]}")
 
     async def run_routines() -> None:
-        """Fire saved clock-time routines once per day and deliver them on Telegram."""
-        from tools.plugins.information.news import headlines
-        from tools.plugins.information.weather import weather
-        from tools.plugins.productivity.briefing import briefing_city, briefing_prompt
+        """Run opted-in schedules; mark sent only after Telegram accepts a message."""
+        from tools.plugins.productivity.briefing import briefing_city, briefing_time
         from tools.plugins.productivity.routines import RoutineStore
+        from tools.plugins.productivity.routine_execution import render_routine
 
         store = RoutineStore(config.data_dir)
         await asyncio.sleep(25)
@@ -853,45 +859,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             try:
                 due = await asyncio.to_thread(store.due)
                 for item in due:
-                    action = item.get("action")
-                    if action == "message":
-                        text_out = str(item.get("message") or "").strip()
-                    elif action == "weather":
-                        city = briefing_city() or "Delhi"
-                        text_out = await weather(city)
-                    elif action == "rain":
-                        city = briefing_city() or "Delhi"
-                        from tools.plugins.information.weather import find_place, forecast
-                        spot = await find_place(city)
-                        report = await forecast(spot["latitude"], spot["longitude"], city, "tomorrow") if spot else ""
-                        if report and any(word in report.lower() for word in ("rain", "shower", "drizzle", "storm")):
-                            text_out = report
-                        else:
-                            await asyncio.to_thread(store.mark_fired, str(item["id"]))
-                            continue
-                    else:
-                        city = briefing_city()
-                        if brain is not None:
-                            try:
-                                reply = await brain.respond([Message(role="user", content=briefing_prompt(city))])
-                                text_out = reply.text
-                            except Exception:
-                                text_out = await headlines(5)
-                        else:
-                            text_out = await headlines(5)
-                    text_out = (text_out or "Routine ran with nothing to say.").strip()
-                    title = str(item.get("name") or "Routine")
-                    body = f"{title}\n{text_out}"[:4000]
-                    sent = 0
-                    if getattr(telegram, "configured", False):
-                        sent = await telegram.notify(body)
-                    logging.getLogger(__name__).info("Routine %s delivered to %s chat(s)", item.get("id"), sent)
-                    try:
+                    # The explicit Telegram briefing schedule is the sole sender
+                    # when configured, preventing a second routine briefing.
+                    if item.get("action") == "briefing" and briefing_time() is not None:
+                        await asyncio.to_thread(store.mark_fired, str(item["id"]))
+                        continue
+                    profile = await asyncio.to_thread(profiles.get, "admin")
+                    report = await render_routine(item, profile.get("city") or briefing_city(), calendar, WEB_OWNER)
+                    if report is None:
+                        await asyncio.to_thread(store.mark_fired, str(item["id"]))
+                        continue
+                    if not await asyncio.to_thread(store.still_enabled, str(item["id"])):
+                        continue
+                    if not getattr(telegram, "configured", False):
+                        continue
+                    rows = [[{"text": link["label"], "url": link["url"]}] for link in report["links"]]
+                    body = f"{item.get('name', 'Routine')}\n{report['text']}"[:4000]
+                    sent = await telegram.notify(body, buttons=rows or None)
+                    if sent:
+                        await asyncio.to_thread(store.mark_fired, str(item["id"]))
                         from tools.plugins.audit import record_tool_run
-                        record_tool_run(user_id="admin", channel="telegram", tool=f"routine:{item.get('name')}", args={"action": action}, outcome="ok")
-                    except Exception:
-                        pass
-                    await asyncio.to_thread(store.mark_fired, str(item["id"]))
+                        record_tool_run(user_id="admin", channel="telegram", tool=f"routine:{item.get('name')}",
+                                        args={"action": item.get("action")}, outcome="accepted_by_telegram")
             except Exception as exc:
                 logging.getLogger(__name__).warning("Routine runner failed (%s)", type(exc).__name__)
             try:
@@ -949,52 +938,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         }
 
 
-    def _agent_ok(request: Request) -> bool:
-        import hmac
-        expected = os.environ.get("ATULYA_AGENT_TOKEN", "").strip()
-        header = request.headers.get("authorization", "")
-        offered = header[7:].strip() if header.lower().startswith("bearer ") else ""
-        return bool(expected) and bool(offered) and hmac.compare_digest(offered, expected)
-
-    class AgentBody(BaseModel):
-        name: str = Field(min_length=1, max_length=40)
-        abilities: list[str] = Field(default_factory=list, max_length=12)
-        command: str = ""
-        detail: str = ""
-        id: str = ""
-        output: str = ""
-
-    @app.post("/api/agents/register")
-    async def agent_register(request: Request) -> dict:
-        if not _agent_ok(request):
-            raise HTTPException(status_code=401, detail="Agent token required.")
-        payload = await request.json()
-        from tools.plugins.system.agents import AgentHub
-        abilities = payload.get("abilities") if isinstance(payload.get("abilities"), list) else []
-        return await asyncio.to_thread(AgentHub(config.data_dir).register, str(payload.get("name") or "laptop"), abilities)
-
-    @app.post("/api/agents/poll")
-    async def agent_poll(request: Request) -> dict:
-        if not _agent_ok(request):
-            raise HTTPException(status_code=401, detail="Agent token required.")
-        payload = await request.json()
-        from tools.plugins.system.agents import AgentHub
-        jobs = await asyncio.to_thread(AgentHub(config.data_dir).poll, str(payload.get("name") or "laptop"))
-        return {"jobs": jobs}
-
-    @app.post("/api/agents/result")
-    async def agent_result(request: Request) -> dict:
-        if not _agent_ok(request):
-            raise HTTPException(status_code=401, detail="Agent token required.")
-        payload = await request.json()
-        from tools.plugins.system.agents import AgentHub
-        ok = await asyncio.to_thread(
-            AgentHub(config.data_dir).complete,
-            str(payload.get("name") or ""),
-            str(payload.get("id") or ""),
-            str(payload.get("output") or ""),
-        )
-        return {"ok": ok}
+    from atulya.device_api import register_device_routes
+    register_device_routes(app, config.data_dir)
+    from atulya.music import register_music_routes
+    register_music_routes(app, config.data_dir)
+    from atulya.phone_actions import register_phone_routes
+    register_phone_routes(app, config.data_dir)
 
     @app.get("/api/auth/status")
     async def auth_status(request: Request) -> JSONResponse:
@@ -1469,71 +1418,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="That sign-up was already handled.")
         return {"approved": body.approve}
 
-    google_states: dict[str, float] = {}
-
-    def _google_redirect_uri(request: Request) -> str:
-        base = config.public_origin or f"{request.url.scheme}://{request.headers.get('host', 'localhost:8501')}"
-        return base + "/api/auth/google/callback"
-
-    @app.get("/api/auth/google/start")
-    async def google_start(request: Request) -> Response:
-        client_id = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
-        if not client_id:
-            raise HTTPException(status_code=404, detail="Google sign-in is not configured.")
-        state = secrets.token_urlsafe(24)
-        google_states[state] = time.monotonic()
-        from urllib.parse import urlencode
-
-        query = urlencode({"client_id": client_id, "redirect_uri": _google_redirect_uri(request), "response_type": "code",
-                           "scope": "openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly",
-                           "state": state, "prompt": "consent", "access_type": "offline", "include_granted_scopes": "true"})
-        return Response(status_code=302, headers={"Location": f"https://accounts.google.com/o/oauth2/v2/auth?{query}"})
-
-    @app.get("/api/auth/google/callback")
-    async def google_callback(request: Request, code: str = "", state: str = "") -> Response:
-        started = google_states.pop(state, None)
-        if not code or started is None or time.monotonic() - started > 600:
-            return Response(status_code=302, headers={"Location": "/#google=expired"})
-        try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                token = (await client.post("https://oauth2.googleapis.com/token", data={
-                    "code": code, "client_id": os.environ["GOOGLE_CLIENT_ID"].strip(),
-                    "client_secret": os.environ.get("GOOGLE_CLIENT_SECRET", "").strip(),
-                    "redirect_uri": _google_redirect_uri(request), "grant_type": "authorization_code"})).json()
-                info = (await client.get("https://oauth2.googleapis.com/tokeninfo",
-                                         params={"id_token": token.get("id_token", "")})).json()
-        except (httpx.HTTPError, ValueError, KeyError):
-            return Response(status_code=302, headers={"Location": "/#google=failed"})
-
-        # Save refresh token for Gmail/Calendar if present
-        refresh = token.get("refresh_token")
-        email = info.get("email", "")
-        if refresh and email:
-            from tools.plugins.information.google_api import save_refresh_token
-            # user_id is resolved later; save by email for now, remap after
-            save_refresh_token(email, refresh, email)
-        if info.get("aud") != os.environ["GOOGLE_CLIENT_ID"].strip() or info.get("email_verified") not in {True, "true"}:
-            return Response(status_code=302, headers={"Location": "/#google=failed"})
-        email = str(info.get("email", "")).lower()
-        user_id = await asyncio.to_thread(auth_store.resolve_login, email)
-        # Also save refresh token under the resolved user_id
-        if refresh:
-            from tools.plugins.information.google_api import save_refresh_token
-            save_refresh_token(user_id, refresh, email)
-        account = await asyncio.to_thread(auth_store.user, user_id)
-        if account is None:
-            try:
-                await asyncio.to_thread(auth_store.create_signup, str(info.get("name", email)), email, None, "google")
-                await telegram.notify(f"New Atulya sign-up via Google: {info.get('name', '')} <{email}>. "
-                                      "Approve or deny it in Atulya → USERS.")
-            except ValueError:
-                pass
-            return Response(status_code=302, headers={"Location": "/#google=pending"})
-        if account["disabled_at"] is not None:
-            return Response(status_code=302, headers={"Location": "/#google=pending"})
-        response = Response(status_code=302, headers={"Location": "/#google=ok"})
-        set_session_cookie(response, request, await asyncio.to_thread(auth_store.create_session, user_id))
-        return response
+    from .google_auth import register_google_routes
+    register_google_routes(app, config, auth_store, set_session_cookie)
 
     @app.post("/api/auth/telegram-webapp")
     async def telegram_webapp_login(body: TelegramWebAppBody, request: Request) -> Response:
@@ -2118,21 +2004,13 @@ ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
     async def morning_briefing(body: BriefingRequest, http_request: Request) -> dict[str, str | bool]:
         """Today's briefing, once per user per day unless `force` is set."""
         user_id = str(http_request.state.user_id)
-        if brain is None:
-            raise HTTPException(status_code=503, detail="Chat is unavailable right now.")
         if not body.force and await asyncio.to_thread(briefing_log.sent_today, f"web_{user_id}"):
             return {"text": "", "already_sent": True}
-        toolbox = Toolbox.for_registry(command_plugins, PluginContext(
-            WEB_OWNER, personal_memory, calendar, user_id, history=history, profile=profiles))
+        from tools.plugins.productivity.briefing import build_briefing
         profile = await asyncio.to_thread(profiles.get, user_id)
-        try:
-            reply = await brain.respond_with_tools(
-                [Message(role="user", content=briefing_prompt(profile.get("city") or briefing_city()))], toolbox,
-                system_instructions=profile_instructions(profile))
-        except BrainError as exc:
-            raise HTTPException(status_code=503, detail="The briefing could not be prepared right now.") from exc
+        report = await build_briefing(profile.get("city") or briefing_city(), calendar, WEB_OWNER, user_id)
         await asyncio.to_thread(briefing_log.mark, f"web_{user_id}")
-        return {"text": reply.text, "already_sent": False}
+        return {"text": report["text"], "links": report["links"], "already_sent": False}
 
     @app.post("/api/actions/{action_id}")
     async def decide_action(action_id: str, body: ActionDecision, http_request: Request) -> dict[str, str]:

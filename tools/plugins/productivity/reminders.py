@@ -94,6 +94,12 @@ class ReminderStore:
                                 "AND (claimed_until IS NULL OR claimed_until<=?)", (current, reminder_id, user_id, current))
             return result.rowcount > 0
 
+    def cancel_all(self, user_id: str) -> int:
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
+            result = db.execute("UPDATE reminders SET cancelled_at=? WHERE user_id=? AND cancelled_at IS NULL AND delivered_at IS NULL AND failed_at IS NULL AND (claimed_until IS NULL OR claimed_until<=?)", (now, user_id, now))
+            return result.rowcount
+
     def next_due(self) -> dict[str, str | int] | None:
         with closing(sqlite3.connect(self.path, timeout=5)) as connection:
             connection.row_factory = sqlite3.Row

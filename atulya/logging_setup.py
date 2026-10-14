@@ -10,7 +10,7 @@ from pathlib import Path
 _SECRET_PATTERNS = (
     (re.compile(r"/bot\d{5,}:[A-Za-z0-9_-]{20,}"), "/bot<redacted>"),
     (re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._~+/=-]{12,}"), r"\1<redacted>"),
-    (re.compile(r"(?i)([?&](?:key|api_key|token|access_token)=)[^&\s\"']+"), r"\1<redacted>"),
+    (re.compile(r"(?i)([?&](?:key|api_key|token|access_token|id_token|refresh_token|code|handoff|verifier)=)[^&\s\"']+"), r"\1<redacted>"),
     (re.compile(r"\b(?:sk|nvapi|AIza)[A-Za-z0-9_-]{16,}"), "<redacted>"),
 )
 

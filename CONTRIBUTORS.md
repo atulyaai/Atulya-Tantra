@@ -4,6 +4,7 @@ Atulya AI maintains Atulya-Tantra. The following coding assistants support devel
 
 | Assistant | Development branch | Role |
 | --- | --- | --- |
+| Antigravity | `antigravity` | Architecture, systems design and pair programming |
 | Claude | `claude` | Implementation and review |
 | Codex | `codex/work` | Implementation, tests and integration |
 | Grok | `grok` | Implementation and review |

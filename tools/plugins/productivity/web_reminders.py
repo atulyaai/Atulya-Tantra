@@ -50,6 +50,12 @@ class WebReminderStore:
                                   "due_at DESC LIMIT 100", (user_id,)).fetchall()
         return [{k: row[k] for k in row.keys() if k != "user_id"} for row in rows]
 
+    def cancel_all(self, user_id: str) -> int:
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
+            result = db.execute("UPDATE reminders SET cancelled_at=? WHERE user_id=? AND cancelled_at IS NULL AND shown_at IS NULL", (now, user_id))
+            return result.rowcount
+
     def update(self, user_id: str, reminder_id: int, *, shown: bool = False) -> bool:
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
         with closing(sqlite3.connect(self.path, timeout=5)) as db, db:

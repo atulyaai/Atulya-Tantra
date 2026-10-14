@@ -1377,6 +1377,15 @@
     const deadline = Date.now() + 20000;
     while ((speaking || phase === "thinking") && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 300));
     const bubble = appendMessage("assistant", text);
+    for (const item of body.links || []) {
+      try {
+        const url = new URL(item.url);
+        if (url.protocol !== "https:") continue;
+        const link = document.createElement("a"); link.href = url.href;
+        link.textContent = item.label; link.target = "_blank"; link.rel = "noopener noreferrer";
+        bubble.append(link);
+      } catch { /* Ignore malformed provider links. */ }
+    }
     conversation.push({ role: "assistant", content: text });
     if (listening) return; // the user already started talking; leave it on screen
     highlightSpokenReply(bubble);
@@ -2080,6 +2089,7 @@
     nativeVoice.onmessage = async (event) => {
       let message = {};
       try { message = JSON.parse(event.data); } catch { return; }
+      if (message.type === "phone_action") { document.dispatchEvent(new CustomEvent("atulya-phone-receipt", {detail:message})); return; }
       if (message.kind === "ready") { setPhase("listening", "Listening", "Speak naturally. I'll answer when you pause."); return; }
       if (message.kind === "speech" || message.kind === "end") return;
       listening = false;
@@ -2873,6 +2883,13 @@
     } catch { /* notifications are optional */ }
   }
 
+  document.getElementById("auth-google")?.addEventListener("click", (event) => {
+    if (window.AtulyaNative) {
+      event.preventDefault();
+      window.AtulyaNative.postMessage(JSON.stringify({cmd:"google_login",url:new URL("/api/auth/google/start",location.origin).href}));
+    }
+  });
+
   // ---- Sign up / Google ------------------------------------------------------------
   const signupForm = document.getElementById("auth-signup-form");
 
@@ -3030,8 +3047,14 @@
       const response = await fetch("/api/auth/device-link", { method: "POST", headers: { Accept: "application/json" } });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.detail || "Could not create a device link.");
-      inviteResult.hidden = false;
-      inviteResult.replaceChildren();
+      const linkDialog = document.createElement("dialog");
+      linkDialog.className = "device-link-dialog";
+      const inviteResult = document.createElement("div");
+      linkDialog.append(inviteResult);
+      const close = document.createElement("button"); close.textContent = "Close";
+      close.addEventListener("click", () => linkDialog.close()); linkDialog.append(close);
+      linkDialog.addEventListener("close", () => linkDialog.remove());
+      document.body.append(linkDialog); linkDialog.showModal();
       const label = document.createElement("span");
       label.textContent = `Open this on your phone or other computer within ${body.expires_minutes} minutes to add a passkey for your account:`;
       const code = document.createElement("code");

@@ -193,6 +193,8 @@
         });
         row.append(toggle); content.append(row);
       }
+      const googleAccount = node("button", "Google, Gmail & Calendar accounts");
+      googleAccount.addEventListener("click", connectionsPanel); content.prepend(googleAccount);
       content.append(node("h3", "Skills"), node("p", "Skills provide workflow instructions. Their actions require connected tools and the same approvals."));
       if (!data.skills.length) content.append(node("p", "No skills installed."));
       for (const skill of data.skills) {
@@ -262,6 +264,162 @@
       }
     } catch (error) { errorMessage(error); }
   });
+  function googleConnect(features) {
+    const url = new URL("/api/auth/google/start", location.origin);
+    url.searchParams.set("connect", "true"); url.searchParams.set("features", features);
+    if (window.AtulyaNative) window.AtulyaNative.postMessage(JSON.stringify({cmd:"google_login", url:url.href}));
+    else location.assign(url.href);
+  }
+  async function connectionsPanel() {
+    open("Connections");
+    try {
+      const google = await api("/api/google/status");
+      content.replaceChildren(node("h3", "Google · Gmail & Calendar"),
+        node("p", "Signing in to Atulya and granting Google service access are separate. Choose the services you want to connect."),
+        node("p", google.connected ? `Connected: ${google.email || "Google account"}` : "Not connected"));
+      if (!google.configured) content.append(node("p", "Google OAuth is not configured on the server."));
+      if (google.last_error) content.append(node("p", google.last_error, "control-error"));
+      content.append(node("small", `Granted scopes: ${(google.scopes || []).join(", ") || "None"}`));
+      for (const [label, features] of [["Connect Gmail", "gmail"], ["Connect Calendar", "calendar"], ["Connect both", "all"]]) {
+        const button = node("button", label); button.disabled = !google.configured;
+        button.addEventListener("click", () => googleConnect(features)); content.append(button);
+      }
+      const test = node("button", "Test Google access");
+      test.addEventListener("click", async () => {
+        test.disabled = true;
+        try { const result = await api("/api/google/test", {method:"POST"}); content.append(node("p", result.message)); }
+        catch (error) { errorMessage(error); } finally { test.disabled = false; }
+      });
+      const disconnect = node("button", "Disconnect Google services");
+      disconnect.addEventListener("click", async () => {
+        disconnect.disabled = true;
+        try { await api("/api/google/connection", {method:"DELETE"}); await connectionsPanel(); }
+        catch (error) { errorMessage(error); disconnect.disabled = false; }
+      }); content.append(test, disconnect);
+      content.append(node("h3", "Telegram"), node("p", "Chat, reminders and scheduled updates use the server. Use Schedules to control recurring messages. Phone notification sound is controlled by Android and Telegram."));
+      content.append(node("h3", "WhatsApp Business"), node("p", "Not connected. The new Atulya Business account needs a Meta account, phone number and approved server credentials."));
+      const mcp = node("button", "Manage MCP connections");
+      mcp.addEventListener("click", () => $("#quick-connections")?.click()); content.append(mcp);
+    } catch (error) { errorMessage(error); }
+  }
+  async function devicesPanel() {
+    open("Devices & execution receipts");
+    try {
+      const data = await api("/api/devices");
+      content.replaceChildren(node("p", "Each device has its own revocable credential and allowed actions. A queued request is not execution."));
+      for (const device of data.devices) {
+        const row = node("div", undefined, "control-row");
+        row.append(node("strong", `${device.name} · ${device.status}`), node("small", device.abilities.join(", ")));
+        const revoke = node("button", "Revoke device");
+        revoke.addEventListener("click", async () => {
+          revoke.disabled = true;
+          try { await api(`/api/devices/${encodeURIComponent(device.name)}`, {method:"DELETE"}); await devicesPanel(); }
+          catch (error) { errorMessage(error); revoke.disabled = false; }
+        }); row.append(revoke); content.append(row);
+      }
+      const form = node("form");
+      const label = node("label", "Pair a laptop · device name");
+      const name = node("input"); name.required = true; name.maxLength = 40; label.append(name);
+      const choices = node("fieldset"); choices.append(node("legend", "Granted abilities"));
+      const grants = [];
+      for (const ability of ["ping", "open_url", "list_files", "say"]) {
+        const item = node("label", ability); const check = node("input"); check.type = "checkbox"; check.value = ability;
+        check.checked = ability === "ping"; item.prepend(check); choices.append(item); grants.push(check);
+      }
+      const pair = node("button", "Create device credential"); pair.type = "submit";
+      form.append(label, choices, pair); content.append(form);
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault(); pair.disabled = true;
+        try {
+          const result = await api("/api/devices/pair", {method:"POST", body:JSON.stringify({name:name.value, abilities:grants.filter(c=>c.checked).map(c=>c.value)})});
+          const secret = node("textarea"); secret.readOnly = true; secret.value = result.token;
+          content.append(node("p", "Copy this credential into the laptop agent's ATULYA_AGENT_TOKEN. It is shown once; keep it private. Run tools/laptop_agent.py on that laptop. Pairing alone does not install or start an agent."), secret);
+        } catch (error) { errorMessage(error); } finally { pair.disabled = false; }
+      });
+      content.append(node("h3", "Recent jobs"));
+      for (const job of data.jobs) {
+        const row = node("div", undefined, "control-row");
+        row.append(node("strong", `${job.device} · ${job.kind} · ${job.status}`), node("small", job.id), node("p", job.output || "No execution receipt yet.")); content.append(row);
+      }
+    } catch (error) { errorMessage(error); }
+  }
+  $("#open-connections")?.addEventListener("click", connectionsPanel);
+  $("#quick-devices")?.addEventListener("click", devicesPanel);
+
+  async function phonePanel() {
+    open("Phone actions");
+    try {
+      const data = await api("/api/phone/actions");
+      content.replaceChildren(node("p", "SMS drafts and dialer requests prepared on the server appear here. Tap a request in the Android app. You send the SMS or place the call in the phone's own app."));
+      if (!window.AtulyaNative) content.append(node("p", "Open this screen in the updated Atulya Android app to execute phone actions."));
+      for (const item of data.requests) {
+        const row = node("div", undefined, "control-row");
+        row.append(node("strong", `${item.kind === "dial" ? "Call" : "SMS draft"} · ${item.number}`));
+        if (item.body) row.append(node("p", item.body));
+        const run = node("button", item.kind === "dial" ? "Open phone dialer" : "Open SMS composer");
+        run.disabled = !window.AtulyaNative;
+        run.addEventListener("click", () => {
+          run.disabled = true;
+          window.AtulyaNative.postMessage(JSON.stringify({cmd:item.kind,id:item.id,number:item.number,body:item.body}));
+          row.append(node("small", "Waiting for the phone app's receipt…"));
+        });
+        const cancel = node("button", "Cancel request");
+        cancel.addEventListener("click", async () => {
+          try {await api(`/api/phone/actions/${item.id}/receipt`,{method:"POST",body:JSON.stringify({state:"cancelled"})});await phonePanel();}
+          catch(error){errorMessage(error);}
+        }); row.append(run,cancel);content.append(row);
+      }
+      if (!data.requests.length) content.append(node("p", "No pending phone requests. Ask Atulya to prepare an SMS or call with the number."));
+    } catch (error) { errorMessage(error); }
+  }
+  document.addEventListener("atulya-phone-receipt", async event => {
+    const receipt = event.detail;
+    try {
+      await api(`/api/phone/actions/${encodeURIComponent(receipt.id)}/receipt`,{method:"POST",body:JSON.stringify({state:receipt.status})});
+      if (dialog.open && $("#control-title").textContent === "Phone actions") {
+        await phonePanel();content.prepend(node("p", `${receipt.status.replaceAll("_"," ")}. No SMS send or completed call is verified.`));
+      }
+    } catch(error){errorMessage(error);}
+  });
+  $("#quick-phone")?.addEventListener("click",phonePanel);
+
+  async function schedulesPanel() {
+    open("Scheduled updates & recurring reminders");
+    try {
+      const data = await api("/api/automations");
+      content.replaceChildren(node("p", "One-time reminders and recurring schedules are separate. This list shows the recurring Telegram updates."));
+      for (const item of data.routines) {
+        const row = node("div", undefined, "control-row");
+        row.append(node("strong", item.name), node("small", `${data.types[item.action] || item.action} · ${item.days} ${item.when} · ${item.enabled ? "On" : "Paused"}`));
+        const toggle = node("button", item.enabled ? "Pause" : "Resume");
+        toggle.addEventListener("click", async () => {
+          toggle.disabled = true;
+          try { await api(`/api/automations/${encodeURIComponent(item.id)}`, { method: "PUT", body: JSON.stringify({ enabled: !item.enabled }) }); await schedulesPanel(); }
+          catch (error) { errorMessage(error); toggle.disabled = false; }
+        });
+        const remove = node("button", "Delete schedule");
+        remove.addEventListener("click", async () => {
+          remove.disabled = true;
+          try { await api(`/api/automations/${encodeURIComponent(item.id)}`, { method: "DELETE" }); await schedulesPanel(); }
+          catch (error) { errorMessage(error); remove.disabled = false; }
+        });
+        row.append(toggle, remove); content.append(row);
+      }
+      if (!data.routines.length) content.append(node("p", "No recurring schedules."));
+      const stop = node("button", "Cancel all one-time & recurring reminders");
+      stop.addEventListener("click", async () => {
+        stop.disabled = true;
+        try {
+          const result = await api("/api/reminders/cancel-all", { method: "POST" });
+          await schedulesPanel();
+          content.prepend(node("p", `Cancelled ${result.web_cancelled} app reminders and ${result.telegram_cancelled} Telegram reminders; paused ${result.recurring_reminders_disabled} recurring reminders. ${result.note}`));
+        } catch (error) { errorMessage(error); stop.disabled = false; }
+      });
+      content.append(stop, node("small", data.delivery));
+    } catch (error) { errorMessage(error); }
+  }
+  $("#quick-schedules")?.addEventListener("click", schedulesPanel);
+
   async function pollReminders() {
     if (polling || document.hidden) return;
     polling = true;

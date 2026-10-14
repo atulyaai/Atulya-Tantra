@@ -15,7 +15,7 @@ from tools.plugins.brain import Brain, Message
 from atulya.history import ConversationHistory
 from tools.plugins.productivity.reminders import ReminderStore
 from tools.plugins.registry import PluginContext, PluginExecutionError, PluginRegistry
-from tools.plugins.productivity.briefing import briefing_city, briefing_prompt, briefing_time
+from tools.plugins.productivity.briefing import briefing_city, briefing_time, build_briefing
 from tools.plugins import toolkit as _toolkit
 from tools.plugins.toolkit import Toolbox
 from tools.plugins.productivity.web_reminders import TelegramReminderAccess
@@ -146,7 +146,7 @@ class TelegramChannel:
         self._reminder_task = None
         self._briefing_task = None
 
-    async def notify(self, text: str) -> int:
+    async def notify(self, text: str, buttons: list | None = None) -> int:
         """Send a message to every allowlisted owner; works even while polling is in conflict."""
         if not self._token or not self._allowed:
             return 0
@@ -154,10 +154,15 @@ class TelegramChannel:
         async with httpx.AsyncClient(timeout=httpx.Timeout(10, connect=5)) as client:
             for user_id in sorted(self._allowed):
                 try:
-                    response = await client.post(self._url("sendMessage"), json={"chat_id": user_id, "text": text[:4000]})
+                    payload = {"chat_id": user_id, "text": text[:4000], "disable_notification": False}
+                    if buttons:
+                        payload["reply_markup"] = {"inline_keyboard": buttons}
+                    response = await client.post(self._url("sendMessage"), json=payload)
                     response.raise_for_status()
-                    sent += 1
-                except httpx.HTTPError:
+                    receipt = response.json()
+                    if receipt.get("ok") and isinstance(receipt.get("result", {}).get("message_id"), int):
+                        sent += 1
+                except (httpx.HTTPError, ValueError, TypeError):
                     logger.warning("Telegram notification could not be delivered")
         return sent
 
@@ -609,22 +614,21 @@ class TelegramChannel:
                 try:
                     hour, minute = briefing_time() or (25, 0)
                     now = datetime.now().astimezone()
-                    if (now.hour, now.minute) >= (hour, minute) and self._brain is not None:
+                    if 0 <= (now.hour * 60 + now.minute) - (hour * 60 + minute) <= 20:
                         for user_id in sorted(self._allowed):
                             recipient = OWNER_USER if len(self._allowed) == 1 else f"tg_{user_id}"
                             if await asyncio.to_thread(self._briefing_log.sent_today, recipient):
                                 continue
-                            toolbox = Toolbox.for_registry(self._command_plugins, PluginContext(
-                                OWNER_MEMORY, self._personal_memory, self._calendar, recipient,
-                                history=self._history)) if self._command_plugins is not None else None
                             city = (self._profiles.get(recipient).get("city") if self._profiles else "") or briefing_city()
-                            prompt = [Message(role="user", content=briefing_prompt(city))]
-                            reply = (await self._brain.respond_with_tools(prompt, toolbox,
-                                                                          system_instructions=self._style(recipient)) if toolbox
-                                     else await self._brain.respond(prompt))
-                            response = await client.post(self._url("sendMessage"),
-                                                         json={"chat_id": user_id, "text": reply.text[:4000]})
+                            report = await build_briefing(city, self._calendar, OWNER_MEMORY, recipient)
+                            rows = [[{"text": link["label"], "url": link["url"]}] for link in report["links"]]
+                            response = await client.post(self._url("sendMessage"), json={
+                                "chat_id": user_id, "text": report["text"], "disable_notification": False,
+                                "reply_markup": {"inline_keyboard": rows} if rows else {"inline_keyboard": []}})
                             response.raise_for_status()
+                            receipt = response.json()
+                            if not receipt.get("ok") or not isinstance(receipt.get("result", {}).get("message_id"), int):
+                                continue
                             await asyncio.to_thread(self._briefing_log.mark, recipient)
                 except asyncio.CancelledError:
                     raise

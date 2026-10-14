@@ -13,7 +13,7 @@ from collections.abc import Iterator
 
 ADMIN_ID = "admin"
 SESSION_COOKIE = "atulya_session"
-SESSION_MAX_AGE = 7 * 24 * 60 * 60
+SESSION_MAX_AGE = 30 * 24 * 60 * 60
 CHALLENGE_MAX_AGE = 5 * 60
 INVITE_MAX_AGE = 24 * 60 * 60
 
@@ -629,6 +629,17 @@ class AuthStore:
             return
         with self._session() as db:
             db.execute("DELETE FROM sessions WHERE token_hash=?", (self._token_hash(token),))
+
+    def renew_session(self, token: str) -> bool:
+        """Renew an existing authenticated session; never resurrect a revoked/expired token."""
+        now = int(time.time())
+        with self._session() as db:
+            cursor = db.execute(
+                "UPDATE sessions SET expires_at=? WHERE token_hash=? AND expires_at>? "
+                "AND user_id IN (SELECT id FROM users WHERE disabled_at IS NULL)",
+                (now + SESSION_MAX_AGE, self._token_hash(token), now),
+            )
+            return cursor.rowcount == 1
 
     def disable_user(self, user_id: str) -> bool:
         if user_id == ADMIN_ID or not re.fullmatch(r"u_[a-f0-9]{32}", user_id):
