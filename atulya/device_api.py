@@ -9,7 +9,8 @@ from tools.plugins.system.agents import AgentHub
 
 class PairRequest(BaseModel):
     name: str = Field(min_length=1, max_length=40)
-    abilities: list[str] = Field(min_length=1, max_length=4)
+    abilities: list[str] = Field(min_length=1, max_length=32)
+    device_type: str = Field(default="generic", max_length=32)
 
 
 class ResultRequest(BaseModel):

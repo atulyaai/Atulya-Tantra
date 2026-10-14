@@ -1,0 +1,20 @@
+[Unit]
+Description=Atulya Proactive Health Monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/ubuntu/Atulya-Tantra
+ExecStart=/home/ubuntu/Atulya-Tantra/.venv/bin/python tools/proactive_monitor.py
+User=ubuntu
+Group=ubuntu
+MemoryMax=500M
+CPUQuota=50%
+TimeoutSec=300
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=atulya-proactive-monitor
+
+[Install]
+WantedBy=multi-user.target
