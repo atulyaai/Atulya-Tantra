@@ -89,3 +89,18 @@ class PersonalMemory:
                         key=lambda item: (-item[0], item[1]))
         matches = [fact for score, _, fact in ranked if score]
         return matches[:limit]
+
+    def update(self, owner: str, old_fact: str, new_fact: str, user_id: str = "admin") -> bool:
+        owner = self._owner(owner)
+        user_id = self._user_id(user_id)
+        old_fact = old_fact.strip()
+        new_fact = new_fact.strip()
+        if not old_fact or not new_fact or len(new_fact) > 500:
+            raise ValueError("Facts must be 1 to 500 characters")
+        with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
+            rows = db.execute("SELECT id, fact FROM facts WHERE user_id=? AND owner=?", (user_id, owner)).fetchall()
+            matching = [int(r[0]) for r in rows if old_fact.casefold() in str(r[1]).casefold()]
+            if not matching:
+                return False
+            db.execute("UPDATE facts SET fact=? WHERE user_id=? AND owner=? AND id=?", (new_fact, user_id, owner, matching[0]))
+            return True

@@ -99,6 +99,40 @@ class RoutineStore:
         self._save(kept)
         return removed
 
+    @_locked
+    def edit(self, query: str, when: str | None = None, days: str | None = None, action: str | None = None, message: str | None = None, enabled: bool | None = None) -> dict:
+        needle = query.strip()
+        lowered = needle.lower()
+        items = self._load()
+        found = None
+        for item in items:
+            if item.get("id") == needle or str(item.get("name", "")).lower() == lowered:
+                found = item
+                break
+        if not found:
+            raise ValueError("No routine with that name or id.")
+        if when is not None:
+            match = _WHEN.fullmatch(when.strip())
+            if not match:
+                raise ValueError("Time must be HH:MM, for example 08:00.")
+            found["when"] = f"{int(match.group(1)):02d}:{match.group(2)}"
+        if days is not None:
+            days_key = days.strip().lower()
+            if days_key not in DAYS:
+                raise ValueError("Days must be all, weekdays, or weekends.")
+            found["days"] = days_key
+        if action is not None:
+            action_key = action.strip().lower()
+            if action_key not in ACTIONS:
+                raise ValueError("Action must be message, briefing, weather, rain, or calendar.")
+            found["action"] = action_key
+        if message is not None:
+            found["message"] = message.strip()[:500]
+        if enabled is not None:
+            found["enabled"] = bool(enabled)
+        self._save(items)
+        return dict(found)
+
     def due(self, now: datetime | None = None) -> list[dict]:
         """Routines whose clock time is 0–20 minutes ago and not yet fired today."""
         now = now or datetime.now().astimezone()

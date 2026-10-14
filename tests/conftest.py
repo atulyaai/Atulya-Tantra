@@ -21,3 +21,16 @@ def authenticate_test_admin(client, app) -> None:
     """Issue a test-only server session for API route tests."""
     token = app.state.auth_store.create_session("admin")
     client.cookies.set("atulya_session", token)
+
+
+@pytest.fixture(autouse=True)
+def isolate_global_audit_log():
+    """Prevent later tests from recreating a previous test's deleted data folder."""
+    from tools.plugins import audit
+
+    previous = audit.get_audit_log()
+    audit._AUDIT_LOG = None
+    try:
+        yield
+    finally:
+        audit._AUDIT_LOG = previous

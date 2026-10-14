@@ -172,6 +172,91 @@ class MainActivity : AppCompatActivity() {
         catch (_: Exception) { Toast.makeText(this, "No phone dialer is available", Toast.LENGTH_LONG).show(); return false }
     }
 
+    private fun scheduleNativeAlarm(alertId: Int, title: String, message: String, triggerAtMillis: Long): Boolean {
+        return try {
+            val alarmManager = getSystemService(ALARM_SERVICE) as? android.app.AlarmManager ?: return false
+            val intent = Intent(this, AlarmReceiver::class.java).apply {
+                action = "com.atulvij.atulya.ALARM_TRIGGER"
+                putExtra("alert_id", alertId)
+                putExtra("title", title)
+                putExtra("message", message)
+            }
+            val pendingIntent = PendingIntent.getBroadcast(
+                this, alertId, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+            } else {
+                alarmManager.setExact(android.app.AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+            }
+            true
+        } catch (_: Exception) { false }
+    }
+
+    private fun cancelNativeAlarm(alertId: Int): Boolean {
+        return try {
+            val alarmManager = getSystemService(ALARM_SERVICE) as? android.app.AlarmManager ?: return false
+            val intent = Intent(this, AlarmReceiver::class.java).apply { action = "com.atulvij.atulya.ALARM_TRIGGER" }
+            val pendingIntent = PendingIntent.getBroadcast(
+                this, alertId, intent,
+                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+            ) ?: return true
+            alarmManager.cancel(pendingIntent)
+            pendingIntent.cancel()
+            true
+        } catch (_: Exception) { false }
+    }
+
+    private fun playMediaStream(url: String, title: String) {
+        val intent = Intent(this, MediaPlaybackService::class.java).apply {
+            action = MediaPlaybackService.ACTION_PLAY
+            putExtra("url", url)
+            putExtra("title", title)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+    }
+
+    private fun controlMediaStream(action: String) {
+        val intent = Intent(this, MediaPlaybackService::class.java).apply {
+            this.action = action
+        }
+        startService(intent)
+    }
+
+    private fun sendDirectSms(number: String, body: String): Boolean {
+        if (!number.matches(Regex("\\+?[0-9]{3,15}")) || body.isEmpty() || body.length > 2000) return false
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+            return composeSms(number, body)
+        }
+        return try {
+            val smsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                getSystemService(android.telephony.SmsManager::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                android.telephony.SmsManager.getDefault()
+            }
+            val parts = smsManager.divideMessage(body)
+            smsManager.sendMultipartTextMessage(number, null, parts, null, null)
+            true
+        } catch (_: Exception) { composeSms(number, body) }
+    }
+
+    private fun callDirect(number: String): Boolean {
+        if (!number.matches(Regex("\\+?[0-9]{3,15}"))) return false
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
+            return dial(number)
+        }
+        return try {
+            startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$number")))
+            true
+        } catch (_: Exception) { dial(number) }
+    }
+
     private fun isAtulya(uri: Uri): Boolean {
         fun port(value: Uri) = if (value.port != -1) value.port else if (value.scheme == "https") 443 else 80
         return uri.scheme == origin.scheme && uri.host == origin.host && port(uri) == port(origin) && uri.userInfo == null
@@ -285,6 +370,35 @@ class MainActivity : AppCompatActivity() {
                         val ok = if (sms) composeSms(command.optString("number"), command.optString("body")) else dial(command.optString("number"))
                         reply.postMessage(JSONObject().put("type", "phone_action").put("id", command.optString("id"))
                             .put("status", if (!ok) "failed" else if (sms) "composer_opened" else "dialer_opened").toString())
+                    }
+                    "schedule_alarm" -> {
+                        val alertId = command.optInt("id", 1001)
+                        val title = command.optString("title", "Reminder")
+                        val msg = command.optString("message", "")
+                        val trigger = command.optLong("time_ms", System.currentTimeMillis() + 60000L)
+                        val ok = scheduleNativeAlarm(alertId, title, msg, trigger)
+                        reply.postMessage(JSONObject().put("type", "alarm_result").put("id", alertId).put("scheduled", ok).toString())
+                    }
+                    "cancel_alarm" -> {
+                        val alertId = command.optInt("id", 1001)
+                        val ok = cancelNativeAlarm(alertId)
+                        reply.postMessage(JSONObject().put("type", "alarm_result").put("id", alertId).put("cancelled", ok).toString())
+                    }
+                    "play_media" -> {
+                        val url = command.optString("url")
+                        val title = command.optString("title", "Audio Stream")
+                        if (url.isNotEmpty()) playMediaStream(url, title)
+                    }
+                    "pause_media" -> controlMediaStream(MediaPlaybackService.ACTION_PAUSE)
+                    "resume_media" -> controlMediaStream(MediaPlaybackService.ACTION_PLAY)
+                    "stop_media" -> controlMediaStream(MediaPlaybackService.ACTION_STOP)
+                    "send_sms_direct" -> {
+                        val ok = sendDirectSms(command.optString("number"), command.optString("body"))
+                        reply.postMessage(JSONObject().put("type", "phone_action").put("id", command.optString("id")).put("status", if (ok) "sms_sent" else "failed").toString())
+                    }
+                    "call_direct" -> {
+                        val ok = callDirect(command.optString("number"))
+                        reply.postMessage(JSONObject().put("type", "phone_action").put("id", command.optString("id")).put("status", if (ok) "call_placed" else "failed").toString())
                     }
                 }
             }
@@ -424,7 +538,9 @@ class MainActivity : AppCompatActivity() {
             Manifest.permission.RECORD_AUDIO,
             Manifest.permission.CAMERA,
             Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.ACCESS_FINE_LOCATION
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.SEND_SMS,
+            Manifest.permission.CALL_PHONE
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
