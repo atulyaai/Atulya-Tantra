@@ -110,40 +110,14 @@ async def create_document(
             "error": f"Unsupported document type: {doc_type}. Supported: {list(CREATION_TYPES.keys())}",
         }
 
-    # In a real implementation, this would use python-docx, openpyxl, etc.
-    # For now, we'll create a placeholder file with the content
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{title.replace(' ', '_')}_{timestamp}.{ext}"
-    filepath = Path("data") / "documents" / filename
-
-    # Ensure directory exists
-    filepath.parent.mkdir(parents=True, exist_ok=True)
-
-    # Write content based on type
-    if doc_type == "pdf":
-        # PDF creation would use a library like reportlab or weasyprint
-        # For now, write as text file with .pdf extension
-        filepath.write_text(f"%PDF-1.4\n%âãÏÓ\n{content}", encoding="utf-8")
-    elif doc_type == "word":
-        # DOCX creation would use python-docx
-        # For now, write as .docx placeholder
-        filepath.write_text(f"[[DOCX PLACEHOLDER]]\n{content}", encoding="utf-8")
-    elif doc_type == "excel":
-        # XLSX creation would use openpyxl
-        # For now, write as .xlsx placeholder
-        filepath.write_text(f"[[XLSX PLACEHOLDER]]\n{content}", encoding="utf-8")
-    elif doc_type == "powerpoint":
-        # PPTX creation would use python-pptx
-        # For now, write as .pptx placeholder
-        filepath.write_text(f"[[PPTX PLACEHOLDER]]\n{content}", encoding="utf-8")
-
+    # A filename extension is not a document encoder. Do not create corrupt
+    # files or report completion until a real format backend is connected.
     return {
-        "success": True,
-        "filepath": str(filepath),
-        "filename": filename,
+        "success": False,
+        "error": f"{doc_type} document creation is unavailable: no format backend is connected.",
         "doc_type": doc_type,
-        "content_preview": content[:200] if len(content) > 200 else content,
     }
+
 
 
 async def compare_versions(

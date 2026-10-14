@@ -9,3 +9,7 @@ Use `claude`, `codex/work` or `grok` for the corresponding assistant's developme
 5. Open a PR into `main`. Merge only after required checks pass and review findings are addressed. The existing deployment workflow then updates production.
 
 Do not replace the owner's scene, edit setup or service configuration incidentally, or grant one assistant access to another's credentials. Use one shared server identity and task state across communication channels.
+
+## Commit attribution
+
+Credit only assistants that actually contributed. For Codex-authored work, use `Codex <codex@openai.com>` as the author of a substantive code commit, retaining the human maintainer as a co-author. Do not change the maintainer's global Git identity or rewrite published history to add credits. Contributors appear after their code reaches the default branch; a credits file or branch name alone does not update GitHub's Contributors box.

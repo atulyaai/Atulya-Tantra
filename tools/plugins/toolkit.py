@@ -598,20 +598,12 @@ async def _server_logs(args: dict, ctx: PluginContext | None) -> str:
 
 
 async def _restart_service(args: dict, ctx: PluginContext | None) -> str:
-    """Restart a service with approval. Only read-only, approved paths."""
+    """Report unavailable until a real maintenance executor is connected."""
     service = _text(args, "service", 64)
-    # Only allow known, safe services
-    safe_services = {"nginx", "fail2ban", "sshd", "atulya"}
-    if service not in safe_services:
-        return f"Service '{service}' is not in the approved list. Allowed: {', '.join(safe_services)}"
-    # This is a simulated approval - in real use, the WebUI would show an approval card
-    # For now, just record the request and explain
-    return (f"Service restart requested for '{service}'. This requires user approval on the WebUI. "
-            f"Use the WebUI ⋮ → ACTIVITY → Approve to restart. "
-            f"Only read-only restart commands are allowed without approval.")
-
-
-
+    return (
+        f"Service restart is unavailable for '{service}': no restart executor is connected. "
+        "No approval was queued and no service was changed."
+    )
 
 
 async def _gmail_search(args: dict, ctx: PluginContext | None) -> str:
@@ -770,7 +762,7 @@ TOOLS: tuple[Tool, ...] = (
     Tool("read_url", "Fetch a web page and return readable text for summarising.",
          _params({"url": {"type": "string", "description": "Full http(s) URL"}}, ["url"]),
          _read_page, "online-information"),
-    Tool("restart_service", "Restart a known service (nginx, fail2ban, sshd, atulya) after user approval.",
+    Tool("restart_service", "Check service restart availability; execution is currently unavailable.",
          _params({"service": {"type": "string"}}, ["service"]),
          _restart_service, "local-utilities", True),
     Tool("places_near_me", "Find places (pharmacies, hospitals, shops, restaurants) near the user's location "
