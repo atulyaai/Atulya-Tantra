@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -17,6 +18,13 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.CookieManager
+import android.util.Base64
+import android.widget.Toast
+import java.security.MessageDigest
+import java.security.SecureRandom
+import java.net.URLEncoder
+import java.util.concurrent.Executors
 import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
@@ -56,6 +64,7 @@ class MainActivity : AppCompatActivity() {
     private var recognizer: SpeechRecognizer? = null
     private var pendingGeo: Pair<String, GeolocationPermissions.Callback>? = null
     private var voiceReply: JavaScriptReplyProxy? = null
+    private val cookieWriter = Executors.newSingleThreadExecutor()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -70,7 +79,7 @@ class MainActivity : AppCompatActivity() {
         configureWebView()
         if (savedInstanceState != null) web.restoreState(savedInstanceState)
         pendingUrl = linkFrom(intent)
-        requestMediaPermissions()
+        requestAllPermissions()
     }
 
     override fun onPause() {
@@ -114,14 +123,53 @@ class MainActivity : AppCompatActivity() {
     /** Only links to the Atulya origin (e.g. the Telegram "tap to sign in" link) open inside the app. */
     private fun linkFrom(intent: Intent?): String? {
         val data = intent?.data ?: return null
-        return if (data.scheme == "https" && data.host == origin.host) data.toString() else null
+        return if (isAtulya(data)) data.toString() else null
     }
 
     private fun openPending() {
         val url = pendingUrl ?: return
         pendingUrl = null
         closeWebsite()
+        val target = Uri.parse(url)
+        val handoff = target.getQueryParameter("handoff")
+        if (target.path == "/api/auth/google/finish" && handoff != null) {
+            val prefs = getSharedPreferences("identity", MODE_PRIVATE)
+            val verifier = prefs.getString("google_verifier", null)
+            if (verifier == null) {
+                Toast.makeText(this, "Start Google sign-in from this Atulya app first", Toast.LENGTH_LONG).show()
+                web.loadUrl(origin.toString())
+                return
+            }
+            val body = "handoff=" + URLEncoder.encode(handoff, "UTF-8") + "&verifier=" + URLEncoder.encode(verifier, "UTF-8")
+            prefs.edit().remove("google_verifier").apply()
+            web.postUrl(origin.toString().trimEnd('/') + "/api/auth/google/app", body.toByteArray(Charsets.UTF_8))
+            return
+        }
         web.loadUrl(url)
+    }
+
+    private fun beginGoogleLogin(target: Uri) {
+        if (!isAtulya(target) || target.path != "/api/auth/google/start") return
+        val bytes = ByteArray(32).also { SecureRandom().nextBytes(it) }
+        val flags = Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
+        val verifier = Base64.encodeToString(bytes, flags)
+        val proof = Base64.encodeToString(MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray(Charsets.US_ASCII)), flags)
+        getSharedPreferences("identity", MODE_PRIVATE).edit().putString("google_verifier", verifier).apply()
+        web.loadUrl(target.buildUpon().appendQueryParameter("app_challenge", proof).build().toString())
+    }
+
+    private fun composeSms(number: String, body: String): Boolean {
+        if (!number.matches(Regex("\\+?[0-9]{3,15}")) || body.length > 2000) return false
+        try {
+            startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$number")).putExtra("sms_body", body))
+            return true
+        } catch (_: Exception) { Toast.makeText(this, "No SMS app is available", Toast.LENGTH_LONG).show(); return false }
+    }
+
+    private fun dial(number: String): Boolean {
+        if (!number.matches(Regex("\\+?[0-9]{3,15}"))) return false
+        try { startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number"))); return true }
+        catch (_: Exception) { Toast.makeText(this, "No phone dialer is available", Toast.LENGTH_LONG).show(); return false }
     }
 
     private fun isAtulya(uri: Uri): Boolean {
@@ -183,6 +231,8 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun configureWebView() {
+        CookieManager.getInstance().setAcceptCookie(true)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(web, false)
         web.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -196,10 +246,19 @@ class MainActivity : AppCompatActivity() {
             WebSettingsCompat.setWebAuthenticationSupport(web.settings, WebSettingsCompat.WEB_AUTHENTICATION_SUPPORT_FOR_APP)
         }
         web.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView, url: String) {
+                if (isAtulya(Uri.parse(url))) cookieWriter.execute { CookieManager.getInstance().flush() }
+            }
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 if (!request.isForMainFrame) return false
                 val url = request.url
-                if (isAtulya(url)) return false
+                if (isAtulya(url)) {
+                    if (url.path == "/api/auth/google/start" && url.getQueryParameter("app_challenge") == null) {
+                        beginGoogleLogin(url)
+                        return true
+                    }
+                    return false
+                }
                 if (url.scheme == "https") openWebsite(url)
                 else if (request.hasGesture() && url.scheme in setOf("mailto", "tel")) {
                     try { startActivity(Intent(Intent.ACTION_VIEW, url)) } catch (_: Exception) { }
@@ -209,8 +268,7 @@ class MainActivity : AppCompatActivity() {
         }
         // Native voice input: the phone's own recognizer (free, accurate, Hindi, built-in noise handling).
         // Exposed as window.AtulyaNative only to the Atulya origin, never to other pages.
-        if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER) &&
-            SpeechRecognizer.isRecognitionAvailable(this)) {
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
             // The allowed origin must include a non-default port (e.g. the CI test server :8501), or the bridge is missing.
             val allowedOrigin = "${origin.scheme}://${origin.host}" + if (origin.port != -1) ":${origin.port}" else ""
             WebViewCompat.addWebMessageListener(web, "AtulyaNative", setOf(allowedOrigin)) {
@@ -221,6 +279,13 @@ class MainActivity : AppCompatActivity() {
                 when (command.optString("cmd")) {
                     "listen" -> startRecognition(command.optString("lang", "en-IN"))
                     "stop" -> stopRecognition()
+                    "google_login" -> beginGoogleLogin(Uri.parse(command.optString("url")))
+                    "compose_sms", "dial" -> {
+                        val sms = command.optString("cmd") == "compose_sms"
+                        val ok = if (sms) composeSms(command.optString("number"), command.optString("body")) else dial(command.optString("number"))
+                        reply.postMessage(JSONObject().put("type", "phone_action").put("id", command.optString("id"))
+                            .put("status", if (!ok) "failed" else if (sms) "composer_opened" else "dialer_opened").toString())
+                    }
                 }
             }
         }
@@ -257,7 +322,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun startRecognition(language: String) {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            requestMediaPermissions()
+            requestAllPermissions()
             sendVoice("denied")
             return
         }
@@ -299,6 +364,7 @@ class MainActivity : AppCompatActivity() {
         closeWebsite()
         recognizer?.destroy()
         recognizer = null
+        cookieWriter.shutdown()
         super.onDestroy()
     }
 
@@ -341,15 +407,29 @@ class MainActivity : AppCompatActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         @Suppress("DEPRECATION")
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 2) {
+        val locationGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                              ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (locationGranted && pendingGeo != null) {
+            pendingGeo?.let { (requestOrigin, callback) -> callback.invoke(requestOrigin, true, false) }
+            pendingGeo = null
+        } else if (requestCode == 2) {
             val granted = grantResults.any { it == PackageManager.PERMISSION_GRANTED }
             pendingGeo?.let { (requestOrigin, callback) -> callback.invoke(requestOrigin, granted, false) }
             pendingGeo = null
         }
     }
 
-    private fun requestMediaPermissions() {
-        val missing = arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA).filter {
+    private fun requestAllPermissions() {
+        val permissions = mutableListOf(
+            Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.CAMERA,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        val missing = permissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
         if (missing.isNotEmpty()) ActivityCompat.requestPermissions(this, missing.toTypedArray(), 1)

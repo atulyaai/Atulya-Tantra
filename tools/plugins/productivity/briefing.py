@@ -27,10 +27,12 @@ def briefing_prompt(city: str) -> str:
     weather = (f"current weather for {city}, " if city else
                "no weather (no home city is saved; end with one short line: say 'my city is <name>' to add it), ")
     return (
-        f"Morning briefing for {today}. One-way, no questions. "
-        f"Use tools: {weather}meetings today (or none), and only the single most important headline. "
-        "Max 40 words. Start with time-of-day greeting. Plain text. Skip anything unavailable."
+        f"Morning briefing for {today}. Use tools to verify {weather}meetings today, "
+        "local news for the saved city, India news and world news. "
+        "Use short sections with emoji labels and clickable source links, at most 180 words. "
+        "State unavailable sections honestly; do not invent headlines or claim phone actions."
     )
+
 
 
 class BriefingLog:
@@ -54,3 +56,47 @@ class BriefingLog:
         data[recipient] = datetime.now().astimezone().date().isoformat()
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._path.write_text(json.dumps(data), encoding="utf-8")
+
+
+async def build_briefing(city: str, calendar=None, owner: str = "web", user_id: str = "admin") -> dict:
+    """Use real data directly so scheduled briefings cannot fabricate tool results."""
+    import asyncio
+    from tools.plugins.information.news import briefing_news
+    from tools.plugins.information.weather import find_place, forecast
+
+    async def weather_section():
+        if not city:
+            return "📍 Set your home city to include weather and local news."
+        try:
+            place = await find_place(city)
+            if not place:
+                return "🌦️ Weather: location not found."
+            return await forecast(place["latitude"], place["longitude"], place["label"], "today")
+        except Exception:
+            return "🌦️ Weather temporarily unavailable."
+
+    weather, news = await asyncio.gather(weather_section(), briefing_news(city))
+    lines = ["🌅 Your morning briefing · " + datetime.now().astimezone().strftime("%a %d %b"), "", weather]
+    buttons = []
+    labels = {"local": "📍 Local", "india": "🇮🇳 India", "world": "🌍 World"}
+    for group in news:
+        lines.extend(["", labels[group["kind"]]])
+        if not group["items"]:
+            lines.append("No recent city-matching headlines found." if group["status"] == "no_recent_matching_headlines"
+                         else "City not set." if group["status"] == "city_not_set" else "Feed unavailable.")
+        for item in group["items"]:
+            lines.append(f"• {item['title']} ({item['source']})")
+            buttons.append({"label": f"{labels[group['kind']]} · {item['title'][:45]}", "url": item["url"]})
+    if calendar is not None:
+        try:
+            events = await asyncio.to_thread(calendar.list, owner, 50, user_id)
+            today = datetime.now().astimezone().date()
+            upcoming = [e for e in events if datetime.fromisoformat(e["starts_at"]).astimezone().date() == today]
+            lines.extend(["", "📅 Today"])
+            lines.extend(f"• {datetime.fromisoformat(e['starts_at']).astimezone().strftime('%H:%M')} · {e['title']}"
+                         for e in upcoming[:3])
+            if not upcoming:
+                lines.append("No saved meetings today.")
+        except Exception:
+            lines.extend(["", "📅 Calendar unavailable."])
+    return {"text": "\n".join(lines)[:3800], "links": buttons, "news": news}

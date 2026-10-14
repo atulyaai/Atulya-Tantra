@@ -23,10 +23,22 @@
     <button id="quick-camera" type="button" aria-pressed="false">Camera off</button>
     <button id="quick-gesture" type="button" aria-pressed="true">Gestures on</button>
     <button id="quick-reminders" type="button">Reminders</button>
+    <button id="quick-schedules" type="button">Schedules</button>
+    <button id="quick-phone" type="button">Phone actions</button>
+    <button id="quick-music" type="button">Music</button>
+    <button id="quick-devices" type="button">Devices</button>
     <button id="quick-status" type="button">Dashboard</button>
     <button id="quick-connections" type="button">Connections</button>
     <button id="quick-maintenance" type="button">Maintenance</button>
   </nav>
+  <dialog id="music-dialog" class="history-dialog" aria-labelledby="music-title">
+    <header><h2 id="music-title">Music on this device</h2><button id="close-music" type="button">Close</button></header>
+    <p>Free YouTube playback inside Atulya. Keep the player open; some videos restrict embedding. Playback starts on your device, not the server.</p>
+    <div id="music-player"></div><p id="music-status" role="status"></p>
+    <div id="music-queue"></div>
+    <form id="music-form"><label>YouTube video link<input id="music-url" type="url" required maxlength="500"></label><button type="submit">Add to queue</button></form>
+  </dialog>
+  <script src="./music.js" defer></script>
   <section id="reminder-notices" aria-live="assertive" aria-label="Due reminders"></section>
   <dialog id="control-dialog" aria-labelledby="control-title">
     <header><h2 id="control-title">Reminders</h2><button id="close-control" type="button" aria-label="Close controls">Close</button></header>
@@ -116,7 +128,7 @@
         </label>
         <button id="auth-join" type="button">JOIN WITH PASSKEY</button>
       </details>
-      <p class="auth-footnote">Passkeys use your fingerprint, face or screen lock and never leave your device.</p>
+      <p class="auth-footnote">Passkeys use your fingerprint, face or screen lock. Your password manager may sync them across devices; Atulya stores only the public key.</p>
     </div>
   </dialog>
   <dialog class="history-dialog user-dialog" id="users-dialog" aria-labelledby="users-title">
@@ -126,7 +138,6 @@
       <label>DISPLAY NAME<input id="invite-display-name" maxlength="80" required autocomplete="off"></label>
       <button type="submit">CREATE INVITATION</button>
     </form>
-    <button id="link-device" class="link-device" type="button">LINK MY PHONE / ANOTHER DEVICE</button>
     <div id="invite-result" class="invite-result" hidden></div>
     <div id="signups-list" class="users-list"></div>
     <div id="users-list" class="users-list"></div>
@@ -159,6 +170,7 @@
           <summary title="Account and settings" aria-label="Account and settings">⋮</summary>
           <div class="account-menu-items">
             <button id="add-passkey" type="button" title="Add a passkey for this device" hidden>ADD PASSKEY</button>
+            <button id="link-device" type="button" title="Sign in and add a passkey on another phone or computer">LINK ANOTHER DEVICE</button>
             <button id="add-voice-unlock" type="button" title="Unlock this device by saying a phrase" hidden>VOICE UNLOCK</button>
             <button id="manage-users" type="button" title="Manage accounts" hidden>USERS</button>
             <button id="open-plugins" type="button" title="Enable or disable built-in tools">TOOLS</button>

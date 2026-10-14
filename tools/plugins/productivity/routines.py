@@ -7,8 +7,10 @@ early.
 from __future__ import annotations
 
 import json
+from functools import wraps
 import re
 import secrets
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -16,6 +18,15 @@ _WHEN = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
 DAYS = {"all", "weekdays", "weekends"}
 ACTIONS = {"message", "briefing", "weather", "rain", "calendar"}
 WINDOW_MINUTES = 20
+_LOCK = threading.RLock()
+
+
+def _locked(method):
+    @wraps(method)
+    def call(*args, **kwargs):
+        with _LOCK:
+            return method(*args, **kwargs)
+    return call
 
 
 class RoutineStore:
@@ -34,11 +45,14 @@ class RoutineStore:
 
     def _save(self, items: list[dict]) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(json.dumps({"items": items}, indent=2), encoding="utf-8")
+        temporary = self._path.with_suffix(".json.tmp")
+        temporary.write_text(json.dumps({"items": items}, indent=2), encoding="utf-8")
+        temporary.replace(self._path)
 
     def list_items(self) -> list[dict]:
         return self._load()
 
+    @_locked
     def add(self, name: str, when: str, days: str = "all", action: str = "message", message: str = "") -> dict:
         match = _WHEN.fullmatch(when.strip())
         if not match:
@@ -70,6 +84,7 @@ class RoutineStore:
         self._save(items)
         return item
 
+    @_locked
     def remove(self, query: str) -> int:
         needle = query.strip()
         lowered = needle.lower()
@@ -109,6 +124,7 @@ class RoutineStore:
             ready.append(dict(item))
         return ready
 
+    @_locked
     def mark_fired(self, routine_id: str, day: str | None = None) -> None:
         day = day or datetime.now().astimezone().date().isoformat()
         items = self._load()
@@ -132,9 +148,21 @@ class RoutineStore:
         return "\n".join(lines)
 
 
+    def set_enabled(self, routine_id: str, enabled: bool) -> bool:
+        with _LOCK:
+            items = self._load()
+            for item in items:
+                if item["id"] == routine_id:
+                    item["enabled"] = enabled
+                    self._save(items)
+                    return True
+            return False
+
+    def still_enabled(self, routine_id: str) -> bool:
+        return any(item["id"] == routine_id and item.get("enabled") for item in self._load())
+
+    @_locked
     def ensure_defaults(self) -> None:
-        """First boot only: weekday briefing and a daily rain check."""
-        if self._path.exists():
-            return
-        self.add("Morning briefing", "08:00", "weekdays", "briefing")
-        self.add("Rain check", "07:30", "all", "rain")
+        """Initialize an empty store; never subscribe the owner without a request."""
+        if not self._path.exists():
+            self._save([])

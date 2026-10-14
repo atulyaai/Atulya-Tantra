@@ -8,6 +8,7 @@
     <!-- Location only while Atulya is open, when a question needs it ("weather where I am"). -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Android 11+: lets the app find the phone's speech recognizer (Google) for native voice input. -->
     <queries>
         <intent>

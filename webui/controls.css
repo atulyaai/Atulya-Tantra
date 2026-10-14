@@ -41,3 +41,8 @@ body.non-admin #quick-status,body.non-admin #quick-connections,body.non-admin #q
  #reminder-notices{top:78px}
  .chat-message{font-size:14px!important}
 }
+
+#music-dialog{width:min(680px,calc(100vw - 24px));max-height:90dvh;overflow:auto;padding:18px;color:#eefaff;background:#081b25;border:1px solid #528697;border-radius:16px;font:16px/1.5 system-ui,sans-serif}
+#music-dialog iframe{min-height:200px;max-width:100%}#music-dialog header{display:flex;align-items:center;justify-content:space-between;gap:10px}
+#music-dialog input{width:100%;box-sizing:border-box;font-size:16px}#music-queue>div{display:flex;flex-wrap:wrap;gap:8px;padding:10px;border-bottom:1px solid #34515d}
+#music-dialog button{min-height:44px;padding:8px 12px;cursor:pointer}#music-dialog::backdrop{background:#000a}

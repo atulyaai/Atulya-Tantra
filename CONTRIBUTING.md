@@ -1,6 +1,6 @@
 # Contributing
 
-Use `claude`, `codex/work` or `grok` for the corresponding assistant's development work. `codex/work` uses the existing `codex/` branch namespace. Keep `main` as the shared integration and deployment branch.
+Use `antigravity`, `claude`, `codex/work` or `grok` for the corresponding assistant's development work. `codex/work` uses the existing `codex/` branch namespace. Keep `main` as the shared integration and deployment branch.
 
 1. Fetch the latest `main` and preserve other contributors' changes.
 2. Work locally. Keep server backups, tokens, private data and machine-specific files out of Git.
@@ -12,4 +12,4 @@ Do not replace the owner's scene, edit setup or service configuration incidental
 
 ## Commit attribution
 
-Credit only assistants that actually contributed. For Codex-authored work, use `Codex <codex@openai.com>` as the author of a substantive code commit, retaining the human maintainer as a co-author. Do not change the maintainer's global Git identity or rewrite published history to add credits. Contributors appear after their code reaches the default branch; a credits file or branch name alone does not update GitHub's Contributors box.
+Credit only assistants that actually contributed. For Antigravity / Gemini-authored work, include `Co-authored-by: Gemini <noreply@google.com>` (or `Antigravity <noreply@google.com>`). For Codex-authored work, use `Codex <codex@openai.com>` as the author of a substantive code commit, retaining the human maintainer as a co-author. Do not change the maintainer's global Git identity or rewrite published history to add credits. Contributors appear after their code reaches the default branch; a credits file or branch name alone does not update GitHub's Contributors box.

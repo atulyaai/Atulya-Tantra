@@ -21,7 +21,6 @@ from datetime import datetime
 from pathlib import Path
 
 from tools.plugins.audit import record_tool_run
-from tools.plugins.device import get_device_registry
 from tools.plugins.registry import PluginContext
 from tools.plugins.productivity.web_reminders import create_reminder, list_reminders, edit_reminder, cancel_reminder
 from atulya.maintenance import maintenance_check, maintenance_read, maintenance_propose, maintenance_patch, maintenance_search, maintenance_set_proactive
@@ -382,27 +381,34 @@ async def _use_skill(args: dict, _ctx: PluginContext | None) -> str:
 
 
 
-async def _list_devices(_args: dict, _ctx: PluginContext | None) -> str:
-    from atulya.settings import Settings
-    from tools.plugins.system.agents import AgentHub
-    rows = AgentHub(Settings.from_environment().data_dir).devices()
-    if not rows:
-        return "No laptop agent is connected. On the computer run agents/laptop_agent.py with ATULYA_AGENT_TOKEN."
-    return "Devices:\n" + "\n".join(f"• {row['name']} — seen {row['seen']} — {', '.join(row['abilities'])}" for row in rows)
-
-
-async def _ask_device(args: dict, _ctx: PluginContext | None) -> str:
+async def _list_devices(_args: dict, ctx: PluginContext | None) -> str:
+    if ctx is None:
+        return "Sign in to list your paired devices."
     from atulya.settings import Settings
     from tools.plugins.system.agents import AgentHub
     hub = AgentHub(Settings.from_environment().data_dir)
+    rows = hub.devices(ctx.user_id)
+    if not rows:
+        return "No devices paired. Use Devices → Pair device in Atulya."
+    return "Your devices:\n" + "\n".join(f"• {row['name']} · {row['status']} · {', '.join(row['abilities'])}" for row in rows)
+
+
+async def _ask_device(args: dict, ctx: PluginContext | None) -> str:
+    if ctx is None:
+        return "Sign in to request a paired device action."
+    from atulya.settings import Settings
+    from tools.plugins.system.agents import AgentHub
     try:
-        job = hub.enqueue(_text(args, "device", 40), str(args.get("command") or "ping"), str(args.get("detail") or ""))
+        job = AgentHub(Settings.from_environment().data_dir).enqueue(
+            ctx.user_id, _text(args, "device", 40), str(args.get("command") or "ping"), str(args.get("detail") or ""))
     except ValueError as exc:
         return str(exc)
-    return f"Sent {job['kind']} to {job['device']}. The laptop will pick it up within a few seconds."
+    return f"Queued job {job['id']} ({job['kind']}) for {job['device']}. Execution is not confirmed; check Devices for its receipt."
 
 
 async def _list_routines(_args: dict, _ctx: PluginContext | None) -> str:
+    if _ctx is None or _ctx.user_id != "admin":
+        return "Recurring Telegram schedules are available to the owner account only."
     from atulya.settings import Settings
     from tools.plugins.productivity.routines import RoutineStore
     store = RoutineStore(Settings.from_environment().data_dir)
@@ -410,6 +416,8 @@ async def _list_routines(_args: dict, _ctx: PluginContext | None) -> str:
 
 
 async def _add_routine(args: dict, _ctx: PluginContext | None) -> str:
+    if _ctx is None or _ctx.user_id != "admin":
+        return "Recurring Telegram schedules are available to the owner account only."
     from atulya.settings import Settings
     from tools.plugins.productivity.routines import RoutineStore
     store = RoutineStore(Settings.from_environment().data_dir)
@@ -430,6 +438,8 @@ async def _add_routine(args: dict, _ctx: PluginContext | None) -> str:
 
 
 async def _remove_routine(args: dict, _ctx: PluginContext | None) -> str:
+    if _ctx is None or _ctx.user_id != "admin":
+        return "Recurring Telegram schedules are available to the owner account only."
     from atulya.settings import Settings
     from tools.plugins.productivity.routines import RoutineStore
     store = RoutineStore(Settings.from_environment().data_dir)
@@ -554,19 +564,22 @@ async def _find_music(args: dict, ctx: PluginContext | None) -> str:
                                 "label": "Open music on YouTube"}, ctx)
 
 
-async def _list_devices(_args: dict, ctx: PluginContext | None) -> str:
-    """List all registered devices with status and granted abilities."""
-    registry = get_device_registry()
-    if registry is None:
-        return "Device registry not initialized."
-    devices = registry.list_devices()
-    if not devices:
-        return "No devices registered."
-    lines = ["Registered devices:"]
-    for d in devices:
-        ability_str = ", ".join(sorted(d.abilities)) if d.abilities else "none"
-        lines.append(f"  • {d.type}: status={d.status}, abilities=[{ability_str}], last_seen={int(d.last_seen)}s ago")
-    return "\n".join(lines)
+async def _prepare_phone(args: dict, ctx: PluginContext | None) -> str:
+    if ctx is None:
+        return "Sign in before preparing a phone action."
+    from atulya.phone_actions import PhoneActions
+    from atulya.settings import Settings
+    item = PhoneActions(Settings.from_environment().data_dir).add(ctx.user_id, str(args.get("kind")), _text(args, "number", 16), _text(args, "body", 2000))
+    return f"Prepared phone action {item['id']}. Open Phone actions in the Android app and tap the request. No SMS was sent and no call was placed."
+
+
+async def _queue_music(args: dict, ctx: PluginContext | None) -> str:
+    if ctx is None:
+        return "Sign in before adding music to your private queue."
+    from atulya.music import MusicStore
+    from atulya.settings import Settings
+    track = MusicStore(Settings.from_environment().data_dir).add(ctx.user_id, _text(args, "url", 500), _text(args, "title", 150))
+    return f"Queued {track['title']} (ID {track['id']}). Open Music in Atulya and tap Play; no phone playback is confirmed yet."
 
 
 async def _server_logs(args: dict, ctx: PluginContext | None) -> str:
@@ -621,7 +634,10 @@ async def _gmail_drafts(_args: dict, ctx: PluginContext | None) -> str:
 
 
 async def _gmail_send(args: dict, ctx: PluginContext | None) -> str:
-    return "Sending email requires approval. Use the WebUI to confirm."
+    if ctx is None:
+        return "Gmail needs a signed-in user."
+    from tools.plugins.information.google_api import gmail_send
+    return await gmail_send(ctx.user_id, _text(args, "to", 254), _text(args, "subject", 200), _text(args, "body", 20_000))
 
 
 async def _calendar_search(args: dict, ctx: PluginContext | None) -> str:
@@ -632,12 +648,19 @@ async def _calendar_search(args: dict, ctx: PluginContext | None) -> str:
 
 
 async def _calendar_create(args: dict, ctx: PluginContext | None) -> str:
-    return "Creating a calendar event requires approval. Use the WebUI to confirm."
+    if ctx is None:
+        return "Google Calendar needs a signed-in user."
+    from tools.plugins.information.google_api import calendar_create
+    return await calendar_create(ctx.user_id, _text(args, "summary", 200), _text(args, "starts_at", 100), args.get("ends_at"))
 
 
 TOOLS: tuple[Tool, ...] = (
     Tool("open_website", "Prepare a clickable HTTPS website button in Telegram or the WebUI/app. The user taps it on their device; do not claim a remote browser opened.",
          _params({"url": {"type": "string"}, "label": {"type": "string"}}, ["url"]), _open_website, "local-utilities", True),
+    Tool("prepare_phone_action", "Prepare an SMS composer or dialer request for the owner's Android app. User opens Phone actions and taps; composing does not send and dialing does not place a call.",
+         _params({"kind": {"type": "string", "enum": ["compose_sms", "dial"]}, "number": {"type": "string"}, "body": {"type": "string"}}, ["kind", "number"]), _prepare_phone, "local-utilities", True),
+    Tool("queue_music", "Queue an explicit YouTube video URL for the signed-in user's Atulya music player. Device playback requires opening Music and tapping Play; queued does not mean playing.",
+         _params({"url": {"type": "string"}, "title": {"type": "string"}}, ["url"]), _queue_music, "local-utilities", True),
     Tool("find_music", "Prepare a YouTube music search button in Telegram or the WebUI/app. The user taps and starts playback on their device; no server audio playback.",
          _params({"query": {"type": "string"}}, ["query"]), _find_music, "local-utilities", True),
     Tool("maintenance_check", "Owner: inspect WebUI syntax and missing gesture assets. Read-only diagnostics.",
@@ -752,7 +775,7 @@ TOOLS: tuple[Tool, ...] = (
          _params({"channel": {"type": "string", "enum": ["web", "telegram", "mcp", "android"]}}),
          _what_can_you_do, "local-utilities"),
     Tool("list_registered_devices", "List all registered devices (server, laptop, phone) with their status and granted abilities.",
-         _params(), _list_devices, "local-utilities"),
+         _params(), _list_devices, "local-utilities", True),
     Tool("server_logs", "Explain server logs: read from approved paths only, show recent entries, propose fixes.",
          _params({"query": {"type": "string", "description": "Keywords to search for in logs"}}, ["query"]),
          _server_logs, "local-utilities", True),
@@ -771,12 +794,12 @@ TOOLS: tuple[Tool, ...] = (
                  "place": {"type": "string", "description": "Area or city; empty = user's location"}},
                 ["query"]), _places_near_me, "online-information", True),
     Tool("list_devices", "List laptop agents that are connected out to Atulya.",
-         _params(), _list_devices, "pc-control", True),
+         _params(), _list_devices, "local-utilities", True),
     Tool("ask_device", "Send an allowlisted command to a connected laptop: ping, open_url, list_files, or say.",
          _params({"device": {"type": "string"},
                   "command": {"type": "string", "enum": ["ping", "open_url", "list_files", "say"]},
                   "detail": {"type": "string"}}, ["device", "command"]),
-         _ask_device, "pc-control", True),
+         _ask_device, "local-utilities", True, True, lambda a: f"Ask {a.get('device')} to {a.get('command')}"),
     Tool("list_routines", "List saved recurring routines (name, time, days, action).",
          _params(), _list_routines, "productivity-calendar", True),
     Tool("add_routine", "Save a recurring routine. when is local HH:MM. days: all, weekdays, or weekends. "
@@ -798,13 +821,13 @@ TOOLS: tuple[Tool, ...] = (
     Tool("gmail_drafts", "List Gmail drafts.",
          _params(), _gmail_drafts, "online-information", needs_context=True),
     Tool("gmail_send", "Send a Gmail message with approval.",
-         _params({"message": {"type": "string"}}, ["message"]),
+         _params({"to": {"type": "string"}, "subject": {"type": "string"}, "body": {"type": "string"}}, ["to", "subject", "body"]),
          _gmail_send, "online-information", needs_context=True, confirm=True),
     Tool("calendar_search", "Search Google Calendar for events.",
          _params({"query": {"type": "string"}}, ["query"]),
          _calendar_search, "online-information", needs_context=True),
     Tool("calendar_create", "Create a Google Calendar event with approval.",
-         _params({"summary": {"type": "string"}, "when": {"type": "string"}}, ["summary", "when"]),
+         _params({"summary": {"type": "string"}, "starts_at": {"type": "string"}, "ends_at": {"type": "string"}}, ["summary", "starts_at"]),
          _calendar_create, "online-information", needs_context=True, confirm=True),
 
 )
@@ -933,7 +956,9 @@ class Toolbox:
         lines = ["You can call tools. Use them whenever they give fresher or more exact answers than memory "
                  "(weather, news, time, maths, the user's saved memories, meetings, and earlier conversations). "
                  "Never invent tool results. Computer actions (apps, websites, files, media, screenshots) only "
-                 "run after the user taps Approve; say so instead of claiming they happened."]
+                 "run after approval where the tool schema requires it. Reminder save/edit/cancel and routine removal run directly; do not invent approval cards. "
+                 "Never repeat an old unsupported claim from chat history when current tools provide the action. "
+                 "Queued music/device/phone actions are not confirmed playback, SMS sends or calls."]
         if self.context is not None and self.context.channel == "telegram":
             lines.append("You are answering in Telegram from a server. Use create_reminder for reminders, "
                          "not add_meeting. Telegram messages are delivered by the bot; never promise phone vibration "

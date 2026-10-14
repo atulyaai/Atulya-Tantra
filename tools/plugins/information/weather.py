@@ -345,10 +345,46 @@ def _compare(daily: dict, a: int, b: int, a_name: str, b_name: str) -> str:
             f"rain chance {drain:+d} points.")
 
 
-async def forecast(latitude: float, longitude: float, label: str, when: str = "now") -> str:
+def compact_weather(data: dict, air: dict, label: str, when: str = "now") -> str:
+    """A small factual weather card; detail stays available on request."""
+    current, daily = data.get("current", {}), data.get("daily", {})
+    code = current.get("weather_code")
+    icon = "⛈️" if code in {95, 96, 99} else "🌧️" if code in {51, 53, 55, 61, 63, 65, 80, 81, 82} else "☀️" if code in {0, 1} else "☁️"
+    lines = [f"{icon} {label}",
+             f"{_condition(code).capitalize()} · {current.get('temperature_2m', '?')}°C "
+             f"· feels {current.get('apparent_temperature', '?')}°C"]
+    indexes = range(min(7, len(daily.get("time", [])))) if when == "week" else [1 if when == "tomorrow" else 0]
+    for i in indexes:
+        try:
+            name = "Today" if i == 0 else "Tomorrow" if i == 1 else str(daily["time"][i])
+            chance = daily["precipitation_probability_max"][i]
+            lines.append(f"📅 {name}: {daily['temperature_2m_min'][i]}–{daily['temperature_2m_max'][i]}°C · rain {chance}%")
+        except (KeyError, IndexError, TypeError):
+            continue
+    aqi = air.get("current", {}).get("us_aqi")
+    if isinstance(aqi, (int, float)):
+        lines.append(f"🍃 AQI {aqi} · {_aqi_words(aqi)} (US scale)")
+    advisories = []
+    if isinstance(aqi, (int, float)) and aqi > 150:
+        advisories.append("Limit prolonged outdoor exertion")
+    if code in {95, 96, 99}:
+        advisories.append("Thunderstorms: seek indoor shelter")
+    day_index = 1 if when == "tomorrow" else 0
+    chances = daily.get("precipitation_probability_max", [])
+    if len(chances) > day_index and isinstance(chances[day_index], (float, int)) and chances[day_index] >= 50:
+        advisories.append("Rain forecast: carry an umbrella")
+    if advisories:
+        lines.append("⚠️ " + "; ".join(advisories))
+    lines.append(f"Open-Meteo · {str(current.get('time', 'time unavailable'))} local")
+    return "\n".join(lines)
+
+
+async def forecast(latitude: float, longitude: float, label: str, when: str = "now", *, detailed: bool = False) -> str:
     """Conditions + outlook: now | next_hours | today | tomorrow | week, with air quality and comparisons."""
     data = await _weather_data(latitude, longitude)
     air = await _air_data(latitude, longitude)
+    if not detailed and when != "next_hours":
+        return compact_weather(data, air, label, when)
     current, daily, hourly = data.get("current", {}), data.get("daily", {}), data.get("hourly", {})
     updated = str(current.get("time", ""))[-5:]
     rain_now = current.get("rain") or 0
