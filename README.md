@@ -1,6 +1,6 @@
 <!-- Hero Banner -->
 <div align="center">
-  <img src="docs/images/banner_animated.gif" alt="Atulya Tantra - JARVIS-Class Personal AI" width="100%"/>
+  <img src="docs/images/atulya-hero-banner.jpg" alt="Atulya Tantra - JARVIS-Class Personal AI" width="100%"/>
 </div>
 
 <div align="center">
@@ -47,21 +47,15 @@
 ---
 
 <p align="center">
-  <img src="docs/images/atulya-ready-state.jpg" alt="Atulya AI Interface Ready State" width="100%">
+  <img src="docs/images/atulya-webui.jpg" alt="Atulya Tantra Live WebUI & Control Center" width="100%">
 </p>
-<p align="center"><sub>The Atulya interface in high-readiness state: holographic core, responsive chat canvas, voice activity telemetry, and connected device nodes.</sub></p>
+<p align="center"><sub>Atulya Tantra Live WebUI: 3D neural particle hologram avatar, voice waveform spectrum, real-time system telemetry gauges, and autonomous smart-device orchestration.</sub></p>
 
 <p align="center">
-  <img src="docs/images/jarvis-concept-layout.jpg" alt="Jarvis AI Webpage Layout Concept" width="49%">
-  <img src="docs/images/storyboard-activation.jpg" alt="AI Storyboard Activation Grid" width="49%">
+  <img src="docs/images/atulya-gesture-vision.jpg" alt="Atulya Vision & Gesture Recognition HUD" width="49%">
+  <img src="docs/images/atulya-multidevice-hub.jpg" alt="Atulya Multi-Device & Smart Home Ecosystem" width="49%">
 </p>
-<p align="center"><sub>Left: Jarvis interface concept and telemetry layout. Right: AI activation sequence across speech, vision, and gesture pipelines.</sub></p>
-
-<p align="center">
-  <img src="docs/images/webui-home.jpg" alt="Atulya: the hologram with live system and chat panels" width="49%">
-  <img src="docs/images/webui-approval.jpg" alt="Example: a weather answer and device action card" width="49%">
-</p>
-<p align="center"><sub>Left: the live interactive 3D particle scene. Right: conversational response with real-time system cards and device controls.</sub></p>
+<p align="center"><sub>Left: Real-time skeletal gesture tracking & camera inspection with on-screen action badges. Right: Unified ecosystem across Android phone, wall dashboard, 4K TV, and smart home appliances.</sub></p>
 
 <p align="center">
   <img src="docs/images/architecture.svg" alt="Atulya Tantra architecture" width="100%">
@@ -119,6 +113,11 @@ tail -f data/logs/proactive_monitor.log
 ## Install
 
 **Android app:** download the newest signed APK from **https://atulya.atulvij.com/download** (or [GitHub Releases](https://github.com/atulyaai/Atulya-Tantra/releases/latest)).
+
+<div align="center">
+  <img src="docs/images/atulya-app-icon.jpg" alt="Atulya Android App Icon" width="100" style="border-radius: 24px; box-shadow: 0 8px 24px rgba(101,231,245,0.3);"/><br/>
+  <sub><strong>Atulya Android Companion</strong> · Holographic Voice · SMS Hub · Device Orchestration</sub>
+</div>
 
 **Windows** (PowerShell, no admin rights):
 

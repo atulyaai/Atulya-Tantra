@@ -82,10 +82,10 @@
   let gestureNeutralSince = 0;
   let gestureCommandsArmed = true;
   let lastGestureCommandAt = 0;
-  const gestureCommandThreshold = 0.82;
-  const gestureCommandHoldMs = 900;
-  const gestureCommandCooldownMs = 2800;
-  const gestureReleaseMs = 550;
+  const gestureCommandThreshold = 0.60;
+  const gestureCommandHoldMs = 420;
+  const gestureCommandCooldownMs = 1800;
+  const gestureReleaseMs = 350;
   let cameraFormat = "";
   let cameraFocus = "";
   let cameraDeviceLabel = "";
@@ -93,6 +93,61 @@
   let cameraIssue = "";
   let layoutToastTimer = 0;
   let lastMeetingNotifiedId = "";
+
+  const GESTURE_DEFINITIONS = {
+    "Open_Palm": { icon: "✋", name: "Open Palm", action: "Stop Speech & Voice", desc: "Cancels active voice, speech synthesis, and audio." },
+    "Thumb_Up": { icon: "👍", name: "Thumbs Up", action: "Confirm / Send 'Yes'", desc: "Sends 'Yes' or approves pending prompt." },
+    "Thumb_Down": { icon: "👎", name: "Thumbs Down", action: "Cancel / Send 'No'", desc: "Sends 'No' or cancels pending prompt." },
+    "Victory": { icon: "✌️", name: "Victory / Peace", action: "Capture & Inspect Scene", desc: "Takes camera frame and inspects with AI." },
+    "Pointing_Up": { icon: "☝️", name: "Pointing Up", action: "Wake Mic / Listen", desc: "Activates microphone for voice input." },
+    "Closed_Fist": { icon: "✊", name: "Closed Fist", action: "Pause Media & Silence", desc: "Pauses YouTube music and silences audio." },
+    "ILoveYou": { icon: "🤟", name: "Jarvis Salute", action: "System Health Briefing", desc: "Requests quick status and capability overview." },
+  };
+
+  function showGestureToast(icon, name, action) {
+    const toast = document.getElementById("gesture-toast");
+    if (!toast) return;
+    toast.innerHTML = `<span class="toast-glow">⚡</span> <strong>${icon} ${name}</strong> <span class="toast-sep">➜</span> <span>${action}</span>`;
+    toast.hidden = false;
+    toast.classList.remove("fade-out");
+    toast.classList.add("active");
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => {
+      toast.classList.add("fade-out");
+      setTimeout(() => { toast.hidden = true; toast.classList.remove("active", "fade-out"); }, 400);
+    }, 2500);
+  }
+
+  function updateGestureHUD(categoryName, score, holdProgress) {
+    const hud = document.getElementById("gesture-hud");
+    const iconEl = document.getElementById("gesture-hud-icon");
+    const nameEl = document.getElementById("gesture-hud-name");
+    const scoreEl = document.getElementById("gesture-hud-score");
+    const actionEl = document.getElementById("gesture-hud-action");
+    const progressEl = document.getElementById("gesture-hud-progress");
+    if (!hud) return;
+
+    if (!categoryName || !GESTURE_DEFINITIONS[categoryName]) {
+      hud.classList.remove("detected", "holding");
+      if (iconEl) iconEl.textContent = "✋";
+      if (nameEl) nameEl.textContent = "Scanning for hand";
+      if (scoreEl) scoreEl.textContent = "";
+      if (actionEl) actionEl.textContent = "Ready for hand gestures";
+      if (progressEl) progressEl.style.width = "0%";
+      return;
+    }
+
+    const def = GESTURE_DEFINITIONS[categoryName];
+    hud.classList.add("detected");
+    if (holdProgress > 0) hud.classList.add("holding");
+    else hud.classList.remove("holding");
+
+    if (iconEl) iconEl.textContent = def.icon;
+    if (nameEl) nameEl.textContent = def.name;
+    if (scoreEl) scoreEl.textContent = `· ${Math.round(score * 100)}%`;
+    if (actionEl) actionEl.textContent = `Action: ${def.action}`;
+    if (progressEl) progressEl.style.width = `${Math.min(100, Math.max(0, holdProgress))}%`;
+  }
 
   function showGestureResult(label) {
     const result = $("#gesture-result");
@@ -956,9 +1011,9 @@
         baseOptions: { modelAssetPath: "/api/models/gesture/gesture_recognizer.task", delegate: "GPU" },
         runningMode: "VIDEO",
         numHands: 1,
-        minHandDetectionConfidence: 0.55,
-        minHandPresenceConfidence: 0.55,
-        minTrackingConfidence: 0.55,
+        minHandDetectionConfidence: 0.45,
+        minHandPresenceConfidence: 0.45,
+        minTrackingConfidence: 0.45,
       };
       try {
         gestureRecognizer = await GestureRecognizer.createFromOptions(vision, options);
@@ -976,9 +1031,10 @@
       const gestureChannel = $("#gesture-channel");
       if (gestureRegion) {
         gestureRegion.dataset.state = "live";
-        gestureRegion.setAttribute("aria-label", "Gesture recognition active. Hold thumbs up to send Yes, thumbs down to send No, or open palm to stop voice.");
+        gestureRegion.setAttribute("aria-label", "Gesture recognition active. Show open palm to stop speech, thumbs up for Yes, thumbs down for No, peace/victory to inspect scene.");
       }
       showGestureResult("SCANNING");
+      syncGestureButton();
       if (gestureChannel) setChannelState(gestureChannel, "live");
       setSystemTile("gesture", "live", "Scanning for hand");
       scanGestures();
@@ -1000,22 +1056,23 @@
   function scanGestures() {
     if (!gesturesEnabled || !cameraStream || !gestureRecognizer) return;
     const now = performance.now();
-    if (now - lastGestureFrameAt >= 125 && cameraFeed.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+    if (now - lastGestureFrameAt >= 100 && cameraFeed.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
       lastGestureFrameAt = now;
       try {
         const result = gestureRecognizer.recognizeForVideo(cameraFeed, now);
         gestureFrameErrors = 0;
         const category = result.gestures?.[0]?.[0];
-        const categoryName = category && category.categoryName !== "None" && category.score >= 0.58 ? category.categoryName : "";
+        const categoryName = category && category.categoryName !== "None" && category.score >= 0.52 ? category.categoryName : "";
         updateGestureCommand(categoryName, category?.score || 0, now);
-        const recognized = category && category.categoryName !== "None" && category.score >= 0.58
-          ? `${category.categoryName.replaceAll("_", " ")} · ${Math.round(category.score * 100)}%` : "Scanning for hand";
+        const def = categoryName ? GESTURE_DEFINITIONS[categoryName] : null;
+        const recognized = def && category.score >= 0.52
+          ? `${def.icon} ${def.name} · ${Math.round(category.score * 100)}%` : "Scanning for hand";
         if (recognized !== (gestureCurrent || "Scanning for hand")) {
           gestureCurrent = recognized === "Scanning for hand" ? "" : recognized;
           const gestureRegion = $("#gesture-region");
           showGestureResult(recognized);
           if (gestureRegion) gestureRegion.dataset.state = gestureCurrent ? "detected" : "live";
-          setSystemTile("gesture", "live", recognized);
+          setSystemTile("gesture", "live", def ? `${recognized} ➜ ${def.action}` : recognized);
         }
       } catch {
         gestureFrameErrors += 1;
@@ -1033,31 +1090,45 @@
   }
 
   function updateGestureCommand(categoryName, score, now) {
-    if (!categoryName) {
+    if (!categoryName || !GESTURE_DEFINITIONS[categoryName]) {
       if (!gestureNeutralSince) gestureNeutralSince = now;
       gestureCommandCandidate = "";
       gestureCommandCandidateSince = 0;
+      updateGestureHUD("", 0, 0);
       if (now - gestureNeutralSince >= gestureReleaseMs) gestureCommandsArmed = true;
       return;
     }
     gestureNeutralSince = 0;
-    if (!["Thumb_Up", "Thumb_Down", "Open_Palm"].includes(categoryName) || score < gestureCommandThreshold) {
+    if (score < gestureCommandThreshold) {
       gestureCommandCandidate = "";
       gestureCommandCandidateSince = 0;
+      updateGestureHUD(categoryName, score, 0);
       return;
     }
     if (categoryName !== gestureCommandCandidate) {
       gestureCommandCandidate = categoryName;
       gestureCommandCandidateSince = now;
+      updateGestureHUD(categoryName, score, 15);
       return;
     }
-    if (!gestureCommandsArmed || now - gestureCommandCandidateSince < gestureCommandHoldMs || now - lastGestureCommandAt < gestureCommandCooldownMs) return;
+    const holdDuration = now - gestureCommandCandidateSince;
+    const holdPct = Math.min(100, Math.round((holdDuration / gestureCommandHoldMs) * 100));
+    updateGestureHUD(categoryName, score, holdPct);
+
+    if (!gestureCommandsArmed || holdDuration < gestureCommandHoldMs || now - lastGestureCommandAt < gestureCommandCooldownMs) return;
     gestureCommandsArmed = false;
     lastGestureCommandAt = now;
     runGestureCommand(categoryName);
   }
 
   function runGestureCommand(categoryName) {
+    const def = GESTURE_DEFINITIONS[categoryName];
+    if (def) {
+      showGestureToast(def.icon, def.name, def.action);
+      showGestureResult(`${def.icon} ${def.name.toUpperCase()} · TRIGGERED`);
+      setSystemTile("gesture", "live", `${def.icon} ${def.name} ➜ ${def.action}`);
+    }
+
     if (categoryName === "Open_Palm") {
       if (voiceSessionActive || listening) {
         void cancelListening("Voice stopped by open palm.");
@@ -1067,6 +1138,31 @@
         clearSpokenReply();
         restoreIdlePhase("Speech stopped by open palm.");
       }
+      return;
+    }
+    if (categoryName === "Pointing_Up") {
+      if (!listening && !speaking) toggleListening();
+      return;
+    }
+    if (categoryName === "Closed_Fist") {
+      const player = document.getElementById("music-player");
+      if (player) {
+        player.querySelector("iframe")?.contentWindow?.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+      }
+      if (speaking) {
+        window.speechSynthesis?.cancel?.();
+        speaking = false;
+        clearSpokenReply();
+        restoreIdlePhase("Silenced by closed fist.");
+      }
+      return;
+    }
+    if (categoryName === "Victory") {
+      void sendMessage("Please describe what you see in the camera frame right now.", voiceSessionActive, false);
+      return;
+    }
+    if (categoryName === "ILoveYou") {
+      void sendMessage("Jarvis, quick status report on all systems.", voiceSessionActive, false);
       return;
     }
     if (!brainReady || phase !== "idle") return;
@@ -2225,10 +2321,35 @@
 
   waveform.addEventListener("click", toggleListening);
   cameraToggle?.addEventListener("click", toggleCamera);
-  $("#quick-gesture")?.addEventListener("click", async (event) => {
+  function syncGestureButton() {
+    const button = $("#quick-gesture");
+    if (!button) return;
+    const active = gesturesEnabled && cameraStream && gestureModelReady;
+    const status = !gesturesEnabled ? "red" : (active ? "green" : "yellow");
+    button.setAttribute("aria-pressed", String(gesturesEnabled));
+    button.dataset.status = status;
+    const pip = button.querySelector(".status-pip");
+    if (pip) pip.className = `status-pip ${status}`;
+    button.title = !gesturesEnabled ? "Gestures: Inactive · Click to turn on" :
+      (active ? "Gestures: Active & Scanning · Click to turn off" : "Gestures: Standby (Waiting for camera) · Click to turn off");
+  }
+
+  function syncCameraButton(starting = false) {
+    const button = $("#quick-camera");
+    if (!button) return;
+    const active = Boolean(cameraStream);
+    const status = starting ? "yellow" : (active ? "green" : "red");
+    button.setAttribute("aria-pressed", String(active));
+    button.dataset.status = status;
+    const pip = button.querySelector(".status-pip");
+    if (pip) pip.className = `status-pip ${status}`;
+    button.title = starting ? "Camera: Starting…" :
+      (active ? "Camera: Live · Click to turn off" : "Camera: Inactive · Click to turn on");
+  }
+
+  $("#quick-gesture")?.addEventListener("click", async () => {
     gesturesEnabled = !gesturesEnabled;
-    event.currentTarget.setAttribute("aria-pressed", String(gesturesEnabled));
-    event.currentTarget.textContent = gesturesEnabled ? "Gestures on · Turn off" : "Gestures off · Turn on";
+    syncGestureButton();
     if (!gesturesEnabled) {
       if (gestureFrame) cancelAnimationFrame(gestureFrame);
       gestureFrame = 0;
@@ -2238,16 +2359,17 @@
       if (cameraStream) await initializeGestureRecognition();
       else await enableCamera();
     }
+    syncGestureButton();
   });
   $("#quick-camera")?.addEventListener("click", async (event) => {
     const button = event.currentTarget;
     button.disabled = true;
-    button.textContent = "Camera starting…";
+    syncCameraButton(true);
     try { await toggleCamera(); }
     finally {
       button.disabled = false;
-      button.textContent = cameraStream ? "Camera on · Turn off" : "Camera off · Turn on";
-      button.setAttribute("aria-pressed", String(Boolean(cameraStream)));
+      syncCameraButton(false);
+      syncGestureButton();
     }
   });
   cameraDevice?.addEventListener("click", (event) => event.stopPropagation());
