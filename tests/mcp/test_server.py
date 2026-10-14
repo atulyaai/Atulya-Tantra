@@ -43,7 +43,7 @@ def test_mcp_capability_catalogue_tool() -> None:
             assert "What I can do on mcp" in text
             assert "Weather" in text or "weather" in text.lower()
             # Honest about what's missing
-            assert "Coming in" in text or "⬜" in text
+            assert "unsupported" in text and "not exported over public MCP" in text
 
     asyncio.run(exercise())
 

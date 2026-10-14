@@ -74,7 +74,7 @@ def connection_status(user_id, data_dir=None):
     scopes = entry.get("scopes", [])
     configured = bool(os.environ.get("GOOGLE_CLIENT_ID") and os.environ.get("GOOGLE_CLIENT_SECRET"))
     return {"configured": configured, "connected": bool(entry.get("refresh_token")),
-            "email": entry.get("email", ""), "gmail_read": READ in scopes, "gmail_send": SEND in scopes,
+            "email": entry.get("email", ""), "scopes": scopes, "gmail_read": READ in scopes, "gmail_send": SEND in scopes,
             "calendar_write": EVENTS in scopes, "last_error": entry.get("last_error", ""),
             "scope_status": "known" if scopes else "needs_connection_test"}
 
@@ -95,7 +95,15 @@ async def get_access_token(user_id, data_dir=None):
                 stored[user_id]["last_error"] = "Reconnect Google: the saved authorization could not be refreshed."
                 _write(stored, data_dir)
         return None
-    return response.json().get("access_token")
+    payload = response.json()
+    if payload.get("scope"):
+        with LOCK:
+            stored = _load_tokens(data_dir)
+            if user_id in stored:
+                stored[user_id]["scopes"] = payload["scope"].split()
+                stored[user_id]["last_error"] = ""
+                _write(stored, data_dir)
+    return payload.get("access_token")
 
 
 async def test_connection(user_id, data_dir=None):
@@ -103,13 +111,14 @@ async def test_connection(user_id, data_dir=None):
     token = await get_access_token(user_id, data_dir)
     if not token:
         return {**state, "tested": False, "message": "Google is not connected or needs reconnection. This is separate from Atulya sign-in."}
+    state = connection_status(user_id, data_dir)
     checks = {}
     scopes = state.get("scopes", [])
     async with httpx.AsyncClient(timeout=15) as client:
-        if any("gmail" in scope for scope in scopes):
+        if not scopes or any("gmail" in scope for scope in scopes):
             response = await client.get(GMAIL_API + "/profile", headers={"Authorization": "Bearer " + token})
             checks["gmail"] = {"ok": response.status_code == 200, "status_code": response.status_code}
-        if any("calendar" in scope for scope in scopes):
+        if not scopes or any("calendar" in scope for scope in scopes):
             response = await client.get(CALENDAR_API + "/calendars/primary/events", params={"maxResults": 1},
                                         headers={"Authorization": "Bearer " + token})
             checks["calendar"] = {"ok": response.status_code == 200, "status_code": response.status_code}

@@ -247,6 +247,7 @@ from tools.plugins.personal.memory import PersonalMemory
 from tools.plugins.productivity.reminders import ReminderStore
 from tools.plugins.registry import PluginContext, PluginExecutionError, build_default_registry
 from tools.plugins.productivity.briefing import BriefingLog, briefing_city
+from tools.plugins.capabilities import MCP_PUBLIC_TOOLS
 from tools.plugins.toolkit import TOOL_ACTIVITY, TOOLS, ActionQueue, Toolbox
 from .settings import PROJECT_ROOT, Settings
 from tools.plugins.voice import LocalSupertonicTTS, LocalVoice, VoiceError
@@ -875,7 +876,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         continue
                     rows = [[{"text": link["label"], "url": link["url"]}] for link in report["links"]]
                     body = f"{item.get('name', 'Routine')}\n{report['text']}"[:4000]
-                    sent = await telegram.notify(body, buttons=rows or None)
+                    sent = await telegram.notify(body, buttons=rows or None, source=f"routine:{item.get('name')}")
                     if sent:
                         await asyncio.to_thread(store.mark_fired, str(item["id"]))
                         from tools.plugins.audit import record_tool_run
@@ -1571,6 +1572,17 @@ ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
     async def get_plugins() -> dict[str, list[dict]]:
         return {"plugins": command_plugins.manifests}
 
+    @app.get("/api/capabilities")
+    async def get_capabilities(http_request: Request) -> dict:
+        user_id = str(http_request.state.user_id)
+        owner = await asyncio.to_thread(auth_store.is_admin, user_id)
+        toolbox = Toolbox.for_registry(command_plugins, PluginContext(
+            WEB_OWNER, personal_memory, calendar, user_id, actions=action_queue.view(),
+            history=history, profile=profiles, reminders=web_reminders,
+            maintenance=maintenance if owner else None,
+            mcp_connections=mcp_connections if owner else None))
+        return {"capabilities": toolbox.capabilities}
+
     @app.get("/api/connections")
     async def get_connections(http_request: Request) -> dict:
         if not await asyncio.to_thread(auth_store.is_admin, str(http_request.state.user_id)):
@@ -1582,7 +1594,7 @@ ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
             "mcp": {
                 "outgoing": "Connect an HTTPS MCP server, test it, and grant specific tools. Every invocation requires approval.",
                 "incoming": "Optional stdio server: an external client launches python -m atulya.cli mcp.",
-                "tools": ["get_weather", "get_news", "get_time", "calculate", "what_can_you_do"],
+                "tools": [tool.name for tool in TOOLS if tool.name in MCP_PUBLIC_TOOLS and any(p["id"] == tool.plugin_id and p["enabled"] for p in command_plugins.manifests)],
             },
             "external_mcp": mcp_connections.load(),
             "maintenance": "Owner can inspect permitted WebUI files and propose fixes. Review and apply in Maintenance. Setup and core files are protected.",
@@ -1737,6 +1749,14 @@ ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
         for user_id in sorted(telegram_allowlist):
             items.extend(await asyncio.to_thread(reminders.history, user_id))
         return {"reminders": items, "delivery": "Sent to Telegram does not verify phone sound or vibration."}
+
+    @app.get("/api/notifications")
+    async def notification_history(request: Request):
+        if not await asyncio.to_thread(auth_store.is_admin, str(request.state.user_id)):
+            raise HTTPException(403, "Notification history belongs to the owner.")
+        from atulya.delivery_log import DeliveryLog
+        return {"deliveries": await asyncio.to_thread(DeliveryLog(config.data_dir).recent),
+                "note": "Provider acceptance is not proof of phone sound or vibration. Recording starts with this version."}
 
     @app.get("/api/activity")
     async def get_activity(http_request: Request, limit: int = Query(default=50, ge=1, le=200)) -> dict[str, object]:
@@ -2003,7 +2023,7 @@ ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
         return {"profile": profile}
 
     @app.post("/api/briefing")
-    async def morning_briefing(body: BriefingRequest, http_request: Request) -> dict[str, str | bool]:
+    async def morning_briefing(body: BriefingRequest, http_request: Request) -> dict[str, object]:
         """Today's briefing, once per user per day unless `force` is set."""
         user_id = str(http_request.state.user_id)
         if not body.force and await asyncio.to_thread(briefing_log.sent_today, f"web_{user_id}"):

@@ -96,6 +96,8 @@ class TelegramChannel:
         self._location_wanted: dict[str, str] = {}  # chat_id -> question waiting for the user's location
         self._last_wants_location = False
         self._members_path = (data_dir / "telegram_members.json") if data_dir else None
+        from atulya.delivery_log import DeliveryLog
+        self._delivery_log = DeliveryLog(data_dir) if data_dir else None
         self._briefing_task: asyncio.Task | None = None
         self._offset = 0
         self._poll_task: asyncio.Task | None = None
@@ -146,7 +148,7 @@ class TelegramChannel:
         self._reminder_task = None
         self._briefing_task = None
 
-    async def notify(self, text: str, buttons: list | None = None) -> int:
+    async def notify(self, text: str, buttons: list | None = None, source: str = "system") -> int:
         """Send a message to every allowlisted owner; works even while polling is in conflict."""
         if not self._token or not self._allowed:
             return 0
@@ -162,8 +164,14 @@ class TelegramChannel:
                     receipt = response.json()
                     if receipt.get("ok") and isinstance(receipt.get("result", {}).get("message_id"), int):
                         sent += 1
+                        if self._delivery_log and source != "system":
+                            await asyncio.to_thread(self._delivery_log.record, source, text, "accepted_by_telegram", receipt["result"]["message_id"])
+                    elif self._delivery_log and source != "system":
+                        await asyncio.to_thread(self._delivery_log.record, source, text, "failed")
                 except (httpx.HTTPError, ValueError, TypeError):
                     logger.warning("Telegram notification could not be delivered")
+                    if self._delivery_log and source != "system":
+                        await asyncio.to_thread(self._delivery_log.record, source, text, "failed")
         return sent
 
     def _url(self, method: str) -> str:
@@ -629,6 +637,8 @@ class TelegramChannel:
                             receipt = response.json()
                             if not receipt.get("ok") or not isinstance(receipt.get("result", {}).get("message_id"), int):
                                 continue
+                            if self._delivery_log:
+                                await asyncio.to_thread(self._delivery_log.record, "morning_briefing", report["text"], "accepted_by_telegram", receipt["result"]["message_id"])
                             await asyncio.to_thread(self._briefing_log.mark, recipient)
                 except asyncio.CancelledError:
                     raise
