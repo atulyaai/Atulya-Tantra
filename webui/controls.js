@@ -396,8 +396,119 @@
       }
     } catch (error) { errorMessage(error); }
   }
+
+  async function smartHomePanel() {
+    open("Smart Home & Ambient Scenes");
+    try {
+      content.replaceChildren(node("p", "Automate room lighting, smart devices, and trigger ambient scenes."));
+      const grid = node("div", undefined, "dashboard-grid");
+      const scenes = [
+        { id: "movie_mode", title: "🎬 Movie Mode", desc: "Dim lights to 20%, pause background audio, ready TV" },
+        { id: "work_mode", title: "💼 Work Mode", desc: "100% daylight white, productivity audio & alerts" },
+        { id: "goodnight", title: "🌙 Goodnight", desc: "Turn off all lights, verify sensors, mute non-emergencies" },
+        { id: "relax", title: "☕ Relax", desc: "Warm ambient lighting with calming volume" }
+      ];
+      for (const scene of scenes) {
+        const card = node("div", undefined, "control-row");
+        card.append(node("strong", scene.title), node("small", scene.desc));
+        const trigger = node("button", "Activate");
+        trigger.addEventListener("click", async () => {
+          trigger.disabled = true;
+          try {
+            const res = await api("/api/smarthome/scene", { method: "POST", body: JSON.stringify({ scene: scene.id }) });
+            card.append(node("p", res.result));
+          } catch (err) { errorMessage(err); } finally { trigger.disabled = false; }
+        });
+        card.append(trigger); grid.append(card);
+      }
+      content.append(grid);
+
+      content.append(node("h3", "Direct Device Action"));
+      const devForm = node("form");
+      const devLabel = node("label", "Device or Entity Name (e.g. Desk Lamp, Living Room TV)");
+      const devInput = node("input"); devInput.required = true; devInput.placeholder = "Desk Lamp"; devLabel.append(devInput);
+      const actLabel = node("label", "Action (turn_on, turn_off, toggle)");
+      const actInput = node("input"); actInput.value = "turn_on"; actLabel.append(actInput);
+      const brightLabel = node("label", "Brightness % (optional, 0-100)");
+      const brightInput = node("input"); brightInput.type = "number"; brightInput.min = 0; brightInput.max = 100; brightInput.placeholder = "80"; brightLabel.append(brightInput);
+      const sendBtn = node("button", "Execute Command"); sendBtn.type = "submit";
+      devForm.append(devLabel, actLabel, brightLabel, sendBtn); content.append(devForm);
+      devForm.addEventListener("submit", async (e) => {
+        e.preventDefault(); sendBtn.disabled = true;
+        try {
+          const res = await api("/api/smarthome/scene", {
+            method: "POST",
+            body: JSON.stringify({ device: devInput.value, action: actInput.value, brightness: brightInput.value ? parseInt(brightInput.value) : null })
+          });
+          content.append(node("p", res.result));
+        } catch (err) { errorMessage(err); } finally { sendBtn.disabled = false; }
+      });
+    } catch (err) { errorMessage(err); }
+  }
+
+  async function expensesPanel() {
+    open("Expenses & Financial Intelligence");
+    try {
+      const data = await api("/api/expenses");
+      const summary = data.summary || { total_spent: 0, total_transactions: 0, by_category: {} };
+      const card = node("div", undefined, "control-row");
+      card.append(
+        node("strong", `Total Spending: ₹${Number(summary.total_spent).toLocaleString("en-IN", {minimumFractionDigits: 2})}`),
+        node("small", `${summary.total_transactions} recorded transactions`)
+      );
+      content.replaceChildren(card);
+
+      const addForm = node("form");
+      addForm.append(node("h3", "Log Expense"));
+      const amtLabel = node("label", "Amount (₹)");
+      const amtInput = node("input"); amtInput.type = "number"; amtInput.step = "any"; amtInput.required = true; amtInput.placeholder = "450"; amtLabel.append(amtInput);
+      const merchLabel = node("label", "Merchant / Payee");
+      const merchInput = node("input"); merchInput.required = true; merchInput.placeholder = "Swiggy / Amazon / Metro"; merchLabel.append(merchInput);
+      const catLabel = node("label", "Category");
+      const catSelect = node("select");
+      catSelect.style.cssText = "width:100%;margin-bottom:8px;padding:8px;border-radius:6px;background:#102630;color:#fff;border:1px solid #437181;";
+      catSelect.innerHTML = "<option>Food & Dining</option><option>Travel & Commute</option><option>Shopping</option><option>Utilities</option><option>Healthcare</option><option>Personal</option>";
+      catLabel.append(catSelect);
+      const submitExpense = node("button", "Record Expense"); submitExpense.type = "submit";
+      addForm.append(amtLabel, merchLabel, catLabel, submitExpense); content.append(addForm);
+      addForm.addEventListener("submit", async (e) => {
+        e.preventDefault(); submitExpense.disabled = true;
+        try {
+          await api("/api/expenses", { method: "POST", body: JSON.stringify({ amount: parseFloat(amtInput.value), merchant: merchInput.value, category: catSelect.value }) });
+          await expensesPanel();
+        } catch (err) { errorMessage(err); submitExpense.disabled = false; }
+      });
+
+      const smsForm = node("form");
+      smsForm.append(node("h3", "Test Bank / UPI SMS Parsing"));
+      const smsLabel = node("label", "Paste Bank / UPI SMS Text");
+      const smsInput = node("input"); smsInput.required = true; smsInput.placeholder = "Rs 450 spent on card at SWIGGY"; smsLabel.append(smsInput);
+      const smsBtn = node("button", "Parse & Auto-Log"); smsBtn.type = "submit";
+      smsForm.append(smsLabel, smsBtn); content.append(smsForm);
+      smsForm.addEventListener("submit", async (e) => {
+        e.preventDefault(); smsBtn.disabled = true;
+        try {
+          const res = await api("/api/expenses/parse-sms", { method: "POST", body: JSON.stringify({ sms_text: smsInput.value }) });
+          if (res.parsed) { await expensesPanel(); } else { errorMessage(res.message); smsBtn.disabled = false; }
+        } catch (err) { errorMessage(err); smsBtn.disabled = false; }
+      });
+
+      content.append(node("h3", "Recent Transactions"));
+      for (const item of data.recent || []) {
+        const row = node("div", undefined, "control-row");
+        row.append(
+          node("strong", `₹${Number(item.amount).toLocaleString("en-IN", {minimumFractionDigits: 2})} · ${item.merchant}`),
+          node("small", `${item.category} · ${item.date}`)
+        );
+        content.append(row);
+      }
+    } catch (err) { errorMessage(err); }
+  }
+
   $("#open-connections")?.addEventListener("click", connectionsPanel);
   $("#quick-devices")?.addEventListener("click", devicesPanel);
+  $("#quick-smarthome")?.addEventListener("click", smartHomePanel);
+  $("#quick-expenses")?.addEventListener("click", expensesPanel);
 
   async function weatherPanel(city="", period="today") {
     open("Weather & outlook");
