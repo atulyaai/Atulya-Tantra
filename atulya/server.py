@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 import httpx
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -2133,15 +2133,18 @@ ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
         name="mediapipe_runtime",
     )
     if webui2.is_dir():
+        @app.get("/v2")
+        async def v2_redirect():
+            return RedirectResponse(url="/v2/")
+
         app.mount("/v2", StaticFiles(directory=webui2, html=True), name="webui2")
     if webui.is_dir():
         app.mount("/", StaticFiles(directory=webui, html=True), name="webui")
 
     @app.middleware("http")
     async def fresh_pages(request: Request, call_next):
-        """Every open gets the newest page: HTML is revalidated each time (a cheap 304 when unchanged),
-        versioned assets (?v=...) are cached for a year, and other static files revalidate too.
-        Without this, phones kept an old page (and its old scripts) for hours after a deploy."""
+        if request.url.path == "/v2":
+            return RedirectResponse(url="/v2/")
         response = await call_next(request)
         path = request.url.path
         if path.startswith("/api/") or "cache-control" in response.headers:
