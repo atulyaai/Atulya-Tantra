@@ -418,6 +418,101 @@ async def _ask_device(args: dict, ctx: PluginContext | None) -> str:
     return f"Queued job {job['id']} ({job['kind']}) for {job['device']}. Execution is not confirmed; check Devices for its receipt."
 
 
+async def _smart_home_control(args: dict, _ctx: PluginContext | None) -> str:
+    from tools.plugins.system.smart_home import execute_smart_home
+    device = _text(args, "device", 50)
+    action = _text(args, "action", 50)
+    brightness = args.get("brightness")
+    if brightness is not None:
+        try:
+            brightness = int(brightness)
+        except (ValueError, TypeError):
+            brightness = None
+    return await execute_smart_home(device, action, brightness)
+
+
+async def _cast_to_tv(args: dict, ctx: PluginContext | None) -> str:
+    if ctx is None:
+        return "Sign in to cast media to a device."
+    from atulya.settings import Settings
+    from tools.plugins.system.agents import AgentHub
+    tv = _text(args, "tv", 40)
+    url = str(args.get("url") or args.get("content") or "")
+    action = str(args.get("action") or "open_url")
+    hub = AgentHub(Settings.from_environment().data_dir)
+    try:
+        job = hub.enqueue(ctx.user_id, tv, action, url)
+        return f"Casting to {tv}: queued {job['kind']} with {url[:100]}."
+    except Exception as exc:
+        return f"Could not cast to {tv}: {exc}"
+
+
+async def _log_expense(args: dict, ctx: PluginContext | None) -> str:
+    if ctx is None:
+        return "Sign in to log expenses."
+    from atulya.settings import Settings
+    from tools.plugins.productivity.expenses import ExpenseStore
+    try:
+        amount = float(args.get("amount", 0))
+    except (ValueError, TypeError):
+        return "Provide a valid numerical amount."
+    merchant = _text(args, "merchant", 100) or "Expense"
+    category = str(args.get("category") or "General")[:50]
+    notes = str(args.get("notes") or "")[:200]
+    store = ExpenseStore(Settings.from_environment().data_dir)
+    try:
+        entry = store.log(ctx.user_id, amount, merchant, category, notes=notes)
+        return f"Recorded expense ₹{entry['amount']:,.2f} for '{entry['merchant']}' under {entry['category']}."
+    except Exception as exc:
+        return str(exc)
+
+
+async def _list_expenses(_args: dict, ctx: PluginContext | None) -> str:
+    if ctx is None:
+        return "Sign in to view expenses."
+    from atulya.settings import Settings
+    from tools.plugins.productivity.expenses import ExpenseStore
+    store = ExpenseStore(Settings.from_environment().data_dir)
+    recent = store.list_recent(ctx.user_id, limit=10)
+    summary = store.summary(ctx.user_id)
+    if not recent:
+        return "No expenses recorded yet. You can say 'Spent 450 Rs on dinner' or 'Log 1200 INR for groceries'."
+    lines = [f"Total Spent: ₹{summary['total_spent']:,.2f} across {summary['total_transactions']} transactions."]
+    lines.append("Recent entries:")
+    for r in recent:
+        lines.append(f"• {r['date']}: ₹{r['amount']:,.2f} at {r['merchant']} ({r['category']})")
+    return "\n".join(lines)
+
+
+async def _parse_transaction_sms(args: dict, ctx: PluginContext | None) -> str:
+    if ctx is None:
+        return "Sign in to parse transaction messages."
+    from atulya.settings import Settings
+    from tools.plugins.productivity.expenses import ExpenseStore, parse_transaction_sms
+    sms_text = str(args.get("sms_text") or args.get("text") or "")
+    parsed = parse_transaction_sms(sms_text)
+    if not parsed:
+        return "Could not detect a bank/UPI transaction amount and merchant in that text."
+    store = ExpenseStore(Settings.from_environment().data_dir)
+    entry = store.log(ctx.user_id, parsed["amount"], parsed["merchant"], parsed["category"], notes=sms_text[:120])
+    return f"Auto-detected transaction: ₹{entry['amount']:,.2f} to {entry['merchant']} ({entry['category']}). Logged to your expenses."
+
+
+async def _visual_inspect(args: dict, ctx: PluginContext | None) -> str:
+    if ctx is None:
+        return "Sign in to request camera inspection."
+    from atulya.settings import Settings
+    from tools.plugins.system.agents import AgentHub
+    device = _text(args, "device", 40)
+    question = str(args.get("question") or "Describe the scene").strip()[:300]
+    hub = AgentHub(Settings.from_environment().data_dir)
+    try:
+        job = hub.enqueue(ctx.user_id, device, "take_photo", question)
+        return f"Triggered visual inspection on {device}. Queued photo capture for question: '{question}'. Receipt #{job['id']}."
+    except Exception as exc:
+        return f"Visual inspection on {device} failed: {exc}"
+
+
 async def _cancel_all_reminders(_args: dict, ctx: PluginContext | None) -> str:
     if ctx is None or ctx.reminders is None:
         return "No reminder store is connected to this request."
@@ -914,6 +1009,32 @@ TOOLS: tuple[Tool, ...] = (
     Tool("calendar_delete", "Delete a Google Calendar event by ID directly.",
          _params({"event_id": {"type": "string"}}, ["event_id"]),
          _calendar_delete, "online-information", needs_context=True, confirm=True, low_risk=True, describe=lambda a: f"Delete calendar event #{a.get('event_id')}"),
+    Tool("smart_home_control", "Control smart home lights, switches, appliances, or trigger scenes (movie_mode, work_mode, goodnight, relax).",
+         _params({"device": {"type": "string", "description": "Device name or scene name (e.g. living room lights, movie_mode, goodnight)"},
+                  "action": {"type": "string", "description": "turn_on, turn_off, toggle, or scene name"},
+                  "brightness": {"type": "integer", "description": "Optional brightness percentage (0-100)"}}, ["device", "action"]),
+         _smart_home_control, "local-utilities"),
+    Tool("cast_to_tv", "Cast media, videos, or web links to a paired Smart TV (Living Room TV, Bedroom TV).",
+         _params({"tv": {"type": "string", "description": "Target Smart TV name"},
+                  "url": {"type": "string", "description": "Media URL or stream link to cast"},
+                  "action": {"type": "string", "enum": ["open_url", "media_control"]}}, ["tv", "url"]),
+         _cast_to_tv, "local-utilities", True, False),
+    Tool("log_expense", "Record an expense with amount, merchant/payee, category, and optional notes.",
+         _params({"amount": {"type": "number", "description": "Expense amount in Rupees"},
+                  "merchant": {"type": "string", "description": "Merchant, vendor, or recipient (e.g. Swiggy, Amazon, Uber)"},
+                  "category": {"type": "string", "description": "Category (Food & Dining, Travel, Shopping, Utilities, Healthcare)"},
+                  "notes": {"type": "string"}}, ["amount", "merchant"]),
+         _log_expense, "productivity-calendar", True),
+    Tool("list_expenses", "List recent recorded expenses and current spending summary.",
+         _params(), _list_expenses, "productivity-calendar", True),
+    Tool("parse_transaction_sms", "Automatically extract amount, merchant, and category from a bank/UPI SMS and log it to expenses.",
+         _params({"sms_text": {"type": "string", "description": "Raw SMS text from bank or UPI app"}}, ["sms_text"]),
+         _parse_transaction_sms, "productivity-calendar", True),
+    Tool("visual_inspect", "Inspect what a paired device's camera sees (Phone, Tablet, or PC). Takes a photo and analyzes the scene for questions.",
+         _params({"device": {"type": "string", "description": "Name of paired device with camera (e.g. Pixel 9, iPad, Desk Webcam)"},
+                  "question": {"type": "string", "description": "What to look for or describe (e.g. 'Is anyone in the room?', 'What is on the table?')"}},
+                 ["device", "question"]),
+         _visual_inspect, "local-utilities", True, False),
 
 )
 
