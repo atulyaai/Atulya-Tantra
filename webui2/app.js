@@ -96,7 +96,7 @@
   setInterval(pollStatus, 5000);
   pollStatus();
 
-  // 4. Atulya Holographic Core & Multi-Image Assembly Sequence (from WebUI v1)
+  // 4. Brand New Atulya Golden Quantum Core Hologram (No Old v1 Images!)
   const holoCanvas = $("hologram-canvas");
   const hCtx = holoCanvas.getContext("2d");
   let hW = 0, hH = 0;
@@ -113,87 +113,69 @@
   window.addEventListener("resize", resizeHologram);
   resizeHologram();
 
-  // Preload multiple character state images & golden quantum core
-  const plates = {};
-  const plateSources = {
-    assembly25: "./scene/character/atulya-assembly-25-v1.webp",
-    assembly60: "./scene/character/atulya-assembly-60-v1.webp",
-    idle: "./scene/character/atulya-idle-v1.webp",
-    listening: "./scene/character/atulya-listening-v1.webp",
-    thinking: "./scene/character/atulya-thinking-v1.webp",
-    speaking: "./scene/character/atulya-speaking-v1.webp",
-    quantumCore: "./assets/jarvis-quantum-core.jpg",
+  // Load Brand New Golden Quantum Core State Assets
+  const coreImages = {};
+  const coreSources = {
+    idle: "./assets/atulya-core-idle.jpg",
+    thinking: "./assets/atulya-core-thinking.jpg",
+    speaking: "./assets/atulya-core-speaking.jpg",
   };
 
-  let loadedCount = 0;
-  const totalPlates = Object.keys(plateSources).length;
-
-  Object.entries(plateSources).forEach(([key, src]) => {
+  Object.entries(coreSources).forEach(([key, src]) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
-    img.onload = () => {
-      plates[key] = img;
-      loadedCount++;
-    };
-    img.onerror = () => {
-      // Fallback relative resolution
-      const altImg = new Image();
-      altImg.onload = () => {
-        plates[key] = altImg;
-        loadedCount++;
-      };
-      altImg.src = `/scene/character/atulya-${key}-v1.webp`;
-    };
+    img.onload = () => { coreImages[key] = img; };
     img.src = src;
   });
 
-  // Assembly Sequence State (inspired by WebUI v1)
+  // Startup Assembly State & Particle Fields
   let isAssembled = false;
   let assemblyProgress = 0; // 0 to 1
   const assemblyStartTime = performance.now();
-  const ASSEMBLY_DURATION = 3200; // 3.2 seconds assembly sequence
+  const ASSEMBLY_DURATION = 3200; // 3.2s sequence
 
-  // Convergence Inward Assembly Particles
-  const NUM_ASM_PARTICLES = 160;
+  // Convergence Inward Assembly Spark Particles
+  const NUM_ASM_PARTICLES = 180;
   const asmParticles = [];
   for (let i = 0; i < NUM_ASM_PARTICLES; i++) {
     const angle = Math.random() * Math.PI * 2;
-    const dist = 180 + Math.random() * 260;
+    const dist = 140 + Math.random() * 260;
     asmParticles.push({
       x: Math.cos(angle) * dist,
       y: Math.sin(angle) * dist,
       origX: Math.cos(angle) * dist,
       origY: Math.sin(angle) * dist,
-      targetX: (Math.random() - 0.5) * 80,
-      targetY: (Math.random() - 0.5) * 80,
-      color: Math.random() > 0.4 ? "#f7ba5b" : "#65e7f5",
-      size: 1 + Math.random() * 2.2,
-      delay: Math.random() * 0.4,
+      targetAngle: angle + Math.PI,
+      targetRadius: 10 + Math.random() * 50,
+      color: Math.random() > 0.35 ? "#f7ba5b" : "#65e7f5",
+      size: 1.2 + Math.random() * 2.4,
+      delay: Math.random() * 0.35,
     });
   }
 
-  // Floating Luminous Quantum Embers
-  const NUM_EMBERS = 80;
+  // Floating Quantum Spark Embers
+  const NUM_EMBERS = 90;
   const embers = [];
   for (let i = 0; i < NUM_EMBERS; i++) {
     embers.push({
-      x: (Math.random() - 0.5) * 240,
+      x: (Math.random() - 0.5) * 280,
       y: (Math.random() - 0.5) * 280,
-      z: (Math.random() - 0.5) * 160,
-      vy: 0.35 + Math.random() * 0.65,
+      z: (Math.random() - 0.5) * 180,
+      vy: 0.35 + Math.random() * 0.75,
       wobbleSpeed: 1 + Math.random() * 2,
-      wobbleAmp: 0.6 + Math.random() * 1.2,
-      size: 0.8 + Math.random() * 1.6,
-      color: Math.random() > 0.4 ? "#f7ba5b" : "#65e7f5",
-      alpha: 0.2 + Math.random() * 0.7,
+      wobbleAmp: 0.8 + Math.random() * 1.6,
+      size: 0.9 + Math.random() * 1.8,
+      color: Math.random() > 0.3 ? "#f7ba5b" : "#65e7f5",
+      alpha: 0.2 + Math.random() * 0.8,
     });
   }
 
-  // 3D Gyroscopic Quantum Orbital Rings
+  // Multi-layered 3D Gyroscopic Rings
   const rings = [
-    { radius: 145, tilt: 0.45, speed: 0.009, color: "#f7ba5b", segments: 48, dash: 3 },
-    { radius: 175, tilt: -0.35, speed: -0.007, color: "#65e7f5", segments: 40, dash: 2 },
-    { radius: 205, tilt: 0.2, speed: 0.005, color: "#ffd98a", segments: 56, dash: 4 },
+    { radius: 135, tilt: 0.48, speed: 0.012, color: "#f7ba5b", segments: 48, dash: 3, width: 2 },
+    { radius: 165, tilt: -0.38, speed: -0.009, color: "#ffd98a", segments: 40, dash: 2, width: 1.8 },
+    { radius: 195, tilt: 0.18, speed: 0.006, color: "#65e7f5", segments: 56, dash: 4, width: 1.5 },
+    { radius: 225, tilt: -0.22, speed: -0.004, color: "#38bdf8", segments: 64, dash: 5, width: 1.2 },
   ];
 
   window.addEventListener("mousemove", (e) => {
@@ -201,8 +183,8 @@
     const rect = holoCanvas.getBoundingClientRect();
     mouseX = (e.clientX - rect.left - rect.width / 2) / (rect.width / 2);
     mouseY = (e.clientY - rect.top - rect.height / 2) / (rect.height / 2);
-    targetRotY = Math.max(-0.4, Math.min(0.4, mouseX * 0.35));
-    targetRotX = Math.max(-0.3, Math.min(0.3, -mouseY * 0.25));
+    targetRotY = Math.max(-0.45, Math.min(0.45, mouseX * 0.4));
+    targetRotX = Math.max(-0.35, Math.min(0.35, -mouseY * 0.3));
   });
 
   let holoTime = 0;
@@ -222,85 +204,95 @@
     const cy = hH / 2 - 8;
     const now = performance.now();
 
-    // 1. Assembly Sequence Progression (v1 inspired)
+    // 1. Assembly Sequence (Convergence of Quantum Sparks into Golden Core)
     if (!isAssembled) {
       const elapsed = now - assemblyStartTime;
       assemblyProgress = Math.min(1, elapsed / ASSEMBLY_DURATION);
 
       if (assemblyProgressText) {
-        assemblyProgressText.textContent = `ASSEMBLING... ${Math.min(99, Math.round(assemblyProgress * 100))}%`;
+        assemblyProgressText.textContent = `QUANTUM SYNCHRONIZATION: ${Math.min(99, Math.round(assemblyProgress * 100))}%`;
       }
       if (assemblyBarFill) {
         assemblyBarFill.style.width = `${assemblyProgress * 100}%`;
       }
 
-      // Draw streaming particles converging inward
+      // Draw inward-streaming quantum sparks
       hCtx.save();
       for (let i = 0; i < asmParticles.length; i++) {
         const p = asmParticles[i];
         const pProg = Math.max(0, Math.min(1, (assemblyProgress - p.delay) / (1 - p.delay)));
         const easeProg = pProg * pProg * (3 - 2 * pProg);
-        const curX = cx + p.origX + (p.targetX - p.origX) * easeProg;
-        const curY = cy + p.origY + (p.targetY - p.origY) * easeProg;
+        const curX = cx + p.origX * (1 - easeProg * 0.9);
+        const curY = cy + p.origY * (1 - easeProg * 0.9);
 
         hCtx.fillStyle = p.color;
-        hCtx.globalAlpha = 0.4 + 0.6 * easeProg;
+        hCtx.globalAlpha = 0.3 + 0.7 * easeProg;
         hCtx.beginPath();
-        hCtx.arc(curX, curY, p.size * (1 - easeProg * 0.3), 0, Math.PI * 2);
+        hCtx.arc(curX, curY, p.size * (1 - easeProg * 0.2), 0, Math.PI * 2);
         hCtx.fill();
       }
       hCtx.restore();
 
-      // Intermediate plate blend during assembly
-      const asmImg = assemblyProgress < 0.5 ? plates.assembly25 : plates.assembly60;
-      if (asmImg && asmImg.complete && asmImg.naturalWidth > 0) {
+      // Glowing central singularity ignition during assembly
+      const igniteR = 15 + assemblyProgress * 85;
+      const igniteGrad = hCtx.createRadialGradient(cx, cy, 2, cx, cy, igniteR);
+      igniteGrad.addColorStop(0, "rgba(255, 255, 255, " + assemblyProgress + ")");
+      igniteGrad.addColorStop(0.3, "rgba(247, 186, 91, " + (assemblyProgress * 0.8) + ")");
+      igniteGrad.addColorStop(1, "transparent");
+      hCtx.fillStyle = igniteGrad;
+      hCtx.beginPath();
+      hCtx.arc(cx, cy, igniteR, 0, Math.PI * 2);
+      hCtx.fill();
+
+      // Preview fading in of golden orb
+      const idleImg = coreImages.idle;
+      if (idleImg && idleImg.complete && idleImg.naturalWidth > 0 && assemblyProgress > 0.4) {
         hCtx.save();
-        hCtx.globalAlpha = assemblyProgress * 0.75;
-        const scale = (Math.min(hW, hH) / 440) * (0.8 + assemblyProgress * 0.2);
-        const w = 320 * scale;
-        const h = 320 * scale;
-        hCtx.drawImage(asmImg, cx - w / 2, cy - h / 2, w, h);
+        hCtx.globalCompositeOperation = "screen";
+        hCtx.globalAlpha = (assemblyProgress - 0.4) * 1.5;
+        const previewSize = 240 * (assemblyProgress * 0.9);
+        hCtx.drawImage(idleImg, cx - previewSize / 2, cy - previewSize / 2, previewSize, previewSize);
         hCtx.restore();
       }
 
       if (assemblyProgress >= 1) {
         isAssembled = true;
-        shockwaveRadius = 10;
+        shockwaveRadius = 15;
         if (assemblyBanner) assemblyBanner.classList.add("hidden");
-        if (holoStatusText) holoStatusText.textContent = "STATUS: ONLINE · ATULYA NEURAL CORE ACTIVE";
+        if (holoStatusText) holoStatusText.textContent = "STATUS: ONLINE · ATULYA NEURAL REACTOR ACTIVE";
         showToast("Atulya Quantum Neural Core: ASSEMBLED & ONLINE 🟢");
       }
       return;
     }
 
-    // Assembly Complete: Expanding Shockwave Pulse
-    if (shockwaveRadius > 0 && shockwaveRadius < 320) {
-      shockwaveRadius += 6;
+    // Assembly Complete: Expanding Quantum Shockwave
+    if (shockwaveRadius > 0 && shockwaveRadius < 360) {
+      shockwaveRadius += 7;
       hCtx.save();
-      hCtx.strokeStyle = "rgba(247, 186, 91, " + (1 - shockwaveRadius / 320) * 0.8 + ")";
-      hCtx.lineWidth = 3;
+      hCtx.strokeStyle = "rgba(247, 186, 91, " + (1 - shockwaveRadius / 360) * 0.85 + ")";
+      hCtx.lineWidth = 2.5;
       hCtx.beginPath();
       hCtx.arc(cx, cy, shockwaveRadius, 0, Math.PI * 2);
       hCtx.stroke();
       hCtx.restore();
     }
 
-    const breathing = Math.sin(holoTime * 1.6) * 0.015;
+    const breathing = Math.sin(holoTime * 1.8) * 0.02;
 
-    // 2. Holographic Radial Core Aura
-    const auraRadius = Math.min(hW, hH) * 0.42;
+    // 2. Holographic Radial Core Background Aura
+    const auraRadius = Math.min(hW, hH) * 0.44;
     const auraGrad = hCtx.createRadialGradient(cx, cy, 10, cx, cy, auraRadius);
     if (avatarState === "listening") {
-      auraGrad.addColorStop(0, "rgba(101, 231, 245, 0.4)");
-      auraGrad.addColorStop(0.4, "rgba(56, 189, 248, 0.15)");
+      auraGrad.addColorStop(0, "rgba(101, 231, 245, 0.45)");
+      auraGrad.addColorStop(0.35, "rgba(247, 186, 91, 0.2)");
     } else if (avatarState === "thinking") {
-      auraGrad.addColorStop(0, "rgba(247, 186, 91, 0.45)");
-      auraGrad.addColorStop(0.4, "rgba(234, 179, 8, 0.15)");
-    } else if (avatarState === "speaking") {
       auraGrad.addColorStop(0, "rgba(247, 186, 91, 0.5)");
-      auraGrad.addColorStop(0.3, "rgba(101, 231, 245, 0.25)");
+      auraGrad.addColorStop(0.35, "rgba(101, 231, 245, 0.18)");
+    } else if (avatarState === "speaking") {
+      auraGrad.addColorStop(0, "rgba(247, 186, 91, 0.6)");
+      auraGrad.addColorStop(0.3, "rgba(255, 145, 0, 0.3)");
     } else {
-      auraGrad.addColorStop(0, "rgba(247, 186, 91, 0.25)");
+      auraGrad.addColorStop(0, "rgba(247, 186, 91, 0.3)");
       auraGrad.addColorStop(0.4, "rgba(101, 231, 245, 0.12)");
     }
     auraGrad.addColorStop(1, "transparent");
@@ -310,69 +302,57 @@
     hCtx.arc(cx, cy, auraRadius, 0, Math.PI * 2);
     hCtx.fill();
 
-    // 3. Render Atulya Golden Quantum Core & Holographic Matrix
-    const activePlate = plates[avatarState] || plates.idle;
-    const corePlate = plates.quantumCore;
+    // 3. Render Golden Quantum AI Core (The Central Hero Visual)
+    let activeCore = coreImages.idle;
+    if (avatarState === "thinking" && coreImages.thinking) activeCore = coreImages.thinking;
+    else if (avatarState === "speaking" && coreImages.speaking) activeCore = coreImages.speaking;
 
-    if (activePlate && activePlate.complete && activePlate.naturalWidth > 0) {
+    if (activeCore && activeCore.complete && activeCore.naturalWidth > 0) {
       hCtx.save();
 
       // Mouse Parallax & Breathing
-      const shiftX = rotY * 30;
-      const shiftY = -rotX * 22;
-      const headScale = (1 + breathing) * (Math.min(hW, hH) / 450);
-      const imgW = 320 * headScale;
-      const imgH = 320 * headScale;
+      const shiftX = rotY * 35;
+      const shiftY = -rotX * 25;
+      const coreScale = (1 + breathing) * (Math.min(hW, hH) / 440);
+      const coreSize = 310 * coreScale;
 
       hCtx.translate(cx + shiftX, cy + shiftY);
 
-      // Render Avatar Character Plate
-      hCtx.globalAlpha = 0.92;
-      hCtx.drawImage(activePlate, -imgW / 2, -imgH / 2, imgW, imgH);
+      // Render Golden Core Sphere with Screen Blending for True Hologram Radiance
+      hCtx.globalCompositeOperation = "screen";
+      hCtx.globalAlpha = 0.94;
+      hCtx.drawImage(activeCore, -coreSize / 2, -coreSize / 2, coreSize, coreSize);
 
-      // Render Luminous Golden Quantum Reactor Core Overlay (Image 1 Inspired)
-      if (corePlate && corePlate.complete && corePlate.naturalWidth > 0) {
-        hCtx.save();
-        hCtx.globalCompositeOperation = "screen";
-        hCtx.globalAlpha = 0.55 + Math.sin(holoTime * 3) * 0.12;
-        const coreSize = 190 * headScale;
-        hCtx.drawImage(corePlate, -coreSize / 2, -coreSize / 2 - 10, coreSize, coreSize);
-        hCtx.restore();
-      }
+      // Central Arc Singularity Pulse
+      const pulseR = (28 + Math.sin(holoTime * 6) * 10) * coreScale;
+      const pulseGrad = hCtx.createRadialGradient(0, 0, 2, 0, 0, pulseR * 2.2);
+      pulseGrad.addColorStop(0, "rgba(255, 255, 255, 0.95)");
+      pulseGrad.addColorStop(0.3, "rgba(247, 186, 91, 0.7)");
+      pulseGrad.addColorStop(1, "transparent");
+      hCtx.fillStyle = pulseGrad;
+      hCtx.beginPath();
+      hCtx.arc(0, 0, pulseR * 2.2, 0, Math.PI * 2);
+      hCtx.fill();
 
-      // Holographic scanlines shimmer
-      hCtx.globalCompositeOperation = "lighter";
-      const scanY = ((holoTime * 30) % imgH) - imgH / 2;
-      const scanGrad = hCtx.createLinearGradient(0, scanY - 15, 0, scanY + 15);
-      scanGrad.addColorStop(0, "transparent");
-      scanGrad.addColorStop(0.5, "rgba(247, 186, 91, 0.25)");
-      scanGrad.addColorStop(1, "transparent");
-      hCtx.fillStyle = scanGrad;
-      hCtx.fillRect(-imgW / 2, scanY - 15, imgW, 30);
-
-      // Speaking or Listening Throat Chakra Pulse
-      if (avatarState === "speaking" || avatarState === "listening") {
-        const pulseR = (24 + Math.sin(holoTime * 8) * 8) * headScale;
-        const throatY = imgH * 0.2;
-        const throatGrad = hCtx.createRadialGradient(0, throatY, 2, 0, throatY, pulseR * 2);
-        throatGrad.addColorStop(0, "rgba(247, 186, 91, 0.9)");
-        throatGrad.addColorStop(0.3, "rgba(101, 231, 245, 0.45)");
-        throatGrad.addColorStop(1, "transparent");
-        hCtx.fillStyle = throatGrad;
-        hCtx.beginPath();
-        hCtx.arc(0, throatY, pulseR * 2, 0, Math.PI * 2);
-        hCtx.fill();
-      }
-
-      // Listening radar waves radiating outward
-      if (avatarState === "listening") {
-        for (let ring = 0; ring < 2; ring++) {
-          const ringR = ((holoTime * 40 + ring * 35) % 90) * headScale;
-          const ringAlpha = Math.max(0, 1 - ringR / (90 * headScale));
-          hCtx.strokeStyle = `rgba(101, 231, 245, ${ringAlpha * 0.6})`;
-          hCtx.lineWidth = 1.5;
+      // Speaking or Listening Resonance Shockwaves
+      if (avatarState === "speaking") {
+        for (let wave = 0; wave < 3; wave++) {
+          const wR = ((holoTime * 60 + wave * 45) % 130) * coreScale;
+          const wAlpha = Math.max(0, 1 - wR / (130 * coreScale));
+          hCtx.strokeStyle = `rgba(247, 186, 91, ${wAlpha * 0.75})`;
+          hCtx.lineWidth = 2;
           hCtx.beginPath();
-          hCtx.arc(0, -imgH * 0.08, ringR + 50 * headScale, 0, Math.PI * 2);
+          hCtx.arc(0, 0, wR + 80 * coreScale, 0, Math.PI * 2);
+          hCtx.stroke();
+        }
+      } else if (avatarState === "listening") {
+        for (let wave = 0; wave < 2; wave++) {
+          const wR = ((holoTime * 45 + wave * 40) % 100) * coreScale;
+          const wAlpha = Math.max(0, 1 - wR / (100 * coreScale));
+          hCtx.strokeStyle = `rgba(101, 231, 245, ${wAlpha * 0.7})`;
+          hCtx.lineWidth = 1.8;
+          hCtx.beginPath();
+          hCtx.arc(0, 0, wR + 70 * coreScale, 0, Math.PI * 2);
           hCtx.stroke();
         }
       }
@@ -380,10 +360,10 @@
       hCtx.restore();
     }
 
-    // 4. 3D Rotating Gyroscopic Orbital Rings
+    // 4. 3D Rotating Gyroscopic Orbital Telemetry Rings
     const fov = 340;
-    const cosY = Math.cos(rotY + holoTime * 0.25);
-    const sinY = Math.sin(rotY + holoTime * 0.25);
+    const cosY = Math.cos(rotY + holoTime * 0.28);
+    const sinY = Math.sin(rotY + holoTime * 0.28);
     const cosX = Math.cos(rotX);
     const sinX = Math.sin(rotX);
 
@@ -407,17 +387,17 @@
       const ringSpeed = holoTime * ring.speed * 60;
       hCtx.save();
       hCtx.strokeStyle = ring.color;
-      hCtx.lineWidth = 1.4;
+      hCtx.lineWidth = ring.width;
 
       for (let s = 0; s < ring.segments; s += ring.dash) {
         const angle1 = (s / ring.segments) * Math.PI * 2 + ringSpeed;
-        const angle2 = ((s + ring.dash * 0.6) / ring.segments) * Math.PI * 2 + ringSpeed;
+        const angle2 = ((s + ring.dash * 0.65) / ring.segments) * Math.PI * 2 + ringSpeed;
 
         const p1 = project3D(ring.radius * Math.cos(angle1), ring.radius * Math.sin(angle1) * Math.sin(ring.tilt), ring.radius * Math.sin(angle1) * Math.cos(ring.tilt));
         const p2 = project3D(ring.radius * Math.cos(angle2), ring.radius * Math.sin(angle2) * Math.sin(ring.tilt), ring.radius * Math.sin(angle2) * Math.cos(ring.tilt));
 
         if (p1 && p2) {
-          hCtx.globalAlpha = Math.max(0.12, Math.min(0.75, (p1.z + 180) / 360));
+          hCtx.globalAlpha = Math.max(0.15, Math.min(0.85, (p1.z + 180) / 360));
           hCtx.beginPath();
           hCtx.moveTo(p1.x, p1.y);
           hCtx.lineTo(p2.x, p2.y);
@@ -427,7 +407,7 @@
       hCtx.restore();
     }
 
-    // 5. Floating Upward Quantum Spark Embers
+    // 5. Floating Quantum Spark Particles (Drifting Upward)
     hCtx.save();
     hCtx.globalCompositeOperation = "lighter";
     for (let i = 0; i < embers.length; i++) {
@@ -437,7 +417,7 @@
 
       if (p.y < -180) {
         p.y = 170;
-        p.x = (Math.random() - 0.5) * 240;
+        p.x = (Math.random() - 0.5) * 280;
       }
 
       const proj = project3D(p.x, p.y, p.z);
@@ -458,10 +438,10 @@
   function setAvatarState(state) {
     avatarState = state;
     if (holoStatusText) {
-      if (state === "speaking") holoStatusText.textContent = "COGNITIVE CORE: SPEAKING";
+      if (state === "speaking") holoStatusText.textContent = "COGNITIVE CORE: BROADCASTING SPEECH";
       else if (state === "listening") holoStatusText.textContent = "VOICE BRIDGE: LISTENING";
-      else if (state === "thinking") holoStatusText.textContent = "NEURAL PROCESSING";
-      else holoStatusText.textContent = "STATUS: ONLINE · ATULYA NEURAL CORE ACTIVE";
+      else if (state === "thinking") holoStatusText.textContent = "SYNAPTIC NEURAL PROCESSING";
+      else holoStatusText.textContent = "STATUS: ONLINE · ATULYA NEURAL REACTOR ACTIVE";
     }
   }
 
