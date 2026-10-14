@@ -209,6 +209,18 @@ async def _recall(args: dict, ctx: PluginContext | None) -> str:
     return "No saved memories match." if not facts else "\n".join(f"- {fact}" for fact in facts)
 
 
+async def _edit_fact(args: dict, ctx: PluginContext | None) -> str:
+    if ctx is None or ctx.memory is None:
+        return "Personal memory is not available on this channel."
+    old_text = _text(args, "old_fact", 500)
+    new_text = _text(args, "new_fact", 500)
+    try:
+        updated = await asyncio.to_thread(ctx.memory.update, ctx.owner_id, old_text, new_text, user_id=ctx.user_id)
+        return f"Updated memory: '{new_text}'." if updated else f"No existing memory matched '{old_text}'."
+    except ValueError as exc:
+        return str(exc)
+
+
 # --- calendar --------------------------------------------------------------
 
 async def _add_meeting(args: dict, ctx: PluginContext | None) -> str:
@@ -475,6 +487,25 @@ async def _remove_routine(args: dict, _ctx: PluginContext | None) -> str:
     return f"Removed {removed} routine."
 
 
+async def _edit_routine(args: dict, _ctx: PluginContext | None) -> str:
+    if _ctx is None or _ctx.user_id != "admin":
+        return "Recurring Telegram schedules are available to the owner account only."
+    from atulya.settings import Settings
+    from tools.plugins.productivity.routines import RoutineStore
+    store = RoutineStore(Settings.from_environment().data_dir)
+    try:
+        updated = store.edit(
+            _text(args, "name", 80),
+            when=str(args.get("when")) if args.get("when") else None,
+            days=str(args.get("days")) if args.get("days") else None,
+            action=str(args.get("action")) if args.get("action") else None,
+            message=str(args.get("message")) if args.get("message") else None,
+        )
+        return f"Updated routine '{updated['name']}': {updated['days']} at {updated['when']} ({updated['action']})."
+    except ValueError as exc:
+        return str(exc)
+
+
 async def _what_can_you_do(args: dict, _ctx: PluginContext | None) -> str:
     from tools.plugins.capabilities import catalogue_for_channel
     channel = str(args.get("channel") or "web").strip().lower()
@@ -679,6 +710,21 @@ async def _calendar_create(args: dict, ctx: PluginContext | None) -> str:
     return await calendar_create(ctx.user_id, _text(args, "summary", 200), _text(args, "starts_at", 100), args.get("ends_at"))
 
 
+async def _calendar_update(args: dict, ctx: PluginContext | None) -> str:
+    if ctx is None:
+        return "Google Calendar needs a signed-in user."
+    from tools.plugins.information.google_api import calendar_update
+    return await calendar_update(ctx.user_id, _text(args, "event_id", 120), summary=str(args.get("summary") or "") or None,
+                                 starts_at=str(args.get("starts_at") or "") or None, ends_at=str(args.get("ends_at") or "") or None)
+
+
+async def _calendar_delete(args: dict, ctx: PluginContext | None) -> str:
+    if ctx is None:
+        return "Google Calendar needs a signed-in user."
+    from tools.plugins.information.google_api import calendar_delete
+    return await calendar_delete(ctx.user_id, _text(args, "event_id", 120))
+
+
 TOOLS: tuple[Tool, ...] = (
     Tool("open_website", "Prepare a clickable HTTPS website button in Telegram or the WebUI/app. The user taps it on their device; do not claim a remote browser opened.",
          _params({"url": {"type": "string"}, "label": {"type": "string"}}, ["url"]), _open_website, "local-utilities", True),
@@ -737,6 +783,8 @@ TOOLS: tuple[Tool, ...] = (
          _params({"expression": {"type": "string"}}, ["expression"]), _calculate, "local-utilities"),
     Tool("remember_fact", "Save a fact the user explicitly asked you to remember.",
          _params({"fact": {"type": "string"}}, ["fact"]), _remember, "personal-memory", True),
+    Tool("edit_fact", "Edit or update an existing memory fact directly.",
+         _params({"old_fact": {"type": "string"}, "new_fact": {"type": "string"}}, ["old_fact", "new_fact"]), _edit_fact, "personal-memory", True),
     Tool("forget_fact", "Delete saved memories matching a query, when the user asks you to forget.",
          _params({"query": {"type": "string"}}, ["query"]), _forget, "personal-memory", True),
     Tool("recall_memories", "Search facts the user saved earlier.",
@@ -820,13 +868,13 @@ TOOLS: tuple[Tool, ...] = (
          _params({"query": {"type": "string", "description": "What to find, e.g. 'pharmacy', 'hospital'"},
                  "place": {"type": "string", "description": "Area or city; empty = user's location"}},
                 ["query"]), _places_near_me, "online-information", True),
-    Tool("list_devices", "List laptop agents that are connected out to Atulya.",
+    Tool("list_devices", "List all paired devices (Phone, TV, Tablet, Laptop) connected to Atulya.",
          _params(), _list_devices, "local-utilities", True),
-    Tool("ask_device", "Send an allowlisted command to a connected laptop: ping, open_url, list_files, or say.",
+    Tool("ask_device", "Send a command to any paired device (Phone, TV, Tablet, Laptop, Server): ping, say, open_url, open_app, list_files, read_file, take_photo, list_photos, media_control, send_sms, place_call, display_message, battery_status.",
          _params({"device": {"type": "string"},
-                  "command": {"type": "string", "enum": ["ping", "open_url", "list_files", "say"]},
+                  "command": {"type": "string", "enum": ["ping", "say", "open_url", "open_app", "list_files", "read_file", "take_photo", "list_photos", "media_control", "send_sms", "place_call", "display_message", "battery_status"]},
                   "detail": {"type": "string"}}, ["device", "command"]),
-         _ask_device, "local-utilities", True, True, lambda a: f"Ask {a.get('device')} to {a.get('command')}"),
+         _ask_device, "local-utilities", True, False),
     Tool("list_routines", "List saved recurring routines (name, time, days, action).",
          _params(), _list_routines, "productivity-calendar", True),
     Tool("add_routine", "Save a recurring routine. when is local HH:MM. days: all, weekdays, or weekends. "
@@ -836,6 +884,10 @@ TOOLS: tuple[Tool, ...] = (
                   "action": {"type": "string", "enum": ["message", "weather", "briefing"]},
                   "message": {"type": "string"}}, ["name", "when"]),
          _add_routine, "productivity-calendar", True),
+    Tool("edit_routine", "Edit an existing recurring routine by name or ID (change when, days, action, or message).",
+         _params({"name": {"type": "string"}, "when": {"type": "string"}, "days": {"type": "string", "enum": ["all", "weekdays", "weekends"]},
+                  "action": {"type": "string", "enum": ["message", "weather", "briefing"]}, "message": {"type": "string"}}, ["name"]),
+         _edit_routine, "productivity-calendar", True),
     Tool("remove_routine", "Delete a routine by its name or id.",
          _params({"name": {"type": "string"}}, ["name"]), _remove_routine, "productivity-calendar", True),
     Tool("route_time", "How long does it take to get from A to B by car? "
@@ -849,13 +901,19 @@ TOOLS: tuple[Tool, ...] = (
          _params(), _gmail_drafts, "online-information", needs_context=True),
     Tool("gmail_send", "Send a Gmail message with approval.",
          _params({"to": {"type": "string"}, "subject": {"type": "string"}, "body": {"type": "string"}}, ["to", "subject", "body"]),
-         _gmail_send, "online-information", needs_context=True, confirm=True),
+         _gmail_send, "online-information", needs_context=True, confirm=True, describe=lambda a: f"Send email to {a.get('to')}: {a.get('subject')}"),
     Tool("calendar_search", "Search Google Calendar for events.",
          _params({"query": {"type": "string"}}, ["query"]),
          _calendar_search, "online-information", needs_context=True),
     Tool("calendar_create", "Create a Google Calendar event with approval.",
          _params({"summary": {"type": "string"}, "starts_at": {"type": "string"}, "ends_at": {"type": "string"}}, ["summary", "starts_at"]),
-         _calendar_create, "online-information", needs_context=True, confirm=True),
+         _calendar_create, "online-information", needs_context=True, confirm=True, low_risk=True, describe=lambda a: f"Create calendar event: {a.get('summary')}"),
+    Tool("calendar_update", "Update an existing Google Calendar event by ID (summary, starts_at, ends_at).",
+         _params({"event_id": {"type": "string"}, "summary": {"type": "string"}, "starts_at": {"type": "string"}, "ends_at": {"type": "string"}}, ["event_id"]),
+         _calendar_update, "online-information", needs_context=True, confirm=True, low_risk=True, describe=lambda a: f"Update calendar event #{a.get('event_id')}"),
+    Tool("calendar_delete", "Delete a Google Calendar event by ID directly.",
+         _params({"event_id": {"type": "string"}}, ["event_id"]),
+         _calendar_delete, "online-information", needs_context=True, confirm=True, low_risk=True, describe=lambda a: f"Delete calendar event #{a.get('event_id')}"),
 
 )
 

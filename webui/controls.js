@@ -331,22 +331,62 @@
         }); row.append(revoke); content.append(row);
       }
       const form = node("form");
-      const label = node("label", "Pair a laptop · device name");
-      const name = node("input"); name.required = true; name.maxLength = 40; label.append(name);
+      const typeSelect = node("select");
+      typeSelect.style.cssText = "width:100%;margin-bottom:8px;padding:8px;border-radius:6px;background:#102630;color:#fff;border:1px solid #437181;";
+      typeSelect.innerHTML = `
+        <option value="phone">📱 Mobile Phone (Android / iOS)</option>
+        <option value="tv">📺 Smart TV (Android TV / Fire TV)</option>
+        <option value="tablet">📟 Tablet (iPad / Android Tab)</option>
+        <option value="laptop" selected>💻 Laptop / PC (Windows / Mac / Linux)</option>
+      `;
+      const labelType = node("label", "Device type");
+      labelType.append(typeSelect);
+
+      const label = node("label", "Device name (e.g. Living Room TV, Pixel 9, MacBook)");
+      const name = node("input"); name.required = true; name.maxLength = 40; name.placeholder = "Living Room TV"; label.append(name);
       const choices = node("fieldset"); choices.append(node("legend", "Granted abilities"));
+      const allAbilities = [
+        "ping", "say", "open_url", "open_app",
+        "list_files", "read_file",
+        "take_photo", "list_photos",
+        "media_control", "send_sms", "place_call",
+        "display_message", "battery_status"
+      ];
+      const presets = {
+        phone: ["ping", "say", "take_photo", "list_photos", "send_sms", "place_call", "open_app", "battery_status"],
+        tv: ["ping", "say", "media_control", "open_app", "open_url", "display_message"],
+        tablet: ["ping", "say", "take_photo", "list_photos", "open_app", "list_files", "read_file", "display_message"],
+        laptop: ["ping", "say", "open_app", "open_url", "list_files", "read_file", "media_control", "display_message"]
+      };
+      const checkMap = {};
       const grants = [];
-      for (const ability of ["ping", "open_url", "list_files", "say"]) {
-        const item = node("label", ability); const check = node("input"); check.type = "checkbox"; check.value = ability;
-        check.checked = ability === "ping"; item.prepend(check); choices.append(item); grants.push(check);
+      choices.style.cssText = "display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:6px;";
+      for (const ability of allAbilities) {
+        const item = node("label", ability); item.style.cssText = "display:flex;align-items:center;gap:6px;font-size:13px;";
+        const check = node("input"); check.type = "checkbox"; check.value = ability;
+        check.style.cssText = "width:auto;margin:0;";
+        check.checked = presets.laptop.includes(ability);
+        checkMap[ability] = check;
+        item.prepend(check); choices.append(item); grants.push(check);
       }
+      typeSelect.addEventListener("change", () => {
+        const selectedPreset = presets[typeSelect.value] || [];
+        for (const ability of allAbilities) {
+          if (checkMap[ability]) {
+            checkMap[ability].checked = selectedPreset.includes(ability);
+          }
+        }
+      });
+
       const pair = node("button", "Create device credential"); pair.type = "submit";
-      form.append(label, choices, pair); content.append(form);
+      form.append(labelType, label, choices, pair); content.append(form);
       form.addEventListener("submit", async (event) => {
         event.preventDefault(); pair.disabled = true;
         try {
-          const result = await api("/api/devices/pair", {method:"POST", body:JSON.stringify({name:name.value, abilities:grants.filter(c=>c.checked).map(c=>c.value)})});
+          const result = await api("/api/devices/pair", {method:"POST", body:JSON.stringify({name:name.value, abilities:grants.filter(c=>c.checked).map(c=>c.value), device_type:typeSelect.value})});
           const secret = node("textarea"); secret.readOnly = true; secret.value = result.token;
-          content.append(node("p", "Copy this credential into the laptop agent's ATULYA_AGENT_TOKEN. It is shown once; keep it private. Run tools/laptop_agent.py on that laptop. Pairing alone does not install or start an agent."), secret);
+          secret.style.cssText = "width:100%;height:60px;margin-top:8px;background:#031018;color:#65e7f5;font-family:monospace;padding:8px;";
+          content.append(node("p", "Copy this device credential into the companion app or script (ATULYA_AGENT_TOKEN). For Phone/Tablet/TV: enter in Android APK settings. For Laptop/PC: run tools/device_companion.py."), secret);
         } catch (error) { errorMessage(error); } finally { pair.disabled = false; }
       });
       content.append(node("h3", "Recent jobs"));

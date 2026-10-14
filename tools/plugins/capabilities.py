@@ -51,6 +51,21 @@ def tool_capabilities(toolbox):
             scope = "gmail_send" if tool.name == "gmail_send" else "gmail_read" if tool.name.startswith("gmail_") else "calendar_write"
             if not all(connection.get(key) for key in ("configured", "connected", scope)) or connection.get("last_error"):
                 status, step = "needs_connection", "Connect or reconnect Google with the required Gmail/Calendar scope in Connections."
+        if ctx and ctx.user_id != "admin" and tool.name in {"list_routines", "add_routine", "edit_routine", "remove_routine"}:
+            status, step = "needs_connection", "Use an owner session to manage recurring routines."
+        if tool.name in {"ask_device", "list_devices", "list_registered_devices"} and status in {"available", "needs_approval"}:
+            from tools.plugins.system.agents import AgentHub
+            from atulya.settings import Settings
+            try:
+                hub = AgentHub(Settings.from_environment().data_dir)
+                if not hub.devices(ctx.user_id):
+                    status, step = "needs_connection", "Pair a companion device in Devices."
+            except Exception:
+                pass
+        if tool.name == "mcp_call_tool" and status in {"available", "needs_approval"}:
+            conns = getattr(ctx, "mcp_connections", None)
+            if conns is None or not conns.load():
+                status, step = "needs_connection", "Connect an external MCP server in Connections."
         rows.append({"id": tool.name, "name": tool.name, "plugin_id": tool.plugin_id,
                      "description": tool.description, "channel": channel, "status": status,
                      "next_step": step, "verification": "Not established by this registry."})

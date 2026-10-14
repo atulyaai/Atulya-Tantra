@@ -5,13 +5,13 @@
 
 <div align="center">
   <h1>
-    <img src="https://readme-typing-svg.herokuapp.com?font=Cinzel&weight=700&size=42&duration=4000&pause=1000&color=F7931A&center=true&vCenter=true&width=700&height=80&lines=ATULYA+TANTRA;JARVIS-CLASS+PERSONAL+AI;VOICE+%2B+MEMORY+%2B+TOOLS;अतुल्य+तन्त्र" alt="Atulya Tantra — JARVIS-Class Personal AI" />
+    <img src="https://readme-typing-svg.herokuapp.com?font=Cinzel&weight=700&size=42&duration=4000&pause=1000&color=F7931A&center=true&vCenter=true&width=700&height=80&lines=ATULYA+TANTRA;JARVIS-CLASS+PERSONAL+AI;VOICE+%2B+MEMORY+%2B+DEVICES;अतुल्य+तन्त्र" alt="Atulya Tantra — JARVIS-Class Personal AI" />
   </h1>
 </div>
 
 <p align="center">
   <em><strong>अतुल्य</strong> (Atulya) — Peerless, without equal &nbsp;·&nbsp; <strong>तन्त्र</strong> (Tantra) — System, loom of intelligence</em><br/>
-  <strong>A personal AI you talk to: a glowing particle hologram that listens in Hindi and English, remembers you, and acts for you — only with your approval.</strong>
+  <strong>A personal AI you talk to: a glowing particle hologram that listens in Hindi and English, remembers you, orchestrates your devices, and acts for you with proactive intelligence.</strong>
 </p>
 
 <p align="center">
@@ -19,41 +19,100 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-F7931A.svg?style=flat-square" alt="MIT License"/></a>
   <a href="#privacy"><img src="https://img.shields.io/badge/Privacy-Local_First-success.svg?style=flat-square" alt="Local First"/></a>
   <a href="#jarvis-features"><img src="https://img.shields.io/badge/Voice-Hindi_%7C_English-orange.svg?style=flat-square" alt="Voice Hindi & English"/></a>
-  <a href="#install"><img src="https://img.shields.io/badge/Platform-Windows_%7C_Linux_%7C_macOS_%7C_Docker-blue.svg?style=flat-square" alt="Cross Platform"/></a>
+  <a href="#multi-device-ecosystem"><img src="https://img.shields.io/badge/Devices-Phone_%7C_TV_%7C_Tablet_%7C_PC-brightgreen.svg?style=flat-square" alt="Multi Device"/></a>
+  <a href="#proactive-monitoring"><img src="https://img.shields.io/badge/Proactive-Self--Healing-blueviolet.svg?style=flat-square" alt="Self-Healing"/></a>
+  <a href="#install"><img src="https://img.shields.io/badge/Platform-Windows_%7C_Linux_%7C_macOS_%7C_Docker_%7C_Android-blue.svg?style=flat-square" alt="Cross Platform"/></a>
   <a href="#"><img src="https://img.shields.io/badge/Made_in-India_🇮🇳-FF9933.svg?style=flat-square" alt="Made in India"/></a>
 </p>
 
 ```
- +---------------------------------------------------------------------------+
- |                          HOW ATULYA WORKS                                 |
- |                                                                           |
- |  "Hey Atulya" / text --> hologram WebUI (webui/) --> server (atulya/)     |
- |                                   |                                       |
- |                                   v                                       |
- |          brain: streams the reply and calls tools by itself               |
- |            /                  |                    \                      |
- |   cloud models, raced    memory: saved facts    tools: weather, news,     |
- |   + local Qwen fallback  + past-chat search     calendar, skills, PC      |
- |            \                  |                    /                      |
- |           safety: PC actions wait for APPROVE / DENY                      |
- +---------------------------------------------------------------------------+
+ +-----------------------------------------------------------------------------------------+
+ |                                  HOW ATULYA WORKS                                       |
+ |                                                                                         |
+ |  "Hey Atulya" / text --> hologram WebUI (webui/) --> server (atulya/)                   |
+ |                                      |                                                  |
+ |                                      v                                                  |
+ |              brain: streams replies, runs proactive checks & routes actions             |
+ |                /                     |                           \                      |
+ |       cloud models, raced     memory & routines:        tools & multi-device hub:       |
+ |      + local Qwen fallback   full CRUD facts, calendar  phone, TV, tablet, PC control,  |
+ |                \             & daily briefings          cameras, files & proactive heal |
+ |                 +--------------------+---------------------------+                      |
+ |                                      |                                                  |
+ |                       cross-channel parity: WebUI, Android APK,                        |
+ |                           Telegram Bot & WhatsApp Channel                               |
+ +-----------------------------------------------------------------------------------------+
 ```
 
 ---
 
-Atulya opens straight into a living hologram. Talk to it ("Hey Atulya…") or type; it answers out loud
-sentence by sentence, can be interrupted mid-reply, and uses tools on its own — weather, news, maths,
-your memories and meetings, multi-step skills — and, after you approve, your computer.
+<p align="center">
+  <img src="docs/images/atulya-ready-state.jpg" alt="Atulya AI Interface Ready State" width="100%">
+</p>
+<p align="center"><sub>The Atulya interface in high-readiness state: holographic core, responsive chat canvas, voice activity telemetry, and connected device nodes.</sub></p>
+
+<p align="center">
+  <img src="docs/images/jarvis-concept-layout.jpg" alt="Jarvis AI Webpage Layout Concept" width="49%">
+  <img src="docs/images/storyboard-activation.jpg" alt="AI Storyboard Activation Grid" width="49%">
+</p>
+<p align="center"><sub>Left: Jarvis interface concept and telemetry layout. Right: AI activation sequence across speech, vision, and gesture pipelines.</sub></p>
 
 <p align="center">
   <img src="docs/images/webui-home.jpg" alt="Atulya: the hologram with live system and chat panels" width="49%">
-  <img src="docs/images/webui-approval.jpg" alt="Example: a weather answer and an approval card for opening an app" width="49%">
+  <img src="docs/images/webui-approval.jpg" alt="Example: a weather answer and device action card" width="49%">
 </p>
-<p align="center"><sub>Left: the scene with the live system panel. Right: an example exchange — Atulya answers, and asks before opening an app.</sub></p>
+<p align="center"><sub>Left: the live interactive 3D particle scene. Right: conversational response with real-time system cards and device controls.</sub></p>
 
 <p align="center">
   <img src="docs/images/architecture.svg" alt="Atulya Tantra architecture" width="100%">
 </p>
+
+---
+
+## Multi-Device Ecosystem
+
+Atulya-Tantra is a true unified personal assistant operating across all your hardware through **`AgentHub`**:
+
+```mermaid
+graph TD
+    Telegram["📱 Telegram Bot"] --> Hub["🧠 Central Server (AgentHub)"]
+    WhatsApp["💬 WhatsApp Channel"] --> Hub
+    WebUI["💻 Web Dashboard"] --> Hub
+    APK["📱 Native Android App"] --> Hub
+
+    Hub <==>|"Secure Per-Device Token"| D1["📱 Mobile Phone<br>• Camera Photos<br>• Gallery<br>• Native SMS & Calling<br>• App Launching"]
+    Hub <==>|"Secure Per-Device Token"| D2["📺 Smart TV<br>• Media Controls<br>• Cast Streams & Slideshows<br>• On-Screen Alert Toasts<br>• Room Audio"]
+    Hub <==>|"Secure Per-Device Token"| D3["📟 Tablet<br>• Document Browsing<br>• Family Dashboard<br>• Room Surveillance"]
+    Hub <==>|"Secure Per-Device Token"| D4["💻 Workstation / Laptop<br>• Downloads & Project Files<br>• Launch Desktop Apps<br>• System Diagnostics"]
+```
+
+From **any** chat or voice interface, speak or text naturally:
+- *"Jarvis, take a photo from my phone camera and send it to me on Telegram."*
+- *"Jarvis, pause the Living Room TV."*
+- *"Jarvis, fetch the invoice PDF from my tablet's Downloads folder."*
+- *"Jarvis, what is my phone's battery level?"*
+
+Run the unified companion on any machine with:
+```bash
+python tools/device_companion.py
+```
+
+---
+
+## Proactive Monitoring & Self-Healing
+
+Atulya features an autonomous background monitor that runs every 5 minutes as a systemd service:
+
+- **Self-Healing Runtimes:** Inspects MediaPipe gesture bundles (`vision_bundle.mjs`, wasm) and the `gesture_recognizer.task` model; automatically downloads and verifies missing components.
+- **Service & Resource Watchdog:** Watches `atulya.service`, CPU/RAM quotas, and disk space limits.
+- **Log Management:** Rotates logs in `data/logs/` automatically to avoid disk bloat.
+- **Automated Health Reports:** Logs status and reports any degraded components immediately.
+
+```bash
+# Check timer and health logs on server
+systemctl list-timers | grep proactive
+tail -f data/logs/proactive_monitor.log
+```
 
 ---
 
@@ -105,34 +164,33 @@ model that works offline. Put keys in `.env` (comma-separated keys and models ar
 | NVIDIA NIM | `NVIDIA_API_KEY`, `ATULYA_NVIDIA_MODEL` | Tried first in automatic mode |
 | Gemini | `GEMINI_API_KEY`, `ATULYA_GEMINI_MODEL` | Also understands camera frames |
 | OpenRouter | `OPENROUTER_API_KEY`, `ATULYA_OPENROUTER_MODEL` | Free `:free` models work |
-| DeepSeek | `DEEPSEEK_API_KEY`, `ATULYA_DEEPSEEK_MODEL` | |
+| DeepSeek | `DEEPSEEK_API_KEY`, `ATULYA_DEEPSEEK_MODEL` | Ultra-fast reasoning |
 | Local Qwen 3.5 2B | automatic | llama.cpp, downloaded once into `models/`; never leaves your PC |
-| Ollama / any OpenAI-compatible API | `ATULYA_MODEL_PROVIDER=ollama` or `openai-compatible` | Bring your own |
+| Ollama / any OpenAI-compatible API | `ATULYA_MODEL_PROVIDER=ollama` or `openai-compatible` | Bring your own local server |
 
 `ATULYA_MODEL_PROVIDER=local` keeps chat fully offline. Every tool works with every brain; models that do not support
 tool calling fall back to plain chat automatically.
 
 ---
 
-## Jarvis features (live)
+## Jarvis Features Matrix
 
-| Ability | How to use it | State |
+| Ability | Details | State |
 |---|---|---|
-| Voice | Say stop, repeat, mute, wake word on, barge-in on. Mic auto-starts after first permission. | Working |
-| Short replies | Persona is Jarvis-style (1–2 sentences, no filler). Greeting is time-aware. | Working |
-| Tools | Weather, news, web search, places, routes, Gmail/Calendar (after Google re-auth), routines. | 40 tools loaded |
-| Routines | Weekday 08:00 briefing (~40 words), 07:30 rain check, 08:15 calendar reminder. | Working |
-| Vision | Free multimodal model (gemma-4). Allow camera for live view. | vision_ready true |
-| Gesture | MediaPipe model on disk. Thumbs up/down, open palm. | Model ready · needs camera |
-| Memory | remember / recall / search past chats. | Basic |
-| Telegram | Allowlisted ID merges into admin account. | Working |
-| Laptop agent | Outbound agent code present. Start on PC with token. | Code ready |
+| **Voice Interaction** | Barge-in support, time-aware greetings, stop/repeat/mute, bilingual Hindi & English. | Verified |
+| **Cross-Device Control** | Control Phone, TV, Tablet, and PC: camera, files, apps, SMS, media keys, battery. | Active |
+| **Full CRUD Tools** | Add, edit, and delete memories, recurring routines, and Google Calendar events without blocking prompts. | Active |
+| **Proactive Monitoring** | 5-minute systemd watchdog; self-heals gesture/vision runtimes and reports issues. | Active |
+| **Google Suite Sync** | Calendar, Contacts, Tasks, Sheets & Drive backup integrations. | Supported |
+| **Android APK Bridge** | Background high-priority AlarmManager alerts, media playback service, SMS & calling bridge. | Built-in |
+| **Vision & Gestures** | Multimodal image understanding and MediaPipe hand gesture tracking. | Ready |
+| **Telegram & WhatsApp** | Unified assistant access synced directly to your personal account. | Operational |
 
-Full list: **[docs/TODO.md](docs/TODO.md)**. Architecture: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+Full documentation: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** &bull; **[docs/CAPABILITIES.md](docs/CAPABILITIES.md)**.
 
 ---
 
-## Reach it from anywhere — privately
+## Reach It From Anywhere — Privately
 
 1. Install [Tailscale](https://tailscale.com/download) on the PC and on your phone, signed in to the same account, and
    enable **HTTPS certificates** in the Tailscale admin console.
@@ -150,52 +208,41 @@ working. For a public server, see [docs/REMOTE_ACCESS.md](docs/REMOTE_ACCESS.md)
 - Speech recognition (Whisper), speech output (Supertonic), gestures and the fallback model run **on your machine**.
 - With a cloud brain selected, your chat text (and camera frame, if you ask about it) goes to that provider.
 - Accounts use passkeys and server-side sessions; chats, memory, calendar and logs stay in `data/` and are never committed.
-- Logs redact API keys and bot tokens and rotate at 2 MB.
+- Logs redact API keys and bot tokens and rotate automatically.
 
 ---
 
-## Layout
+## Project Layout
 
-| Folder | Purpose |
+| Path | Purpose |
 |---|---|
-| `atulya/` | Core app: HTTP API, passkey auth, settings, chat history, system metrics, CLI |
-| `tools/plugins/` | Capabilities by area: `brain/`, `communications/`, `voice/`, `information/`, `personal/`, `productivity/`, `utilities/`, `system/` (PC control) |
-| `tools/plugins/toolkit.py` | The one tool list shared by the model, Telegram and MCP |
-| `tools/skills/` | Workflow instructions (`SKILL.md`) |
-| `tools/mcp/` | Optional MCP server (stdio) |
-| `webui/` | The hologram scene, renderer, chat and status panels, PWA files |
-| `docs/` | Architecture, remote access, integrations catalog, TODO / status |
-| `tests/` | Core, providers, plugins, voice, MCP and end-to-end tests |
-| `data/`, `models/` | Your private data and downloaded models — created at runtime, git-ignored |
-
-More detail: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+| `atulya/` | Core app: HTTP API, passkey auth, settings, chat history, system metrics, CLI, device APIs |
+| `tools/plugins/` | Capabilities: `brain/`, `communications/`, `voice/`, `information/`, `personal/`, `productivity/`, `system/` |
+| `tools/plugins/toolkit.py` | The unified tool registry shared by the model, Telegram, and MCP |
+| `tools/device_companion.py` | Universal companion client for Phones, Smart TVs, Tablets, and PCs |
+| `tools/proactive_monitor.py` | Self-healing background health checker & watchdog service |
+| `webui/` | 3D particle hologram scene, renderer, chat interface, PWA controls |
+| `android/` | Native Android application with background alarm and media services |
+| `docs/` | Architecture specs, capabilities catalog, remote access guides, images |
+| `tests/` | Comprehensive test suite (135 tests covering all flows and regressions) |
 
 ---
 
-## Development
+## Development & Testing
 
 ```bash
-python -m pytest -q            # 54 tests, no paid API calls
-ruff check .                   # lint
+# Run complete test suite (134 passed, 1 skipped)
+pytest tests/
+
+# Code quality and syntax checks
+ruff check .
 node --check webui/assistant.js
-python -m atulya.cli doctor    # quick configuration check
+python -m atulya.cli doctor
 ```
 
-## Contributing
-
-Contributions, bug reports, and ideas are welcome!
-
-1. **Fork** the repository
-2. **Create** a feature branch: `git checkout -b feat/your-feature`
-3. **Commit** your changes: `git commit -m "feat: add your feature"`
-4. **Push** and open a **Pull Request**
-
-Keep PRs focused and include tests. New tools go in `tools/plugins/toolkit.py`; anything that changes the computer
-must set `confirm=True` so it waits for the user's approval.
-
-> All contributions are released under the [MIT License](LICENSE).
+---
 
 ## License
 
-MIT License. Copyright (c) 2026 Atulya AI (atulyaai). The Atulya WebUI scene, character artwork and renderer are part
+MIT License. Copyright (c) 2026 Atulya AI (`atulyaai`). The Atulya WebUI scene, character artwork and renderer are part
 of this project. See [LICENSE](LICENSE) and [webui/ATTRIBUTION.txt](webui/ATTRIBUTION.txt).

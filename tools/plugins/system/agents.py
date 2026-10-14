@@ -9,7 +9,13 @@ from contextlib import closing
 from pathlib import Path
 from urllib.parse import urlsplit
 
-COMMANDS = {"ping", "open_url", "list_files", "say"}
+COMMANDS = {
+    "ping", "say", "open_url", "open_app",
+    "list_files", "read_file",
+    "take_photo", "list_photos",
+    "media_control", "send_sms", "place_call",
+    "display_message", "battery_status",
+}
 
 
 class AgentHub:

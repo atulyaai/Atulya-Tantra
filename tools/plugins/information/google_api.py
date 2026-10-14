@@ -192,3 +192,33 @@ async def calendar_create(user_id, summary, starts_at, ends_at=None):
     if not result.get("id"):
         raise ValueError("Calendar did not return a saved event ID")
     return f"Saved Google Calendar event {result['id']}: {result.get('htmlLink', '')}"
+
+
+async def calendar_update(user_id, event_id, summary=None, starts_at=None, ends_at=None):
+    if not event_id or not event_id.strip():
+        raise ValueError("Provide a valid Google Calendar event ID")
+    await _request(user_id, "GET", f"{CALENDAR_API}/calendars/primary/events/{event_id.strip()}")
+    patch = {}
+    if summary and summary.strip():
+        patch["summary"] = summary.strip()[:200]
+    if starts_at:
+        start = datetime.fromisoformat(starts_at.replace("Z", "+00:00"))
+        end = datetime.fromisoformat(ends_at.replace("Z", "+00:00")) if ends_at else start + timedelta(hours=1)
+        if not start.tzinfo or not end.tzinfo or end <= start:
+            raise ValueError("Provide an increasing start/end time with timezone")
+        patch["start"] = {"dateTime": start.isoformat()}
+        patch["end"] = {"dateTime": end.isoformat()}
+    elif ends_at:
+        end = datetime.fromisoformat(ends_at.replace("Z", "+00:00"))
+        patch["end"] = {"dateTime": end.isoformat()}
+    if not patch:
+        return f"No changes provided for event {event_id}."
+    result = await _request(user_id, "PATCH", f"{CALENDAR_API}/calendars/primary/events/{event_id.strip()}", json=patch)
+    return f"Updated Google Calendar event {result.get('id', event_id)}: {result.get('summary', '')}"
+
+
+async def calendar_delete(user_id, event_id):
+    if not event_id or not event_id.strip():
+        raise ValueError("Provide a valid Google Calendar event ID")
+    await _request(user_id, "DELETE", f"{CALENDAR_API}/calendars/primary/events/{event_id.strip()}")
+    return f"Deleted Google Calendar event {event_id.strip()}."
