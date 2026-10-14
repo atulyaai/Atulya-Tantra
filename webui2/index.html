@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#03080e">
-  <meta name="description" content="Atulya Tantra v2 — Next-Gen JARVIS Cybernetic Interface">
-  <title>ATULYA // AI INTERFACE v2.0</title>
+  <meta name="description" content="Atulya Tantra v2 — Next-Gen Cognitive Cybernetic Interface">
+  <title>ATULYA // COGNITIVE CORE v2.0</title>
   <link rel="icon" href="/icons/atulya-mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,10 +20,10 @@
   <header class="hud-header">
     <div class="header-left">
       <div class="glass-badge">
-        <span class="badge-icon">💠</span>
-        <span class="badge-text">GLASSMORPHISM</span>
+        <span class="badge-icon">⚛️</span>
+        <span class="badge-text">ATULYA QUANTUM INTERFACE</span>
       </div>
-      <div class="title-sub">ATULYA TANTRA // COGNITIVE CORE</div>
+      <div class="title-sub">NEURAL REACTOR // v2.0</div>
     </div>
     
     <div class="header-center">
@@ -98,44 +98,60 @@
           <button id="ctrl-energy" type="button" class="cyber-btn"><span class="icon">⚡</span><span>ENERGY</span><b class="btn-tag text-yellow">ECO MODE</b></button>
           <button id="ctrl-devices" type="button" class="cyber-btn"><span class="icon">📱</span><span>DEVICES</span><b class="btn-tag text-blue">4 ACTIVE 🔵</b></button>
           <div class="hw-toggles">
-            <button id="ctrl-camera" type="button" class="cyber-btn-mini" data-active="false"><span class="status-pip red"></span> CAMERA</button>
-            <button id="ctrl-gestures" type="button" class="cyber-btn-mini" data-active="true"><span class="status-pip yellow"></span> GESTURES</button>
+            <button id="ctrl-camera" type="button" class="cyber-btn-mini" data-active="false"><span class="status-pip red"></span> CAMERA OFF</button>
+            <button id="ctrl-gestures" type="button" class="cyber-btn-mini" data-active="true"><span class="status-pip yellow"></span> GESTURES STANDBY</button>
           </div>
         </div>
       </div>
     </aside>
 
-    <!-- Center Column: Cybernetic 3D Hologram & Neural Core -->
-    <section class="hologram-stage" aria-label="Atulya Particle Hologram">
-      <div class="hologram-viewport">
+    <!-- Center Column: Atulya Quantum Holographic Core -->
+    <section class="hologram-stage" aria-label="Atulya Hologram Stage">
+      <div class="hologram-viewport" id="holo-viewport">
         <!-- Interactive 3D Canvas -->
         <canvas id="hologram-canvas" width="800" height="700"></canvas>
         
-        <!-- Center Hologram Name Badge -->
+        <!-- Center Hologram Name & Assembly Badge -->
         <div class="avatar-hud-badge">
-          <span class="avatar-title">ATULYA</span>
-          <span class="avatar-status">NEURAL BRIDGE: ACTIVE</span>
+          <span class="avatar-title" id="holo-title-text">ATULYA</span>
+          <span class="avatar-status" id="holo-status-text">NEURAL REACTOR: INITIALIZING</span>
+        </div>
+
+        <!-- Assembly Sequence Banner -->
+        <div class="assembly-banner" id="assembly-banner">
+          <div class="assembly-text" id="assembly-progress-text">ASSEMBLING... 25%</div>
+          <div class="assembly-bar-track">
+            <div class="assembly-bar-fill" id="assembly-bar-fill"></div>
+          </div>
+        </div>
+
+        <!-- Hologram Projector Pedestal Base Emitter -->
+        <div class="holo-emitter-pedestal">
+          <div class="pedestal-ring outer"></div>
+          <div class="pedestal-ring mid"></div>
+          <div class="pedestal-ring inner"></div>
+          <div class="emitter-glow"></div>
         </div>
 
         <!-- Real-time Hand Gesture HUD Pill -->
         <div class="gesture-hud-v2" id="v2-gesture-hud">
           <div class="ghud-card">
-            <span class="ghud-icon" id="v2-ghud-icon">✋</span>
+            <span class="ghud-icon" id="v2-ghud-icon">📷</span>
             <div class="ghud-info">
-              <div class="ghud-name"><strong id="v2-ghud-name">Scanning</strong> <span id="v2-ghud-score" class="text-green"></span></div>
-              <div class="ghud-action" id="v2-ghud-action">Ready for hand gestures</div>
+              <div class="ghud-name"><strong id="v2-ghud-name">Camera Inactive</strong> <span id="v2-ghud-score" class="text-green"></span></div>
+              <div class="ghud-action" id="v2-ghud-action">Click 'CAMERA' or tap here to enable vision</div>
             </div>
           </div>
           <div class="ghud-meter"><div class="ghud-bar" id="v2-ghud-bar"></div></div>
         </div>
 
-        <!-- Hidden/PiP Video feed for MediaPipe gesture scanning -->
+        <!-- Hidden/PiP Video feed for webcam gesture scanning -->
         <video id="v2-camera-feed" class="camera-feed-hidden" autoplay muted playsinline></video>
       </div>
 
       <!-- Luminous Audio Frequency Waveform Spectrum -->
       <div class="wave-container" id="wave-container" title="Click to talk or interrupt">
-        <canvas id="wave-canvas" width="900" height="110"></canvas>
+        <canvas id="wave-canvas" width="900" height="60"></canvas>
         <div class="wave-hint" id="wave-hint">TAP WAVEFORM OR PRESS SPACE TO ACTIVATE VOICE</div>
       </div>
     </section>
@@ -151,15 +167,15 @@
         </div>
         <div class="chat-feed" id="v2-chat-feed">
           <div class="chat-bubble ai">
-            <div class="bubble-meta"><strong class="author text-cyan">ATULYA</strong> <span class="time">14:32</span></div>
-            <div class="bubble-text">Good afternoon. All cognitive pipelines stabilized. I am ready to assist.</div>
+            <div class="bubble-meta"><strong class="author text-gold">ATULYA</strong> <span class="time">14:32</span></div>
+            <div class="bubble-text">Good afternoon. Neural reactor online. All cognitive pipelines stabilized and ready to assist.</div>
           </div>
           <div class="chat-bubble user">
-            <div class="bubble-meta"><strong class="author text-gold">USER</strong> <span class="time">14:33</span></div>
+            <div class="bubble-meta"><strong class="author text-cyan">USER</strong> <span class="time">14:33</span></div>
             <div class="bubble-text">Turn on Living Room lights and check expenses.</div>
           </div>
           <div class="chat-bubble ai">
-            <div class="bubble-meta"><strong class="author text-cyan">ATULYA</strong> <span class="time">14:33</span></div>
+            <div class="bubble-meta"><strong class="author text-gold">ATULYA</strong> <span class="time">14:33</span></div>
             <div class="bubble-text">Living Room lights activated at 80% warm ambience. Current monthly expenses: ₹45,670 across Swiggy, Groceries, and Utilities.</div>
           </div>
         </div>
@@ -167,12 +183,12 @@
         <!-- Prompt Input Form -->
         <form class="chat-input-bar" id="v2-chat-form">
           <button type="button" class="btn-icon" id="v2-mic-btn" title="Toggle Voice Microphone">🎙️</button>
-          <input type="text" id="v2-chat-input" placeholder="Type a message or speak..." autocomplete="off">
+          <input type="text" id="v2-chat-input" placeholder="Speak or type a command..." autocomplete="off">
           <button type="submit" class="btn-send" id="v2-send-btn">SEND</button>
         </form>
       </div>
 
-      <!-- Cyberpunk Music Player Card (Integrated from concept art!) -->
+      <!-- Cyberpunk Music Player Card -->
       <div class="cyber-player-card">
         <div class="player-cover">
           <img src="/icons/icon-192.png" alt="Album Art" id="v2-cover-img">
@@ -205,18 +221,18 @@
       <div class="legend-grid">
         <div class="l-card"><span class="status-pip green"></span><div><strong>🟢 Green · Active / Live</strong><p>Service is streaming, scanning frames, or executing actions actively.</p></div></div>
         <div class="l-card"><span class="status-pip blue"></span><div><strong>🔵 Blue · Ready / Connected</strong><p>Linked and waiting for triggers or queries.</p></div></div>
-        <div class="l-card"><span class="status-pip yellow"></span><div><strong>🟡 Yellow · Standby / Initializing</strong><p>Armed but waiting for dependencies (e.g. Gestures waiting for Camera) or starting.</p></div></div>
+        <div class="l-card"><span class="status-pip yellow"></span><div><strong>🟡 Yellow · Standby / Initializing</strong><p>Armed but waiting for camera or audio wake.</p></div></div>
         <div class="l-card"><span class="status-pip red"></span><div><strong>🔴 Red · Inactive / Off</strong><p>Powered down or disconnected. Click to activate.</p></div></div>
       </div>
-      <h3>Hand Gestures Quick Reference</h3>
+      <h3>Hand Gestures Quick Reference (Click to Test)</h3>
       <div class="modal-gestures">
-        <div class="mg-card"><span>✋</span><strong>Open Palm</strong><small>Stop speech & mute voice</small></div>
-        <div class="mg-card"><span>👍</span><strong>Thumbs Up</strong><small>Confirm / Send "Yes"</small></div>
-        <div class="mg-card"><span>👎</span><strong>Thumbs Down</strong><small>Cancel / Send "No"</small></div>
-        <div class="mg-card"><span>✌️</span><strong>Victory</strong><small>Inspect camera scene</small></div>
-        <div class="mg-card"><span>☝️</span><strong>Point Up</strong><small>Wake voice / Listen</small></div>
-        <div class="mg-card"><span>✊</span><strong>Closed Fist</strong><small>Pause media & silence</small></div>
-        <div class="mg-card"><span>🤟</span><strong>Jarvis Salute</strong><small>System health report</small></div>
+        <div class="mg-card" data-gesture="palm"><span>✋</span><strong>Open Palm</strong><small>Stop speech & mute voice</small></div>
+        <div class="mg-card" data-gesture="thumbsup"><span>👍</span><strong>Thumbs Up</strong><small>Confirm / Send "Yes"</small></div>
+        <div class="mg-card" data-gesture="thumbsdown"><span>👎</span><strong>Thumbs Down</strong><small>Cancel / Send "No"</small></div>
+        <div class="mg-card" data-gesture="victory"><span>✌️</span><strong>Victory</strong><small>Inspect camera scene</small></div>
+        <div class="mg-card" data-gesture="point"><span>☝️</span><strong>Point Up</strong><small>Wake voice / Listen</small></div>
+        <div class="mg-card" data-gesture="fist"><span>✊</span><strong>Closed Fist</strong><small>Pause media & silence</small></div>
+        <div class="mg-card" data-gesture="salute"><span>🤟</span><strong>Atulya Salute</strong><small>System health report</small></div>
       </div>
     </div>
   </dialog>

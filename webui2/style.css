@@ -6,7 +6,7 @@
   --cyan-neon: #65e7f5;
   --cyan-glow: rgba(101, 231, 245, 0.4);
   --gold-neon: #f7ba5b;
-  --gold-glow: rgba(247, 186, 91, 0.4);
+  --gold-glow: rgba(247, 186, 91, 0.45);
   --green-neon: #4ade80;
   --green-glow: rgba(74, 222, 128, 0.4);
   --blue-neon: #38bdf8;
@@ -31,9 +31,9 @@ html, body.cyber-theme {
   overflow: hidden;
   background-color: var(--bg-dark);
   background-image: 
-    radial-gradient(circle at 50% 45%, rgba(16, 44, 62, 0.4) 0%, transparent 60%),
+    radial-gradient(circle at 50% 45%, rgba(20, 52, 75, 0.45) 0%, transparent 60%),
     radial-gradient(circle at 15% 20%, rgba(101, 231, 245, 0.08) 0%, transparent 40%),
-    radial-gradient(circle at 85% 80%, rgba(247, 186, 91, 0.06) 0%, transparent 40%),
+    radial-gradient(circle at 85% 80%, rgba(247, 186, 91, 0.08) 0%, transparent 40%),
     linear-gradient(180deg, #02060b 0%, #06111a 100%);
   color: var(--text-main);
   font-family: var(--font-hud);
@@ -53,12 +53,12 @@ html, body.cyber-theme {
 
 .hud-ambient-glow {
   position: fixed;
-  top: 10%;
+  top: 8%;
   left: 50%;
   transform: translateX(-50%);
-  width: 600px;
-  height: 480px;
-  background: radial-gradient(circle, rgba(101, 231, 245, 0.12) 0%, rgba(247, 186, 91, 0.05) 50%, transparent 70%);
+  width: 650px;
+  height: 520px;
+  background: radial-gradient(circle, rgba(247, 186, 91, 0.12) 0%, rgba(101, 231, 245, 0.08) 45%, transparent 70%);
   filter: blur(80px);
   pointer-events: none;
   z-index: 1;
@@ -73,7 +73,7 @@ html, body.cyber-theme {
   justify-content: space-between;
   height: 44px;
   padding: 0 20px;
-  background: rgba(4, 12, 19, 0.92);
+  background: rgba(4, 12, 19, 0.94);
   border-bottom: 1px solid var(--panel-border);
   backdrop-filter: blur(20px);
 }
@@ -87,15 +87,15 @@ html, body.cyber-theme {
 .glass-badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   padding: 3px 9px;
   border-radius: 6px;
-  background: rgba(101, 231, 245, 0.08);
-  border: 1px solid var(--panel-border);
+  background: rgba(247, 186, 91, 0.12);
+  border: 1px solid rgba(247, 186, 91, 0.35);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.15em;
-  color: var(--cyan-neon);
+  color: var(--gold-neon);
 }
 
 .title-sub {
@@ -113,9 +113,9 @@ html, body.cyber-theme {
 .hud-title {
   font-family: var(--font-display);
   font-size: 22px;
-  letter-spacing: 0.28em;
+  letter-spacing: 0.32em;
   color: #fff;
-  text-shadow: 0 0 14px var(--cyan-glow), 0 0 25px rgba(101, 231, 245, 0.2);
+  text-shadow: 0 0 14px var(--gold-glow), 0 0 25px rgba(247, 186, 91, 0.25);
 }
 
 .header-right {
@@ -162,7 +162,7 @@ html, body.cyber-theme {
 /* Main 3-Column Interface Grid - Locked to 100vh */
 .hud-grid {
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr) 340px;
+  grid-template-columns: 295px minmax(0, 1fr) 335px;
   gap: 12px;
   padding: 10px 14px;
   height: calc(100vh - 44px);
@@ -231,8 +231,8 @@ html, body.cyber-theme {
 
 .gauge-box {
   position: relative;
-  width: 78px;
-  height: 78px;
+  width: 76px;
+  height: 76px;
 }
 
 .circular-meter {
@@ -428,7 +428,7 @@ html, body.cyber-theme {
 .status-pip.yellow, .pip-yellow { background: var(--gold-neon); box-shadow: 0 0 6px var(--gold-neon); }
 .status-pip.red, .pip-red { background: var(--red-neon); box-shadow: 0 0 6px var(--red-neon); }
 
-/* Center Stage: Hologram & Wave - 100% Fit */
+/* Center Stage: Atulya Holographic Stage */
 .hologram-stage {
   display: flex;
   flex-direction: column;
@@ -436,7 +436,7 @@ html, body.cyber-theme {
   overflow: hidden;
   border-radius: 14px;
   border: 1px solid var(--panel-border);
-  background: radial-gradient(circle at 50% 40%, rgba(9, 27, 40, 0.75) 0%, rgba(3, 10, 16, 0.98) 100%);
+  background: radial-gradient(circle at 50% 45%, rgba(14, 35, 52, 0.85) 0%, rgba(3, 10, 16, 0.98) 100%);
   backdrop-filter: blur(18px);
   height: 100%;
   max-height: 100%;
@@ -476,15 +476,98 @@ html, body.cyber-theme {
   font-family: var(--font-display);
   font-size: 18px;
   letter-spacing: 0.3em;
-  color: var(--cyan-neon);
-  text-shadow: 0 0 12px var(--cyan-glow);
+  color: var(--gold-neon);
+  text-shadow: 0 0 14px var(--gold-glow);
 }
 
 .avatar-status {
   font-family: var(--font-mono);
   font-size: 9px;
-  letter-spacing: 0.15em;
+  letter-spacing: 0.16em;
   color: var(--text-muted);
+}
+
+/* Assembly Progress HUD (from v1) */
+.assembly-banner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+  z-index: 25;
+  transition: opacity 0.6s ease;
+}
+
+.assembly-banner.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.assembly-text {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--gold-neon);
+  text-shadow: 0 0 12px var(--gold-glow);
+}
+
+.assembly-bar-track {
+  width: 220px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+  border: 1px solid rgba(247, 186, 91, 0.3);
+}
+
+.assembly-bar-fill {
+  width: 25%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan-neon), var(--gold-neon));
+  box-shadow: 0 0 10px var(--gold-glow);
+  transition: width 0.3s ease;
+}
+
+/* Hologram Pedestal Emitter */
+.holo-emitter-pedestal {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 280px;
+  height: 24px;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.pedestal-ring {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  border: 1px solid var(--cyan-neon);
+  box-shadow: 0 0 10px var(--cyan-glow);
+}
+
+.pedestal-ring.outer { width: 260px; height: 18px; opacity: 0.35; }
+.pedestal-ring.mid { width: 190px; height: 14px; opacity: 0.55; border-color: var(--gold-neon); box-shadow: 0 0 12px var(--gold-glow); }
+.pedestal-ring.inner { width: 120px; height: 10px; opacity: 0.8; }
+
+.emitter-glow {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 140px;
+  height: 40px;
+  background: radial-gradient(ellipse at bottom, rgba(101, 231, 245, 0.45) 0%, rgba(247, 186, 91, 0.25) 50%, transparent 80%);
+  filter: blur(8px);
 }
 
 /* Gesture HUD v2 */
@@ -494,14 +577,14 @@ html, body.cyber-theme {
   left: 50%;
   transform: translateX(-50%);
   min-width: 270px;
-  background: rgba(5, 18, 27, 0.92);
+  background: rgba(5, 18, 27, 0.94);
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   padding: 6px 12px;
   backdrop-filter: blur(12px);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
   transition: all 0.25s ease;
-  z-index: 20;
+  z-index: 25;
   cursor: pointer;
 }
 
@@ -621,11 +704,11 @@ html, body.cyber-theme {
 }
 
 .chat-bubble.ai {
-  border-left: 3px solid var(--cyan-neon);
+  border-left: 3px solid var(--gold-neon);
 }
 
 .chat-bubble.user {
-  border-left: 3px solid var(--gold-neon);
+  border-left: 3px solid var(--cyan-neon);
   background: rgba(26, 36, 42, 0.65);
 }
 
@@ -666,14 +749,14 @@ html, body.cyber-theme {
   font-size: 16px;
   cursor: pointer;
   padding: 2px 4px;
-  color: var(--cyan-neon);
+  color: var(--gold-neon);
   transition: transform 0.2s ease;
 }
 
 .btn-icon:hover { transform: scale(1.15); }
 
 .btn-send {
-  background: var(--cyan-neon);
+  background: var(--gold-neon);
   border: none;
   border-radius: 5px;
   padding: 5px 11px;
@@ -686,7 +769,7 @@ html, body.cyber-theme {
 }
 
 .btn-send:hover {
-  box-shadow: 0 0 10px var(--cyan-glow);
+  box-shadow: 0 0 10px var(--gold-glow);
 }
 
 /* Compact Cyber Music Player Widget */
@@ -743,8 +826,8 @@ html, body.cyber-theme {
 
 .player-fill {
   height: 100%;
-  background: var(--cyan-neon);
-  box-shadow: 0 0 6px var(--cyan-glow);
+  background: var(--gold-neon);
+  box-shadow: 0 0 6px var(--gold-glow);
 }
 
 .player-times {
@@ -772,8 +855,8 @@ html, body.cyber-theme {
   transition: all 0.2s ease;
 }
 
-.p-btn:hover { color: var(--cyan-neon); }
-.p-play { font-size: 15px; color: var(--cyan-neon); }
+.p-btn:hover { color: var(--gold-neon); }
+.p-play { font-size: 15px; color: var(--gold-neon); }
 
 /* Colors Utility Classes */
 .text-cyan { color: var(--cyan-neon); }
@@ -793,12 +876,12 @@ html, body.cyber-theme {
   border-radius: 14px;
   color: #fff;
   padding: 20px;
-  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.9), 0 0 30px rgba(101, 231, 245, 0.15);
+  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.9), 0 0 30px rgba(247, 186, 91, 0.2);
 }
 
 .cyber-modal::backdrop { background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(8px); }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--panel-border); }
-.modal-header h2 { font-size: 16px; color: var(--cyan-neon); letter-spacing: 0.1em; }
+.modal-header h2 { font-size: 16px; color: var(--gold-neon); letter-spacing: 0.1em; }
 .btn-close { background: transparent; border: none; font-size: 18px; color: var(--text-muted); cursor: pointer; }
 .btn-close:hover { color: #fff; }
 
@@ -806,7 +889,7 @@ html, body.cyber-theme {
 .l-card { display: flex; gap: 8px; padding: 8px; background: rgba(10, 28, 40, 0.6); border: 1px solid rgba(101, 231, 245, 0.15); border-radius: 6px; font-size: 11px; }
 .modal-gestures { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px; }
 .mg-card { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 8px; background: rgba(10, 28, 40, 0.6); border: 1px solid rgba(101, 231, 245, 0.15); border-radius: 6px; font-size: 11px; cursor: pointer; transition: all 0.2s ease; }
-.mg-card:hover { border-color: var(--cyan-neon); background: rgba(20, 50, 70, 0.7); }
+.mg-card:hover { border-color: var(--gold-neon); background: rgba(30, 40, 50, 0.8); box-shadow: 0 0 10px var(--gold-glow); }
 .mg-card span { font-size: 20px; margin-bottom: 3px; }
 
 .v2-toast {
@@ -816,7 +899,7 @@ html, body.cyber-theme {
   z-index: 9999;
   padding: 10px 16px;
   border-radius: 8px;
-  background: rgba(6, 26, 22, 0.95);
+  background: rgba(16, 26, 12, 0.95);
   border: 1px solid var(--green-neon);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 14px var(--green-glow);
   color: #fff;
@@ -865,6 +948,6 @@ html, body.cyber-theme {
     text-align: center;
   }
   .hologram-stage {
-    height: 420px;
+    height: 440px;
   }
 }
