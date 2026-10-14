@@ -406,6 +406,31 @@ async def _ask_device(args: dict, ctx: PluginContext | None) -> str:
     return f"Queued job {job['id']} ({job['kind']}) for {job['device']}. Execution is not confirmed; check Devices for its receipt."
 
 
+async def _cancel_all_reminders(_args: dict, ctx: PluginContext | None) -> str:
+    if ctx is None or ctx.reminders is None:
+        return "No reminder store is connected to this request."
+    import asyncio
+    from atulya.settings import Settings
+    from tools.plugins.productivity.web_reminders import WebReminderStore
+    from tools.plugins.productivity.reminders import ReminderStore
+    from tools.plugins.productivity.routines import RoutineStore
+    count = await asyncio.to_thread(ctx.reminders.cancel_all, ctx.user_id)
+    recurring = 0
+    if ctx.user_id == "admin":
+        data = Settings.from_environment().data_dir
+        count += await asyncio.to_thread(WebReminderStore(data).cancel_all, ctx.user_id)
+        store = ReminderStore(data)
+        for telegram_id in os.environ.get("ATULYA_TELEGRAM_ALLOWLIST", "").split(","):
+            if telegram_id.strip():
+                count += await asyncio.to_thread(store.cancel_all, telegram_id.strip())
+        routines = RoutineStore(data)
+        for item in await asyncio.to_thread(routines.list_items):
+            if item.get("action") == "message" and item.get("enabled"):
+                await asyncio.to_thread(routines.set_enabled, item["id"], False)
+                recurring += 1
+    return f"Cancelled {count} pending one-time reminders and paused {recurring} recurring message reminders. Briefing/weather subscriptions are separate. A send already in flight may still arrive."
+
+
 async def _list_routines(_args: dict, _ctx: PluginContext | None) -> str:
     if _ctx is None or _ctx.user_id != "admin":
         return "Recurring Telegram schedules are available to the owner account only."
@@ -720,6 +745,8 @@ TOOLS: tuple[Tool, ...] = (
          _params({"message": {"type": "string"}, "delay_minutes": {"type": "number"},
                   "due_at": {"type": "string", "description": "ISO datetime including timezone offset"}},
                  ["message"]), create_reminder, "productivity-calendar", True),
+    Tool("cancel_all_reminders", "Cancel the user's pending reminders. For the owner also cancel across app/Telegram and pause recurring message reminders, so deleted reminders do not return tomorrow. Does not delete meetings or briefing/weather subscriptions. Runs directly when requested.",
+         _params(), _cancel_all_reminders, "productivity-calendar", True),
     Tool("list_reminders", "Read saved reminders on this channel with IDs and due times.",
          _params(), list_reminders, "productivity-calendar", True),
     Tool("edit_reminder", "Change a saved reminder by ID when the user requests it. List reminders first; supply message and/or due_at with timezone. Runs directly.",
@@ -912,7 +939,7 @@ class Toolbox:
     def __init__(self, tools: Iterable[Tool], context: PluginContext | None = None) -> None:
         self._tools = {tool.name: tool for tool in tools if context is not None or not tool.needs_context}
         if context is None or context.reminders is None:
-            for name in ("create_reminder", "list_reminders", "edit_reminder", "cancel_reminder"):
+            for name in ("create_reminder", "list_reminders", "edit_reminder", "cancel_reminder", "cancel_all_reminders"):
                 self._tools.pop(name, None)
         if context is None or context.maintenance is None:
             for name in ("maintenance_check", "maintenance_read", "maintenance_propose", "maintenance_search", "maintenance_patch", "maintenance_set_proactive"):

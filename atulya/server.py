@@ -944,6 +944,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_music_routes(app, config.data_dir)
     from atulya.phone_actions import register_phone_routes
     register_phone_routes(app, config.data_dir)
+    from atulya.weather_api import register_weather_routes
+    register_weather_routes(app, profiles)
 
     @app.get("/api/auth/status")
     async def auth_status(request: Request) -> JSONResponse:
