@@ -20,8 +20,10 @@
 <body>
   <div id="root"></div>
   <nav class="quick-controls" aria-label="Atulya controls">
-    <button id="quick-camera" type="button" aria-pressed="false">Camera off</button>
-    <button id="quick-gesture" type="button" aria-pressed="true">Gestures on</button>
+    <button id="quick-camera" type="button" class="status-btn" data-status="red" aria-pressed="false" title="Camera: Inactive · Click to turn on"><span class="status-pip red"></span><span class="btn-text">Camera</span></button>
+    <button id="quick-gesture" type="button" class="status-btn" data-status="yellow" aria-pressed="true" title="Gestures: Standby (Waiting for camera) · Click to toggle"><span class="status-pip yellow"></span><span class="btn-text">Gestures</span></button>
+    <button id="quick-legend" type="button" class="legend-btn" title="Status Colors & Gestures Guide" aria-label="Status Colors & Gestures Guide"><span class="legend-dots"><i class="pip-green"></i><i class="pip-blue"></i><i class="pip-yellow"></i><i class="pip-red"></i></span><span>Guide</span></button>
+    <a href="/v2" id="quick-webui2" class="v2-switch-btn" title="Switch to Next-Gen WebUI v2">✨ WebUI v2</a>
     <button id="quick-reminders" type="button">Reminders</button>
     <button id="quick-weather" type="button">Weather</button>
     <button id="quick-schedules" type="button">Schedules</button>
@@ -47,6 +49,62 @@
     <header><h2 id="control-title">Reminders</h2><button id="close-control" type="button" aria-label="Close controls">Close</button></header>
     <div id="control-content"></div>
   </dialog>
+  <dialog id="legend-dialog" class="legend-dialog" aria-labelledby="legend-title">
+    <header>
+      <h2 id="legend-title">Status Indicators & Gestures Guide</h2>
+      <button id="close-legend" type="button" aria-label="Close guide">Close</button>
+    </header>
+    <div class="legend-body">
+      <section class="legend-section">
+        <h3>System Status Indicators</h3>
+        <p class="legend-intro">Quick control pips and dashboard indicators communicate live real-time hardware & cognitive states:</p>
+        <div class="legend-items">
+          <div class="legend-row">
+            <span class="status-pip green"></span>
+            <div class="legend-desc">
+              <strong>🟢 Green · Active / Live</strong>
+              <p>Hardware or AI service is streaming and actively processing (e.g. Camera actively capturing, Gestures scanning frames, System operational).</p>
+            </div>
+          </div>
+          <div class="legend-row">
+            <span class="status-pip blue"></span>
+            <div class="legend-desc">
+              <strong>🔵 Blue · Ready / Connected</strong>
+              <p>Device or companion is linked, initialized, and ready for queries.</p>
+            </div>
+          </div>
+          <div class="legend-row">
+            <span class="status-pip yellow"></span>
+            <div class="legend-desc">
+              <strong>🟡 Yellow · Standby / Starting</strong>
+              <p>Feature is armed but awaiting prerequisites (e.g. Gestures waiting for Camera feed to activate) or initializing neural weights.</p>
+            </div>
+          </div>
+          <div class="legend-row">
+            <span class="status-pip red"></span>
+            <div class="legend-desc">
+              <strong>🔴 Red · Inactive / Off</strong>
+              <p>Feature is powered off or disconnected. Click any quick control button to turn it on.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="legend-section gesture-guide">
+        <h3>Hand Gestures Quick Reference</h3>
+        <p class="legend-intro">Show these clear hand signs to your webcam for ~400ms to trigger instant actions without touching keyboard or mouse:</p>
+        <div class="gesture-grid">
+          <div class="gesture-card"><span class="g-icon">✋</span><div class="g-info"><strong>Open Palm</strong><span>Stop speech, cancel listening & silence audio</span></div></div>
+          <div class="gesture-card"><span class="g-icon">👍</span><div class="g-info"><strong>Thumbs Up</strong><span>Confirm / Send affirmative "Yes"</span></div></div>
+          <div class="gesture-card"><span class="g-icon">👎</span><div class="g-info"><strong>Thumbs Down</strong><span>Cancel / Send negative "No"</span></div></div>
+          <div class="gesture-card"><span class="g-icon">✌️</span><div class="g-info"><strong>Victory / Peace</strong><span>Capture snapshot & visual AI inspection</span></div></div>
+          <div class="gesture-card"><span class="g-icon">☝️</span><div class="g-info"><strong>Point Up</strong><span>Wake microphone / Start voice listening</span></div></div>
+          <div class="gesture-card"><span class="g-icon">✊</span><div class="g-info"><strong>Closed Fist</strong><span>Pause YouTube music & system media</span></div></div>
+          <div class="gesture-card"><span class="g-icon">🤟</span><div class="g-info"><strong>Jarvis Salute</strong><span>Request system health & status briefing</span></div></div>
+        </div>
+      </section>
+    </div>
+  </dialog>
+  <div id="gesture-toast" class="gesture-toast" aria-live="assertive" hidden></div>
   <aside class="system-dashboard" id="system-dashboard" aria-label="Atulya system status">
     <header class="system-dashboard-header"><span class="system-pulse" aria-hidden="true"></span><div><strong>SYSTEM</strong><small id="system-overview">CONNECTING</small></div></header>
     <div class="system-status-grid">
@@ -153,6 +211,16 @@
           <span class="viewfinder" aria-hidden="true"><i></i><i></i><i></i><i></i><span class="viewfinder-core"></span></span>
           <span class="preview-label"><span>CAMERA PREVIEW</span><b><i></i> CAMERA STARTING</b></span>
         </button>
+        <div class="gesture-hud" id="gesture-hud" aria-live="polite">
+          <div class="gesture-hud-badge">
+            <span class="gesture-hud-icon" id="gesture-hud-icon">✋</span>
+            <div class="gesture-hud-details">
+              <div class="gesture-hud-title"><strong id="gesture-hud-name">Scanning</strong> <span class="gesture-hud-confidence" id="gesture-hud-score"></span></div>
+              <div class="gesture-hud-action" id="gesture-hud-action">Ready for hand gestures</div>
+            </div>
+          </div>
+          <div class="gesture-hud-meter" id="gesture-hud-meter"><div class="gesture-hud-progress" id="gesture-hud-progress"></div></div>
+        </div>
         <select class="camera-device" id="camera-device" aria-label="Select camera" hidden></select>
       </div>
       <section class="gesture-region" id="gesture-region" data-state="setup" aria-label="Gesture recognition preparing" title="Hold thumbs up to send Yes, thumbs down to send No, or open palm to stop voice.">

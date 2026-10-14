@@ -2126,11 +2126,14 @@ ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
         return {"text": text}
 
     webui = PROJECT_ROOT / "webui"
+    webui2 = PROJECT_ROOT / "webui2"
     app.mount(
         "/api/runtime/mediapipe",
         StaticFiles(directory=config.models_dir / "runtime" / "mediapipe", check_dir=False),
         name="mediapipe_runtime",
     )
+    if webui2.is_dir():
+        app.mount("/v2", StaticFiles(directory=webui2, html=True), name="webui2")
     if webui.is_dir():
         app.mount("/", StaticFiles(directory=webui, html=True), name="webui")
 

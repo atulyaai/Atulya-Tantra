@@ -24,13 +24,21 @@
     return response.json();
   }
   function syncCamera() {
-    if (camera.disabled) return;
+    if (!camera || camera.disabled) return;
     const active = document.body.classList.contains("camera-on");
-    camera.textContent = active ? "Camera on · Turn off" : "Camera off · Turn on";
     camera.setAttribute("aria-pressed", String(active));
+    camera.dataset.status = active ? "green" : "red";
+    const pip = camera.querySelector(".status-pip");
+    if (pip) pip.className = `status-pip ${active ? "green" : "red"}`;
+    camera.title = active ? "Camera: Live · Click to turn off" : "Camera: Inactive · Click to turn on";
   }
   new MutationObserver(syncCamera).observe(document.body, { attributes: true, attributeFilter: ["class"] });
   syncCamera();
+  const legendDialog = $("#legend-dialog");
+  $("#quick-legend")?.addEventListener("click", () => {
+    if (legendDialog && !legendDialog.open) legendDialog.showModal();
+  });
+  $("#close-legend")?.addEventListener("click", () => legendDialog?.close());
   function open(title) {
     $("#control-title").textContent = title;
     content.replaceChildren(node("p", "Loading…"));

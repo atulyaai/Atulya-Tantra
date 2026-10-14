@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#03080e">
+  <meta name="description" content="Atulya Tantra v2 — Next-Gen JARVIS Cybernetic Interface">
+  <title>ATULYA // AI INTERFACE v2.0</title>
+  <link rel="icon" href="/icons/atulya-mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body class="cyber-theme">
+  <div class="hud-ambient-glow"></div>
+  <div class="hud-scanlines"></div>
+
+  <!-- Top Cyberpunk Navigation Bar -->
+  <header class="hud-header">
+    <div class="header-left">
+      <div class="glass-badge">
+        <span class="badge-icon">💠</span>
+        <span class="badge-text">GLASSMORPHISM</span>
+      </div>
+      <div class="title-sub">ATULYA TANTRA // COGNITIVE CORE</div>
+    </div>
+    
+    <div class="header-center">
+      <h1 class="hud-title">ATULYA</h1>
+    </div>
+
+    <div class="header-right">
+      <div class="telemetry-pill">
+        <span class="tele-item"><small>SYSTEM TIME:</small> <strong id="hud-clock">14:36</strong></span>
+        <span class="tele-sep">|</span>
+        <span class="tele-item"><small>PING:</small> <strong id="hud-ping" class="text-cyan">12 ms</strong></span>
+      </div>
+      <a href="/" class="btn-classic" title="Switch to Classic WebUI">CLASSIC UI</a>
+    </div>
+  </header>
+
+  <!-- Main 3-Column Glassmorphic Interface Grid -->
+  <main class="hud-grid">
+    
+    <!-- Left Column: System & Controls Panel -->
+    <aside class="panel glass-card panel-left" aria-label="System Diagnostics">
+      <div class="panel-section">
+        <div class="panel-heading">
+          <h2>SYSTEM PANEL</h2>
+          <span class="status-indicator live"><i class="pip-green"></i> SYS STATUS: <strong id="sys-status-text">OPTIMAL</strong></span>
+        </div>
+
+        <!-- Dual Circular SVG Gauges (CPU & MEMORY) -->
+        <div class="gauges-row">
+          <div class="gauge-box">
+            <svg class="circular-meter" viewBox="0 0 100 100">
+              <circle class="meter-bg" cx="50" cy="50" r="40"/>
+              <circle class="meter-bar cpu-bar" id="cpu-gauge" cx="50" cy="50" r="40" stroke-dasharray="251.2" stroke-dashoffset="155"/>
+            </svg>
+            <div class="gauge-val"><strong id="cpu-val">38%</strong><small>CPU USAGE</small></div>
+          </div>
+          <div class="gauge-box">
+            <svg class="circular-meter" viewBox="0 0 100 100">
+              <circle class="meter-bg" cx="50" cy="50" r="40"/>
+              <circle class="meter-bar mem-bar" id="mem-gauge" cx="50" cy="50" r="40" stroke-dasharray="251.2" stroke-dashoffset="115"/>
+            </svg>
+            <div class="gauge-val"><strong id="mem-val">54%</strong><small>MEMORY</small></div>
+          </div>
+        </div>
+
+        <!-- Linear Progress Bars -->
+        <div class="telemetry-bars">
+          <div class="bar-row">
+            <div class="bar-label"><span>MEMORY BUFFER</span><strong id="mem-text">0.5 / 0.9 GB</strong></div>
+            <div class="progress-track"><div class="progress-fill cyan-fill" id="mem-progress" style="width: 54%"></div></div>
+          </div>
+          <div class="bar-row">
+            <div class="bar-label"><span class="flex-align"><i class="pip-green"></i> NETWORK</span><strong id="net-val">1.2 Gbps</strong></div>
+            <div class="progress-track"><div class="progress-fill green-fill" style="width: 78%"></div></div>
+          </div>
+          <div class="bar-row">
+            <div class="bar-label"><span class="flex-align"><i class="pip-yellow"></i> STORAGE</span><strong id="disk-val">71%</strong></div>
+            <div class="progress-track"><div class="progress-fill yellow-fill" id="disk-progress" style="width: 71%"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Controls Section -->
+      <div class="panel-section quick-section">
+        <div class="panel-heading">
+          <h2>QUICK CONTROLS</h2>
+          <button id="v2-legend-trigger" type="button" class="btn-micro" title="Status Guide">ℹ️ GUIDE</button>
+        </div>
+        <div class="controls-list">
+          <button id="ctrl-security" type="button" class="cyber-btn"><span class="icon">🛡️</span><span>SECURITY</span><b class="btn-tag text-cyan">ARMED</b></button>
+          <button id="ctrl-lights" type="button" class="cyber-btn active" data-on="true"><span class="icon">💡</span><span>LIGHTS <small>Living Room</small></span><b class="btn-tag text-green">ON 🟢</b></button>
+          <button id="ctrl-energy" type="button" class="cyber-btn"><span class="icon">⚡</span><span>ENERGY</span><b class="btn-tag text-yellow">ECO MODE</b></button>
+          <button id="ctrl-devices" type="button" class="cyber-btn"><span class="icon">📱</span><span>DEVICES</span><b class="btn-tag text-blue">4 ACTIVE 🔵</b></button>
+          <div class="hw-toggles">
+            <button id="ctrl-camera" type="button" class="cyber-btn-mini" data-active="false"><span class="status-pip red"></span> CAMERA</button>
+            <button id="ctrl-gestures" type="button" class="cyber-btn-mini" data-active="true"><span class="status-pip yellow"></span> GESTURES</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Center Column: Cybernetic 3D Hologram & Neural Core -->
+    <section class="hologram-stage" aria-label="Atulya Particle Hologram">
+      <div class="hologram-viewport">
+        <!-- Interactive 3D Canvas -->
+        <canvas id="hologram-canvas" width="800" height="700"></canvas>
+        
+        <!-- Center Hologram Name Badge -->
+        <div class="avatar-hud-badge">
+          <span class="avatar-title">ATULYA</span>
+          <span class="avatar-status">NEURAL BRIDGE: ACTIVE</span>
+        </div>
+
+        <!-- Real-time Hand Gesture HUD Pill -->
+        <div class="gesture-hud-v2" id="v2-gesture-hud">
+          <div class="ghud-card">
+            <span class="ghud-icon" id="v2-ghud-icon">✋</span>
+            <div class="ghud-info">
+              <div class="ghud-name"><strong id="v2-ghud-name">Scanning</strong> <span id="v2-ghud-score" class="text-green"></span></div>
+              <div class="ghud-action" id="v2-ghud-action">Ready for hand gestures</div>
+            </div>
+          </div>
+          <div class="ghud-meter"><div class="ghud-bar" id="v2-ghud-bar"></div></div>
+        </div>
+
+        <!-- Hidden/PiP Video feed for MediaPipe gesture scanning -->
+        <video id="v2-camera-feed" class="camera-feed-hidden" autoplay muted playsinline></video>
+      </div>
+
+      <!-- Luminous Audio Frequency Waveform Spectrum -->
+      <div class="wave-container" id="wave-container" title="Click to talk or interrupt">
+        <canvas id="wave-canvas" width="900" height="110"></canvas>
+        <div class="wave-hint" id="wave-hint">TAP WAVEFORM OR PRESS SPACE TO ACTIVATE VOICE</div>
+      </div>
+    </section>
+
+    <!-- Right Column: Conversation Feed & Cyber Music Player -->
+    <aside class="panel glass-card panel-right" aria-label="Conversation and Media">
+      
+      <!-- Conversation Feed -->
+      <div class="panel-section conversation-section">
+        <div class="panel-heading">
+          <h2>CONVERSATION FEED</h2>
+          <span class="badge-tag" id="v2-model-badge">NVIDIA NIM</span>
+        </div>
+        <div class="chat-feed" id="v2-chat-feed">
+          <div class="chat-bubble ai">
+            <div class="bubble-meta"><strong class="author text-cyan">ATULYA</strong> <span class="time">14:32</span></div>
+            <div class="bubble-text">Good afternoon. All cognitive pipelines stabilized. I am ready to assist.</div>
+          </div>
+          <div class="chat-bubble user">
+            <div class="bubble-meta"><strong class="author text-gold">USER</strong> <span class="time">14:33</span></div>
+            <div class="bubble-text">Turn on Living Room lights and check expenses.</div>
+          </div>
+          <div class="chat-bubble ai">
+            <div class="bubble-meta"><strong class="author text-cyan">ATULYA</strong> <span class="time">14:33</span></div>
+            <div class="bubble-text">Living Room lights activated at 80% warm ambience. Current monthly expenses: ₹45,670 across Swiggy, Groceries, and Utilities.</div>
+          </div>
+        </div>
+
+        <!-- Prompt Input Form -->
+        <form class="chat-input-bar" id="v2-chat-form">
+          <button type="button" class="btn-icon" id="v2-mic-btn" title="Toggle Voice Microphone">🎙️</button>
+          <input type="text" id="v2-chat-input" placeholder="Type a message or speak..." autocomplete="off">
+          <button type="submit" class="btn-send" id="v2-send-btn">SEND</button>
+        </form>
+      </div>
+
+      <!-- Cyberpunk Music Player Card (Integrated from concept art!) -->
+      <div class="cyber-player-card">
+        <div class="player-cover">
+          <img src="/icons/icon-192.png" alt="Album Art" id="v2-cover-img">
+          <span class="player-glow"></span>
+        </div>
+        <div class="player-details">
+          <div class="player-track" id="v2-track-title">Midnight Drive</div>
+          <div class="player-artist" id="v2-artist">Synthwave Essentials</div>
+          <div class="player-progress-bar"><div class="player-fill" id="v2-track-fill" style="width: 35%"></div></div>
+          <div class="player-times"><span>0:45</span><span>3:30</span></div>
+        </div>
+        <div class="player-controls">
+          <button type="button" class="p-btn" id="v2-prev" title="Previous">⏮</button>
+          <button type="button" class="p-btn p-play" id="v2-play" title="Play / Pause">▶</button>
+          <button type="button" class="p-btn" id="v2-next" title="Next">⏭</button>
+        </div>
+      </div>
+
+    </aside>
+  </main>
+
+  <!-- Status & Gesture Guide Modal -->
+  <dialog id="v2-legend-modal" class="cyber-modal">
+    <header class="modal-header">
+      <h2>STATUS INDICATORS & GESTURE COMMANDS</h2>
+      <button type="button" class="btn-close" id="v2-close-legend">✕</button>
+    </header>
+    <div class="modal-body">
+      <h3>Status Colors Legend</h3>
+      <div class="legend-grid">
+        <div class="l-card"><span class="status-pip green"></span><div><strong>🟢 Green · Active / Live</strong><p>Service is streaming, scanning frames, or executing actions actively.</p></div></div>
+        <div class="l-card"><span class="status-pip blue"></span><div><strong>🔵 Blue · Ready / Connected</strong><p>Linked and waiting for triggers or queries.</p></div></div>
+        <div class="l-card"><span class="status-pip yellow"></span><div><strong>🟡 Yellow · Standby / Initializing</strong><p>Armed but waiting for dependencies (e.g. Gestures waiting for Camera) or starting.</p></div></div>
+        <div class="l-card"><span class="status-pip red"></span><div><strong>🔴 Red · Inactive / Off</strong><p>Powered down or disconnected. Click to activate.</p></div></div>
+      </div>
+      <h3>Hand Gestures Quick Reference</h3>
+      <div class="modal-gestures">
+        <div class="mg-card"><span>✋</span><strong>Open Palm</strong><small>Stop speech & mute voice</small></div>
+        <div class="mg-card"><span>👍</span><strong>Thumbs Up</strong><small>Confirm / Send "Yes"</small></div>
+        <div class="mg-card"><span>👎</span><strong>Thumbs Down</strong><small>Cancel / Send "No"</small></div>
+        <div class="mg-card"><span>✌️</span><strong>Victory</strong><small>Inspect camera scene</small></div>
+        <div class="mg-card"><span>☝️</span><strong>Point Up</strong><small>Wake voice / Listen</small></div>
+        <div class="mg-card"><span>✊</span><strong>Closed Fist</strong><small>Pause media & silence</small></div>
+        <div class="mg-card"><span>🤟</span><strong>Jarvis Salute</strong><small>System health report</small></div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Global Action Toast -->
+  <div id="v2-toast" class="v2-toast" hidden></div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
