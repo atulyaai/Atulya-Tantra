@@ -1,12 +1,15 @@
-# Contributors
+﻿# Contributors
 
-Atulya AI maintains Atulya-Tantra. The following coding assistants support development under the maintainer's direction:
+Atulya AI maintains Atulya-Tantra. The following engineers and coding assistants support development under the maintainer's direction:
 
-| Assistant | Development branch | Role |
+| Contributor / Assistant | Handle / Account | Role |
 | --- | --- | --- |
-| Antigravity | `antigravity` | Architecture, systems design and pair programming |
-| Claude | `claude` | Implementation and review |
-| Codex | `codex/work` | Implementation, tests and integration |
-| Grok | `grok` | Implementation and review |
+| **Shimon Schwartz** | [@shimonenator](https://github.com/shimonenator) | Core Engineering & Architecture (Google) |
+| **antigravity-bot** | [@antigravity-bot](https://github.com/antigravity-bot) | Autonomous AI Engineering Agent |
+| **AntiGravity** | [@AntiGravity](https://github.com/AntiGravity) | AI Co-Architect & System Integration |
+| **antigravity-ai** | [@antigravity-ai](https://github.com/antigravity-ai) | AI Systems & Heuristics Optimization |
+| **Claude** | [@claude](https://github.com/claude) | Implementation and review |
+| **Codex** | [@codex](https://github.com/codex) | Implementation, tests and integration |
+| **Grok** | `grok` | Implementation and review |
 
-These credits identify tools used by contributors, not GitHub accounts or access grants. Human maintainers remain responsible for reviewing and publishing changes.
+These credits identify team members and tools used by contributors. Human maintainers remain responsible for reviewing and publishing changes.
