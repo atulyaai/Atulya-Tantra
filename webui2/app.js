@@ -96,353 +96,832 @@
   setInterval(pollStatus, 5000);
   pollStatus();
 
-  // 4. Brand New Atulya Golden Quantum Core Hologram (No Old v1 Images!)
+  // ==============================================================
+  // ==============================================================
+  // 4. UNIFIED MASTER 3D HOLOGRAPHIC QUANTUM ENGINE (ALL-IN-ONE COMBINATION)
+  // Generative Iridescent GLSL Core + Rainbow Gyro Rings + Orbiting Photons
+  // + 96-Blade Chromatic Equalizer Crown + Feathered Cybernetic Face
+  // ==============================================================
   const holoCanvas = $("hologram-canvas");
-  const hCtx = holoCanvas.getContext("2d");
-  let hW = 0, hH = 0;
+  let renderer = null;
+  let scene = null;
+  let camera = null;
+  let holoGroup = null;
+  let avatarMesh = null;
+  let avatarTextures = {};
+  let coreSphere = null;
+  let coreShaderMat = null;
+  let plasmaShell = null;
+  let ring1 = null, ring2 = null, ring3 = null;
+  let photonBeacons = [];
+  let vocalizerGroup = null;
+  let vocalizerBars = [];
+  let emberPoints = null;
+  let emberGeo = null;
+  let emberPositions = null;
+  let emberVelocities = [];
+  let gridFloor = null, gridCeiling = null;
+  let shockwaveMeshes = [];
+  let corePointLight = null;
+  let rimCyanLight = null;
+  let rimPurpleLight = null;
+  let ambientLight = null;
+
   let mouseX = 0, mouseY = 0;
-  let targetRotX = 0, targetRotY = 0;
-  let rotX = 0, rotY = 0;
-  let avatarState = "idle"; // "idle" | "listening" | "thinking" | "speaking"
+  let targetCamX = 0, targetCamY = 0;
+  let avatarState = "idle"; // "idle" | "listening" | "thinking" | "speaking" | "strong"
+  let currentPaletteKey = "prismatic";
+  let voiceEnergy = 0;
+  let holoTime = 0;
+  let isAssembled = false;
+  let assemblyProgress = 0;
+  let assemblyStartTime = performance.now();
+  const ASSEMBLY_DURATION = 3500;
 
-  function resizeHologram() {
-    if (!holoCanvas || !holoCanvas.parentElement) return;
-    hW = holoCanvas.width = holoCanvas.parentElement.clientWidth;
-    hH = holoCanvas.height = holoCanvas.parentElement.clientHeight;
-  }
-  window.addEventListener("resize", resizeHologram);
-  resizeHologram();
-
-  // Load Brand New Golden Quantum Core State Assets
-  const coreImages = {};
-  const coreSources = {
-    idle: "./assets/atulya-core-idle.jpg",
-    thinking: "./assets/atulya-core-thinking.jpg",
-    speaking: "./assets/atulya-core-speaking.jpg",
+  // 5 Cutting-Edge Multi-Color Palettes
+  const COLOR_PALETTES = {
+    prismatic: {
+      name: "PRISMATIC HYPER-CHROMA",
+      a: [0.5, 0.5, 0.5],
+      b: [0.5, 0.5, 0.5],
+      c: [1.0, 1.0, 1.0],
+      d: [0.00, 0.33, 0.67], // Full spectrum continuous rainbow
+      floorColor: 0xff007f,
+      gridColor: 0x00f5d4,
+      ceilingColor: 0xa855f7,
+      ambient: 0x160a28,
+      coreLight: 0xff007f,
+      rimLight: 0x00f5d4,
+    },
+    synthwave: {
+      name: "CYBER SYNTHWAVE",
+      a: [0.5, 0.5, 0.5],
+      b: [0.5, 0.5, 0.5],
+      c: [2.0, 1.0, 0.0],
+      d: [0.50, 0.20, 0.25], // Hot Magenta to Deep Ultraviolet
+      floorColor: 0xff007f,
+      gridColor: 0x7928ca,
+      ceilingColor: 0x00bbf9,
+      ambient: 0x1c0528,
+      coreLight: 0xff007f,
+      rimLight: 0x7928ca,
+    },
+    solar: {
+      name: "SOLAR SUPERNOVA",
+      a: [0.5, 0.5, 0.5],
+      b: [0.5, 0.5, 0.5],
+      c: [1.0, 1.0, 0.5],
+      d: [0.80, 0.90, 0.30], // Molten Gold to Amber
+      floorColor: 0xffbb00,
+      gridColor: 0xff5500,
+      ceilingColor: 0xffe600,
+      ambient: 0x241400,
+      coreLight: 0xffbb00,
+      rimLight: 0xff4400,
+    },
+    cosmic: {
+      name: "BIOLUMINESCENT COSMOS",
+      a: [0.5, 0.5, 0.5],
+      b: [0.5, 0.5, 0.5],
+      c: [1.0, 1.0, 1.0],
+      d: [0.30, 0.20, 0.80], // Teal to Emerald to Azure
+      floorColor: 0x00f5d4,
+      gridColor: 0x10b981,
+      ceilingColor: 0x0077b6,
+      ambient: 0x021f1d,
+      coreLight: 0x00f5d4,
+      rimLight: 0x10b981,
+    },
+    matrix: {
+      name: "ACID CYBER MATRIX",
+      a: [0.2, 0.7, 0.2],
+      b: [0.5, 0.5, 0.5],
+      c: [1.0, 1.0, 1.0],
+      d: [0.10, 0.33, 0.15], // Neon Green to Cyber Lime
+      floorColor: 0x10b981,
+      gridColor: 0x22c55e,
+      ceilingColor: 0x84cc16,
+      ambient: 0x041c0e,
+      coreLight: 0x22c55e,
+      rimLight: 0x10b981,
+    },
   };
 
-  Object.entries(coreSources).forEach(([key, src]) => {
+  // Pre-load and circularly feather avatar plates so they blend with zero borders
+  function loadFeatheredAvatarTexture(src) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext("2d");
+    const texture = new THREE.CanvasTexture(canvas);
+
     const img = new Image();
     img.crossOrigin = "anonymous";
-    img.onload = () => { coreImages[key] = img; };
+    img.onload = () => {
+      ctx.clearRect(0, 0, 512, 512);
+      ctx.drawImage(img, 0, 0, 512, 512);
+
+      // Feather edges with radial gradient mask to ensure zero rectangular boundaries
+      ctx.globalCompositeOperation = "destination-in";
+      const r = 256;
+      const grad = ctx.createRadialGradient(r, r, r * 0.52, r, r, r * 0.94);
+      grad.addColorStop(0, "rgba(0, 0, 0, 1)");
+      grad.addColorStop(0.72, "rgba(0, 0, 0, 0.92)");
+      grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(r, r, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      texture.needsUpdate = true;
+    };
     img.src = src;
-  });
+    return texture;
+  }
 
-  // Startup Assembly State & Particle Fields
-  let isAssembled = false;
-  let assemblyProgress = 0; // 0 to 1
-  const assemblyStartTime = performance.now();
-  const ASSEMBLY_DURATION = 3200; // 3.2s sequence
+  // Create a 360-degree continuous rainbow gradient Torus ring
+  function createRainbowTorus(radius, tube, radialSegs = 16, tubularSegs = 120, opacity = 0.85) {
+    const geo = new THREE.TorusGeometry(radius, tube, radialSegs, tubularSegs);
+    const count = geo.attributes.position.count;
+    const colors = new Float32Array(count * 3);
+    const pos = geo.attributes.position;
+    const color = new THREE.Color();
 
-  // Convergence Inward Assembly Spark Particles
-  const NUM_ASM_PARTICLES = 180;
-  const asmParticles = [];
-  for (let i = 0; i < NUM_ASM_PARTICLES; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const dist = 140 + Math.random() * 260;
-    asmParticles.push({
-      x: Math.cos(angle) * dist,
-      y: Math.sin(angle) * dist,
-      origX: Math.cos(angle) * dist,
-      origY: Math.sin(angle) * dist,
-      targetAngle: angle + Math.PI,
-      targetRadius: 10 + Math.random() * 50,
-      color: Math.random() > 0.35 ? "#f7ba5b" : "#65e7f5",
-      size: 1.2 + Math.random() * 2.4,
-      delay: Math.random() * 0.35,
+    for (let i = 0; i < count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const angle = Math.atan2(y, x);
+      const hue = (angle / (Math.PI * 2) + 0.5) % 1.0;
+      color.setHSL(hue, 1.0, 0.62);
+      colors[i * 3] = color.r;
+      colors[i * 3 + 1] = color.g;
+      colors[i * 3 + 2] = color.b;
+    }
+    geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+
+    const mat = new THREE.MeshBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      opacity: opacity,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+    return new THREE.Mesh(geo, mat);
+  }
+
+  function initThreeHologram() {
+    if (!holoCanvas || !window.THREE) return false;
+
+    try {
+      const parent = holoCanvas.parentElement;
+      const width = parent.clientWidth || 800;
+      const height = parent.clientHeight || 650;
+
+      // 1. WebGL Renderer with High-Performance Alpha & Antialias
+      renderer = new THREE.WebGLRenderer({
+        canvas: holoCanvas,
+        alpha: true,
+        antialias: true,
+        powerPreference: "high-performance",
+      });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+
+      // 2. 3D Scene with Atmospheric Cybernetic Depth Fog
+      scene = new THREE.Scene();
+      scene.fog = new THREE.FogExp2(0x020409, 0.002);
+
+      // 3. Perspective Camera
+      camera = new THREE.PerspectiveCamera(46, width / height, 1, 2500);
+      camera.position.set(0, 0, 360);
+
+      // 4. Multi-Color Chromatic Lighting Rig
+      ambientLight = new THREE.AmbientLight(0x160a28, 1.6);
+      scene.add(ambientLight);
+
+      corePointLight = new THREE.PointLight(0xff007f, 4.0, 600);
+      corePointLight.position.set(0, -10, 30);
+      scene.add(corePointLight);
+
+      rimCyanLight = new THREE.PointLight(0x00f5d4, 3.0, 480);
+      rimCyanLight.position.set(150, -40, 60);
+      scene.add(rimCyanLight);
+
+      rimPurpleLight = new THREE.PointLight(0xa855f7, 2.8, 480);
+      rimPurpleLight.position.set(-150, 90, -40);
+      scene.add(rimPurpleLight);
+
+      // 5. Dual-Tone Cyber Horizon Grid
+      gridFloor = new THREE.GridHelper(1100, 44, 0xff007f, 0x00f5d4);
+      gridFloor.position.y = -135;
+      gridFloor.material.opacity = 0.55;
+      gridFloor.material.transparent = true;
+      scene.add(gridFloor);
+
+      gridCeiling = new THREE.GridHelper(1100, 44, 0xa855f7, 0x1a0735);
+      gridCeiling.position.y = 150;
+      gridCeiling.material.opacity = 0.35;
+      gridCeiling.material.transparent = true;
+      scene.add(gridCeiling);
+
+      // 6. Volumetric 3D Multi-Color Rainbow Star Nebula (2,000 Particles)
+      const numParticles = 2000;
+      emberGeo = new THREE.BufferGeometry();
+      emberPositions = new Float32Array(numParticles * 3);
+      const emberColors = new Float32Array(numParticles * 3);
+
+      const palette = [
+        [1.0, 0.0, 0.5],   // #ff007f Hot Magenta
+        [0.66, 0.33, 0.97], // #a855f7 Ultraviolet
+        [0.0, 0.96, 0.83],  // #00f5d4 Electric Cyan
+        [0.0, 0.73, 0.98],  // #00bbf9 Azure Blue
+        [1.0, 0.90, 0.25],  // #fee440 Solar Gold
+        [0.06, 0.72, 0.5],  // #10b981 Emerald
+      ];
+
+      for (let i = 0; i < numParticles; i++) {
+        emberPositions[i * 3] = (Math.random() - 0.5) * 900;
+        emberPositions[i * 3 + 1] = (Math.random() - 0.5) * 700;
+        emberPositions[i * 3 + 2] = (Math.random() - 0.5) * 800;
+
+        emberVelocities.push({
+          vy: 0.25 + Math.random() * 0.85,
+          wobbleSpeed: 0.8 + Math.random() * 2,
+          wobbleAmp: 0.5 + Math.random() * 1.5,
+          origX: emberPositions[i * 3],
+          angle: Math.random() * Math.PI * 2,
+        });
+
+        const c = palette[Math.floor(Math.random() * palette.length)];
+        emberColors[i * 3] = c[0];
+        emberColors[i * 3 + 1] = c[1];
+        emberColors[i * 3 + 2] = c[2];
+      }
+
+      emberGeo.setAttribute("position", new THREE.BufferAttribute(emberPositions, 3));
+      emberGeo.setAttribute("color", new THREE.BufferAttribute(emberColors, 3));
+
+      const emberMat = new THREE.PointsMaterial({
+        size: 2.8,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.92,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+
+      emberPoints = new THREE.Points(emberGeo, emberMat);
+      scene.add(emberPoints);
+
+      // 7. Multi-Layered Holographic Quantum Entity Group
+      holoGroup = new THREE.Group();
+      scene.add(holoGroup);
+
+      // 7A. Generative Iridescent GLSL Core Sphere (Custom Shader)
+      const p = COLOR_PALETTES.prismatic;
+      coreShaderMat = new THREE.ShaderMaterial({
+        uniforms: {
+          uTime: { value: 0.0 },
+          uVoiceEnergy: { value: 0.0 },
+          uPalA: { value: new THREE.Vector3(...p.a) },
+          uPalB: { value: new THREE.Vector3(...p.b) },
+          uPalC: { value: new THREE.Vector3(...p.c) },
+          uPalD: { value: new THREE.Vector3(...p.d) },
+          uGlowIntensity: { value: 2.4 },
+        },
+        vertexShader: `
+          uniform float uTime;
+          uniform float uVoiceEnergy;
+          varying vec3 vNormal;
+          varying vec3 vViewPosition;
+          varying vec3 vWorldPosition;
+          varying vec2 vUv;
+
+          void main() {
+            vUv = uv;
+            vNormal = normalize(normalMatrix * normal);
+            
+            // Dynamic liquid wave deformation
+            vec3 pos = position;
+            float wave = sin(pos.y * 0.11 + uTime * 3.2) * cos(pos.x * 0.11 + uTime * 2.6) * sin(pos.z * 0.09 + uTime * 2.1);
+            pos += normal * wave * (2.6 + uVoiceEnergy * 9.0);
+
+            vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+            vViewPosition = -mvPosition.xyz;
+            vWorldPosition = (modelMatrix * vec4(pos, 1.0)).xyz;
+            gl_Position = projectionMatrix * mvPosition;
+          }
+        `,
+        fragmentShader: `
+          uniform float uTime;
+          uniform float uVoiceEnergy;
+          uniform vec3 uPalA;
+          uniform vec3 uPalB;
+          uniform vec3 uPalC;
+          uniform vec3 uPalD;
+          uniform float uGlowIntensity;
+          varying vec3 vNormal;
+          varying vec3 vViewPosition;
+          varying vec3 vWorldPosition;
+          varying vec2 vUv;
+
+          vec3 palette(float t) {
+            return uPalA + uPalB * cos(6.28318 * (uPalC * t + uPalD));
+          }
+
+          void main() {
+            vec3 normal = normalize(vNormal);
+            vec3 viewDir = normalize(vViewPosition);
+
+            // Dynamic Fresnel rim glow
+            float fresnel = 1.0 - max(dot(normal, viewDir), 0.0);
+            fresnel = pow(fresnel, 2.0);
+
+            // Shifting rainbow bands across the surface
+            float t = fresnel * 1.5 + vWorldPosition.y * 0.009 + uTime * 0.32 + uVoiceEnergy * 0.45;
+            vec3 chromatic = palette(t);
+
+            // Intense incandescent glow
+            vec3 rim = chromatic * fresnel * uGlowIntensity;
+            vec3 core = chromatic * 0.9 + vec3(1.0, 1.0, 1.0) * pow(fresnel, 4.0) * 0.7;
+            vec3 finalCol = core + rim + (chromatic * uVoiceEnergy * 1.6);
+
+            gl_FragColor = vec4(finalCol, 0.95);
+          }
+        `,
+        transparent: true,
+      });
+
+      const coreGeo = new THREE.SphereGeometry(38, 48, 48);
+      coreSphere = new THREE.Mesh(coreGeo, coreShaderMat);
+      coreSphere.position.set(0, -10, 4);
+      holoGroup.add(coreSphere);
+
+      // Outer Ethereal Pulsing Chromatic Halo Corona (Star Dust Points)
+      const plasmaGeo = new THREE.IcosahedronGeometry(56, 2);
+      const plasmaMat = new THREE.PointsMaterial({
+        size: 3.5,
+        color: 0x00f5d4,
+        transparent: true,
+        opacity: 0.75,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      plasmaShell = new THREE.Points(plasmaGeo, plasmaMat);
+      plasmaShell.position.set(0, -10, 4);
+      holoGroup.add(plasmaShell);
+
+      // 7B. Synthetic Cybernetic Humanoid Face Avatar Mesh (Feathered & Luminous)
+      avatarTextures.idle = loadFeatheredAvatarTexture("./assets/atulya-avatar-idle.webp");
+      avatarTextures.speaking = loadFeatheredAvatarTexture("./assets/atulya-avatar-speaking.webp");
+
+      const avatarGeo = new THREE.PlaneGeometry(164, 164);
+      const avatarMat = new THREE.MeshBasicMaterial({
+        map: avatarTextures.idle,
+        transparent: true,
+        opacity: 0.98,
+        blending: THREE.NormalBlending,
+        depthWrite: false,
+      });
+      avatarMesh = new THREE.Mesh(avatarGeo, avatarMat);
+      avatarMesh.position.set(0, 18, 12);
+      holoGroup.add(avatarMesh);
+
+      // 7C. 96-Blade Chromatic Sunburst Equalizer Crown
+      vocalizerGroup = new THREE.Group();
+      vocalizerGroup.position.set(0, -6, 8);
+      const numVocalBars = 96;
+      const barGeo = new THREE.BoxGeometry(1.5, 16, 1.5);
+      for (let b = 0; b < numVocalBars; b++) {
+        const hue = b / numVocalBars;
+        const barColor = new THREE.Color().setHSL(hue, 1.0, 0.62);
+        const barMat = new THREE.MeshBasicMaterial({
+          color: barColor,
+          transparent: true,
+          opacity: 0.85,
+          blending: THREE.AdditiveBlending,
+        });
+        const barMesh = new THREE.Mesh(barGeo, barMat);
+        const bAngle = (b / numVocalBars) * Math.PI * 2;
+        barMesh.position.set(Math.cos(bAngle) * 72, Math.sin(bAngle) * 72, 0);
+        barMesh.rotation.z = bAngle - Math.PI / 2;
+        vocalizerGroup.add(barMesh);
+        vocalizerBars.push({ mesh: barMesh, angle: bAngle, baseHue: hue });
+      }
+      holoGroup.add(vocalizerGroup);
+
+      // 7D. Triple 360-Degree Rainbow Gyroscopic Rings
+      ring1 = createRainbowTorus(114, 1.6, 16, 120, 0.88);
+      ring1.position.set(0, 4, 0);
+      ring1.rotation.x = Math.PI * 0.22;
+      holoGroup.add(ring1);
+
+      ring2 = createRainbowTorus(138, 1.5, 16, 120, 0.82);
+      ring2.position.set(0, 4, 0);
+      ring2.rotation.y = Math.PI * 0.28;
+      holoGroup.add(ring2);
+
+      ring3 = createRainbowTorus(162, 1.8, 16, 120, 0.76);
+      ring3.position.set(0, 4, 0);
+      ring3.rotation.z = Math.PI * 0.15;
+      holoGroup.add(ring3);
+
+      // 7E. Three Orbiting Photon Beacons Traveling on the Rings
+      const beaconCols = [0xff007f, 0x00f5d4, 0xfee440];
+      const beaconRadii = [114, 138, 162];
+      const beaconSpeeds = [0.035, -0.028, 0.022];
+      for (let i = 0; i < 3; i++) {
+        const bGeo = new THREE.SphereGeometry(3.5, 16, 16);
+        const bMat = new THREE.MeshBasicMaterial({
+          color: beaconCols[i],
+          blending: THREE.AdditiveBlending,
+        });
+        const bMesh = new THREE.Mesh(bGeo, bMat);
+        const bLight = new THREE.PointLight(beaconCols[i], 1.8, 120);
+        bMesh.add(bLight);
+        holoGroup.add(bMesh);
+        photonBeacons.push({
+          mesh: bMesh,
+          radius: beaconRadii[i],
+          speed: beaconSpeeds[i],
+          angle: (i * Math.PI * 2) / 3,
+          ringIndex: i,
+        });
+      }
+
+      // Window resize event handler
+      window.addEventListener("resize", onWindowResize);
+      return true;
+    } catch (err) {
+      console.error("[Atulya 3D] WebGL Initialization Error:", err);
+      return false;
+    }
+  }
+
+  function onWindowResize() {
+    if (!renderer || !camera || !holoCanvas || !holoCanvas.parentElement) return;
+    const parent = holoCanvas.parentElement;
+    const w = parent.clientWidth || 800;
+    const h = parent.clientHeight || 650;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+  }
+
+  // Set Palette Preset Dynamically
+  function setChromaPalette(paletteKey) {
+    if (!COLOR_PALETTES[paletteKey]) return;
+    currentPaletteKey = paletteKey;
+    const p = COLOR_PALETTES[paletteKey];
+
+    // 1. Update shader uniforms
+    if (coreShaderMat && coreShaderMat.uniforms) {
+      coreShaderMat.uniforms.uPalA.value.set(...p.a);
+      coreShaderMat.uniforms.uPalB.value.set(...p.b);
+      coreShaderMat.uniforms.uPalC.value.set(...p.c);
+      coreShaderMat.uniforms.uPalD.value.set(...p.d);
+    }
+
+    // 2. Update lights
+    if (corePointLight) corePointLight.color.setHex(p.coreLight);
+    if (rimCyanLight) rimCyanLight.color.setHex(p.rimLight);
+    if (ambientLight) ambientLight.color.setHex(p.ambient);
+
+    // 3. Update floor & ceiling grids
+    if (gridFloor) {
+      gridFloor.material.color.setHex(p.floorColor);
+    }
+    if (gridCeiling) {
+      gridCeiling.material.color.setHex(p.ceilingColor);
+    }
+
+    // 4. Update UI Buttons
+    const themeButtons = document.querySelectorAll(".theme-pill-btn[data-palette]");
+    themeButtons.forEach((btn) => {
+      if (btn.dataset.palette === paletteKey) btn.classList.add("active");
+      else btn.classList.remove("active");
+    });
+
+    emit3DShockwave(p.coreLight, 320);
+    showToast(`Palette: ${p.name}`);
+  }
+
+  // Trigger 3D Shockwave Ripple
+  function emit3DShockwave(color = 0xff007f, maxRadius = 260) {
+    if (!scene) return;
+    const ringGeo = new THREE.RingGeometry(15, 18, 64);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: color,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.88,
+      blending: THREE.AdditiveBlending,
+    });
+    const mesh = new THREE.Mesh(ringGeo, ringMat);
+    mesh.position.set(0, -6, 12);
+    scene.add(mesh);
+    shockwaveMeshes.push({
+      mesh: mesh,
+      radius: 15,
+      maxRadius: maxRadius,
+      speed: 5.2,
     });
   }
 
-  // Floating Quantum Spark Embers
-  const NUM_EMBERS = 90;
-  const embers = [];
-  for (let i = 0; i < NUM_EMBERS; i++) {
-    embers.push({
-      x: (Math.random() - 0.5) * 280,
-      y: (Math.random() - 0.5) * 280,
-      z: (Math.random() - 0.5) * 180,
-      vy: 0.35 + Math.random() * 0.75,
-      wobbleSpeed: 1 + Math.random() * 2,
-      wobbleAmp: 0.8 + Math.random() * 1.6,
-      size: 0.9 + Math.random() * 1.8,
-      color: Math.random() > 0.3 ? "#f7ba5b" : "#65e7f5",
-      alpha: 0.2 + Math.random() * 0.8,
-    });
+  // Trigger Quantum Assembly Sequence
+  function triggerAssemblySequence() {
+    isAssembled = false;
+    assemblyProgress = 0;
+    assemblyStartTime = performance.now();
+    if (assemblyBanner) assemblyBanner.classList.remove("hidden");
+    if (holoStatusText) holoStatusText.textContent = "ASSEMBLY: QUANTUM PARTICLES CONVERGING...";
   }
 
-  // Multi-layered 3D Gyroscopic Rings
-  const rings = [
-    { radius: 135, tilt: 0.48, speed: 0.012, color: "#f7ba5b", segments: 48, dash: 3, width: 2 },
-    { radius: 165, tilt: -0.38, speed: -0.009, color: "#ffd98a", segments: 40, dash: 2, width: 1.8 },
-    { radius: 195, tilt: 0.18, speed: 0.006, color: "#65e7f5", segments: 56, dash: 4, width: 1.5 },
-    { radius: 225, tilt: -0.22, speed: -0.004, color: "#38bdf8", segments: 64, dash: 5, width: 1.2 },
-  ];
-
+  // Mouse Parallax Controller
   window.addEventListener("mousemove", (e) => {
     if (!holoCanvas) return;
     const rect = holoCanvas.getBoundingClientRect();
     mouseX = (e.clientX - rect.left - rect.width / 2) / (rect.width / 2);
     mouseY = (e.clientY - rect.top - rect.height / 2) / (rect.height / 2);
-    targetRotY = Math.max(-0.45, Math.min(0.45, mouseX * 0.4));
-    targetRotX = Math.max(-0.35, Math.min(0.35, -mouseY * 0.3));
+    targetCamX = Math.max(-50, Math.min(50, mouseX * 45));
+    targetCamY = Math.max(-35, Math.min(35, -mouseY * 35));
   });
 
-  let holoTime = 0;
-  let shockwaveRadius = 0;
+  if (holoCanvas) {
+    holoCanvas.addEventListener("click", () => {
+      const p = COLOR_PALETTES[currentPaletteKey] || COLOR_PALETTES.prismatic;
+      emit3DShockwave(p.coreLight, 280);
+    });
+  }
 
-  function renderHologram() {
-    requestAnimationFrame(renderHologram);
-    if (!hCtx || hW === 0 || hH === 0) return;
+  // 60FPS 3D Render & Animation Loop
+  function animateThreeHologram() {
+    requestAnimationFrame(animateThreeHologram);
+    if (!renderer || !scene || !camera) return;
 
     holoTime += 0.02;
-    rotX += (targetRotX - rotX) * 0.06;
-    rotY += (targetRotY - rotY) * 0.06;
-
-    hCtx.clearRect(0, 0, hW, hH);
-
-    const cx = hW / 2;
-    const cy = hH / 2 - 8;
     const now = performance.now();
 
-    // 1. Assembly Sequence (Convergence of Quantum Sparks into Golden Core)
+    // Smooth Camera Mouse Parallax
+    camera.position.x += (targetCamX - camera.position.x) * 0.05;
+    camera.position.y += (targetCamY - camera.position.y) * 0.05;
+    camera.lookAt(0, 0, 0);
+
+    // Subtle Grid Floor Scrolling into Depth
+    if (gridFloor) gridFloor.position.z = (holoTime * 35) % 25;
+    if (gridCeiling) gridCeiling.position.z = -(holoTime * 25) % 25;
+
+    // Speech audio cadence modulation
+    if (avatarState === "speaking" || avatarState === "strong") {
+      voiceEnergy = 0.5 + Math.sin(holoTime * 14) * 0.35 + Math.sin(holoTime * 7) * 0.15;
+    } else if (avatarState === "listening") {
+      voiceEnergy = 0.28 + Math.sin(holoTime * 8) * 0.2;
+    } else {
+      voiceEnergy *= 0.9;
+    }
+
+    // ==============================================================
+    // 1. Quantum Assembly Progression
+    // ==============================================================
     if (!isAssembled) {
       const elapsed = now - assemblyStartTime;
       assemblyProgress = Math.min(1, elapsed / ASSEMBLY_DURATION);
 
+      let phaseTitle = "PHASE 1: CONVERGING QUANTUM LATTICE";
+      if (assemblyProgress > 0.65) phaseTitle = "PHASE 3: SYNCHRONIZING SINGULARITY";
+      else if (assemblyProgress > 0.32) phaseTitle = "PHASE 2: LOCKING CONTAINMENT ARCS";
+
       if (assemblyProgressText) {
-        assemblyProgressText.textContent = `QUANTUM SYNCHRONIZATION: ${Math.min(99, Math.round(assemblyProgress * 100))}%`;
+        assemblyProgressText.textContent = `${phaseTitle} · ${Math.min(99, Math.round(assemblyProgress * 100))}%`;
       }
       if (assemblyBarFill) {
         assemblyBarFill.style.width = `${assemblyProgress * 100}%`;
       }
 
-      // Draw inward-streaming quantum sparks
-      hCtx.save();
-      for (let i = 0; i < asmParticles.length; i++) {
-        const p = asmParticles[i];
-        const pProg = Math.max(0, Math.min(1, (assemblyProgress - p.delay) / (1 - p.delay)));
-        const easeProg = pProg * pProg * (3 - 2 * pProg);
-        const curX = cx + p.origX * (1 - easeProg * 0.9);
-        const curY = cy + p.origY * (1 - easeProg * 0.9);
-
-        hCtx.fillStyle = p.color;
-        hCtx.globalAlpha = 0.3 + 0.7 * easeProg;
-        hCtx.beginPath();
-        hCtx.arc(curX, curY, p.size * (1 - easeProg * 0.2), 0, Math.PI * 2);
-        hCtx.fill();
-      }
-      hCtx.restore();
-
-      // Glowing central singularity ignition during assembly
-      const igniteR = 15 + assemblyProgress * 85;
-      const igniteGrad = hCtx.createRadialGradient(cx, cy, 2, cx, cy, igniteR);
-      igniteGrad.addColorStop(0, "rgba(255, 255, 255, " + assemblyProgress + ")");
-      igniteGrad.addColorStop(0.3, "rgba(247, 186, 91, " + (assemblyProgress * 0.8) + ")");
-      igniteGrad.addColorStop(1, "transparent");
-      hCtx.fillStyle = igniteGrad;
-      hCtx.beginPath();
-      hCtx.arc(cx, cy, igniteR, 0, Math.PI * 2);
-      hCtx.fill();
-
-      // Preview fading in of golden orb
-      const idleImg = coreImages.idle;
-      if (idleImg && idleImg.complete && idleImg.naturalWidth > 0 && assemblyProgress > 0.4) {
-        hCtx.save();
-        hCtx.globalCompositeOperation = "screen";
-        hCtx.globalAlpha = (assemblyProgress - 0.4) * 1.5;
-        const previewSize = 240 * (assemblyProgress * 0.9);
-        hCtx.drawImage(idleImg, cx - previewSize / 2, cy - previewSize / 2, previewSize, previewSize);
-        hCtx.restore();
+      if (holoGroup) {
+        const ease = assemblyProgress * assemblyProgress * (3 - 2 * assemblyProgress);
+        holoGroup.scale.set(ease, ease, ease);
       }
 
       if (assemblyProgress >= 1) {
         isAssembled = true;
-        shockwaveRadius = 15;
+        emit3DShockwave(0xff007f, 320);
+        emit3DShockwave(0x00f5d4, 260);
         if (assemblyBanner) assemblyBanner.classList.add("hidden");
         if (holoStatusText) holoStatusText.textContent = "STATUS: ONLINE · ATULYA NEURAL REACTOR ACTIVE";
         showToast("Atulya Quantum Neural Core: ASSEMBLED & ONLINE 🟢");
       }
-      return;
-    }
-
-    // Assembly Complete: Expanding Quantum Shockwave
-    if (shockwaveRadius > 0 && shockwaveRadius < 360) {
-      shockwaveRadius += 7;
-      hCtx.save();
-      hCtx.strokeStyle = "rgba(247, 186, 91, " + (1 - shockwaveRadius / 360) * 0.85 + ")";
-      hCtx.lineWidth = 2.5;
-      hCtx.beginPath();
-      hCtx.arc(cx, cy, shockwaveRadius, 0, Math.PI * 2);
-      hCtx.stroke();
-      hCtx.restore();
-    }
-
-    const breathing = Math.sin(holoTime * 1.8) * 0.02;
-
-    // 2. Holographic Radial Core Background Aura
-    const auraRadius = Math.min(hW, hH) * 0.44;
-    const auraGrad = hCtx.createRadialGradient(cx, cy, 10, cx, cy, auraRadius);
-    if (avatarState === "listening") {
-      auraGrad.addColorStop(0, "rgba(101, 231, 245, 0.45)");
-      auraGrad.addColorStop(0.35, "rgba(247, 186, 91, 0.2)");
-    } else if (avatarState === "thinking") {
-      auraGrad.addColorStop(0, "rgba(247, 186, 91, 0.5)");
-      auraGrad.addColorStop(0.35, "rgba(101, 231, 245, 0.18)");
-    } else if (avatarState === "speaking") {
-      auraGrad.addColorStop(0, "rgba(247, 186, 91, 0.6)");
-      auraGrad.addColorStop(0.3, "rgba(255, 145, 0, 0.3)");
     } else {
-      auraGrad.addColorStop(0, "rgba(247, 186, 91, 0.3)");
-      auraGrad.addColorStop(0.4, "rgba(101, 231, 245, 0.12)");
+      const breathing = 1 + Math.sin(holoTime * 1.8) * 0.02 + voiceEnergy * 0.04;
+      if (holoGroup) holoGroup.scale.set(breathing, breathing, breathing);
     }
-    auraGrad.addColorStop(1, "transparent");
 
-    hCtx.fillStyle = auraGrad;
-    hCtx.beginPath();
-    hCtx.arc(cx, cy, auraRadius, 0, Math.PI * 2);
-    hCtx.fill();
+    // ==============================================================
+    // 2. Synthetic Avatar Texture Swap (Speaking vs Idle)
+    // ==============================================================
+    if (avatarMesh && avatarTextures.idle && avatarTextures.speaking) {
+      const isSpeaking = avatarState === "speaking" || avatarState === "strong";
+      avatarMesh.material.map = isSpeaking ? avatarTextures.speaking : avatarTextures.idle;
+      avatarMesh.material.needsUpdate = true;
+    }
 
-    // 3. Render Golden Quantum AI Core (The Central Hero Visual)
-    let activeCore = coreImages.idle;
-    if (avatarState === "thinking" && coreImages.thinking) activeCore = coreImages.thinking;
-    else if (avatarState === "speaking" && coreImages.speaking) activeCore = coreImages.speaking;
+    // ==============================================================
+    // 3. Gyroscopic Orbital Rings Rotation & Wobble
+    // ==============================================================
+    if (ring1) {
+      ring1.rotation.z += 0.014;
+      ring1.rotation.x = Math.PI * 0.22 + Math.sin(holoTime * 0.8) * 0.12;
+    }
+    if (ring2) {
+      ring2.rotation.y += 0.018;
+      ring2.rotation.z = Math.PI * 0.15 + Math.cos(holoTime * 0.6) * 0.15;
+      const r2Scale = 1 + voiceEnergy * 0.12;
+      ring2.scale.set(r2Scale, r2Scale, r2Scale);
+    }
+    if (ring3) {
+      ring3.rotation.z -= 0.009;
+      ring3.rotation.x = -Math.PI * 0.18 + Math.sin(holoTime * 0.5) * 0.1;
+    }
 
-    if (activeCore && activeCore.complete && activeCore.naturalWidth > 0) {
-      hCtx.save();
+    // Orbiting Photon Beacons
+    for (let i = 0; i < photonBeacons.length; i++) {
+      const pb = photonBeacons[i];
+      pb.angle += pb.speed;
+      const x = Math.cos(pb.angle) * pb.radius;
+      const y = Math.sin(pb.angle) * pb.radius;
+      if (pb.ringIndex === 0) {
+        pb.mesh.position.set(x, y * Math.cos(Math.PI * 0.22), y * Math.sin(Math.PI * 0.22));
+      } else if (pb.ringIndex === 1) {
+        pb.mesh.position.set(x * Math.cos(Math.PI * 0.28), y, x * Math.sin(Math.PI * 0.28));
+      } else {
+        pb.mesh.position.set(x, y, Math.sin(pb.angle * 2) * 20);
+      }
+    }
 
-      // Mouse Parallax & Breathing
-      const shiftX = rotY * 35;
-      const shiftY = -rotX * 25;
-      const coreScale = (1 + breathing) * (Math.min(hW, hH) / 440);
-      const coreSize = 310 * coreScale;
+    // ==============================================================
+    // 4. Update Generative Iridescent GLSL Core Shader
+    // ==============================================================
+    if (coreShaderMat && coreShaderMat.uniforms) {
+      coreShaderMat.uniforms.uTime.value = holoTime;
+      coreShaderMat.uniforms.uVoiceEnergy.value = voiceEnergy;
 
-      hCtx.translate(cx + shiftX, cy + shiftY);
+      if (corePointLight) {
+        corePointLight.intensity = 3.2 + voiceEnergy * 4.5;
+        corePointLight.position.x = Math.sin(holoTime * 1.6) * 35;
+        corePointLight.position.y = -10 + Math.cos(holoTime * 1.2) * 20;
+      }
+    }
 
-      // Render Golden Core Sphere with Screen Blending for True Hologram Radiance
-      hCtx.globalCompositeOperation = "screen";
-      hCtx.globalAlpha = 0.94;
-      hCtx.drawImage(activeCore, -coreSize / 2, -coreSize / 2, coreSize, coreSize);
+    // Plasma Shell Pulse & Dynamic Rotation
+    if (plasmaShell) {
+      plasmaShell.rotation.y -= 0.014;
+      plasmaShell.rotation.z += 0.009;
+      const plasmaScale = 1 + Math.sin(holoTime * 3) * 0.06 + voiceEnergy * 0.12;
+      plasmaShell.scale.set(plasmaScale, plasmaScale, plasmaScale);
+      plasmaShell.material.color.setHSL((holoTime * 0.08 + 0.5) % 1.0, 1.0, 0.6);
+    }
 
-      // Central Arc Singularity Pulse
-      const pulseR = (28 + Math.sin(holoTime * 6) * 10) * coreScale;
-      const pulseGrad = hCtx.createRadialGradient(0, 0, 2, 0, 0, pulseR * 2.2);
-      pulseGrad.addColorStop(0, "rgba(255, 255, 255, 0.95)");
-      pulseGrad.addColorStop(0.3, "rgba(247, 186, 91, 0.7)");
-      pulseGrad.addColorStop(1, "transparent");
-      hCtx.fillStyle = pulseGrad;
-      hCtx.beginPath();
-      hCtx.arc(0, 0, pulseR * 2.2, 0, Math.PI * 2);
-      hCtx.fill();
+    // ==============================================================
+    // 5. Dynamic 96-Blade Rainbow Vocalizer Halo ("Speaking Soundburst")
+    // ==============================================================
+    if (vocalizerBars.length > 0) {
+      const isSpeaking = avatarState === "speaking" || avatarState === "strong";
+      const isListening = avatarState === "listening";
 
-      // Speaking or Listening Resonance Shockwaves
-      if (avatarState === "speaking") {
-        for (let wave = 0; wave < 3; wave++) {
-          const wR = ((holoTime * 60 + wave * 45) % 130) * coreScale;
-          const wAlpha = Math.max(0, 1 - wR / (130 * coreScale));
-          hCtx.strokeStyle = `rgba(247, 186, 91, ${wAlpha * 0.75})`;
-          hCtx.lineWidth = 2;
-          hCtx.beginPath();
-          hCtx.arc(0, 0, wR + 80 * coreScale, 0, Math.PI * 2);
-          hCtx.stroke();
+      for (let b = 0; b < vocalizerBars.length; b++) {
+        const item = vocalizerBars[b];
+        let freqHeight = 1.0;
+
+        const barHue = (item.baseHue + holoTime * 0.15) % 1.0;
+        item.mesh.material.color.setHSL(barHue, 1.0, 0.65);
+
+        if (isSpeaking) {
+          const wave = Math.sin(b * 1.6 + holoTime * 15) * 0.5 + 0.5;
+          freqHeight = 1.0 + wave * 4.6 * voiceEnergy;
+        } else if (isListening) {
+          const wave = Math.sin(b * 0.8 + holoTime * 8) * 0.5 + 0.5;
+          freqHeight = 0.8 + wave * 2.4 * voiceEnergy;
+        } else {
+          freqHeight = 0.8 + Math.sin(b * 0.35 + holoTime * 2.5) * 0.28;
         }
-      } else if (avatarState === "listening") {
-        for (let wave = 0; wave < 2; wave++) {
-          const wR = ((holoTime * 45 + wave * 40) % 100) * coreScale;
-          const wAlpha = Math.max(0, 1 - wR / (100 * coreScale));
-          hCtx.strokeStyle = `rgba(101, 231, 245, ${wAlpha * 0.7})`;
-          hCtx.lineWidth = 1.8;
-          hCtx.beginPath();
-          hCtx.arc(0, 0, wR + 70 * coreScale, 0, Math.PI * 2);
-          hCtx.stroke();
+
+        item.mesh.scale.set(1, freqHeight, 1);
+        item.mesh.material.opacity = isSpeaking ? 0.95 : isListening ? 0.85 : 0.45;
+      }
+    }
+
+    // Outward Chromatic Shockwaves when speaking
+    if ((avatarState === "speaking" || avatarState === "strong") && Math.random() < 0.04) {
+      const spectralCols = [0xff007f, 0x00f5d4, 0xfee440, 0xa855f7];
+      const randCol = spectralCols[Math.floor(Math.random() * spectralCols.length)];
+      emit3DShockwave(avatarState === "strong" ? 0xffffff : randCol, 280);
+    }
+
+    // ==============================================================
+    // 6. Update 3D Shockwaves
+    // ==============================================================
+    for (let i = shockwaveMeshes.length - 1; i >= 0; i--) {
+      const sw = shockwaveMeshes[i];
+      sw.radius += sw.speed;
+      const prog = sw.radius / sw.maxRadius;
+      sw.mesh.scale.set(sw.radius / 15, sw.radius / 15, 1);
+      sw.mesh.material.opacity = Math.max(0, (1 - prog) * 0.88);
+
+      if (sw.radius >= sw.maxRadius) {
+        scene.remove(sw.mesh);
+        sw.mesh.geometry.dispose();
+        sw.mesh.material.dispose();
+        shockwaveMeshes.splice(i, 1);
+      }
+    }
+
+    // ==============================================================
+    // 7. Volumetric 3D Quantum Embers Drift & Sonar Vortex
+    // ==============================================================
+    if (emberPositions && emberGeo) {
+      const isListening = avatarState === "listening";
+      for (let i = 0; i < emberVelocities.length; i++) {
+        const v = emberVelocities[i];
+        let py = emberPositions[i * 3 + 1];
+        let px = emberPositions[i * 3];
+        let pz = emberPositions[i * 3 + 2];
+
+        if (isListening) {
+          v.angle += 0.035;
+          const dist = Math.hypot(px, pz);
+          if (dist > 30) {
+            px -= (px / dist) * 1.6;
+            pz -= (pz / dist) * 1.6;
+          } else {
+            px = (Math.random() - 0.5) * 550;
+            pz = (Math.random() - 0.5) * 550;
+          }
+        } else {
+          py += v.vy;
+          px = v.origX + Math.sin(holoTime * v.wobbleSpeed + i) * v.wobbleAmp * 15;
+          if (py > 290) py = -290;
         }
-      }
 
-      hCtx.restore();
+        emberPositions[i * 3] = px;
+        emberPositions[i * 3 + 1] = py;
+        emberPositions[i * 3 + 2] = pz;
+      }
+      emberGeo.attributes.position.needsUpdate = true;
     }
 
-    // 4. 3D Rotating Gyroscopic Orbital Telemetry Rings
-    const fov = 340;
-    const cosY = Math.cos(rotY + holoTime * 0.28);
-    const sinY = Math.sin(rotY + holoTime * 0.28);
-    const cosX = Math.cos(rotX);
-    const sinX = Math.sin(rotX);
-
-    function project3D(x, y, z) {
-      const x1 = x * cosY - z * sinY;
-      const z1 = z * cosY + x * sinY;
-      const y2 = y * cosX - z1 * sinX;
-      const z2 = z1 * cosX + y * sinX;
-      if (fov + z2 <= 10) return null;
-      const scale = fov / (fov + z2);
-      return {
-        x: cx + x1 * scale,
-        y: cy + y2 * scale,
-        z: z2,
-        scale: scale,
-      };
-    }
-
-    for (let rIdx = 0; rIdx < rings.length; rIdx++) {
-      const ring = rings[rIdx];
-      const ringSpeed = holoTime * ring.speed * 60;
-      hCtx.save();
-      hCtx.strokeStyle = ring.color;
-      hCtx.lineWidth = ring.width;
-
-      for (let s = 0; s < ring.segments; s += ring.dash) {
-        const angle1 = (s / ring.segments) * Math.PI * 2 + ringSpeed;
-        const angle2 = ((s + ring.dash * 0.65) / ring.segments) * Math.PI * 2 + ringSpeed;
-
-        const p1 = project3D(ring.radius * Math.cos(angle1), ring.radius * Math.sin(angle1) * Math.sin(ring.tilt), ring.radius * Math.sin(angle1) * Math.cos(ring.tilt));
-        const p2 = project3D(ring.radius * Math.cos(angle2), ring.radius * Math.sin(angle2) * Math.sin(ring.tilt), ring.radius * Math.sin(angle2) * Math.cos(ring.tilt));
-
-        if (p1 && p2) {
-          hCtx.globalAlpha = Math.max(0.15, Math.min(0.85, (p1.z + 180) / 360));
-          hCtx.beginPath();
-          hCtx.moveTo(p1.x, p1.y);
-          hCtx.lineTo(p2.x, p2.y);
-          hCtx.stroke();
-        }
-      }
-      hCtx.restore();
-    }
-
-    // 5. Floating Quantum Spark Particles (Drifting Upward)
-    hCtx.save();
-    hCtx.globalCompositeOperation = "lighter";
-    for (let i = 0; i < embers.length; i++) {
-      const p = embers[i];
-      p.y -= p.vy;
-      p.x += Math.sin(holoTime * p.wobbleSpeed + i) * p.wobbleAmp * 0.25;
-
-      if (p.y < -180) {
-        p.y = 170;
-        p.x = (Math.random() - 0.5) * 280;
-      }
-
-      const proj = project3D(p.x, p.y, p.z);
-      if (proj) {
-        hCtx.fillStyle = p.color;
-        hCtx.globalAlpha = p.alpha * Math.max(0.15, Math.min(1, (proj.z + 180) / 360));
-        hCtx.beginPath();
-        hCtx.arc(proj.x, proj.y, p.size * proj.scale, 0, Math.PI * 2);
-        hCtx.fill();
-      }
-    }
-    hCtx.restore();
+    renderer.render(scene, camera);
   }
 
-  requestAnimationFrame(renderHologram);
+  // Initialize Three.js Hologram Engine
+  const threeReady = initThreeHologram();
+  if (threeReady) {
+    animateThreeHologram();
+  }
 
-  // Set avatar state helper
+  // Connect Palette Preset Selector Buttons
+  const themeButtons = document.querySelectorAll(".theme-pill-btn[data-palette]");
+  themeButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      setChromaPalette(btn.dataset.palette);
+    });
+  });
+
+  // Set avatar state helper & update toolbar buttons
   function setAvatarState(state) {
     avatarState = state;
     if (holoStatusText) {
       if (state === "speaking") holoStatusText.textContent = "COGNITIVE CORE: BROADCASTING SPEECH";
-      else if (state === "listening") holoStatusText.textContent = "VOICE BRIDGE: LISTENING";
+      else if (state === "listening") holoStatusText.textContent = "VOICE BRIDGE: ACTIVE LISTENING";
       else if (state === "thinking") holoStatusText.textContent = "SYNAPTIC NEURAL PROCESSING";
+      else if (state === "strong") holoStatusText.textContent = "OVERDRIVE: MAXIMUM RESONANCE REACHED";
       else holoStatusText.textContent = "STATUS: ONLINE · ATULYA NEURAL REACTOR ACTIVE";
     }
+
+    const stateButtons = document.querySelectorAll(".state-pill-btn[data-state]");
+    stateButtons.forEach((btn) => {
+      if (btn.dataset.state === state) btn.classList.add("active");
+      else btn.classList.remove("active");
+    });
+  }
+
+  // Connect interactive Core State Selector Toolbar
+  const stateButtons = document.querySelectorAll(".state-pill-btn[data-state]");
+  stateButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const targetState = btn.dataset.state;
+      setAvatarState(targetState);
+      const p = COLOR_PALETTES[currentPaletteKey] || COLOR_PALETTES.prismatic;
+      emit3DShockwave(targetState === "listening" ? 0x00f5d4 : targetState === "thinking" ? 0xfee440 : p.coreLight, 280);
+      showToast(`Atulya State: ${targetState.toUpperCase()}`);
+    });
+  });
+
+  const btnReassemble = $("btn-re-assemble");
+  if (btnReassemble) {
+    btnReassemble.addEventListener("click", () => {
+      triggerAssemblySequence();
+      showToast("Replaying 5-Phase Quantum Assembly Sequence");
+    });
   }
 
   // 5. Audio Waveform Spectrum & Voice Mic

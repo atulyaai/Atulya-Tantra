@@ -111,10 +111,38 @@
         <!-- Interactive 3D Canvas -->
         <canvas id="hologram-canvas" width="800" height="700"></canvas>
         
-        <!-- Center Hologram Name & Assembly Badge -->
-        <div class="avatar-hud-badge">
-          <span class="avatar-title" id="holo-title-text">ATULYA</span>
-          <span class="avatar-status" id="holo-status-text">NEURAL REACTOR: INITIALIZING</span>
+        <!-- Animated Luminous Resonance Rings (from v1) -->
+        <div class="hologram-rings-overlay" aria-hidden="true">
+          <div class="hum-ring hum-ring-1"></div>
+          <div class="hum-ring hum-ring-2"></div>
+          <div class="hum-ring hum-ring-3"></div>
+        </div>
+
+        <!-- Hologram HUD Header Bar: Avatar Badge, Color Themes & Mode Pills -->
+        <div class="hologram-hud-top">
+          <div class="avatar-hud-badge">
+            <span class="avatar-title" id="holo-title-text">ATULYA</span>
+            <span class="avatar-status" id="holo-status-text">NEURAL REACTOR: INITIALIZING</span>
+          </div>
+
+          <!-- Live Multi-Color Concept Switcher -->
+          <div class="chroma-theme-toolbar" id="chroma-theme-toolbar" aria-label="Multi-Color Palettes">
+            <button class="theme-pill-btn active" data-palette="prismatic" type="button" title="Full Spectrum Rainbow Hyper-Chroma">🌈 PRISMATIC</button>
+            <button class="theme-pill-btn" data-palette="synthwave" type="button" title="Hot Neon Synthwave">🔮 SYNTH</button>
+            <button class="theme-pill-btn" data-palette="solar" type="button" title="Solar Gold Supernova">⚡ SOLAR</button>
+            <button class="theme-pill-btn" data-palette="cosmic" type="button" title="Bioluminescent Cosmos">🌌 COSMOS</button>
+            <button class="theme-pill-btn" data-palette="matrix" type="button" title="Cyber Emerald Matrix">🧬 MATRIX</button>
+          </div>
+
+          <!-- Interactive Core State Selector Toolbar -->
+          <div class="core-state-toolbar" id="core-state-toolbar" aria-label="Core state controls">
+            <button class="state-pill-btn active" data-state="idle" type="button" title="Standby Mode">✦ IDLE</button>
+            <button class="state-pill-btn" data-state="listening" type="button" title="Audio Sonar Listening">🎙️ LISTEN</button>
+            <button class="state-pill-btn" data-state="thinking" type="button" title="Neural Processing">⚡ THINK</button>
+            <button class="state-pill-btn" data-state="speaking" type="button" title="Voice Speaking">🔊 SPEAK</button>
+            <button class="state-pill-btn overdrive" data-state="strong" type="button" title="Full Plasma Overdrive">🔥 OVERDRIVE</button>
+            <button class="state-pill-btn" id="btn-re-assemble" type="button" title="Replay 5-Phase Quantum Assembly">🔄</button>
+          </div>
         </div>
 
         <!-- Assembly Sequence Banner -->
@@ -240,6 +268,8 @@
   <!-- Global Action Toast -->
   <div id="v2-toast" class="v2-toast" hidden></div>
 
+  <!-- Local High-Performance 3D Holographic Engine -->
+  <script src="./vendor/three.min.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>
