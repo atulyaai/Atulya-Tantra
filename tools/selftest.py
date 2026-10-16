@@ -25,6 +25,15 @@ from atulya.settings import Settings
 
 
 @dataclass
+
+def _session_cookie(client: httpx.Client) -> str:
+    try:
+        return str(client.cookies.get("atulya_session") or "")
+    except Exception:
+        values = [cookie.value for cookie in client.cookies.jar if cookie.name == "atulya_session"]
+        return values[-1] if values else ""
+
+
 class Report:
     rows: list[tuple[str, bool, str, float]] = field(default_factory=list)
 
@@ -150,13 +159,13 @@ def main(actions: bool = False) -> int:
                     with httpx.Client(base_url=base, timeout=60) as stranger:
                         started = stranger.post("/api/auth/login-requests", json={"username": user_id}).json()
                         wrong = stranger.post(f"/api/auth/login-requests/{started['id']}/code", json={"code": "123456"})
-                        pending = client.cookies.get("atulya_session")
+                        pending = _session_cookie(client)
                         with httpx.Client(base_url=base, cookies={"atulya_session": trusted}, timeout=30) as owner:
                             listed = owner.get("/api/auth/pending-logins").json()["requests"]
                             owner.post(f"/api/auth/pending-logins/{started['id']}", json={"approve": True})
                         done = stranger.get(f"/api/auth/login-requests/{started['id']}").json()
                         # Cookies are Secure once a public HTTPS origin is set; check the issued session directly.
-                        signed_in = bool(done.get("authenticated") and store.user_for_session(stranger.cookies.get("atulya_session")))
+                        signed_in = bool(done.get("authenticated") and store.user_for_session(_session_cookie(stranger)))
                     ok = wrong.status_code == 401 and len(listed) == 1 and done.get("authenticated") and signed_in and pending
                     return bool(ok), f"wrong code rejected · approval card shown · new device signed in={signed_in}", None
                 finally:

@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 import httpx
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -42,7 +42,7 @@ from webauthn.helpers.structs import (
     UserVerificationRequirement,
 )
 
-from .auth import AuthStore, SESSION_COOKIE, SESSION_MAX_AGE, new_challenge, new_flow_id
+from .auth import AuthStore, SESSION_COOKIE, SESSION_MAX_AGE, new_challenge, new_flow_id, session_token
 
 
 class LocalApiSecurityMiddleware:
@@ -241,7 +241,7 @@ from tools.plugins.communications.channels import WebUIChannel
 from tools.plugins.communications.channels.telegram import TelegramChannel
 from . import sysmon
 from .profiles import ProfileStore, profile_instructions
-from .history import ConversationHistory
+from .history import ConversationHistory, cross_channel_note
 from tools.plugins.productivity.calendar import CalendarStore
 from tools.plugins.personal.memory import PersonalMemory
 from tools.plugins.productivity.reminders import ReminderStore
@@ -866,6 +866,41 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await telegram_channel.notify(f"Disk alert: the server disk is {percent:.0f}% full.")
             _watch_day["disk"] = today
 
+
+    _soon_notified: set[str] = set()
+
+    async def _soon_watch(telegram_channel) -> None:
+        """One Telegram line when a meeting starts in about 15 minutes."""
+        if not getattr(telegram_channel, "configured", False):
+            return
+        path = config.data_dir / "soon-notified.json"
+        if not _soon_notified and path.is_file():
+            try:
+                _soon_notified.update(json.loads(path.read_text() or "[]"))
+            except (OSError, ValueError):
+                pass
+        now = datetime.now().astimezone()
+        rows = await asyncio.to_thread(calendar.list, WEB_OWNER, 20, "admin")
+        for event in rows:
+            start = datetime.fromisoformat(str(event["starts_at"]))
+            if start.tzinfo is None:
+                start = start.replace(tzinfo=now.tzinfo)
+            seconds = (start - now).total_seconds()
+            key = f"{event.get('id')}:{event.get('starts_at')}"
+            if not (8 * 60 <= seconds <= 16 * 60) or key in _soon_notified:
+                continue
+            when = start.astimezone(now.tzinfo).strftime("%H:%M")
+            sent = await telegram_channel.notify(
+                f"Coming up: {event.get('title') or 'a meeting'} at {when}.",
+                source="routine:soon",
+            )
+            if sent:
+                _soon_notified.add(key)
+                path.write_text(json.dumps(sorted(_soon_notified)[-200:]))
+                from tools.plugins.audit import record_tool_run
+                record_tool_run(user_id="admin", channel="telegram", tool="routine:soon",
+                                args={"title": event.get("title")}, outcome="accepted_by_telegram")
+
     async def run_routines() -> None:
         """Run opted-in schedules; mark sent only after Telegram accepts a message."""
         from tools.plugins.productivity.briefing import briefing_city, briefing_time
@@ -906,6 +941,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 await _house_watch(store, telegram)
             except Exception as exc:
                 logging.getLogger(__name__).warning("House watch failed (%s)", type(exc).__name__)
+            try:
+                await _soon_watch(telegram)
+            except Exception as exc:
+                logging.getLogger(__name__).warning("Soon watch failed (%s)", type(exc).__name__)
             await asyncio.sleep(30)
 
     app.router.add_event_handler(
@@ -968,7 +1007,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/auth/status")
     async def auth_status(request: Request) -> JSONResponse:
-        token = request.cookies.get(SESSION_COOKIE)
+        token = session_token(request.headers.get("cookie"))
         user_id = await asyncio.to_thread(auth_store.user_for_session, token)
         return JSONResponse(
             {
@@ -1039,12 +1078,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def set_session_cookie(response: Response, request: Request, token: str) -> None:
         if request.client:
             auth_store.clear_ip(request.client.host)
+        secure = request.url.scheme == "https" or config.public_origin.startswith("https://")
+        # Clear both the Secure and non-Secure copies so a stale duplicate cannot block sign-in.
+        response.delete_cookie(SESSION_COOKIE, path="/")
+        response.delete_cookie(SESSION_COOKIE, path="/", secure=True, httponly=True, samesite="strict")
         response.set_cookie(
             SESSION_COOKIE,
             token,
             max_age=SESSION_MAX_AGE,
             httponly=True,
-            secure=request.url.scheme == "https" or config.public_origin.startswith("https://"),
+            secure=secure,
             samesite="strict",
             path="/",
         )
@@ -1074,7 +1117,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await authorize_remote_first_setup(request)
             if invitation is not None:
                 raise HTTPException(status_code=409, detail="Create the first administrator passkey before using invitations.")
-        current_user = await asyncio.to_thread(auth_store.user_for_session, request.cookies.get(SESSION_COOKIE))
+        current_user = await asyncio.to_thread(auth_store.user_for_session, session_token(request.headers.get("cookie")))
         device_token = request.headers.get("x-atulya-device-token", "")
         device_link = await asyncio.to_thread(auth_store.device_link, device_token) if device_token else None
         if device_token and device_link is None:
@@ -1128,7 +1171,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail="Passkey setup expired. Start again.")
         challenge, target_user_id = challenge_flow
         count = await asyncio.to_thread(auth_store.credential_count)
-        current_user = await asyncio.to_thread(auth_store.user_for_session, request.cookies.get(SESSION_COOKIE))
+        current_user = await asyncio.to_thread(auth_store.user_for_session, session_token(request.headers.get("cookie")))
         device_token = request.headers.get("x-atulya-device-token", "")
         device_link = await asyncio.to_thread(auth_store.device_link, device_token) if device_token else None
         if device_link is not None and str(device_link["user_id"]) == target_user_id:
@@ -1244,7 +1287,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/auth/device-link")
     async def create_device_link(request: Request) -> dict[str, object]:
         """Signed-in users get a one-time link to add a passkey on a phone/laptop or the remote address."""
-        user_id = await asyncio.to_thread(auth_store.user_for_session, request.cookies.get(SESSION_COOKIE))
+        user_id = await asyncio.to_thread(auth_store.user_for_session, session_token(request.headers.get("cookie")))
         if user_id is None:
             raise HTTPException(status_code=401, detail="Sign in first.")
         token = await asyncio.to_thread(auth_store.create_device_link, user_id)
@@ -1536,10 +1579,11 @@ ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
 
     @app.post("/api/auth/logout")
     async def passkey_logout(request: Request) -> Response:
-        token = request.cookies.get(SESSION_COOKIE)
+        token = session_token(request.headers.get("cookie"))
         await asyncio.to_thread(auth_store.revoke_session, token)
         response = JSONResponse({"authenticated": False})
         response.delete_cookie(SESSION_COOKIE, path="/", httponly=True, samesite="strict")
+        response.delete_cookie(SESSION_COOKIE, path="/", secure=True, httponly=True, samesite="strict")
         return response
 
     @app.get("/api/auth/users")
@@ -1990,6 +2034,11 @@ ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
                         image_url=image_url if i == last_user_index else None)
                 for i, item in enumerate(request.messages)
             ]
+            note = await run_in_threadpool(
+                cross_channel_note, history, str(http_request.state.user_id), request.conversation_id,
+            )
+            if note:
+                messages.insert(0, Message(role="user", content=note))
             memory_items = await run_in_threadpool(
                 personal_memory.relevant, WEB_OWNER, latest_user,
                 user_id=str(http_request.state.user_id),
@@ -2126,25 +2175,19 @@ ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
         return {"text": text}
 
     webui = PROJECT_ROOT / "webui"
-    webui2 = PROJECT_ROOT / "webui2"
     app.mount(
         "/api/runtime/mediapipe",
         StaticFiles(directory=config.models_dir / "runtime" / "mediapipe", check_dir=False),
         name="mediapipe_runtime",
     )
-    if webui2.is_dir():
-        @app.get("/v2")
-        async def v2_redirect():
-            return RedirectResponse(url="/v2/")
-
-        app.mount("/v2", StaticFiles(directory=webui2, html=True), name="webui2")
     if webui.is_dir():
         app.mount("/", StaticFiles(directory=webui, html=True), name="webui")
 
     @app.middleware("http")
     async def fresh_pages(request: Request, call_next):
-        if request.url.path == "/v2":
-            return RedirectResponse(url="/v2/")
+        """Every open gets the newest page: HTML is revalidated each time (a cheap 304 when unchanged),
+        versioned assets (?v=...) are cached for a year, and other static files revalidate too.
+        Without this, phones kept an old page (and its old scripts) for hours after a deploy."""
         response = await call_next(request)
         path = request.url.path
         if path.startswith("/api/") or "cache-control" in response.headers:

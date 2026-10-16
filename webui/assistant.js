@@ -1210,6 +1210,7 @@
   };
   // While the app is open the user is clearly talking to Atulya; the wake word is opt-in.
   let wakeWordEnabled = readFlag("atulya.voice.wake", false);
+  let quietMicFailure = false;
   // Voice-first: every reply is spoken unless muted.
   let voiceReplies = readFlag("atulya.voice.replies", true);
   let bargeInEnabled = readFlag("atulya.voice.bargein", true);
@@ -1444,15 +1445,42 @@
     voiceSessionActive = voiceReady && !window.Telegram?.WebApp?.initData;
     speak(greeting);
     deliverMorningBriefing();
-    // Auto-start mic if permission already granted (no extra click needed).
-    if (voiceSessionActive && navigator.permissions) {
-      navigator.permissions.query({ name: "microphone" }).then((result) => {
-        if (result.state === "granted") {
-          window.setTimeout(() => { if (voiceSessionActive && !listening) startListening(true); }, 800);
-        }
-      }).catch(() => {});
+    // If the browser already has microphone permission, listen without another click.
+    // A missing permission fails quietly; the wave still starts it on the first tap.
+    if (voiceSessionActive) {
+      quietMicFailure = true;
+      window.setTimeout(() => { if (!listening) startListening(true); }, 900);
     }
   }
+
+  async function watchRoom() {
+    if (!cameraStream || speaking || listening || phase === "thinking" || document.visibilityState === "hidden") return;
+    const image = captureCameraFrame();
+    if (!image) return;
+    let body;
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          messages: [{ role: "user", content: "Camera check. If a person is visible, reply with one short sentence about what they are doing or how they look. If the frame is empty, dark, or nothing important, reply with exactly QUIET." }],
+          image,
+          conversation_id: conversationId,
+          stream: false,
+        }),
+      });
+      if (!response.ok) return;
+      body = await response.json();
+    } catch { return; }
+    const text = String(body?.text || "").trim();
+    if (!text || /\bquiet\b/i.test(text)) return;
+    const bubble = appendMessage("assistant", text);
+    conversation.push({ role: "assistant", content: text });
+    highlightSpokenReply(bubble);
+    await speak(text);
+  }
+  window.setTimeout(() => { void watchRoom(); }, 90_000);
+  window.setInterval(() => { void watchRoom(); }, 12 * 60 * 1000);
 
   // First visit of the day: show and read the morning briefing once the greeting ends.
   async function deliverMorningBriefing() {
@@ -2201,7 +2229,10 @@
       }
       if (message.kind === "nomatch" || message.kind === "busy") { resumeLiveVoice(); return; } // silence: just listen again
       voiceSessionActive = false;
-      if (message.kind === "denied") setPhase("idle", "Allow microphone", "Allow the microphone for Atulya in Android settings, then tap the wave.");
+      if (message.kind === "denied") {
+        if (quietMicFailure) { quietMicFailure = false; listening = false; voiceSessionActive = false; restoreIdlePhase(); return; }
+        setPhase("idle", "Allow microphone", "Allow the microphone for Atulya in Android settings, then tap the wave.");
+      }
       else if (++nativeVoiceErrors >= 3) {
         if (!window.AtulyaNative) { // browser recognizer unavailable here (offline, blocked): use the server's
           nativeVoice = null;
@@ -2225,9 +2256,11 @@
   }
 
   async function startListening(resume = false) {
+    const automatic = quietMicFailure;
     if (!resume) voiceSessionActive = true;
     if (nativeVoice) {
       listening = true;
+      quietMicFailure = false;
       setPhase("listening", "Listening", "Speak naturally. I'll answer when you pause.");
       refreshWave();
       nativeVoice.postMessage(JSON.stringify({ cmd: "listen", lang: /^hi/i.test(navigator.language || "") ? "hi-IN" : "en-IN" }));
@@ -2287,6 +2320,7 @@
       };
       recorder.start(200);
       const waiting = wakeWordEnabled && Date.now() >= awakeUntil;
+      quietMicFailure = false;
       setPhase("listening", waiting ? "Say “Hey Atulya”" : "Listening",
         waiting ? "Live voice is on. Start with “Hey Atulya”; talk over me to interrupt."
           : "Speak naturally. Each turn sends after a pause; Atulya then listens again.");
@@ -2295,6 +2329,12 @@
       if (requestId !== voiceRequest) return;
       await releaseMicrophone();
       listening = false;
+      if (automatic) {
+        quietMicFailure = false;
+        voiceSessionActive = false;
+        restoreIdlePhase();
+        return;
+      }
       voiceSessionActive = false;
       voiceBrowserBlocked = true;
       const errors = {
@@ -2500,10 +2540,21 @@
         prompt.disabled = !brainReady;
         prompt.placeholder = brainReady ? "Type a message…" : "Chat is starting or unavailable";
         if (visionChannel) setChannelState(visionChannel, "off");
-        // Camera on demand only (button, "turn on camera", or a question that needs vision).
-        let cameraWanted = false;
-        try { cameraWanted = localStorage.getItem("atulya.camera.on") === "1"; } catch { /* ignore */ }
-        if (cameraWanted) void startCamera();
+        // Stay off only after an explicit turn-off. Otherwise resume when permission is already granted.
+        let cameraOff = false;
+        try { cameraOff = localStorage.getItem("atulya.camera.on") === "0"; } catch { /* ignore */ }
+        if (!cameraOff) {
+          const startIfGranted = () => { void startCamera(); };
+          if (navigator.permissions?.query) {
+            navigator.permissions.query({ name: "camera" }).then((result) => {
+              if (result.state === "granted") startIfGranted();
+            }).catch(() => {
+              try { if (localStorage.getItem("atulya.camera.on") === "1") startIfGranted(); } catch { /* ignore */ }
+            });
+          } else {
+            try { if (localStorage.getItem("atulya.camera.on") === "1") startIfGranted(); } catch { /* ignore */ }
+          }
+        }
         return restoreConversation().then(greet);
       })
       .catch(() => {

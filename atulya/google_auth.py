@@ -18,7 +18,7 @@ import httpx
 from fastapi import HTTPException, Request
 from starlette.responses import HTMLResponse, RedirectResponse
 
-from .auth import SESSION_COOKIE
+from .auth import SESSION_COOKIE, cookie_values, session_token
 
 IDENTITY = {"openid", "email", "profile"}
 GMAIL = "https://www.googleapis.com/auth/gmail.readonly"
@@ -87,7 +87,7 @@ def register_google_routes(app, config, auth_store, set_cookie):
             raise HTTPException(503, "Google connection is not configured on this server.")
         if app_challenge and not re.fullmatch(r"[A-Za-z0-9_-]{43}", app_challenge):
             raise HTTPException(422, "Invalid app proof")
-        user_id = await asyncio.to_thread(auth_store.user_for_session, request.cookies.get(SESSION_COOKIE))
+        user_id = await asyncio.to_thread(auth_store.user_for_session, session_token(request.headers.get("cookie")))
         if connect and not user_id:
             raise HTTPException(401, "Sign in to Atulya before connecting Google services.")
         scopes = set(IDENTITY)
@@ -117,7 +117,7 @@ def register_google_routes(app, config, auth_store, set_cookie):
         flow = await asyncio.to_thread(flows.consume, state)
         if not flow or error or not code:
             return RedirectResponse("/#google=failed")
-        if not flow["app_proof"] and not secrets.compare_digest(request.cookies.get(COOKIE, ""), state):
+        if not flow["app_proof"] and not secrets.compare_digest(cookie_values(request.headers.get("cookie")).get(COOKIE, ""), state):
             return RedirectResponse("/#google=failed")
         try:
             async with httpx.AsyncClient(timeout=15) as client:

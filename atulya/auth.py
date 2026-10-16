@@ -18,6 +18,24 @@ CHALLENGE_MAX_AGE = 5 * 60
 INVITE_MAX_AGE = 24 * 60 * 60
 
 
+
+def cookie_values(header: str | None) -> dict[str, str]:
+    """Last value wins. Starlette raises CookieConflict when the same name is sent twice."""
+    found: dict[str, str] = {}
+    if not header:
+        return found
+    for part in header.split(";"):
+        if "=" not in part:
+            continue
+        name, value = part.split("=", 1)
+        found[name.strip()] = value.strip()
+    return found
+
+
+def session_token(header: str | None) -> str | None:
+    return cookie_values(header).get(SESSION_COOKIE) or None
+
+
 class AuthStore:
     """Store WebAuthn public credentials and hashed session tokens in SQLite."""
 

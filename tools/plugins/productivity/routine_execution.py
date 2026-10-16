@@ -31,4 +31,22 @@ async def render_routine(item, city, calendar, owner="web", user_id="admin"):
             if not probability or not isinstance(probability[0], (float, int)) or probability[0] < 50:
                 return None
         return {"text": await forecast(spot["latitude"], spot["longitude"], city, "today"), "links": []}
+    if action == "mail":
+        from tools.plugins.information.google_api import gmail_search
+        try:
+            text = await gmail_search(user_id, "is:unread newer_than:1d", 4)
+        except Exception:
+            return None
+        if not text or text.startswith("No matching"):
+            return None
+        lines = [line for line in text.splitlines() if line.startswith("ID ")][:4]
+        if not lines:
+            return None
+        short = []
+        for line in lines:
+            parts = [part.strip() for part in line.split("|")]
+            sender = parts[2] if len(parts) > 2 else "someone"
+            subject = parts[3] if len(parts) > 3 else "(no subject)"
+            short.append(f"• {sender} — {subject[:80]}")
+        return {"text": "Unread mail. Say remove the unread mail routine if you do not want this.\n" + "\n".join(short), "links": []}
     raise ValueError("Unsupported routine action")

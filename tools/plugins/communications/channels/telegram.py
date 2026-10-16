@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 
 from tools.plugins.brain import Brain, Message
-from atulya.history import ConversationHistory
+from atulya.history import ConversationHistory, cross_channel_note
 from tools.plugins.productivity.reminders import ReminderStore
 from tools.plugins.registry import PluginContext, PluginExecutionError, PluginRegistry
 from tools.plugins.productivity.briefing import briefing_city, briefing_time, build_briefing
@@ -593,6 +593,9 @@ class TelegramChannel:
             scoped_user = OWNER_USER
             saved = await asyncio.to_thread(self._history.read, conversation_id, 30, scoped_user)
             conversation = [Message(role=row["role"], content=row["content"]) for row in saved if row["role"] in {"user", "assistant"}]
+            note = await asyncio.to_thread(cross_channel_note, self._history, scoped_user, conversation_id)
+            if note:
+                conversation.insert(0, Message(role="user", content=note))
             conversation.append(Message(role="user", content=text))
             if self._command_plugins is not None and self._personal_memory is not None and self._calendar is not None:
                 view = self._actions.view() if self._actions is not None else None

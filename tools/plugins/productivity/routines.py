@@ -16,7 +16,7 @@ from pathlib import Path
 
 _WHEN = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
 DAYS = {"all", "weekdays", "weekends"}
-ACTIONS = {"message", "briefing", "weather", "rain", "calendar"}
+ACTIONS = {"message", "briefing", "weather", "rain", "calendar", "mail"}
 WINDOW_MINUTES = 20
 _LOCK = threading.RLock()
 
@@ -62,7 +62,7 @@ class RoutineStore:
         if days_key not in DAYS:
             raise ValueError("Days must be all, weekdays, or weekends.")
         if action_key not in ACTIONS:
-            raise ValueError("Action must be message, briefing, weather, rain, or calendar.")
+            raise ValueError("Action must be message, briefing, weather, rain, calendar, or mail.")
         body = message.strip()[:500]
         if action_key == "message" and not body:
             raise ValueError("A message routine needs the text to send.")
@@ -124,7 +124,7 @@ class RoutineStore:
         if action is not None:
             action_key = action.strip().lower()
             if action_key not in ACTIONS:
-                raise ValueError("Action must be message, briefing, weather, rain, or calendar.")
+                raise ValueError("Action must be message, briefing, weather, rain, calendar, or mail.")
             found["action"] = action_key
         if message is not None:
             found["message"] = message.strip()[:500]
@@ -197,6 +197,17 @@ class RoutineStore:
 
     @_locked
     def ensure_defaults(self) -> None:
-        """Initialize an empty store; never subscribe the owner without a request."""
-        if not self._path.exists():
-            self._save([])
+        """Keep the store present, and add the unread-mail nudge once if it is missing."""
+        items = self._load() if self._path.exists() else []
+        if not any(item.get("action") == "mail" for item in items):
+            items.append({
+                "id": "mail-nudge",
+                "name": "Unread mail",
+                "when": "09:10",
+                "days": "weekdays",
+                "action": "mail",
+                "message": "",
+                "enabled": True,
+                "last_fired": "",
+            })
+        self._save(items)
