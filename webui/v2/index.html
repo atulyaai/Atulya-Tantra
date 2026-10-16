@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Atulya · Core</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{margin:0;background:#05080c;color:#e8f4ff;font-family:system-ui,sans-serif;overflow:hidden}
+#stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#05080c}
+#core{width:min(90vw,720px);height:min(90vw,720px);object-fit:contain;transition:opacity .4s}
+#status{position:fixed;top:1rem;left:1rem;font-size:.85rem;letter-spacing:.08em;color:#69eaff}
+#chat{position:fixed;bottom:1rem;left:1rem;right:1rem;max-width:36rem;margin:auto;background:#0c1620cc;border:1px solid #1a3a4a;border-radius:12px;padding:1rem;backdrop-filter:blur(8px)}
+#log{max-height:8rem;overflow:auto;font-size:.9rem;line-height:1.4;margin-bottom:.5rem}
+#log div{margin:.25rem 0}
+#input{width:100%;background:#050b12;border:1px solid #1a3a4a;border-radius:8px;color:#e8f4ff;padding:.6rem;font:inherit}
+.btn{background:#69eaff;color:#050b12;border:0;padding:.5rem 1rem;border-radius:6px;font-weight:600;cursor:pointer;margin-top:.5rem}
+</style>
+</head>
+<body>
+<div id="status">IDLE</div>
+<div id="stage"><img id="core" src="assets/idle.jpg" alt="core"></div>
+<div id="chat">
+  <div id="log"></div>
+  <input id="input" placeholder="Say something…">
+  <button class="btn" id="talk">Talk</button>
+</div>
+<script>
+const core = document.getElementById("core");
+const status = document.getElementById("status");
+const log = document.getElementById("log");
+const input = document.getElementById("input");
+const states = {
+  idle: "assets/idle.jpg",
+  listening: "assets/listening.jpg",
+  thinking: "assets/thinking.jpg",
+  speaking: "assets/speaking.jpg",
+  overdrive: "assets/overdrive.jpg"
+};
+function setState(s) {
+  status.textContent = s.toUpperCase();
+  core.src = states[s] || states.idle;
+}
+function add(role, text) {
+  const d = document.createElement("div");
+  d.textContent = (role === "user" ? "You: " : "Atulya: ") + text;
+  log.append(d);
+  log.scrollTop = log.scrollHeight;
+}
+async function send(text) {
+  if (!text.trim()) return;
+  add("user", text);
+  setState("thinking");
+  try {
+    const r = await fetch("/api/chat", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({messages: [{role: "user", content: text}]})
+    });
+    const data = await r.json();
+    const reply = data.reply || data.message || "(no reply)";
+    setState("speaking");
+    add("assistant", reply);
+    setTimeout(() => setState("idle"), 2500);
+  } catch (e) {
+    add("assistant", "Error: " + e.message);
+    setState("idle");
+  }
+}
+input.addEventListener("keydown", e => { if (e.key === "Enter") { send(input.value); input.value = ""; } });
+document.getElementById("talk").onclick = () => setState("listening");
+setState("idle");
+</script>
+</body>
+</html>
