@@ -3164,6 +3164,26 @@
     void refreshUsers();
   });
   $("#close-users")?.addEventListener("click", () => usersDialog?.close());
+  document.getElementById("pair-device")?.addEventListener("click", async () => {
+    const name = prompt("Device name (Laptop, Phone, etc.):", "Laptop");
+    if (!name) return;
+    try {
+      const r = await fetch("/api/devices/pair", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, abilities: ["ping", "open_url", "list_files", "say"] }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.detail || "Pairing failed");
+      const dlg = document.createElement("dialog");
+      dlg.innerHTML = "<h3>Pairing token for " + name + "</h3><pre>" + data.token + "</pre><p>On the device run:<br>ATULYA_AGENT_TOKEN=" + data.token + " python -m tools.laptop_agent</p><button>Close</button>";
+      dlg.querySelector("button").onclick = () => dlg.close();
+      document.body.append(dlg);
+      dlg.showModal();
+    } catch (e) {
+      alert("Pairing failed: " + e.message);
+    }
+  });
   document.getElementById("link-device")?.addEventListener("click", async () => {
     try {
       const response = await fetch("/api/auth/device-link", { method: "POST", headers: { Accept: "application/json" } });
