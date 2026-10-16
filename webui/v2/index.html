@@ -7,41 +7,69 @@
 <style>
 html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:system-ui,sans-serif;color:#e8f4ff}
 #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
-#core{width:100%;height:100%;object-fit:contain;transition:opacity .35s}
-#status{position:fixed;top:1rem;left:1rem;font-size:.8rem;letter-spacing:.12em;color:#69eaff;opacity:.8}
+#core{width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity .5s ease}
+#status{position:fixed;top:1rem;left:1rem;font-size:.75rem;letter-spacing:.14em;color:#69eaff;opacity:.7}
 </style>
 </head>
 <body>
-<div id="status">IDLE</div>
-<div id="stage"><img id="core" src="assets/idle.jpg" alt="core"></div>
+<div id="status">ASSEMBLING</div>
+<div id="stage"><img id="core" alt="core"></div>
 <script>
 const core = document.getElementById("core");
 const status = document.getElementById("status");
-const frames = {
-  idle: "assets/idle.jpg",
-  listening: "assets/listening.jpg",
-  thinking: "assets/thinking.jpg",
-  speaking: "assets/speaking.jpg",
-  overdrive: "assets/overdrive.jpg",
-  vision: "assets/vision.jpg"
+
+const assembly = [
+  "assets/01_dot.jpg",
+  "assets/02_aurora.jpg",
+  "assets/03_prismatic.jpg",
+  "assets/04_chassis.jpg"
+];
+const live = {
+  idle: "assets/05_idle.jpg",
+  listening: "assets/06_listening.jpg",
+  thinking: "assets/07_thinking.jpg",
+  speaking: "assets/08_speaking.jpg",
+  overdrive: "assets/09_overdrive.jpg",
+  vision: "assets/10_vision.jpg"
 };
-function setState(name) {
-  const key = frames[name] ? name : "idle";
-  status.textContent = key.toUpperCase();
-  if (core.src.endsWith(frames[key])) return;
+
+function show(src, label) {
+  status.textContent = label;
   core.style.opacity = "0";
-  setTimeout(() => { core.src = frames[key]; core.style.opacity = "1"; }, 160);
+  setTimeout(() => {
+    core.src = src;
+    core.onload = () => { core.style.opacity = "1"; };
+  }, 180);
 }
-// Same hook v1 uses
-window.__HUM_SET_STATE = setState;
-window.addEventListener("atulya:state", (e) => setState(e.detail));
-// Standalone demo cycle if opened directly
+
+function setState(name) {
+  const src = live[name] || live.idle;
+  show(src, name.toUpperCase());
+}
+
+// Assembly sequence on first load
+let i = 0;
+function assemble() {
+  if (i >= assembly.length) {
+    setState("idle");
+    window.__HUM_SET_STATE = setState;
+    window.addEventListener("atulya:state", (e) => setState(e.detail));
+    return;
+  }
+  show(assembly[i], "ASSEMBLING " + (i + 1));
+  i++;
+  setTimeout(assemble, 1400);
+}
+assemble();
+
+// Demo mode
 if (location.search.includes("demo")) {
-  const seq = ["idle","listening","thinking","speaking","overdrive","vision","idle"];
-  let i = 0;
-  setInterval(() => setState(seq[i++ % seq.length]), 1800);
+  setTimeout(() => {
+    const seq = ["idle","listening","thinking","speaking","overdrive","vision","idle"];
+    let n = 0;
+    setInterval(() => setState(seq[n++ % seq.length]), 2000);
+  }, assembly.length * 1400 + 500);
 }
-setState("idle");
 </script>
 </body>
 </html>
