@@ -64,6 +64,7 @@ class MainActivity : AppCompatActivity() {
     private val origin: Uri = Uri.parse(BuildConfig.ATULYA_URL)
     private var recognizer: SpeechRecognizer? = null
     private var pendingGeo: Pair<String, GeolocationPermissions.Callback>? = null
+    private var pendingMedia: PermissionRequest? = null
     private var voiceReply: JavaScriptReplyProxy? = null
     private val cookieWriter = Executors.newSingleThreadExecutor()
 
@@ -80,7 +81,6 @@ class MainActivity : AppCompatActivity() {
         configureWebView()
         if (savedInstanceState != null) web.restoreState(savedInstanceState)
         pendingUrl = linkFrom(intent)
-        requestAllPermissions()
     }
 
     override fun onPause() {
@@ -174,6 +174,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun scheduleNativeAlarm(alertId: Int, title: String, message: String, triggerAtMillis: Long): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) askFor(Manifest.permission.POST_NOTIFICATIONS)
         return try {
             val alarmManager = getSystemService(ALARM_SERVICE) as? android.app.AlarmManager ?: return false
             val intent = Intent(this, AlarmReceiver::class.java).apply {
@@ -424,8 +425,18 @@ class MainActivity : AppCompatActivity() {
                 val wanted = request.resources.filter {
                     it == PermissionRequest.RESOURCE_AUDIO_CAPTURE || it == PermissionRequest.RESOURCE_VIDEO_CAPTURE
                 }
-                if (sameOrigin && wanted.isNotEmpty()) runOnUiThread { request.grant(wanted.toTypedArray()) }
-                else request.deny()
+                if (!sameOrigin || wanted.isEmpty()) { request.deny(); return }
+                val missing = wanted.map { mediaPermission(it) }.filter {
+                    ContextCompat.checkSelfPermission(this@MainActivity, it) != PackageManager.PERMISSION_GRANTED
+                }
+                runOnUiThread {
+                    if (missing.isEmpty()) request.grant(wanted.toTypedArray())
+                    else {
+                        pendingMedia?.deny()
+                        pendingMedia = request // answered in onRequestPermissionsResult
+                        ActivityCompat.requestPermissions(this@MainActivity, missing.toTypedArray(), 3)
+                    }
+                }
             }
         }
     }
@@ -437,7 +448,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun startRecognition(language: String) {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            requestAllPermissions()
+            askFor(Manifest.permission.RECORD_AUDIO)
             sendVoice("denied")
             return
         }
@@ -532,25 +543,27 @@ class MainActivity : AppCompatActivity() {
             pendingGeo?.let { (requestOrigin, callback) -> callback.invoke(requestOrigin, granted, false) }
             pendingGeo = null
         }
+        if (requestCode == 3) {
+            pendingMedia?.let { request ->
+                val allowed = request.resources.filter {
+                    (it == PermissionRequest.RESOURCE_AUDIO_CAPTURE || it == PermissionRequest.RESOURCE_VIDEO_CAPTURE) &&
+                        ContextCompat.checkSelfPermission(this, mediaPermission(it)) == PackageManager.PERMISSION_GRANTED
+                }
+                if (allowed.isNotEmpty()) request.grant(allowed.toTypedArray()) else request.deny()
+            }
+            pendingMedia = null
+        }
     }
 
-    private fun requestAllPermissions() {
-        val permissions = mutableListOf(
-            Manifest.permission.RECORD_AUDIO,
-            Manifest.permission.CAMERA,
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.SEND_SMS,
-            Manifest.permission.CALL_PHONE
-        )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-        }
-        val missing = permissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-        if (missing.isNotEmpty()) ActivityCompat.requestPermissions(this, missing.toTypedArray(), 1)
+    /** Ask only for what the feature in use needs, at the moment it needs it (nothing is asked on first launch).
+     *  Location is asked by the page's geolocation request; SMS and calls fall back to the SMS app and dialer. */
+    private fun askFor(vararg permissions: String) {
+        val missing = permissions.filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
+        if (missing.isNotEmpty()) runOnUiThread { ActivityCompat.requestPermissions(this, missing.toTypedArray(), 1) }
     }
+
+    private fun mediaPermission(resource: String) =
+        if (resource == PermissionRequest.RESOURCE_VIDEO_CAPTURE) Manifest.permission.CAMERA else Manifest.permission.RECORD_AUDIO
 
     /** Back first closes whatever is open in Atulya (menu, dialog, conversation mode); only then leaves. */
     @Deprecated("Back navigation inside the web app")

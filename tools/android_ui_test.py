@@ -129,9 +129,9 @@ for _ in range(60):  # let the emulator finish booting its launcher before the a
     time.sleep(2)
 time.sleep(10)
 adb("install", "-r", APK, check=True)
-# Everything MainActivity.requestAllPermissions() asks for on first launch, so no system dialog covers sign-in.
-for permission in ("RECORD_AUDIO", "CAMERA", "ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION",
-                   "SEND_SMS", "RECEIVE_SMS", "READ_SMS", "CALL_PHONE", "POST_NOTIFICATIONS"):
+# Only mic and camera (for the voice checks). The app asks for nothing on first launch, so any system
+# permission dialog over the sign-in screen is a regression this test catches.
+for permission in ("RECORD_AUDIO", "CAMERA"):
     adb("shell", "pm", "grant", PKG, f"android.permission.{permission}")
 adb("shell", "locksettings", "set-pin", "1357")
 adb("logcat", "-c")
