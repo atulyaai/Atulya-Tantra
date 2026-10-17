@@ -197,17 +197,6 @@ class RoutineStore:
 
     @_locked
     def ensure_defaults(self) -> None:
-        """Keep the store present, and add the unread-mail nudge once if it is missing."""
+        """Keep the store present; nothing is subscribed until the owner opts in (e.g. the mail nudge)."""
         items = self._load() if self._path.exists() else []
-        if not any(item.get("action") == "mail" for item in items):
-            items.append({
-                "id": "mail-nudge",
-                "name": "Unread mail",
-                "when": "09:10",
-                "days": "weekdays",
-                "action": "mail",
-                "message": "",
-                "enabled": True,
-                "last_fired": "",
-            })
         self._save(items)
