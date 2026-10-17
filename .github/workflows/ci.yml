@@ -1,0 +1,208 @@
+name: CI
+
+# One pipeline for everything:
+#   test    - run the real one-line installer on fresh Windows, Ubuntu and macOS, the test suite, lint, and a server check.
+#   deploy  - after tests pass on main, the server updates itself (pull, install, restart, health check, rollback on failure).
+#             The deploy key can only run tools/deploy_server.sh on the server (forced command).
+#   android - when android/ changes on main (or a v* tag is pushed), build the signed APK, UI-test it on an emulator
+#             and publish it as the latest GitHub Release, so the in-app updater (/api/app/latest) offers it.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      ATULYA_SKIP_MODELS: "1"   # packages only; multi-GB models are not needed to prove the install
+      ATULYA_PRELOAD: "0"
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: One-click install (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./install.ps1 -NoStart
+
+      - name: One-click install (Linux / macOS)
+        if: runner.os != 'Windows'
+        run: sh install.sh --no-start
+
+      - name: Locate the project Python
+        shell: bash
+        run: |
+          if [ -x .venv/Scripts/python.exe ]; then echo "PY=.venv/Scripts/python.exe" >> "$GITHUB_ENV"; else echo "PY=.venv/bin/python" >> "$GITHUB_ENV"; fi
+
+      - name: Test suite
+        shell: bash
+        run: |
+          "$PY" -m pip install -q -r requirements-dev.lock.txt
+          "$PY" -m pytest -q
+          "$PY" -m ruff check .
+
+      - name: Start the server and check it answers
+        shell: bash
+        run: |
+          "$PY" -m atulya.cli doctor
+          "$PY" -m atulya.cli serve > server.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8501/api/health -H "Host: localhost"; then echo; break; fi
+            sleep 2
+          done
+          echo "---- server log ----"; cat server.log; echo "--------------------"
+          curl -fsS -H 'Host: localhost' http://127.0.0.1:8501/api/health | grep -q '"status":"ok"'
+          curl -fsS -H 'Host: localhost' http://127.0.0.1:8501/ | grep -q "system-dashboard"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8501/api/chat -H 'Host: localhost' -H 'Content-Type: application/json' -d '{"messages":[{"role":"user","content":"hi"}],"conversation_id":"ci"}')" = "401"
+          echo "Server healthy; WebUI served; chat requires sign-in."
+
+      - name: Server log on failure
+        if: failure()
+        shell: bash
+        run: cat server.log || true
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency: deploy-server
+    steps:
+      - name: Deploy
+        env:
+          KEY: ${{ secrets.SERVER_DEPLOY_KEY }}
+          HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          install -m 600 /dev/null ~/deploy_key
+          printf '%s\n' "$KEY" > ~/deploy_key
+          ssh -i ~/deploy_key -o StrictHostKeyChecking=accept-new -o BatchMode=yes "ubuntu@$HOST" deploy
+          rm -f ~/deploy_key
+          # deploy_server.sh health-checks on the server itself and rolls back on failure.
+
+  android:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Did the app change?
+        id: changed
+        run: |
+          # Tags and manual runs always build; a push to main builds only when the app or this workflow changed.
+          if [[ "$GITHUB_REF" == refs/tags/v* || "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then echo "build=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          BEFORE="${{ github.event.before }}"
+          if [[ -z "$BEFORE" || "$BEFORE" =~ ^0+$ ]] || ! git cat-file -e "$BEFORE" 2>/dev/null; then echo "build=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if git diff --name-only "$BEFORE" "$GITHUB_SHA" | grep -qE '^(android/|tools/android_ui_test\.py$|\.github/workflows/ci\.yml$)'; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=false" >> "$GITHUB_OUTPUT"; echo "No Android changes; skipping the APK build."
+          fi
+      - uses: actions/setup-java@v4
+        if: steps.changed.outputs.build == 'true'
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        if: steps.changed.outputs.build == 'true'
+        with:
+          gradle-version: "8.9"
+      - name: Version
+        if: steps.changed.outputs.build == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Automatic releases bump only the last number (0.5.1, 0.5.2, ...); a milestone tag (v0.6.0) moves the middle.
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then V="${GITHUB_REF#refs/tags/v}"; else
+            LAST=$(gh release list --limit 200 --json tagName --jq '.[].tagName' | sort -V | tail -1)
+            LAST=${LAST:-v0.3.0}
+            MINOR=$(echo "${LAST#v}" | cut -d. -f2)
+            PATCH=$(echo "${LAST#v}" | cut -d. -f3)
+            V="0.${MINOR}.$((PATCH + 1))"
+          fi
+          echo "VERSION=$V" >> "$GITHUB_ENV"
+      - name: Build signed release
+        if: steps.changed.outputs.build == 'true'
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/atulya-release.p12"
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/atulya-release.p12"
+          gradle --no-daemon assembleRelease bundleRelease -PversionName="$VERSION" -PversionCode="$GITHUB_RUN_NUMBER"
+          mkdir -p ../dist && cp app/build/outputs/apk/release/app-release.apk "../dist/Atulya-$VERSION.apk"
+          cp app/build/outputs/bundle/release/app-release.aab "../dist/Atulya-$VERSION.aab"
+          rm -f "$RUNNER_TEMP/atulya-release.p12"
+          APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner"
+          "$APKSIGNER" verify --print-certs "../dist/Atulya-$VERSION.apk" | grep -i "SHA-256"
+      - uses: actions/setup-python@v5
+        if: steps.changed.outputs.build == 'true'
+        with:
+          python-version: "3.12"
+      - name: Private Atulya server for the UI test (emulator reaches it at 10.0.2.2)
+        if: steps.changed.outputs.build == 'true'
+        env:
+          ATULYA_SKIP_MODELS: "1"
+          ATULYA_PRELOAD: "0"
+        run: |
+          sh install.sh --no-start
+          PW="ci$(openssl rand -hex 12)"
+          echo "::add-mask::$PW"
+          echo "TEST_PASSWORD=$PW" >> "$GITHUB_ENV"
+          export ATULYA_DATA_DIR="$RUNNER_TEMP/atulya-data" ATULYA_TEST_HOSTS="10.0.2.2"
+          echo "$PW" | .venv/bin/python -m atulya.cli set-password --user admin
+          nohup .venv/bin/python -m atulya.cli serve > "$RUNNER_TEMP/server.log" 2>&1 &
+          for i in $(seq 1 60); do curl -fs -o /dev/null -H "Host: 10.0.2.2:8501" http://127.0.0.1:8501/api/health && break; sleep 2; done
+          curl -fs -H "Host: 10.0.2.2:8501" http://127.0.0.1:8501/api/health
+      - name: Build UI-test copy (points at the private server, screenshots allowed)
+        if: steps.changed.outputs.build == 'true'
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/atulya-release.p12"
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/atulya-release.p12"
+          gradle --no-daemon assembleRelease -PversionName="$VERSION" -PversionCode="$GITHUB_RUN_NUMBER" -PallowScreenshots=true -PtestServer=1 -PatulyaUrl=http://10.0.2.2:8501
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/uitest.apk"
+          rm -f "$RUNNER_TEMP/atulya-release.p12"
+      - name: Enable KVM
+        if: steps.changed.outputs.build == 'true'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - name: Emulator UI test (sign in, chat layout, hide chat, menu, rotation, reopen, crashes, memory)
+        if: steps.changed.outputs.build == 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: python3 tools/android_ui_test.py "$RUNNER_TEMP/uitest.apk" dist/smoke "$TEST_PASSWORD"
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.changed.outputs.build == 'true'
+        with:
+          name: smoke-${{ env.VERSION }}
+          path: dist/smoke
+          retention-days: 7
+      - name: APK size
+        if: steps.changed.outputs.build == 'true'
+        run: echo "APK $(du -k dist/*.apk | cut -f1) KB" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Publish release
+        if: steps.changed.outputs.build == 'true' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "v$VERSION" dist/Atulya-*.apk dist/Atulya-*.aab --title "Atulya $VERSION" --notes "Signed Android build of Atulya. Install the .apk on your phone; the .aab is for Google Play."
