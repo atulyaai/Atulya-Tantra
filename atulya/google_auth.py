@@ -18,7 +18,7 @@ import httpx
 from fastapi import HTTPException, Request
 from starlette.responses import HTMLResponse, RedirectResponse
 
-from .auth import SESSION_COOKIE, cookie_values, session_token
+from .auth import cookie_values, session_token
 
 IDENTITY = {"openid", "email", "profile"}
 GMAIL = "https://www.googleapis.com/auth/gmail.readonly"

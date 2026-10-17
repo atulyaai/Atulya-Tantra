@@ -59,10 +59,11 @@ elif [ ! -f "$DIR/pyproject.toml" ]; then
 fi
 cd "$DIR"
 
-# 2. Python: reuse a system Python >= 3.10, else a uv-managed private one.
+# 2. Python: reuse a system Python 3.10-3.13 (newer ones lack wheels such as ctranslate2),
+#    else a uv-managed private one.
 PY=""
-for candidate in python3 python; do
-    if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import sys, venv; sys.exit(sys.version_info < (3, 10))' 2>/dev/null; then
+for candidate in python3.12 python3.13 python3.11 python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import sys, venv; sys.exit(not (3, 10) <= sys.version_info[:2] <= (3, 13))' 2>/dev/null; then
         PY="$candidate"; break
     fi
 done

@@ -42,14 +42,15 @@ if ((Test-Path (Join-Path $here 'pyproject.toml')) -and (Select-String -Quiet -P
 }
 Set-Location $Dir
 
-# 2. Python: reuse a system Python >= 3.10, else a uv-managed private one.
+# 2. Python: reuse a system Python 3.10-3.13 (newer ones lack wheels such as ctranslate2),
+#    else a uv-managed private one.
 $venvPython = Join-Path $Dir '.venv\Scripts\python.exe'
 if (-not (Test-Path $venvPython)) {
     $systemPython = $null
-    foreach ($candidate in @(@('py', '-3'), @('python'))) {
+    foreach ($candidate in @(@('py', '-3.12'), @('py', '-3.13'), @('py', '-3'), @('python'))) {
         if (Get-Command $candidate[0] -ErrorAction SilentlyContinue) {
             $extra = @($candidate | Select-Object -Skip 1)
-            & $candidate[0] @extra -c 'import sys, venv; sys.exit(sys.version_info < (3, 10))' 2>$null
+            & $candidate[0] @extra -c 'import sys, venv; sys.exit(not (3, 10) <= sys.version_info[:2] <= (3, 13))' 2>$null
             if ($LASTEXITCODE -eq 0) { $systemPython = $candidate; break }
         }
     }
