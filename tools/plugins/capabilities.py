@@ -58,8 +58,11 @@ def tool_capabilities(toolbox):
             from atulya.settings import Settings
             try:
                 hub = AgentHub(Settings.from_environment().data_dir)
-                if not hub.devices(ctx.user_id):
+                devices = hub.devices(ctx.user_id)
+                if not devices:
                     status, step = "needs_connection", "Pair a companion device in Devices."
+                elif tool.name == "ask_device" and not any(device["status"] == "online" for device in devices):
+                    status, step = "needs_connection", "Open/unlock the phone app or start the PC companion, then verify a ping receipt in Devices."
             except Exception:
                 pass
         if tool.name == "mcp_call_tool" and status in {"available", "needs_approval"}:

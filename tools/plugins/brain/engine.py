@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 import re
 from collections.abc import Sequence
 
@@ -45,7 +46,7 @@ _FILLERS = {
 
 def _tool_filler(calls) -> str:
     """A short spoken acknowledgement for slow tools; empty for instant ones."""
-    phrases = [_FILLERS.get(call.name, "One moment.") for call in calls]
+    phrases = [_FILLERS.get(call.name, "") for call in calls]
     phrases = [phrase for phrase in dict.fromkeys(phrases) if phrase]
     return (" ".join(phrases[:2]) + " ") if phrases else ""
 
@@ -126,7 +127,7 @@ class Brain:
         *,
         system_instructions: str = "",
         toolbox=None,
-        acknowledge: bool = True,  # spoken "Checking the weather." fillers; off for text-only channels
+        acknowledge: bool = False,  # voice callers can explicitly request meaningful acknowledgements
     ):
         """Yield reply text chunks, running any tool calls the model makes in between.
 
@@ -135,10 +136,19 @@ class Brain:
         fed back. The final round is sent without tools so the model must answer.
         """
         stream_method = getattr(self._provider, "stream", None)
-        if stream_method is None or "tools" not in inspect.signature(stream_method).parameters:
-            toolbox = None
+        stream_accepts_tools = stream_method is not None and any(
+            parameter.name == "tools" or parameter.kind == inspect.Parameter.VAR_KEYWORD
+            for parameter in inspect.signature(stream_method).parameters.values()
+        )
         if toolbox:
             system_instructions = "\n\n".join(item for item in (system_instructions, toolbox.instructions()) if item)
+            if not stream_accepts_tools:
+                system_instructions += (
+                    '\nTo request an action, output <tool_call>{"name":"tool_name",'
+                    '"arguments":{}}</tool_call> using one of these tool schemas. '
+                    'Wait for the tool result before claiming success.\n'
+                    + json.dumps(toolbox.schemas)
+                )
         messages = self._prepare_messages(conversation, system_instructions)
         rounds = toolbox.MAX_ROUNDS if toolbox else 1
         latest = next((item.content for item in reversed(messages) if item.role == "user"), "")
@@ -148,20 +158,23 @@ class Brain:
             spoken.add(early.strip())
             yield early  # spoken immediately while the model decides which tool to use
         try:
-            if stream_method is None:
-                text = await self._provider.complete(messages)
-                if text:
-                    yield text
-                return
             for round_index in range(rounds):
                 use_tools = bool(toolbox) and round_index < rounds - 1
                 calls: list[ToolCall] = []
                 text_parts: list[str] = []
-                stream = stream_method(messages, tools=toolbox.schemas) if use_tools else stream_method(messages)
+                async def completion_stream():
+                    yield await self._provider.complete(messages)
+
+                stream = (
+                    completion_stream() if stream_method is None else
+                    stream_method(messages, tools=toolbox.schemas) if use_tools and stream_accepts_tools else
+                    stream_method(messages)
+                )
                 text_filter = TextCallFilter()
                 async for chunk in stream:
                     if isinstance(chunk, ToolCall):
-                        calls.append(chunk)
+                        if use_tools:
+                            calls.append(chunk)
                     elif chunk:
                         visible = text_filter.feed(chunk)
                         if visible:

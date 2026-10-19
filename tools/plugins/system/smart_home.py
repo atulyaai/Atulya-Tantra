@@ -83,14 +83,21 @@ async def execute_smart_home(device: str, action: str, brightness: int | None = 
 
     # Direct Home Assistant control
     if HASS_URL and HASS_TOKEN:
+        services = {"on": "turn_on", "enable": "turn_on", "turn_on": "turn_on",
+                    "off": "turn_off", "disable": "turn_off", "turn_off": "turn_off", "toggle": "toggle"}
+        service = services.get(action_norm)
+        if service is None:
+            return f"Unsupported smart home action '{action}'. Nothing was changed. Use on, off, toggle, or a configured scene."
         headers = {
             "Authorization": f"Bearer {HASS_TOKEN}",
             "Content-Type": "application/json"
         }
-        domain = "light" if "light" in device_norm or "lamp" in device_norm else "switch"
-        service = "turn_on" if action_norm in {"turn_on", "on", "enable"} else "turn_off"
+        domain = device_norm.split(".", 1)[0] if "." in device_norm else "light" if "light" in device_norm or "lamp" in device_norm else "switch"
+        if domain not in {"light", "switch"}:
+            return "Only light and switch entities are supported. Nothing was changed."
         endpoint = f"{HASS_URL}/api/services/{domain}/{service}"
-        payload: dict[str, Any] = {"entity_id": f"{domain}.{device_norm.replace(' ', '_')}"}
+        entity = device_norm if "." in device_norm else f"{domain}.{device_norm.replace(' ', '_')}"
+        payload: dict[str, Any] = {"entity_id": entity}
         if brightness is not None and domain == "light":
             payload["brightness_pct"] = max(0, min(100, brightness))
 
@@ -98,7 +105,7 @@ async def execute_smart_home(device: str, action: str, brightness: int | None = 
             async with httpx.AsyncClient(timeout=10) as client:
                 res = await client.post(endpoint, headers=headers, json=payload)
                 if res.status_code in {200, 201}:
-                    return f"Smart home: {device} set to {action} (brightness {brightness}%)." if brightness else f"Smart home: {device} set to {action}."
+                    return f"Home Assistant accepted {service} for {device} ({entity})" + (f" (brightness {payload['brightness_pct']}%)." if "brightness_pct" in payload else ".")
                 return f"Home Assistant returned status {res.status_code}: {res.text[:120]}"
         except Exception as exc:
             return f"Home Assistant request failed: {exc}"

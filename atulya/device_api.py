@@ -46,6 +46,14 @@ def register_device_routes(app, data_dir):
     async def revoke(name: str, request: Request):
         return {"revoked": await asyncio.to_thread(hub.revoke, str(request.state.user_id), name)}
 
+    @app.post("/api/devices/{name}/test", status_code=202)
+    async def test_device(name: str, request: Request):
+        try:
+            job = await asyncio.to_thread(hub.enqueue, str(request.state.user_id), name, "ping")
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return {"job": job, "message": "Ping queued; connection is verified only by an executed receipt."}
+
     @app.post("/api/agents/register")
     async def register(request: Request):
         identity = await device(request)

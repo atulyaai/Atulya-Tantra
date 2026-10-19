@@ -95,10 +95,17 @@ class AgentHub:
         with closing(sqlite3.connect(self.path)) as db, db:
             cursor = db.execute("UPDATE jobs SET status=?,output=?,updated=? WHERE id=? AND owner=? AND device=? AND status IN ('running','unconfirmed')",
                                 ("executed" if success else "failed", output[:4000], time.time(), job_id, owner, name))
-            return cursor.rowcount == 1
+            if cursor.rowcount == 1:
+                return True
+            row = db.execute("SELECT status,output FROM jobs WHERE id=? AND owner=? AND device=?",
+                             (job_id, owner, name)).fetchone()
+            return bool(row and row == ("executed" if success else "failed", output[:4000]))
 
     def jobs(self, owner):
-        with closing(sqlite3.connect(self.path)) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
+            # Status must settle even when a disconnected device never polls again.
+            db.execute("UPDATE jobs SET status='unconfirmed',updated=? WHERE owner=? AND status='running' AND updated<?",
+                       (time.time(), owner, time.time() - 120))
             db.row_factory = sqlite3.Row
             rows = db.execute("SELECT id,device,kind,status,created,updated,output FROM jobs WHERE owner=? ORDER BY created DESC LIMIT 50", (owner,)).fetchall()
         return [dict(row) for row in rows]

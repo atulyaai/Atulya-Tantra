@@ -16,6 +16,10 @@ def _client() -> httpx.AsyncClient:
         _search_client = httpx.AsyncClient(
             timeout=httpx.Timeout(10, connect=5),
             headers={"User-Agent": "Atulya-Tantra/1.0"},
+            trust_env=False,
+            # Pinned IP URLs may serve different TLS hostnames. Never reuse a
+            # connection authenticated for one original hostname for another.
+            limits=httpx.Limits(max_keepalive_connections=0),
         )
     return _search_client
 
@@ -56,9 +60,15 @@ async def search_web(query: str, limit: int = 5) -> list[dict]:
 async def public_address(url: str) -> str | None:
     """Why a URL must not be fetched, or None when it points only at the public internet.
 
-    Blocks this server, its private network and the cloud metadata service (169.254.169.254), so a page,
+    Blocks private networks and the cloud metadata service (169.254.169.254), so a page,
     email or prompt can never make Atulya read internal addresses.
     """
+    _, refused = await _public_target(url)
+    return refused
+
+
+async def _public_target(url: str) -> tuple[str | None, str | None]:
+    """Resolve and validate once; the returned address is the actual connection target."""
     import asyncio
     import ipaddress
     import socket
@@ -68,20 +78,27 @@ async def public_address(url: str) -> str | None:
         parts = urlsplit(url)
         port = parts.port or (443 if parts.scheme == "https" else 80)
     except ValueError:
-        return "invalid address"
+        return None, "invalid address"
     if parts.scheme not in {"http", "https"} or not parts.hostname or parts.username or parts.password:
-        return "only plain http(s) web addresses can be read"
+        return None, "only plain http(s) web addresses can be read"
     try:
-        found = await asyncio.get_running_loop().getaddrinfo(parts.hostname, port, type=socket.SOCK_STREAM)
-    except OSError:
-        return "that address does not resolve"
+        found = await asyncio.wait_for(
+            asyncio.get_running_loop().getaddrinfo(parts.hostname, port, type=socket.SOCK_STREAM), timeout=5)
+    except (OSError, asyncio.TimeoutError):
+        return None, "that address does not resolve"
+    addresses = []
     for *_rest, sockaddr in found:
         address = ipaddress.ip_address(sockaddr[0].split("%")[0])
         if getattr(address, "ipv4_mapped", None):
             address = address.ipv4_mapped
         if not address.is_global or address.is_multicast:
-            return "internal and private addresses are never read"
-    return None
+            return None, "internal and private addresses are never read"
+        addresses.append(address)
+    if not addresses:
+        return None, "that address does not resolve"
+    # Prefer IPv4 on hosts without working IPv6 routing.
+    address = min(addresses, key=lambda item: item.version)
+    return str(address), None
 
 
 async def read_page(url: str) -> str:
@@ -89,12 +106,18 @@ async def read_page(url: str) -> str:
     client = _client()
     try:
         for _hop in range(5):
-            refused = await public_address(url)
+            address, refused = await _public_target(url)
             if refused:
                 return f"I won't read that address: {refused}."
-            resp = await client.get(url, follow_redirects=False)
+            original = httpx.URL(url)
+            # Connect to the validated numeric address; do not resolve the
+            # untrusted hostname a second time. Keep Host and TLS verification.
+            target = original.copy_with(host=address)
+            resp = await client.get(str(target), follow_redirects=False,
+                                    headers={"Host": original.netloc.decode("ascii")},
+                                    extensions={"sni_hostname": original.raw_host.decode("ascii")})
             if resp.is_redirect and resp.headers.get("location"):
-                url = str(resp.next_request.url) if resp.next_request else str(httpx.URL(url).join(resp.headers["location"]))
+                url = str(original.join(resp.headers["location"]))
                 continue
             break
         else:

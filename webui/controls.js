@@ -328,9 +328,33 @@
     try {
       const data = await api("/api/devices");
       content.replaceChildren(node("p", "Each device has its own revocable credential and allowed actions. A queued request is not execution."));
+      const refresh = node("button", "Refresh devices & receipts");
+      refresh.addEventListener("click", devicesPanel); content.append(refresh);
       for (const device of data.devices) {
         const row = node("div", undefined, "control-row");
         row.append(node("strong", `${device.name} · ${device.status}`), node("small", device.abilities.join(", ")));
+        const test = node("button", "Test connection");
+        test.disabled = !device.abilities.includes("ping");
+        test.addEventListener("click", async () => {
+          test.disabled = true;
+          const feedback = node("p", "Waiting for this device's ping receipt…"); row.append(feedback);
+          try {
+            const result = await api(`/api/devices/${encodeURIComponent(device.name)}/test`, {method:"POST"});
+            const deadline = Date.now() + 15000;
+            let finished = false;
+            while (Date.now() < deadline && dialog.open) {
+              const snapshot = await api("/api/devices");
+              const job = snapshot.jobs.find(item => item.id === result.job.id);
+              if (job && ["executed", "failed", "cancelled", "unconfirmed"].includes(job.status)) {
+                feedback.textContent = `${job.status === "executed" ? "Connection verified" : job.status}: ${job.output || "No receipt"}`;
+                finished = true; break;
+              }
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            if (!finished) feedback.textContent = "No receipt yet. Open/unlock the phone app or start the PC companion, then refresh Devices.";
+          } catch(error) { feedback.textContent = error.message; }
+          finally { test.disabled = false; }
+        }); row.append(test);
         const revoke = node("button", "Revoke device");
         revoke.addEventListener("click", async () => {
           revoke.disabled = true;

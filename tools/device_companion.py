@@ -83,23 +83,23 @@ def _display_toast(message: str) -> str:
                       '[System.Windows.Forms.MessageBox]::Show($env:ATULYA_MESSAGE, "Atulya")')
             subprocess.Popen(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
                              env={**os.environ, "ATULYA_MESSAGE": clean}, creationflags=0x08000000)
-            return f"Notification displayed: {clean[:100]}"
+            return "Windows accepted a visual notification request; user viewing is not verified."
         except Exception as exc:
-            return f"Failed to show toast: {exc}"
+            raise RuntimeError(f"Failed to show notification: {exc}") from exc
     elif SYSTEM == "Darwin":
         try:
             subprocess.run(["osascript", "-e", "on run argv", "-e", 'display notification (item 1 of argv) with title "Atulya"',
                             "-e", "end run", clean], timeout=5, check=True)
             return f"Notification displayed: {clean[:100]}"
         except Exception as exc:
-            return f"Failed to show notification: {exc}"
+            raise RuntimeError(f"Failed to show notification: {exc}") from exc
     elif SYSTEM == "Linux":
         try:
             subprocess.run(["notify-send", "--", "Atulya", clean], timeout=5, check=True)
             return f"Notification displayed: {clean[:100]}"
-        except Exception:
-            return "No notification service on this device; nothing was shown."
-    return "No notification service on this device; nothing was shown."
+        except Exception as exc:
+            raise RuntimeError("No notification service on this device; nothing was shown.") from exc
+    raise ValueError("No notification service on this device; nothing was shown.")
 
 
 def _media_control(action: str) -> str:
@@ -118,8 +118,8 @@ def _media_control(action: str) -> str:
                 ctypes.windll.user32.keybd_event(vk, 0, 2, 0)
                 return f"Media key '{action}' triggered."
             except Exception as exc:
-                return f"Failed to send media key: {exc}"
-    return f"Media action '{action}' queued."
+                raise RuntimeError(f"Failed to send media key: {exc}") from exc
+    raise ValueError(f"Media action '{action}' is not supported on this companion")
 
 
 def execute(kind: str, detail: str, folder=None):
@@ -141,7 +141,10 @@ def execute(kind: str, detail: str, folder=None):
         # Only apps listed in the Start menu / Applications / .desktop entries, matched by name and launched
         # without a shell. A name like "notepad & del ..." can never become a command.
         from tools.plugins.system.actions import open_app
-        return open_app(detail.strip()[:80])
+        result = open_app(detail.strip()[:80])
+        if not result.startswith("Opened "):
+            raise ValueError(result)
+        return result
 
     if kind == "list_files":
         target = _granted_path(folder, detail or ".")
@@ -171,24 +174,27 @@ def execute(kind: str, detail: str, folder=None):
         return "\n".join(photos) or "No photos found."
 
     if kind == "take_photo":
+        save_dir = _granted_path(folder, ".")
         try:
             import cv2  # type: ignore
             cap = cv2.VideoCapture(0)
-            if not cap.isOpened():
-                return "Camera unavailable or in use by another app."
-            ret, frame = cap.read()
-            cap.release()
+            try:
+                if not cap.isOpened():
+                    raise RuntimeError("Camera unavailable or in use by another app.")
+                ret, frame = cap.read()
+            finally:
+                cap.release()
             if not ret:
-                return "Failed to grab frame from camera."
-            save_dir = _granted_path(folder, ".")
+                raise RuntimeError("Failed to grab frame from camera.")
             filename = f"capture_{int(time.time())}.jpg"
             save_path = save_dir / filename
-            cv2.imwrite(str(save_path), frame)
+            if not cv2.imwrite(str(save_path), frame):
+                raise RuntimeError("Camera image could not be saved.")
             return f"Photo captured and saved to {save_path.name}"
-        except ImportError:
-            return "Camera capture module (OpenCV) not installed on companion device."
+        except ImportError as exc:
+            raise RuntimeError("Camera capture module (OpenCV) not installed on companion device.") from exc
         except Exception as exc:
-            return f"Camera capture failed: {exc}"
+            raise RuntimeError(f"Camera capture failed: {exc}") from exc
 
     if kind == "media_control":
         return _media_control(detail)
@@ -205,6 +211,34 @@ def execute(kind: str, detail: str, folder=None):
     raise ValueError(f"This companion does not implement action: {kind}")
 
 
+def poll_once(client, *, folder=None, executor=execute, pending=None):
+    """Retry accepted-result acknowledgements without executing the job again."""
+    pending = pending if pending is not None else {}
+    completed = []
+
+    def flush():
+        for job_id, body in list(pending.items()):
+            receipt = client.post("/api/agents/result", json=body)
+            receipt.raise_for_status()
+            if not receipt.json().get("ok"):
+                raise RuntimeError("Execution receipt rejected; inspect Devices before retrying the action")
+            completed.append({"id": job_id, "success": body["success"]})
+            del pending[job_id]
+
+    flush()
+    response = client.post("/api/agents/poll")
+    response.raise_for_status()
+    for job in response.json().get("jobs", []):
+        try:
+            output = executor(job["kind"], job.get("detail", ""), folder)
+            success = True
+        except Exception as exc:
+            output, success = str(exc), False
+        pending[job["id"]] = {"id": job["id"], "output": str(output)[:4000], "success": success}
+    flush()
+    return completed
+
+
 def main():
     origin = os.environ.get("ATULYA_AGENT_URL", "").rstrip("/")
     token = os.environ.get("ATULYA_AGENT_TOKEN", "")
@@ -216,23 +250,17 @@ def main():
         response = client.post("/api/agents/register")
         response.raise_for_status()
         print(f"Paired companion '{device_name}' connected to {origin}. Ctrl+C stops it.")
+        pending = {}
         while True:
             try:
-                response = client.post("/api/agents/poll")
-                if response.status_code == 401:
-                    raise SystemExit("Device credential revoked or invalid; pair again")
-                response.raise_for_status()
-                for job in response.json().get("jobs", []):
-                    try:
-                        output = execute(job["kind"], job.get("detail", ""), os.environ.get("ATULYA_AGENT_FOLDER"))
-                        success = True
-                    except Exception as exc:
-                        output, success = str(exc), False
-                    receipt = client.post("/api/agents/result", json={"id": job["id"], "output": output, "success": success})
-                    receipt.raise_for_status()
+                poll_once(client, folder=os.environ.get("ATULYA_AGENT_FOLDER"), pending=pending)
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code == 401:
+                    raise SystemExit("Device credential revoked or invalid; pair again") from None
+                print(f"Server returned HTTP {exc.response.status_code}; waiting to retry...")
             except httpx.HTTPError:
                 print("Server temporarily unavailable; waiting to retry...")
-            time.sleep(5)
+            time.sleep(2)
 
 
 if __name__ == "__main__":

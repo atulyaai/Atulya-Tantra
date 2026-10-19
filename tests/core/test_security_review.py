@@ -35,8 +35,8 @@ def test_read_url_refuses_internal_addresses(url):
 
 
 def test_read_url_checks_every_redirect_hop(monkeypatch):
-    async def public_address(url):
-        return "internal and private addresses are never read" if "metadata" in url else None
+    async def public_target(url):
+        return (None, "internal and private addresses are never read") if "metadata" in url else ("93.184.216.34", None)
 
     class Hop:
         is_redirect = True
@@ -46,14 +46,16 @@ def test_read_url_checks_every_redirect_hop(monkeypatch):
     calls = []
 
     class Client:
-        async def get(self, url, follow_redirects=False):
+        async def get(self, url, follow_redirects=False, **kwargs):
             calls.append(url)
+            assert kwargs["headers"]["Host"] == "public.example"
+            assert kwargs["extensions"]["sni_hostname"] == "public.example"
             return Hop()
 
-    monkeypatch.setattr(search, "public_address", public_address)
+    monkeypatch.setattr(search, "_public_target", public_target)
     monkeypatch.setattr(search, "_client", lambda: Client())
     reply = asyncio.run(search.read_page("http://public.example/"))
-    assert calls == ["http://public.example/"]  # the redirect to an internal address is never followed
+    assert calls == ["http://93.184.216.34/"]  # only the validated public address is contacted
     assert reply.startswith("I won't read that address")
 
 
