@@ -18,6 +18,7 @@ Open **Devices → Test connection**. This queues a harmless ping using the sign
 
 - Android: open and unlock the installed app; its companion runs only while it is open/unlocked. Pairing is not a background listener.
 - PC: run `tools/device_companion.py` with the per-device `ATULYA_AGENT_URL` and `ATULYA_AGENT_TOKEN`; grant `ATULYA_AGENT_FOLDER` only if file access is needed. The default poll interval is two seconds plus network/execution time. Credentials must never be pasted into public issues or chat logs.
+- Windows setup: run `Connect-This-PC.cmd` in an installed source checkout, or the portable `Atulya-PC-Companion.exe`. Create a device in the signed-in Devices panel and paste its credential into the local setup window. Saved credentials and receipt outboxes use Windows DPAPI; the portable app stores them in `%LOCALAPPDATA%/Atulya/Companion`. Keep the companion process running. It does not yet install a startup service.
 - Revoke a device in Devices to stop its credential. A new sign-in does not prove old jobs were executed.
 - Readiness now distinguishes an offline paired device from a live companion. Owner-scoped ping tests cannot target another account's device.
 
@@ -36,6 +37,7 @@ Telegram sends requests through the shared server/tool registry; a device action
 - Stale running jobs become unconfirmed when status is read, even if the device never reconnects.
 - PC receipt retries do not repeat the action. Identical server receipts are idempotent; a different owner or changed outcome cannot overwrite one.
 - Android persists receipts and retries failed uploads before accepting more jobs. Slow polls cannot accumulate a backlog, and jobs delivered after the app leaves the foreground are refused.
+- Saved Windows companions persist receipt uploads across restarts and prevent duplicate companion processes from using the same saved connection.
 - Phone media controls fail when no prepared Atulya audio stream exists. Stream errors and stop-during-preparation release the player without crashing the app.
 - Pull requests now compile the APK, run Android receipt unit tests, and exercise phone pairing, approvals, missing audio, and foreground reconnection on an emulator without release signing credentials.
 - Missing PC apps, unsupported media actions and failed photo writes produce failed receipts.

@@ -4,8 +4,7 @@ name: CI
 #   test    - run the real one-line installer on fresh Windows, Ubuntu and macOS, the test suite, lint, and a server check.
 #   deploy  - after tests pass on main, the server updates itself (pull, install, restart, health check, rollback on failure).
 #             The deploy key can only run tools/deploy_server.sh on the server (forced command).
-#   android - when android/ changes on main (or a v* tag is pushed), build the signed APK, UI-test it on an emulator
-#             and publish it as the latest GitHub Release, so the in-app updater (/api/app/latest) offers it.
+#   android - compile and UI-test a debug APK on pull requests; build, test, and publish signed releases on main/tags.
 on:
   push:
     branches: [main]
@@ -211,6 +210,12 @@ jobs:
         with:
           name: smoke-${{ env.VERSION }}
           path: dist/smoke
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.changed.outputs.build == 'true'
+        with:
+          name: android-unit-results
+          path: android/app/build/test-results/testDebugUnitTest
           retention-days: 7
       - name: APK size
         if: steps.changed.outputs.build == 'true'

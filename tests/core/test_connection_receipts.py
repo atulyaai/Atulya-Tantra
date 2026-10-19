@@ -49,6 +49,36 @@ def test_duplicate_receipt_is_idempotent_but_cannot_change_outcome(project_temp_
     assert not hub.complete("alice", "PC", job["id"], "changed")
 
 
+def test_receipt_outbox_survives_a_companion_restart(project_temp_dir):
+    path = project_temp_dir / "pending.json"
+    executed = []
+    receipts = []
+
+    def persist(pending):
+        path.write_text(json.dumps(pending), encoding="utf-8")
+
+    def handle(request):
+        if request.url.path.endswith("/poll"):
+            return httpx.Response(200, json={"jobs": [] if executed else [{"id": "once", "kind": "ping"}]})
+        receipts.append(request.content)
+        if len(receipts) == 1:
+            raise httpx.ReadError("Connection lost after acceptance")
+        return httpx.Response(200, json={"ok": True})
+
+    def execute(*args):
+        executed.append(True)
+        return "pong"
+
+    with httpx.Client(base_url="https://test", transport=httpx.MockTransport(handle)) as client:
+        with pytest.raises(httpx.ReadError):
+            device_companion.poll_once(client, pending={}, executor=execute, persist=persist)
+        restarted_pending = json.loads(path.read_text(encoding="utf-8"))
+        device_companion.poll_once(client, pending=restarted_pending, executor=execute, persist=persist)
+    assert len(executed) == 1
+    assert receipts[0] == receipts[1]
+    assert json.loads(path.read_text(encoding="utf-8")) == {}
+
+
 def test_missing_app_returns_a_failed_device_receipt(monkeypatch):
     from tools.plugins.system import actions
     monkeypatch.setattr(actions, "open_app", lambda name: "No installed app matches 'missing'.")

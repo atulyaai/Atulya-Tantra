@@ -22,6 +22,7 @@ Capabilities:
 from __future__ import annotations
 
 import json
+import argparse
 import os
 import platform
 import subprocess
@@ -211,7 +212,7 @@ def execute(kind: str, detail: str, folder=None):
     raise ValueError(f"This companion does not implement action: {kind}")
 
 
-def poll_once(client, *, folder=None, executor=execute, pending=None):
+def poll_once(client, *, folder=None, executor=execute, pending=None, persist=lambda pending: None):
     """Retry accepted-result acknowledgements without executing the job again."""
     pending = pending if pending is not None else {}
     completed = []
@@ -224,6 +225,7 @@ def poll_once(client, *, folder=None, executor=execute, pending=None):
                 raise RuntimeError("Execution receipt rejected; inspect Devices before retrying the action")
             completed.append({"id": job_id, "success": body["success"]})
             del pending[job_id]
+            persist(pending)
 
     flush()
     response = client.post("/api/agents/poll")
@@ -235,13 +237,28 @@ def poll_once(client, *, folder=None, executor=execute, pending=None):
         except Exception as exc:
             output, success = str(exc), False
         pending[job["id"]] = {"id": job["id"], "output": str(output)[:4000], "success": success}
+        persist(pending)
     flush()
     return completed
 
 
 def main():
-    origin = os.environ.get("ATULYA_AGENT_URL", "").rstrip("/")
-    token = os.environ.get("ATULYA_AGENT_TOKEN", "")
+    parser = argparse.ArgumentParser(description="Run the paired Atulya device companion")
+    parser.add_argument("--saved", action="store_true", help="Use the credential saved by the PC setup window")
+    args = parser.parse_args()
+    if args.saved:
+        from atulya.secrets_store import _decode
+        from tools.companion_paths import connection_directory, acquire_connection_lock
+        directory = connection_directory()
+        try:
+            _connection_lock = acquire_connection_lock(directory)  # retained for the worker's lifetime
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from None
+        saved = _decode((directory / "secrets.enc").read_bytes())
+    else:
+        saved = os.environ
+    origin = saved.get("ATULYA_AGENT_URL", "").rstrip("/")
+    token = saved.get("ATULYA_AGENT_TOKEN", "")
     device_name = os.environ.get("ATULYA_DEVICE_NAME", platform.node())
     parsed = urlsplit(origin)
     if parsed.scheme != "https" or not parsed.hostname or parsed.username or not token:
@@ -251,9 +268,21 @@ def main():
         response.raise_for_status()
         print(f"Paired companion '{device_name}' connected to {origin}. Ctrl+C stops it.")
         pending = {}
+        def persist(pending):
+            pass
+        if args.saved:
+            from atulya.secrets_store import _encode, _decode
+            outbox = directory / "receipts.enc"
+            pending = _decode(outbox.read_bytes()) if outbox.exists() else {}
+            def persist(pending):
+                temporary = outbox.with_suffix(".tmp")
+                temporary.write_bytes(_encode(pending))
+                if os.name != "nt":
+                    temporary.chmod(0o600)
+                os.replace(temporary, outbox)
         while True:
             try:
-                poll_once(client, folder=os.environ.get("ATULYA_AGENT_FOLDER"), pending=pending)
+                poll_once(client, folder=os.environ.get("ATULYA_AGENT_FOLDER"), pending=pending, persist=persist)
             except httpx.HTTPStatusError as exc:
                 if exc.response.status_code == 401:
                     raise SystemExit("Device credential revoked or invalid; pair again") from None

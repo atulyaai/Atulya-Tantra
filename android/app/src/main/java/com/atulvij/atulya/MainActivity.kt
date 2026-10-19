@@ -511,6 +511,8 @@ class MainActivity : AppCompatActivity() {
 
     /** Native-shell updates: the web UI updates itself; this only offers a newer signed APK. */
     private fun checkForUpdate() {
+        // Private emulator builds must not consult production releases or block tests with an update dialog.
+        if (BuildConfig.ALLOW_SCREENSHOTS) return
         Thread {
             try {
                 val connection = java.net.URL("${origin}/api/app/latest").openConnection() as java.net.HttpURLConnection
