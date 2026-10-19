@@ -44,10 +44,14 @@ _FILLERS = {
 }
 
 
-def _tool_filler(calls) -> str:
-    """A short spoken acknowledgement for slow tools; empty for instant ones."""
+FILLER_AFTER_SECONDS = 1.2
+
+
+def _tool_filler(calls, latest: str = "") -> str:
+    """A short spoken acknowledgement for a slow tool: what it is doing, never a bare "One moment."."""
     phrases = [_FILLERS.get(call.name, "") for call in calls]
-    phrases = [phrase for phrase in dict.fromkeys(phrases) if phrase]
+    phrases = [phrase for phrase in dict.fromkeys(phrases) if phrase] or [instant_ack(latest).strip()]
+    phrases = [phrase for phrase in phrases if phrase]
     return (" ".join(phrases[:2]) + " ") if phrases else ""
 
 
@@ -127,7 +131,7 @@ class Brain:
         *,
         system_instructions: str = "",
         toolbox=None,
-        acknowledge: bool = False,  # voice callers can explicitly request meaningful acknowledgements
+        acknowledge: bool = False,  # spoken fillers ("Checking the weather.") — only when the user is talking
     ):
         """Yield reply text chunks, running any tool calls the model makes in between.
 
@@ -152,11 +156,7 @@ class Brain:
         messages = self._prepare_messages(conversation, system_instructions)
         rounds = toolbox.MAX_ROUNDS if toolbox else 1
         latest = next((item.content for item in reversed(messages) if item.role == "user"), "")
-        early = instant_ack(latest) if toolbox and acknowledge else ""
         spoken: set[str] = set()  # each acknowledgement at most once per reply
-        if early:
-            spoken.add(early.strip())
-            yield early  # spoken immediately while the model decides which tool to use
         try:
             for round_index in range(rounds):
                 use_tools = bool(toolbox) and round_index < rounds - 1
@@ -190,16 +190,20 @@ class Brain:
                     yield leftover
                 if not calls:
                     return
+                running = asyncio.ensure_future(asyncio.gather(*(toolbox.call(call.name, call.arguments) for call in calls)))
                 if not text_parts and acknowledge:
-                    # Say something immediately so voice users hear a reply while tools run.
-                    filler = " ".join(part for part in _tool_filler(calls).replace(". ", ".|").split("|")
-                                      if part.strip() and part.strip() not in spoken).strip()
-                    filler = f"{filler} " if filler else ""
-                    spoken.update(part.strip() for part in filler.replace(". ", ".|").split("|") if part.strip())
-                    if filler:
-                        text_parts.append(filler)
-                        yield filler
-                results = await asyncio.gather(*(toolbox.call(call.name, call.arguments) for call in calls))
+                    # A talking user hears a short acknowledgement only when the tools are slow; quick answers
+                    # come straight away without "One moment." on every question.
+                    done, _pending = await asyncio.wait({running}, timeout=FILLER_AFTER_SECONDS)
+                    if not done:
+                        filler = " ".join(part for part in _tool_filler(calls, latest).replace(". ", ".|").split("|")
+                                          if part.strip() and part.strip() not in spoken).strip()
+                        filler = f"{filler} " if filler else ""
+                        spoken.update(part.strip() for part in filler.replace(". ", ".|").split("|") if part.strip())
+                        if filler:
+                            text_parts.append(filler)
+                            yield filler
+                results = await running
                 messages.append(Message(role="assistant", content="".join(text_parts), tool_calls=tuple(calls)))
                 messages.extend(
                     Message(role="tool", content=result or "(no result)", tool_call_id=call.id)
@@ -213,7 +217,7 @@ class Brain:
     async def respond_with_tools(self, conversation: Sequence[Message], toolbox, *, system_instructions: str = "") -> BrainReply:
         """Non-streaming convenience for channels like Telegram."""
         text = "".join([chunk async for chunk in self.stream(
-            conversation, system_instructions=system_instructions, toolbox=toolbox, acknowledge=False)]).strip()
+            conversation, system_instructions=system_instructions, toolbox=toolbox)]).strip()
         if not text:
             raise BrainError("The model provider returned an empty reply")
         return BrainReply(text=text, provider=self._provider.name, model=self._provider.model)

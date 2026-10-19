@@ -28,11 +28,13 @@ class AgentHub:
             db.execute("CREATE TABLE IF NOT EXISTS device_presence (owner TEXT, name TEXT, mode TEXT, PRIMARY KEY(owner,name))")
             db.execute("CREATE TABLE IF NOT EXISTS device_metadata (owner TEXT, name TEXT, device_type TEXT, PRIMARY KEY(owner,name))")
 
+    NAME = r"[A-Za-z0-9][A-Za-z0-9 _'-]{0,39}"  # e.g. "Atul's Phone"; always shown as plain text
+
     def pair(self, owner, name, abilities, device_type="generic"):
         device_type = {"phone": "android", "laptop": "pc"}.get(device_type, device_type)
         if device_type not in {"generic", "android", "pc", "tv", "tablet"}:
             raise ValueError("Unsupported device type")
-        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 _-]{0,39}", name):
+        if not re.fullmatch(self.NAME, name):
             raise ValueError("Use a short device name with letters, numbers, spaces or hyphens")
         if not owner or not abilities or set(abilities) - COMMANDS:
             raise ValueError("Choose supported device abilities")
@@ -59,6 +61,23 @@ class AgentHub:
             rows = db.execute("SELECT d.name,d.abilities,d.seen,p.mode,m.device_type FROM devices d LEFT JOIN device_presence p ON p.owner=d.owner AND p.name=d.name LEFT JOIN device_metadata m ON m.owner=d.owner AND m.name=d.name WHERE d.owner=? AND d.revoked=0", (owner,)).fetchall()
         return [{"name": r[0], "abilities": json.loads(r[1]), "seen": r[2],
                  "status": "online" if r[2] and time.time() - r[2] < 90 else "offline", "mode": r[3] or "unknown", "device_type": r[4] or "generic"} for r in rows]
+
+    def rename(self, owner, name, new_name):
+        """Give a paired device a friendlier name; its credential and job history stay attached."""
+        new_name = " ".join(str(new_name).replace("’", "'").split())
+        if not re.fullmatch(self.NAME, new_name):
+            raise ValueError("Use a short name with letters, numbers, spaces, hyphens or ' (up to 40)")
+        with closing(sqlite3.connect(self.path)) as db, db:
+            if not db.execute("SELECT 1 FROM devices WHERE owner=? AND name=? AND revoked=0", (owner, name)).fetchone():
+                raise ValueError(f"No paired device called '{name}'")
+            if new_name == name:
+                return {"name": name}
+            if db.execute("SELECT 1 FROM devices WHERE owner=? AND name=? AND revoked=0", (owner, new_name)).fetchone():
+                raise ValueError(f"You already have a device called '{new_name}'")
+            db.execute("DELETE FROM devices WHERE owner=? AND name=? AND revoked=1", (owner, new_name))
+            db.execute("UPDATE devices SET name=? WHERE owner=? AND name=?", (new_name, owner, name))
+            db.execute("UPDATE jobs SET device=? WHERE owner=? AND device=?", (new_name, owner, name))
+        return {"name": new_name}
 
     def revoke(self, owner, name):
         with closing(sqlite3.connect(self.path)) as db, db:

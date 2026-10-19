@@ -364,6 +364,7 @@ class ChatRequest(BaseModel):
     image: str | None = Field(default=None, max_length=4_000_000)
     conversation_id: str = Field(default="local", min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
     stream: bool = False
+    spoken: bool = False  # the user is talking: a slow tool gets a short spoken acknowledgement
 
 
 class LocationBody(BaseModel):
@@ -2181,7 +2182,8 @@ ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
                 ui_actions: list[str] = []
                 _toolkit.UI_ACTIONS.set(ui_actions)
                 try:
-                    async for chunk in webui_channel.stream(messages, toolbox=toolbox, system_instructions=style):
+                    async for chunk in webui_channel.stream(messages, toolbox=toolbox, system_instructions=style,
+                                                            acknowledge=request.spoken):
                         for action in action_view.drain_new():
                             yield f"data: {json.dumps({'confirm': {'id': action.id, 'summary': action.summary}})}\n\n"
                         while ui_actions:

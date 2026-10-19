@@ -13,6 +13,10 @@ class PairRequest(BaseModel):
     device_type: str = Field(default="generic", max_length=32)
 
 
+class RenameRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=40)
+
+
 class ResultRequest(BaseModel):
     id: str = Field(min_length=1, max_length=100)
     output: str = Field(default="", max_length=4000)
@@ -39,6 +43,13 @@ def register_device_routes(app, data_dir):
     async def pair(body: PairRequest, request: Request):
         try:
             return await asyncio.to_thread(hub.pair, str(request.state.user_id), body.name, body.abilities, body.device_type)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+    @app.patch("/api/devices/{name}")
+    async def rename(name: str, body: RenameRequest, request: Request):
+        try:
+            return await asyncio.to_thread(hub.rename, str(request.state.user_id), name, body.name)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
 

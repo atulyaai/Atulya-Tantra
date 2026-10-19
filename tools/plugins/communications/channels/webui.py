@@ -15,6 +15,8 @@ class WebUIChannel:
     async def respond(self, conversation: Sequence[Message], *, system_instructions: str = "") -> BrainReply:
         return await self._brain.respond(conversation, system_instructions=system_instructions)
 
-    async def stream(self, conversation: Sequence[Message], *, system_instructions: str = "", toolbox=None):
-        async for chunk in self._brain.stream(conversation, system_instructions=system_instructions, toolbox=toolbox):
+    async def stream(self, conversation: Sequence[Message], *, system_instructions: str = "", toolbox=None,
+                     acknowledge: bool = False):
+        async for chunk in self._brain.stream(conversation, system_instructions=system_instructions, toolbox=toolbox,
+                                              acknowledge=acknowledge):
             yield chunk

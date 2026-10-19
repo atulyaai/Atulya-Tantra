@@ -39,7 +39,7 @@
       if (player) { player.loadVideoById(track.video_id); return; }
       player = new YT.Player("music-player",{height:"270",width:"100%",videoId:track.video_id,
         playerVars:{playsinline:1,origin:location.origin},events:{
-          onReady:event=>{status.textContent="Tap Play in the video to listen.";currentState="ready";receipt("ready");event.target.playVideo();},
+          onReady:event=>{status.textContent=`Playing ${selected?.title||""}`.trim();currentState="ready";receipt("ready");event.target.playVideo();},
           onAutoplayBlocked:()=>{status.textContent="Your browser requires a tap: press Play in the video.";},
           onStateChange:event=>{
             if (!selected || event.target.getVideoData()?.video_id !== selected.video_id) return;
@@ -66,6 +66,15 @@
       }
     } catch(error){status.textContent=error.message;}
   }
+  // "Play X" from Atulya: open the player and start the song straight away.
+  window.atulyaMusic = {
+    playNow(track) {
+      if (!track || !/^[A-Za-z0-9_-]{11}$/.test(track.video_id || "")) return;
+      if (!dialog.open) dialog.showModal();
+      void refresh();
+      void play(track);
+    },
+  };
   document.getElementById("quick-music")?.addEventListener("click",()=>{dialog.showModal();refresh();});
   document.getElementById("close-music").addEventListener("click",()=>dialog.close());
   dialog.addEventListener("close",()=>{player?.pauseVideo();});
