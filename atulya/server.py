@@ -213,6 +213,7 @@ class SessionAuthMiddleware:
         "/api/agents/register",
         "/api/agents/poll",
         "/api/agents/result",
+        "/api/agents/background",
     }
 
     def __init__(self, app, auth_store: AuthStore, public_origin: str = ""):
@@ -1042,6 +1043,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     from atulya.device_api import register_device_routes
     register_device_routes(app, config.data_dir)
+    from atulya.implementation import register_implementation_routes
+    register_implementation_routes(app, auth_store)
     from atulya.music import register_music_routes
     register_music_routes(app, config.data_dir)
     from atulya.phone_actions import register_phone_routes

@@ -38,7 +38,7 @@ def register_device_routes(app, data_dir):
     @app.post("/api/devices/pair", status_code=201)
     async def pair(body: PairRequest, request: Request):
         try:
-            return await asyncio.to_thread(hub.pair, str(request.state.user_id), body.name, body.abilities)
+            return await asyncio.to_thread(hub.pair, str(request.state.user_id), body.name, body.abilities, body.device_type)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
 
@@ -68,3 +68,10 @@ def register_device_routes(app, data_dir):
     async def result(body: ResultRequest, request: Request):
         identity = await device(request)
         return {"ok": await asyncio.to_thread(hub.complete, identity["owner"], identity["name"], body.id, body.output, body.success)}
+
+    @app.post("/api/agents/background")
+    async def background(request: Request):
+        identity = await device(request)
+        jobs = await asyncio.to_thread(hub.poll, identity["owner"], identity["name"], True)
+        waiting = await asyncio.to_thread(hub.waiting_for_foreground, identity["owner"], identity["name"])
+        return {"jobs": jobs, "waiting_for_approval": waiting}

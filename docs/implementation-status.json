@@ -1,0 +1,20 @@
+{
+  "updated": "2026-10-19",
+  "scope": "Jarvis reliability and execution roadmap. These are recorded engineering states; query live connections before claiming an action can run.",
+  "items": [
+    {"id":"server-health","title":"Primary-server diagnostics","status":"live_verified","evidence":"Deployed 064eec7; actual chat executed server_status in 6.1 seconds. Owner-only access tested.","next":"Retest after later deployments."},
+    {"id":"phone-link","title":"Phone connection and safe commands","status":"live_verified","evidence":"Actual server-to-phone ping and battery-status receipts in 4 and 5 seconds.","next":"Test each effectful command with phone approval."},
+    {"id":"apk","title":"Validated signed APK release","status":"in_progress","evidence":"Android compile, receipt unit tests and emulator checks passed on 064eec7. PR 95 merged; signed release pipeline triggered.","next":"Verify signed APK publication and installation."},
+    {"id":"pc","title":"PC connection and startup","status":"waiting_for_user","evidence":"Portable executable built and runtime-tested. No paired PC in live audit. User chose to connect later.","next":"Pair in Devices, paste credential locally, verify ping and approved app launch."},
+    {"id":"google","title":"Gmail sending and Google Calendar","status":"waiting_for_user","evidence":"Gmail read connected; send and Calendar scopes absent. User chose to reconnect later.","next":"Complete Google consent, then test read/write separately."},
+    {"id":"truth","title":"Accurate capability readiness","status":"in_progress","evidence":"Audited 69 tools; smart-home/TV/visual labels need dependency checks.","next":"Expose actual integration/device requirements rather than only tool registration."},
+    {"id":"background","title":"Phone background connection","status":"in_progress","evidence":"Current APK companion stops when the app leaves the foreground.","next":"Add explicit background session, harmless probes and waiting-command notification; retain approval for effects."},
+    {"id":"operations","title":"Restricted server operations and repair","status":"planned","evidence":"Health/logs exist; restart executor is absent. Maintenance edits only permitted WebUI/skill files.","next":"Build bounded operations, tests, approval and rollback; do not grant unrestricted root."},
+    {"id":"music","title":"Verified music playback","status":"planned","evidence":"Search/queue and existing-stream controls exist. No universal player or audible playback proof.","next":"Connect player state/errors and explicit device targeting."},
+    {"id":"tasks","title":"Persistent tasks and proactive monitoring","status":"planned","evidence":"Schedules and optional repair proposals exist; general durable task execution is absent.","next":"Add persisted tasks, checkpoints, retries, cancellation, completion criteria and quiet notifications."},
+    {"id":"screen","title":"Consented screen and application automation","status":"planned","evidence":"Atulya UI controls are not full phone/desktop screen control.","next":"Add consented screen sessions and scoped desktop automation after device pairing."},
+    {"id":"vision","title":"Camera-to-answer visual inspection","status":"planned","evidence":"Current visual tool queues capture only; current phone lacks take_photo ability.","next":"Implement capture/upload/analysis and verify the resulting answer."},
+    {"id":"channels","title":"WhatsApp and email command channels","status":"needs_external_setup","evidence":"Telegram connected. No native WhatsApp channel or email inbox command listener found.","next":"Implement adapters with authorized accounts, webhook/inbox setup and delivery tests."},
+    {"id":"home","title":"Home Assistant and TV control","status":"needs_external_setup","evidence":"Handlers exist; no verified Home Assistant or paired TV in this audit.","next":"Connect real devices, discover allowed targets and verify each action."}
+  ]
+}

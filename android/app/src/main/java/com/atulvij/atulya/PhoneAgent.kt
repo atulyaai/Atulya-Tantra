@@ -82,12 +82,17 @@ class PhoneAgent(
     fun start() {
         if (running || io.isShutdown) return
         running = true
+        PhoneConnectionService.appForeground = true
+        if (PhoneConnectionService.enabled(activity)) {
+            try { PhoneConnectionService.setEnabled(activity, true) } catch (_: Exception) { }
+        }
         main.post(tick)
         askNext()
     }
 
     fun stop() {
         running = false
+        PhoneConnectionService.appForeground = false
         main.removeCallbacks(tick)
     }
 

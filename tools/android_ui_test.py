@@ -301,6 +301,34 @@ if step("phone pairs itself after sign-in and polls", bool(device and device[2])
     status, output = job(background_ping, {"executed", "failed"})
     step("reopening phone resumes queued ping", status == "executed", output)
 
+    adb("shell", "pm", "grant", PKG, "android.permission.POST_NOTIFICATIONS")
+    devices_button = find(r"^Devices$", 10)
+    if devices_button:
+        tap(devices_button)
+    background_button = find(r"^Background phone connection$", 10)
+    step("background connection opt-in is visible", background_button is not None)
+    if background_button:
+        tap(background_button)
+    enable = find(r"^ENABLE$", 10)
+    if enable:
+        tap(enable)
+    step("background session explicitly enabled", enable is not None)
+    adb("shell", "input", "keyevent", "KEYCODE_HOME")
+    time.sleep(3)
+    background_probe = enqueue(owner, name, "ping")
+    status, output = job(background_probe, {"executed", "failed"}, 40)
+    step("opt-in background session executes ping", status == "executed", output)
+    awaiting = enqueue(owner, name, "display_message", "Needs phone approval")
+    status, _ = job(awaiting, {"executed", "failed"}, 18)
+    step("background session leaves effectful jobs queued", status == "queued", status)
+    adb("shell", "am", "start", "-n", f"{PKG}/.MainActivity")
+    allow = find(r"^ALLOW$", 20)
+    step("queued background action asks after reopening", allow is not None)
+    if allow:
+        tap(allow)
+    status, output = job(awaiting, {"executed", "failed"})
+    step("background request executes after foreground approval", status == "executed", output)
+
 # The real launcher icon as the phone draws it (home screen app list).
 adb("shell", "input", "keyevent", "KEYCODE_HOME")
 time.sleep(2)

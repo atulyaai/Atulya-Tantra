@@ -331,9 +331,14 @@
       content.append(node("p", "Phone: keep Atulya open and unlocked to stay connected. PC: keep the companion running. Installing the app or signing in alone does not make a device online."));
       const refresh = node("button", "Refresh devices & receipts");
       refresh.addEventListener("click", devicesPanel); content.append(refresh);
+      if (window.AtulyaNative) {
+        const background = node("button", "Background phone connection");
+        background.addEventListener("click", () => window.AtulyaNative.postMessage(JSON.stringify({cmd:"background_connection"})));
+        content.append(background, node("p", "Background mode is optional and runs only harmless checks. Open the phone app to approve other commands. Android can stop the session."));
+      }
       for (const device of data.devices) {
         const row = node("div", undefined, "control-row");
-        row.append(node("strong", `${device.name} · ${device.status}`), node("small", device.abilities.join(", ")));
+        row.append(node("strong", `${device.name} · ${device.status}${device.mode === "background" ? " · background checks; open app to approve actions" : ""}`), node("small", device.abilities.join(", ")));
         const test = node("button", "Test connection");
         test.disabled = !device.abilities.includes("ping");
         test.addEventListener("click", async () => {
@@ -386,9 +391,9 @@
         "display_message", "battery_status"
       ];
       const presets = {
-        phone: ["ping", "say", "take_photo", "list_photos", "send_sms", "place_call", "open_app", "battery_status"],
+        phone: ["ping", "say", "send_sms", "place_call", "open_app", "open_url", "media_control", "display_message", "battery_status"],
         tv: ["ping", "say", "media_control", "open_app", "open_url", "display_message"],
-        tablet: ["ping", "say", "take_photo", "list_photos", "open_app", "list_files", "read_file", "display_message"],
+        tablet: ["ping", "say", "open_app", "open_url", "media_control", "display_message", "battery_status"],
         laptop: ["ping", "say", "open_app", "open_url", "list_files", "read_file", "media_control", "display_message"]
       };
       const checkMap = {};
@@ -426,6 +431,19 @@
       for (const job of data.jobs) {
         const row = node("div", undefined, "control-row");
         row.append(node("strong", `${job.device} · ${job.kind} · ${job.status}`), node("small", job.id), node("p", job.output || "No execution receipt yet.")); content.append(row);
+      }
+    } catch (error) { errorMessage(error); }
+  }
+  async function implementationPanel() {
+    open("Work log: completed, active and unfinished");
+    try {
+      const report = await api("/api/implementation");
+      content.replaceChildren(node("p", `${report.scope} Updated ${report.updated}.`));
+      for (const item of report.items) {
+        const row = node("div", undefined, "control-row");
+        row.append(node("strong", `${item.title} · ${item.status.replaceAll("_", " ")}`));
+        row.append(node("p", item.evidence), node("p", `Next: ${item.next}`));
+        content.append(row);
       }
     } catch (error) { errorMessage(error); }
   }
@@ -540,6 +558,7 @@
 
   $("#open-connections")?.addEventListener("click", connectionsPanel);
   $("#quick-devices")?.addEventListener("click", devicesPanel);
+  $("#quick-implementation")?.addEventListener("click", implementationPanel);
   $("#quick-smarthome")?.addEventListener("click", smartHomePanel);
   $("#quick-expenses")?.addEventListener("click", expensesPanel);
 

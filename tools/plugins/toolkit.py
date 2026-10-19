@@ -25,6 +25,7 @@ from tools.plugins.registry import PluginContext
 from tools.plugins.productivity.web_reminders import create_reminder, list_reminders, edit_reminder, cancel_reminder
 from atulya.maintenance import maintenance_check, maintenance_read, maintenance_propose, maintenance_patch, maintenance_search, maintenance_set_proactive
 from atulya.mcp_connections import mcp_list, mcp_call
+from atulya.implementation import implementation_tool
 
 logger = logging.getLogger(__name__)
 SKILLS_DIR = Path(__file__).resolve().parents[1] / "skills"
@@ -466,6 +467,8 @@ async def _cast_to_tv(args: dict, ctx: PluginContext | None) -> str:
     url = str(args.get("url") or args.get("content") or "")
     action = str(args.get("action") or "open_url")
     hub = AgentHub(Settings.from_environment().data_dir)
+    if not any(d["name"] == tv and d.get("device_type") == "tv" for d in hub.devices(ctx.user_id)):
+        return "No paired TV with that name. Pair an explicit TV companion first; nothing was cast."
     try:
         job = hub.enqueue(ctx.user_id, tv, action, url)
         return f"Queued a cast to {tv} ({job['kind']}: {url[:100]}). Playback is not confirmed yet."
@@ -857,6 +860,8 @@ async def _calendar_delete(args: dict, ctx: PluginContext | None) -> str:
 
 
 TOOLS: tuple[Tool, ...] = (
+    Tool("implementation_status", "Owner: read the recorded implementation log, completed work, current work and explicit blockers. This is engineering progress, not live connection verification.",
+         _params(), implementation_tool, "local-utilities", True),
     Tool("open_website", "Prepare a clickable HTTPS website button in Telegram or the WebUI/app. The user taps it on their device; do not claim a remote browser opened.",
          _params({"url": {"type": "string"}, "label": {"type": "string"}}, ["url"]), _open_website, "local-utilities", True),
     Tool("prepare_phone_action", "Prepare an SMS composer or dialer request for the owner's Android app. User opens Phone actions and taps; composing does not send and dialing does not place a call.",
