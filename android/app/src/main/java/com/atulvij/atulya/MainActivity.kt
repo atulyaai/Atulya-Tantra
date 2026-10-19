@@ -421,6 +421,8 @@ class MainActivity : AppCompatActivity() {
                         if (url.isNotEmpty()) playMediaStream(url, title)
                     }
                     "background_connection" -> configureBackgroundConnection()
+                    "native_capabilities" -> reply.postMessage(JSONObject().put("type", "native_capabilities")
+                        .put("version", BuildConfig.VERSION_NAME).put("background_connection", true).toString())
                     "pause_media" -> controlMediaStream(MediaPlaybackService.ACTION_PAUSE)
                     "resume_media" -> controlMediaStream(MediaPlaybackService.ACTION_PLAY)
                     "stop_media" -> controlMediaStream(MediaPlaybackService.ACTION_STOP)

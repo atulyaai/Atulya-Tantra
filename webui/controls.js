@@ -4,6 +4,14 @@
   const camera = $("#quick-camera");
   const shown = new Set();
   let polling = false;
+  let nativeFeatures = null;
+  document.addEventListener("atulya-native-capabilities", event => { nativeFeatures = event.detail; });
+  async function phoneFeatures() {
+    if (!window.AtulyaNative || nativeFeatures) return nativeFeatures;
+    window.AtulyaNative.postMessage(JSON.stringify({cmd:"native_capabilities"}));
+    for (let i = 0; i < 15 && !nativeFeatures; i++) await new Promise(resolve => setTimeout(resolve, 100));
+    return nativeFeatures;
+  }
   const node = (tag, text, className) => {
     const item = document.createElement(tag);
     if (text !== undefined) item.textContent = text;
@@ -332,9 +340,14 @@
       const refresh = node("button", "Refresh devices & receipts");
       refresh.addEventListener("click", devicesPanel); content.append(refresh);
       if (window.AtulyaNative) {
-        const background = node("button", "Background phone connection");
-        background.addEventListener("click", () => window.AtulyaNative.postMessage(JSON.stringify({cmd:"background_connection"})));
-        content.append(background, node("p", "Background mode is optional and runs only harmless checks. Open the phone app to approve other commands. Android can stop the session."));
+        const features = await phoneFeatures();
+        if (features?.background_connection) {
+          const background = node("button", "Background phone connection");
+          background.addEventListener("click", () => window.AtulyaNative.postMessage(JSON.stringify({cmd:"background_connection"})));
+          content.append(background, node("p", "Background mode is optional and runs only harmless checks. Open the phone app to approve other commands. Android can stop the session."));
+        } else {
+          content.append(node("p", "This installed APK does not report background-connection support. Foreground connection still works. Install a validated newer APK when available; a server update alone cannot add native phone features."));
+        }
       }
       for (const device of data.devices) {
         const row = node("div", undefined, "control-row");
