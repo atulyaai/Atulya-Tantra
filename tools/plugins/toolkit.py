@@ -442,7 +442,7 @@ async def _cast_to_tv(args: dict, ctx: PluginContext | None) -> str:
     hub = AgentHub(Settings.from_environment().data_dir)
     try:
         job = hub.enqueue(ctx.user_id, tv, action, url)
-        return f"Casting to {tv}: queued {job['kind']} with {url[:100]}."
+        return f"Queued a cast to {tv} ({job['kind']}: {url[:100]}). Playback is not confirmed yet."
     except Exception as exc:
         return f"Could not cast to {tv}: {exc}"
 
@@ -508,7 +508,7 @@ async def _visual_inspect(args: dict, ctx: PluginContext | None) -> str:
     hub = AgentHub(Settings.from_environment().data_dir)
     try:
         job = hub.enqueue(ctx.user_id, device, "take_photo", question)
-        return f"Triggered visual inspection on {device}. Queued photo capture for question: '{question}'. Receipt #{job['id']}."
+        return f"Queued a photo capture on {device} for: '{question}'. Not taken yet; receipt #{job['id']}."
     except Exception as exc:
         return f"Visual inspection on {device} failed: {exc}"
 

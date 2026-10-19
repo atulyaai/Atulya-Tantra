@@ -50,13 +50,38 @@ async def execute_smart_home(device: str, action: str, brightness: int | None = 
     device_norm = device.lower().strip()
     action_norm = action.lower().strip()
 
-    # Check if this matches a predefined scene
+    if not (HASS_URL and HASS_TOKEN):
+        # Never report a change that did not happen.
+        return (f"Smart home is not connected, so nothing was changed ({device} → {action}). "
+                "The owner connects Home Assistant by setting HASS_URL and HASS_TOKEN on the server.")
+
+    # A predefined scene runs each of its Home Assistant service calls and reports what really happened.
     if action_norm in SCENES or device_norm in SCENES:
         scene_key = action_norm if action_norm in SCENES else device_norm
         scene = SCENES[scene_key]
-        return f"Triggered scene '{scene_key}': {scene['description']}."
+        done, failed = 0, []
+        lights = [step for step in scene["actions"] if "service" in step]
+        others = [f"{step.get('device', 'device')} {step.get('detail') or step.get('command', '')}".strip()
+                  for step in scene["actions"] if "service" not in step]
+        async with httpx.AsyncClient(timeout=10) as client:
+            for step in lights:
+                body: dict[str, Any] = {"entity_id": step.get("target", "all"), **step.get("params", {})}
+                try:
+                    res = await client.post(f"{HASS_URL}/api/services/{step['service']}",
+                                            headers={"Authorization": f"Bearer {HASS_TOKEN}"}, json=body)
+                    if res.status_code in {200, 201}:
+                        done += 1
+                    else:
+                        failed.append(f"{step['service']} → HTTP {res.status_code}")
+                except httpx.HTTPError as exc:
+                    failed.append(f"{step['service']} → {type(exc).__name__}")
+        not_done = f" Not done (needs a paired device): {', '.join(others)}." if others else ""
+        if failed:
+            return (f"Scene '{scene_key}': {done} of {len(lights)} Home Assistant steps confirmed; "
+                    f"failed: {'; '.join(failed)}.{not_done}")
+        return f"Scene '{scene_key}' confirmed by Home Assistant ({done} steps).{not_done}"
 
-    # Direct Home Assistant control if configured
+    # Direct Home Assistant control
     if HASS_URL and HASS_TOKEN:
         headers = {
             "Authorization": f"Bearer {HASS_TOKEN}",
@@ -78,6 +103,3 @@ async def execute_smart_home(device: str, action: str, brightness: int | None = 
         except Exception as exc:
             return f"Home Assistant request failed: {exc}"
 
-    # Simulation / Local acknowledgement when no bridge is configured
-    bright_text = f" at {brightness}% brightness" if brightness is not None else ""
-    return f"Smart home action dispatched: {device} set to {action}{bright_text}. (Configure HASS_URL and HASS_TOKEN for direct Home Assistant integration)."
