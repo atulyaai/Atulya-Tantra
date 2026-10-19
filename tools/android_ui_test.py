@@ -9,10 +9,13 @@ Usage: python tools/android_ui_test.py APK OUT_DIR PASSWORD
 """
 from __future__ import annotations
 
+import os
 import re
+import sqlite3
 import subprocess
 import sys
 import time
+import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -227,6 +230,60 @@ adb("shell", "input", "keyevent", "KEYCODE_HOME")
 time.sleep(2)
 adb("shell", "am", "start", "-n", f"{PKG}/.MainActivity")
 step("reopen within 2 min: no unlock prompt, still signed in", find(r"Type a message|#chat-prompt", 15) is not None)
+
+# The app pairs itself as a device after sign-in and answers jobs; actions wait for ALLOW on the phone.
+DATA = Path(os.environ.get("ATULYA_DATA_DIR", "."))
+
+
+def phone_device():
+    try:
+        with sqlite3.connect(DATA / "agents.sqlite3") as db:
+            return db.execute("SELECT owner, name, seen FROM devices WHERE revoked=0 AND name LIKE 'Phone %'").fetchone()
+    except sqlite3.Error:
+        return None
+
+
+def enqueue(owner: str, name: str, kind: str, detail: str = "") -> str:
+    job_id = uuid.uuid4().hex
+    with sqlite3.connect(DATA / "agents.sqlite3") as db:
+        db.execute("INSERT INTO jobs VALUES(?,?,?,?,?,?,?,?,?)",
+                   (job_id, owner, name, kind, detail, "queued", time.time(), time.time(), ""))
+    return job_id
+
+
+def job(job_id: str, until: set[str], wait: float = 30) -> tuple[str, str]:
+    deadline = time.time() + wait
+    status, output = "missing", ""
+    while time.time() < deadline:
+        with sqlite3.connect(DATA / "agents.sqlite3") as db:
+            row = db.execute("SELECT status, output FROM jobs WHERE id=?", (job_id,)).fetchone()
+        if row:
+            status, output = row
+            if status in until:
+                break
+        time.sleep(1.5)
+    return status, output
+
+
+device = None
+for _ in range(25):
+    device = phone_device()
+    if device and device[2]:
+        break
+    time.sleep(2)
+if step("phone pairs itself after sign-in and polls", bool(device and device[2]), device[1] if device else "no device"):
+    owner, name, _seen = device
+    status, output = job(enqueue(owner, name, "ping"), {"executed", "failed"})
+    step("ping runs without asking", status == "executed", output)
+    shown = enqueue(owner, name, "display_message", "Hello from CI")
+    allow = find(r"^ALLOW$", 30)
+    waiting, _ = job(shown, {"executed", "failed"}, 2)
+    step("an action waits for ALLOW on the phone", allow is not None and waiting == "running",
+         f"dialog={'yes' if allow else 'no'} status={waiting}")
+    if allow:
+        tap(allow)
+    status, output = job(shown, {"executed", "failed"})
+    step("ALLOW runs it and reports back", status == "executed", output)
 
 # The real launcher icon as the phone draws it (home screen app list).
 adb("shell", "input", "keyevent", "KEYCODE_HOME")

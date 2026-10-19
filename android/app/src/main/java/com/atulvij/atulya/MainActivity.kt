@@ -67,6 +67,7 @@ class MainActivity : AppCompatActivity() {
     private var pendingMedia: PermissionRequest? = null
     private var voiceReply: JavaScriptReplyProxy? = null
     private val cookieWriter = Executors.newSingleThreadExecutor()
+    private lateinit var phone: PhoneAgent
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -79,6 +80,14 @@ class MainActivity : AppCompatActivity() {
         content.addView(web, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         setContentView(content)
         configureWebView()
+        phone = PhoneAgent(this, origin, ::sendDirectSms, ::callDirect) { command ->
+            when (command) {
+                "play", "resume" -> { controlMediaStream(MediaPlaybackService.ACTION_PLAY); true }
+                "pause" -> { controlMediaStream(MediaPlaybackService.ACTION_PAUSE); true }
+                "stop" -> { controlMediaStream(MediaPlaybackService.ACTION_STOP); true }
+                else -> false
+            }
+        }
         if (savedInstanceState != null) web.restoreState(savedInstanceState)
         pendingUrl = linkFrom(intent)
     }
@@ -88,6 +97,7 @@ class MainActivity : AppCompatActivity() {
         web.onPause()
         browser?.page?.onPause()
         web.pauseTimers()
+        phone.stop() // the phone answers Atulya only while the app is open and unlocked
         super.onPause()
     }
 
@@ -100,6 +110,7 @@ class MainActivity : AppCompatActivity() {
         if (!unlocked) unlock() else {
             if (pendingUrl == null && web.url == null) web.loadUrl(origin.toString()) // reopened within the grace period
             openPending()
+            phone.start()
         }
     }
 
@@ -300,6 +311,7 @@ class MainActivity : AppCompatActivity() {
             object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     unlocked = true
+                    phone.start()
                     lastUnlockAt = System.currentTimeMillis()
                     leftAt = 0L
                     if (pendingUrl != null) openPending() else if (web.url == null) web.loadUrl(origin.toString())
@@ -491,6 +503,7 @@ class MainActivity : AppCompatActivity() {
         recognizer?.destroy()
         recognizer = null
         cookieWriter.shutdown()
+        phone.destroy()
         super.onDestroy()
     }
 

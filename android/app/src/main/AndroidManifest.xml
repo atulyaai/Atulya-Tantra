@@ -25,6 +25,11 @@
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
+        <!-- "Open WhatsApp" from Atulya (after ALLOW on the phone) needs to see launcher apps. -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
     </queries>
 
     <application

@@ -206,7 +206,7 @@ def execute(kind: str, detail: str, folder=None):
         return _get_battery_status()
 
     if kind in {"send_sms", "place_call"}:
-        return f"Command '{kind}' is dispatched to Android companion APK with payload: {detail[:100]}"
+        raise ValueError("SMS and calls run on the Atulya Android app (paired automatically after sign-in), not on this device")
 
     raise ValueError(f"This companion does not implement action: {kind}")
 

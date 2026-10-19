@@ -182,8 +182,10 @@ jobs:
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
           sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
-      - name: Emulator UI test (sign in, chat layout, hide chat, menu, rotation, reopen, crashes, memory)
+      - name: Emulator UI test (sign in, chat layout, hide chat, menu, rotation, reopen, phone pairing, crashes, memory)
         if: steps.changed.outputs.build == 'true'
+        env:
+          ATULYA_DATA_DIR: ${{ runner.temp }}/atulya-data   # the test checks pairing and jobs in the private server's data
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34

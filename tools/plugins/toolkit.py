@@ -402,7 +402,11 @@ async def _list_devices(_args: dict, ctx: PluginContext | None) -> str:
     rows = hub.devices(ctx.user_id)
     if not rows:
         return "No devices paired. Use Devices → Pair device in Atulya."
-    return "Your devices:\n" + "\n".join(f"• {row['name']} · {row['status']} · {', '.join(row['abilities'])}" for row in rows)
+    jobs = hub.jobs(ctx.user_id)[:5]
+    recent = "\nRecent jobs:\n" + "\n".join(
+        f"• {job['device']} · {job['kind']} · {job['status']}{(' · ' + job['output'][:120]) if job['output'] else ''}"
+        for job in jobs) if jobs else ""
+    return "Your devices:\n" + "\n".join(f"• {row['name']} · {row['status']} · {', '.join(row['abilities'])}" for row in rows) + recent
 
 
 async def _ask_device(args: dict, ctx: PluginContext | None) -> str:
@@ -965,7 +969,9 @@ TOOLS: tuple[Tool, ...] = (
                 ["query"]), _places_near_me, "online-information", True),
     Tool("list_devices", "List all paired devices (Phone, TV, Tablet, Laptop) connected to Atulya.",
          _params(), _list_devices, "local-utilities", True),
-    Tool("ask_device", "Send a command to any paired device (Phone, TV, Tablet, Laptop, Server): ping, say, open_url, open_app, list_files, read_file, take_photo, list_photos, media_control, send_sms, place_call, display_message, battery_status.",
+    Tool("ask_device", "Send a command to a paired device (use list_devices for exact names and abilities): ping, say, open_url, open_app, list_files, read_file, take_photo, list_photos, media_control, send_sms, place_call, display_message, battery_status. "
+                       "Detail formats: send_sms {\"to\": \"+91…\", \"body\": \"…\"}; place_call the number; open_app the app name; open_url an https link; media_control play|pause|stop; say/display_message the text. "
+                       "The Atulya phone app asks its owner to ALLOW every action except ping and battery_status, so a queued job is not done until list_devices shows its result.",
          _params({"device": {"type": "string"},
                   "command": {"type": "string", "enum": ["ping", "say", "open_url", "open_app", "list_files", "read_file", "take_photo", "list_photos", "media_control", "send_sms", "place_call", "display_message", "battery_status"]},
                   "detail": {"type": "string"}}, ["device", "command"]),
@@ -1220,13 +1226,13 @@ class Toolbox:
         except Exception:
             pass
         try:
-            import sqlite3
+            from tools.plugins.system.agents import AgentHub
             data_dir = Path(os.environ.get("ATULYA_DATA_DIR") or "data")
-            with sqlite3.connect(data_dir / "agents.sqlite3") as db:
-                rows = db.execute("SELECT name, abilities FROM devices WHERE owner=? AND revoked IS NULL",
-                                  (str(self.context.user_id),)).fetchall()
+            rows = AgentHub(data_dir).devices(str(self.context.user_id))
             if rows:
-                parts.append("Paired devices: " + "; ".join(f"{name} ({abilities})" for name, abilities in rows[:6]) + ".")
+                parts.append("Paired devices (use ask_device): " + "; ".join(
+                    f"{row['name']} — {row['status']} — {', '.join(row['abilities'])}" for row in rows[:6]) +
+                    ". An offline phone acts only after its owner opens Atulya.")
             else:
                 parts.append("No phone or computer is paired, so you cannot act on the user's phone or PC; "
                              "say so plainly and point to menu → PAIR DEVICE.")
