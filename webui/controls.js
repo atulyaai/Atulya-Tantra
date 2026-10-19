@@ -464,6 +464,36 @@
       for (const alert of report.alerts) content.append(node("p", `${alert.message} · ${alert.status}`));
     } catch (error) { errorMessage(error); }
   }
+  async function tasksPanel() {
+    open("Persistent diagnostic tasks");
+    try {
+      const report = await api("/api/tasks");
+      content.replaceChildren(node("p", report.limits));
+      const refresh = node("button", "Refresh tasks");
+      refresh.addEventListener("click", tasksPanel); content.append(refresh);
+      const start = node("button", "Check my devices and Google connection");
+      start.addEventListener("click", async () => {
+        start.disabled = true;
+        try { await api("/api/tasks", {method:"POST", body:JSON.stringify({checks:["devices","google_connection"]})}); await tasksPanel(); }
+        catch (error) { errorMessage(error); start.disabled = false; }
+      });
+      content.append(start);
+      for (const task of report.tasks) {
+        const row = node("div", undefined, "control-row");
+        row.append(node("strong", `${task.id} · ${task.status} · ${task.checkpoint}/${task.plan.length} checks`));
+        for (const result of task.results) row.append(node("pre", JSON.stringify(result, null, 2)));
+        if (["queued","running"].includes(task.status)) {
+          const cancel = node("button", "Cancel task");
+          cancel.addEventListener("click", async () => {
+            try { await api(`/api/tasks/${encodeURIComponent(task.id)}`, {method:"DELETE"}); await tasksPanel(); }
+            catch (error) { errorMessage(error); }
+          });
+          row.append(cancel);
+        }
+        content.append(row);
+      }
+    } catch (error) { errorMessage(error); }
+  }
 
   async function smartHomePanel() {
     open("Smart Home & Ambient Scenes");
@@ -577,6 +607,7 @@
   $("#quick-devices")?.addEventListener("click", devicesPanel);
   $("#quick-implementation")?.addEventListener("click", implementationPanel);
   $("#quick-operations")?.addEventListener("click", operationsPanel);
+  $("#quick-tasks")?.addEventListener("click", tasksPanel);
   $("#quick-smarthome")?.addEventListener("click", smartHomePanel);
   $("#quick-expenses")?.addEventListener("click", expensesPanel);
 

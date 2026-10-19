@@ -40,9 +40,9 @@
     {
       "id": "truth",
       "title": "Accurate capability readiness",
-      "status": "locally_tested_not_deployed",
-      "evidence": "Added dependency checks for Home Assistant and explicit TV pairing; incomplete visual workflow is marked unsupported. Device type and foreground/background presence persist.",
-      "next": "Pass complete CI and deploy; inspect live registry."
+      "status": "deployed",
+      "evidence": "Backend and Work log UI deployed at afcce96. Home Assistant/TV dependencies and incomplete visual analysis are exposed honestly.",
+      "next": "Verify real integrations after user setup; do not infer hardware execution."
     },
     {
       "id": "background",
@@ -54,23 +54,23 @@
     {
       "id": "operations",
       "title": "Restricted server operations and repair",
-      "status": "locally_tested_not_deployed",
-      "evidence": "Restricted restart queue, owner approval, single-worker lock, crash-safe receipts and health verification implemented locally. Full suite previously 196 passed, 2 skipped.",
-      "next": "Push for CI, install the reviewed service and exact permissions, then verify one approved restart on the server."
+      "status": "live_verified",
+      "evidence": "Deployed afcce96 and installed the separate worker. Live model chat requested restart approval; verified no execution before approval. After approval the receipt confirmed systemd active and HTTP health passed.",
+      "next": "Keep exact-service restrictions; general backend code repair remains unimplemented."
     },
     {
       "id": "music",
       "title": "Verified music playback",
-      "status": "locally_implemented",
-      "evidence": "Existing YouTube player reports states; added heartbeats, stale-state detection, cancelled-track protection and music_status tool. Universal player control and audible verification remain absent.",
-      "next": "Validate client behavior and deploy; test actual playback on the chosen device."
+      "status": "deployed_live_playback_unverified",
+      "evidence": "Player heartbeats, stale-state detection, cancellation protection and music_status deployed. No live audible playback test.",
+      "next": "Test real playback on the chosen device; universal player control remains absent."
     },
     {
       "id": "tasks",
       "title": "Persistent tasks and proactive monitoring",
-      "status": "partially_implemented",
-      "evidence": "Durable operations queue and deduplicated service/disk/memory alert records implemented. General long-running task engine remains absent.",
-      "next": "Deploy and test critical monitoring; add checkpoints and cancellation for broader workflows."
+      "status": "partially_deployed",
+      "evidence": "Durable restart queue and critical monitoring are live. Added local checkpointed, cancellable diagnostic plans for server/devices/Google flags. General autonomous workflows remain absent.",
+      "next": "Pass full suite, deploy and verify diagnostic resume/cancel path; then expand only supported workflows."
     },
     {
       "id": "screen",

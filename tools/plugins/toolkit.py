@@ -28,6 +28,7 @@ from atulya.mcp_connections import mcp_list, mcp_call
 from atulya.implementation import implementation_tool
 from atulya.operations import restart_tool, status_tool as operations_status_tool
 from atulya.music import music_status_tool
+from atulya.tasks import start_tool as start_diagnostic_tool, status_tool as task_status_tool, cancel_tool as cancel_diagnostic_tool
 
 logger = logging.getLogger(__name__)
 SKILLS_DIR = Path(__file__).resolve().parents[1] / "skills"
@@ -857,6 +858,12 @@ async def _calendar_delete(args: dict, ctx: PluginContext | None) -> str:
 
 
 TOOLS: tuple[Tool, ...] = (
+    Tool("start_diagnostic_task", "Queue a durable read-only diagnostic plan with checkpoints. Supports primary server health (owner only), your paired devices, and Google authorization flags. Does not repair, send, or inspect email content.",
+         _params({"checks": {"type": "array", "items": {"type": "string", "enum": ["server_health", "devices", "google_connection"]}, "minItems": 1, "maxItems": 3}}, ["checks"]), start_diagnostic_tool, "local-utilities", True),
+    Tool("task_status", "Inspect your durable diagnostic tasks and checkpoint results. Completed means checks finished; individual checks may fail.",
+         _params(), task_status_tool, "local-utilities", True),
+    Tool("cancel_diagnostic_task", "Cancel one of your queued or running diagnostic plans. An already running read-only check may finish, but further checks stop.",
+         _params({"id": {"type": "string"}}, ["id"]), cancel_diagnostic_tool, "local-utilities", True),
     Tool("music_status", "Inspect your music queue and client playback receipts. Stale playback is unconfirmed; audible sound is never inferred from a queue entry.",
          _params(), music_status_tool, "local-utilities", True),
     Tool("implementation_status", "Owner: read the recorded implementation log, completed work, current work and explicit blockers. This is engineering progress, not live connection verification.",

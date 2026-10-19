@@ -4,10 +4,14 @@
   let player, selected, apiPromise;
   let currentState = "", receiptQueue = Promise.resolve();
   async function api(path, options={}) {
-    const response = await fetch(path, {...options,headers:{"Content-Type":"application/json"}});
-    const body = await response.json();
-    if (!response.ok) throw new Error(typeof body.detail === "string" ? body.detail : "Music request failed");
-    return body;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+    try {
+      const response = await fetch(path, {...options,signal:controller.signal,headers:{"Content-Type":"application/json"}});
+      const body = await response.json();
+      if (!response.ok) throw new Error(typeof body.detail === "string" ? body.detail : "Music request failed");
+      return body;
+    } finally { clearTimeout(timer); }
   }
   function youtubeApi() {
     if (window.YT?.Player) return Promise.resolve();
@@ -38,10 +42,11 @@
           onReady:event=>{status.textContent="Tap Play in the video to listen.";currentState="ready";receipt("ready");event.target.playVideo();},
           onAutoplayBlocked:()=>{status.textContent="Your browser requires a tap: press Play in the video.";},
           onStateChange:event=>{
+            if (!selected || event.target.getVideoData()?.video_id !== selected.video_id) return;
             const states={1:"playing",2:"paused",0:"ended"};
             if (states[event.data]) {currentState=states[event.data];status.textContent=`Player: ${states[event.data]}. Sound depends on your phone volume.`;receipt(states[event.data]);}
           },
-          onError:event=>{currentState="failed";const error=`YouTube playback error ${event.data}. This video may restrict embedding or be unavailable.`;status.textContent=error;receipt("failed",error);}
+          onError:event=>{if(!selected)return;currentState="failed";const error=`YouTube playback error ${event.data}. This video may restrict embedding or be unavailable.`;status.textContent=error;receipt("failed",error);}
         }});
     } catch (error) {status.textContent=error.message;await receipt("failed",error.message);}
   }
