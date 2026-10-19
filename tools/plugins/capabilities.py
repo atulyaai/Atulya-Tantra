@@ -20,6 +20,8 @@ def tool_capabilities(toolbox):
             status, step = "unsupported", "Use an authenticated Atulya channel; this tool is not exported over public MCP."
         elif tool.name == "restart_service":
             status, step = "unsupported", "Service restart execution is not implemented."
+        elif tool.name in {"atulya_status", "server_status", "server_logs"} and ctx is not None and ctx.user_id != "admin":
+            status, step = "unsupported", "Use the owner account for server health and logs."
         elif tool.name not in toolbox._tools:
             status, step = "needs_connection", "Connect the required service or use a supported signed-in channel."
             if tool.plugin_id == "pc-control" or tool.name == "screen_control":

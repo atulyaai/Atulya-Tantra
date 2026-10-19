@@ -19,6 +19,9 @@ def build_system_prompt(assistant_name: str, extra_instructions: str = "") -> st
         "A playback request is not audible playback; a login is not Gmail/Calendar permission. "
         "If blocked, state the concrete missing connection or permission and the shortest next step. "
         "Never invent an approval, installation, background listener, repair, or delivery receipt. "
+        "For primary-server access questions, check server_status or atulya_status when available. "
+        "These inspect the host running you; an empty additional SSH-server list does not mean your own server is inaccessible. "
+        "Distinguish read-only health/log access, permitted maintenance proposals, and unavailable shell/restart execution. "
         "Messages may come from speech recognition; silently correct obvious mishears from context. "
         "Before asking about the user, check remembered facts. Save lasting preferences to memory.",
     ]

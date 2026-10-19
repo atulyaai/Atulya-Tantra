@@ -24,6 +24,8 @@ Open **Devices → Test connection**. This queues a harmless ping using the sign
 
 ## Google and channels
 
+The owner can inspect the primary host using `server_status` without configuring SSH back to the same machine. `ATULYA_SERVERS` adds separate SSH hosts; an empty list does not disable primary-host diagnostics. `server_logs` reads bounded, redacted log excerpts from the configured data/log directory and rejects non-owner requests. These tools do not provide arbitrary shell access or service restarts. Maintenance can inspect and propose changes only within its permitted source-file list.
+
 Google login and Gmail/Calendar service authorization are separate. Use **Connections → Connect Gmail/Calendar → Test Google access**. OAuth client configuration, the required service scopes and API activation are necessary. Successful empty Calendar delete responses are handled explicitly.
 
 Telegram sends requests through the shared server/tool registry; a device action still needs a connected target and the required approvals. WhatsApp requires a configured Business integration. Gmail tools do not implement an email inbox command listener. None of these connections means software can silently install itself on another device.
