@@ -18,6 +18,8 @@ class MediaPlaybackService : Service() {
         const val ACTION_PLAY = "com.atulvij.atulya.ACTION_PLAY"
         const val ACTION_PAUSE = "com.atulvij.atulya.ACTION_PAUSE"
         const val ACTION_STOP = "com.atulvij.atulya.ACTION_STOP"
+        @Volatile var hasPlayableStream = false
+            private set
     }
 
     private var mediaPlayer: MediaPlayer? = null
@@ -31,32 +33,39 @@ class MediaPlaybackService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
+        try { when (intent?.action) {
             ACTION_PLAY -> {
                 val url = intent.getStringExtra("url")
                 val title = intent.getStringExtra("title") ?: "Atulya Media"
                 currentTitle = title
                 if (url != null) {
                     playStream(url)
-                } else {
+                } else if (hasPlayableStream) {
                     mediaPlayer?.start()
                     updateNotification(isPlaying = true)
+                } else {
+                    stopPlayback()
                 }
             }
             ACTION_PAUSE -> {
-                mediaPlayer?.pause()
-                updateNotification(isPlaying = false)
+                if (hasPlayableStream) {
+                    mediaPlayer?.pause()
+                    updateNotification(isPlaying = false)
+                } else stopPlayback()
             }
             ACTION_STOP -> {
                 stopPlayback()
             }
-        }
+        } } catch (_: Exception) { stopPlayback() }
         return START_NOT_STICKY
     }
 
     private fun playStream(url: String) {
+        hasPlayableStream = false
         mediaPlayer?.release()
-        mediaPlayer = MediaPlayer().apply {
+        startForeground(NOTIFICATION_ID, buildNotification(isPlaying = false))
+        mediaPlayer = MediaPlayer()
+        mediaPlayer?.apply {
             setAudioAttributes(
                 AudioAttributes.Builder()
                     .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
@@ -65,19 +74,24 @@ class MediaPlaybackService : Service() {
             )
             setDataSource(url)
             setOnPreparedListener {
+                hasPlayableStream = true
                 it.start()
                 updateNotification(isPlaying = true)
             }
             setOnCompletionListener {
                 stopPlayback()
             }
+            setOnErrorListener { _, _, _ ->
+                stopPlayback()
+                true
+            }
             prepareAsync()
         }
-        startForeground(NOTIFICATION_ID, buildNotification(isPlaying = true))
     }
 
     private fun stopPlayback() {
-        mediaPlayer?.stop()
+        hasPlayableStream = false
+        // release is legal even if a stream is still preparing or has failed.
         mediaPlayer?.release()
         mediaPlayer = null
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -121,7 +135,7 @@ class MediaPlaybackService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle("Playing Media")
+            .setContentTitle(if (isPlaying) "Playing Media" else "Atulya Audio")
             .setContentText(currentTitle)
             .setContentIntent(pendingLaunch)
             .addAction(if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play, toggleTitle, pendingToggle)
@@ -136,6 +150,7 @@ class MediaPlaybackService : Service() {
     }
 
     override fun onDestroy() {
+        hasPlayableStream = false
         mediaPlayer?.release()
         mediaPlayer = null
         super.onDestroy()

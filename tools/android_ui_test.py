@@ -285,6 +285,22 @@ if step("phone pairs itself after sign-in and polls", bool(device and device[2])
     status, output = job(shown, {"executed", "failed"})
     step("ALLOW runs it and reports back", status == "executed", output)
 
+    media_job = enqueue(owner, name, "media_control", "play")
+    allow = find(r"^ALLOW$", 30)
+    if allow:
+        tap(allow)
+    status, output = job(media_job, {"executed", "failed"})
+    step("play without an audio stream fails honestly", status == "failed" and "stream" in output.lower(), output)
+
+    adb("shell", "input", "keyevent", "KEYCODE_HOME")
+    time.sleep(3)
+    background_ping = enqueue(owner, name, "ping")
+    status, _ = job(background_ping, {"executed", "failed"}, 8)
+    step("background phone does not execute jobs", status == "queued", status)
+    adb("shell", "am", "start", "-n", f"{PKG}/.MainActivity")
+    status, output = job(background_ping, {"executed", "failed"})
+    step("reopening phone resumes queued ping", status == "executed", output)
+
 # The real launcher icon as the phone draws it (home screen app list).
 adb("shell", "input", "keyevent", "KEYCODE_HOME")
 time.sleep(2)

@@ -35,6 +35,9 @@ Telegram sends requests through the shared server/tool registry; a device action
 - Unsupported smart-home actions are refused instead of mapped to `turn_off`; qualified light/switch entity IDs are preserved.
 - Stale running jobs become unconfirmed when status is read, even if the device never reconnects.
 - PC receipt retries do not repeat the action. Identical server receipts are idempotent; a different owner or changed outcome cannot overwrite one.
+- Android persists receipts and retries failed uploads before accepting more jobs. Slow polls cannot accumulate a backlog, and jobs delivered after the app leaves the foreground are refused.
+- Phone media controls fail when no prepared Atulya audio stream exists. Stream errors and stop-during-preparation release the player without crashing the app.
+- Pull requests now compile the APK, run Android receipt unit tests, and exercise phone pairing, approvals, missing audio, and foreground reconnection on an emulator without release signing credentials.
 - Missing PC apps, unsupported media actions and failed photo writes produce failed receipts.
 - The deployment script rolls back after a failed functional selftest, even when the health endpoint passes.
 

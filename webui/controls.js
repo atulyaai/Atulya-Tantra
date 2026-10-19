@@ -328,6 +328,7 @@
     try {
       const data = await api("/api/devices");
       content.replaceChildren(node("p", "Each device has its own revocable credential and allowed actions. A queued request is not execution."));
+      content.append(node("p", "Phone: keep Atulya open and unlocked to stay connected. PC: keep the companion running. Installing the app or signing in alone does not make a device online."));
       const refresh = node("button", "Refresh devices & receipts");
       refresh.addEventListener("click", devicesPanel); content.append(refresh);
       for (const device of data.devices) {

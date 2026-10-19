@@ -89,7 +89,6 @@ jobs:
           # deploy_server.sh health-checks on the server itself and rolls back on failure.
 
   android:
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -101,6 +100,7 @@ jobs:
       - name: Did the app change?
         id: changed
         run: |
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then echo "build=true" >> "$GITHUB_OUTPUT"; exit 0; fi
           # Tags and manual runs always build; a push to main builds only when the app or this workflow changed.
           if [[ "$GITHUB_REF" == refs/tags/v* || "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then echo "build=true" >> "$GITHUB_OUTPUT"; exit 0; fi
           BEFORE="${{ github.event.before }}"
@@ -124,6 +124,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then echo "VERSION=0.0.0-pr" >> "$GITHUB_ENV"; exit 0; fi
           # Automatic releases bump only the last number (0.5.1, 0.5.2, ...); a milestone tag (v0.6.0) moves the middle.
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then V="${GITHUB_REF#refs/tags/v}"; else
             LAST=$(gh release list --limit 200 --json tagName --jq '.[].tagName' | sort -V | tail -1)
@@ -134,7 +135,7 @@ jobs:
           fi
           echo "VERSION=$V" >> "$GITHUB_ENV"
       - name: Build signed release
-        if: steps.changed.outputs.build == 'true'
+        if: steps.changed.outputs.build == 'true' && github.event_name != 'pull_request'
         working-directory: android
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -147,6 +148,10 @@ jobs:
           rm -f "$RUNNER_TEMP/atulya-release.p12"
           APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner"
           "$APKSIGNER" verify --print-certs "../dist/Atulya-$VERSION.apk" | grep -i "SHA-256"
+      - name: Android unit tests
+        if: steps.changed.outputs.build == 'true'
+        working-directory: android
+        run: gradle --no-daemon testDebugUnitTest
       - uses: actions/setup-python@v5
         if: steps.changed.outputs.build == 'true'
         with:
@@ -167,7 +172,7 @@ jobs:
           for i in $(seq 1 60); do curl -fs -o /dev/null -H "Host: 10.0.2.2:8501" http://127.0.0.1:8501/api/health && break; sleep 2; done
           curl -fs -H "Host: 10.0.2.2:8501" http://127.0.0.1:8501/api/health
       - name: Build UI-test copy (points at the private server, screenshots allowed)
-        if: steps.changed.outputs.build == 'true'
+        if: steps.changed.outputs.build == 'true' && github.event_name != 'pull_request'
         working-directory: android
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -177,6 +182,13 @@ jobs:
           gradle --no-daemon assembleRelease -PversionName="$VERSION" -PversionCode="$GITHUB_RUN_NUMBER" -PallowScreenshots=true -PtestServer=1 -PatulyaUrl=http://10.0.2.2:8501
           cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/uitest.apk"
           rm -f "$RUNNER_TEMP/atulya-release.p12"
+      - name: Build debug UI-test APK for pull requests (no release credentials)
+        if: steps.changed.outputs.build == 'true' && github.event_name == 'pull_request'
+        working-directory: android
+        run: |
+          gradle --no-daemon assembleDebug -PversionName="$VERSION" -PversionCode="$GITHUB_RUN_NUMBER" -PallowScreenshots=true -PtestServer=1 -PatulyaUrl=http://10.0.2.2:8501
+          cp app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/uitest.apk"
+          mkdir -p ../dist && cp app/build/outputs/apk/debug/app-debug.apk "../dist/Atulya-$VERSION.apk"
       - name: Enable KVM
         if: steps.changed.outputs.build == 'true'
         run: |
