@@ -54,7 +54,8 @@ def _archive(data_dir: Path) -> bytes:
             with closing(sqlite3.connect(database)) as source, closing(sqlite3.connect(copy)) as target:
                 source.backup(target)  # consistent snapshot while the server is running
             archive.write(copy, database.name)
-        for extra in ("secrets.enc", "telegram_members.json", "plugin_settings.json", "briefings.json"):
+        for extra in ("secrets.enc", "telegram_members.json", "plugin_settings.json", "briefings.json",
+                      "google_tokens.json", "routines.json", "maintenance-policy.json"):
             if (data_dir / extra).is_file():
                 archive.write(data_dir / extra, extra)
         archive.writestr("manifest.json", json.dumps({"created": time.strftime("%Y-%m-%dT%H:%M:%S"),

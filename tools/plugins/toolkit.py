@@ -409,6 +409,12 @@ async def _list_devices(_args: dict, ctx: PluginContext | None) -> str:
     return "Your devices:\n" + "\n".join(f"• {row['name']} · {row['status']} · {', '.join(row['abilities'])}" for row in rows) + recent
 
 
+def _describe_device_job(args: dict) -> str:
+    """What the owner sees on the approval card: the device, the command and its full detail."""
+    detail = str(args.get("detail") or "").strip()
+    return f"{args.get('device')}: {args.get('command') or 'ping'}{(' — ' + detail[:150]) if detail else ''}"
+
+
 async def _ask_device(args: dict, ctx: PluginContext | None) -> str:
     if ctx is None:
         return "Sign in to request a paired device action."
@@ -971,11 +977,11 @@ TOOLS: tuple[Tool, ...] = (
          _params(), _list_devices, "local-utilities", True),
     Tool("ask_device", "Send a command to a paired device (use list_devices for exact names and abilities): ping, say, open_url, open_app, list_files, read_file, take_photo, list_photos, media_control, send_sms, place_call, display_message, battery_status. "
                        "Detail formats: send_sms {\"to\": \"+91…\", \"body\": \"…\"}; place_call the number; open_app the app name; open_url an https link; media_control play|pause|stop; say/display_message the text. "
-                       "The Atulya phone app asks its owner to ALLOW every action except ping and battery_status, so a queued job is not done until list_devices shows its result.",
+                       "The owner approves each request here first; the Atulya phone app also asks ALLOW on the phone (except ping and battery_status). A job is not done until list_devices shows its result.",
          _params({"device": {"type": "string"},
                   "command": {"type": "string", "enum": ["ping", "say", "open_url", "open_app", "list_files", "read_file", "take_photo", "list_photos", "media_control", "send_sms", "place_call", "display_message", "battery_status"]},
                   "detail": {"type": "string"}}, ["device", "command"]),
-         _ask_device, "local-utilities", True, False),
+         _ask_device, "local-utilities", True, True, _describe_device_job),
     Tool("list_routines", "List saved recurring routines (name, time, days, action).",
          _params(), _list_routines, "productivity-calendar", True),
     Tool("add_routine", "Save a recurring routine. when is local HH:MM. days: all, weekdays, or weekends. "
@@ -1019,12 +1025,13 @@ TOOLS: tuple[Tool, ...] = (
          _params({"device": {"type": "string", "description": "Device name or scene name (e.g. living room lights, movie_mode, goodnight)"},
                   "action": {"type": "string", "description": "turn_on, turn_off, toggle, or scene name"},
                   "brightness": {"type": "integer", "description": "Optional brightness percentage (0-100)"}}, ["device", "action"]),
-         _smart_home_control, "local-utilities"),
-    Tool("cast_to_tv", "Cast media, videos, or web links to a paired Smart TV (Living Room TV, Bedroom TV).",
+         _smart_home_control, "local-utilities", True, True,
+         lambda a: f"Smart home: {a.get('device')} → {a.get('action')}", low_risk=True),
+    Tool("cast_to_tv", "Cast media, videos, or web links to a paired Smart TV (Living Room TV, Bedroom TV). Asks the owner first.",
          _params({"tv": {"type": "string", "description": "Target Smart TV name"},
                   "url": {"type": "string", "description": "Media URL or stream link to cast"},
                   "action": {"type": "string", "enum": ["open_url", "media_control"]}}, ["tv", "url"]),
-         _cast_to_tv, "local-utilities", True, False),
+         _cast_to_tv, "local-utilities", True, True, lambda a: f"Cast to {a.get('tv')}: {str(a.get('url', ''))[:120]}"),
     Tool("log_expense", "Record an expense with amount, merchant/payee, category, and optional notes.",
          _params({"amount": {"type": "number", "description": "Expense amount in Rupees"},
                   "merchant": {"type": "string", "description": "Merchant, vendor, or recipient (e.g. Swiggy, Amazon, Uber)"},
@@ -1036,11 +1043,12 @@ TOOLS: tuple[Tool, ...] = (
     Tool("parse_transaction_sms", "Automatically extract amount, merchant, and category from a bank/UPI SMS and log it to expenses.",
          _params({"sms_text": {"type": "string", "description": "Raw SMS text from bank or UPI app"}}, ["sms_text"]),
          _parse_transaction_sms, "productivity-calendar", True),
-    Tool("visual_inspect", "Inspect what a paired device's camera sees (Phone, Tablet, or PC). Takes a photo and analyzes the scene for questions.",
+    Tool("visual_inspect", "Ask a paired PC/tablet companion to take one camera photo (saved in its granted folder). Asks the owner first. "
+                           "It does not analyse the photo; never describe what the camera sees from this tool.",
          _params({"device": {"type": "string", "description": "Name of paired device with camera (e.g. Pixel 9, iPad, Desk Webcam)"},
                   "question": {"type": "string", "description": "What to look for or describe (e.g. 'Is anyone in the room?', 'What is on the table?')"}},
                  ["device", "question"]),
-         _visual_inspect, "local-utilities", True, False),
+         _visual_inspect, "local-utilities", True, True, lambda a: f"Take a camera photo on {a.get('device')}"),
 
 )
 

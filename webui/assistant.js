@@ -3236,6 +3236,69 @@
       alert("Pairing failed: " + e.message);
     }
   });
+  // Every device signed in to this account: what, where, how, last used; sign one or all others out.
+  document.getElementById("signed-in-devices")?.addEventListener("click", () => {
+    const dialog = document.createElement("dialog");
+    dialog.className = "device-link-dialog signed-in-devices";
+    const title = document.createElement("h3");
+    title.textContent = "Signed-in devices";
+    const list = document.createElement("div");
+    const status = document.createElement("p");
+    const others = document.createElement("button");
+    others.type = "button";
+    others.textContent = "SIGN OUT ALL OTHER DEVICES";
+    const close = document.createElement("button");
+    close.type = "button";
+    close.textContent = "Close";
+    close.addEventListener("click", () => dialog.close());
+    dialog.addEventListener("close", () => dialog.remove());
+    dialog.append(title, list, status, others, close);
+    document.body.append(dialog);
+    dialog.showModal();
+    const when = (seconds) => new Date(seconds * 1000).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+
+    async function draw() {
+      list.replaceChildren();
+      status.textContent = "Loading…";
+      const response = await fetch("/api/auth/sessions", { headers: { Accept: "application/json" }, cache: "no-store" }).catch(() => null);
+      if (!response?.ok) { status.textContent = "Could not load your sign-ins."; return; }
+      const { sessions = [] } = await response.json();
+      status.textContent = `${sessions.length} signed in. Sign out anything you don't recognise.`;
+      for (const item of sessions) {
+        const row = document.createElement("div");
+        row.className = "chat-message action-card";
+        const name = document.createElement("strong");
+        name.textContent = item.current ? `${item.label} · THIS DEVICE` : item.label;
+        const detail = document.createElement("span");
+        detail.textContent = `${item.method || "sign-in"} · ${item.ip || "unknown network"} · signed in ${when(item.created_at)} · last used ${when(item.last_seen)}`;
+        row.append(name, detail);
+        if (!item.current) {
+          const out = document.createElement("button");
+          out.type = "button";
+          out.textContent = "SIGN OUT";
+          out.addEventListener("click", async () => {
+            out.disabled = true;
+            const done = await fetch(`/api/auth/sessions/${encodeURIComponent(item.id)}`, { method: "DELETE" }).catch(() => null);
+            if (done?.ok || done?.status === 404) row.remove(); else out.disabled = false;
+          });
+          row.append(out);
+        }
+        list.append(row);
+      }
+    }
+
+    others.addEventListener("click", async () => {
+      if (!confirm("Sign out every other phone, computer and browser? They will need to sign in again.")) return;
+      others.disabled = true;
+      const response = await fetch("/api/auth/sessions/sign-out-others", { method: "POST" }).catch(() => null);
+      const body = response?.ok ? await response.json() : null;
+      status.textContent = body ? `Signed out ${body.signed_out} other device(s).` : "Could not sign out other devices.";
+      others.disabled = false;
+      if (body) void draw();
+    });
+    void draw();
+  });
+
   document.getElementById("link-device")?.addEventListener("click", async () => {
     try {
       const response = await fetch("/api/auth/device-link", { method: "POST", headers: { Accept: "application/json" } });

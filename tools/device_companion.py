@@ -59,28 +59,47 @@ def _get_battery_status() -> str:
         return "Battery status is unavailable on this platform."
 
 
+def _granted_path(folder, relative: str) -> Path:
+    """A path inside the one folder the owner granted (ATULYA_AGENT_FOLDER); hidden files and folders
+    (".env", ".ssh", ".git" …) are never readable or listed."""
+    if not folder:
+        raise ValueError("Set ATULYA_AGENT_FOLDER to grant one folder; no folder access is enabled")
+    base = Path(folder).resolve(strict=True)
+    target = (base / (relative or ".")).resolve(strict=True)
+    if not target.is_relative_to(base):
+        raise ValueError("Outside the granted directory")
+    if any(part.startswith(".") for part in target.relative_to(base).parts):
+        raise ValueError("Hidden files and folders are private and never shared")
+    return target
+
+
 def _display_toast(message: str) -> str:
-    clean = message.replace('"', '\\"').strip()
+    # The text is passed as data (environment / argv), never pasted into a script: "$(...)" or quotes in a
+    # message must not run anything.
+    clean = message.strip()[:500]
     if SYSTEM == "Windows":
         try:
-            cmd = f'[reflection.assembly]::loadwithpartialname("System.Windows.Forms"); [System.Windows.Forms.MessageBox]::Show("{clean}", "Atulya Tantra Alert")'
-            subprocess.Popen(["powershell", "-NoProfile", "-Command", cmd], creationflags=0x08000000)
-            return f"Notification displayed: {message[:100]}"
+            script = ('[reflection.assembly]::loadwithpartialname("System.Windows.Forms") | Out-Null; '
+                      '[System.Windows.Forms.MessageBox]::Show($env:ATULYA_MESSAGE, "Atulya")')
+            subprocess.Popen(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+                             env={**os.environ, "ATULYA_MESSAGE": clean}, creationflags=0x08000000)
+            return f"Notification displayed: {clean[:100]}"
         except Exception as exc:
             return f"Failed to show toast: {exc}"
     elif SYSTEM == "Darwin":
         try:
-            subprocess.run(["osascript", "-e", f'display notification "{clean}" with title "Atulya Tantra"'], timeout=5)
-            return f"Notification displayed: {message[:100]}"
+            subprocess.run(["osascript", "-e", "on run argv", "-e", 'display notification (item 1 of argv) with title "Atulya"',
+                            "-e", "end run", clean], timeout=5, check=True)
+            return f"Notification displayed: {clean[:100]}"
         except Exception as exc:
             return f"Failed to show notification: {exc}"
     elif SYSTEM == "Linux":
         try:
-            subprocess.run(["notify-send", "Atulya Tantra", clean], timeout=5)
-            return f"Notification displayed: {message[:100]}"
+            subprocess.run(["notify-send", "--", "Atulya", clean], timeout=5, check=True)
+            return f"Notification displayed: {clean[:100]}"
         except Exception:
-            return f"Alert: {message[:100]}"
-    return f"Message logged: {message[:100]}"
+            return "No notification service on this device; nothing was shown."
+    return "No notification service on this device; nothing was shown."
 
 
 def _media_control(action: str) -> str:
@@ -108,9 +127,7 @@ def execute(kind: str, detail: str, folder=None):
         return f"{platform.node()} ({SYSTEM}) companion active; ready for instructions."
 
     if kind == "say":
-        text = detail.strip()
-        _display_toast(text)
-        return f"Spoke / announced on device: '{text[:120]}'"
+        return _display_toast(detail) + " (shown as text; this companion has no voice)"
 
     if kind == "open_url":
         url = urlsplit(detail)
@@ -121,45 +138,22 @@ def execute(kind: str, detail: str, folder=None):
         return f"Opened {detail} in default browser."
 
     if kind == "open_app":
-        app_name = detail.strip()
-        if not app_name:
-            raise ValueError("Specify an application name to open")
-        if SYSTEM == "Windows":
-            try:
-                subprocess.Popen(["cmd.exe", "/c", "start", "", app_name], shell=False, creationflags=0x08000000)
-                return f"Launched app '{app_name}' on Windows."
-            except Exception as exc:
-                return f"Failed to launch app: {exc}"
-        elif SYSTEM == "Darwin":
-            try:
-                subprocess.Popen(["open", "-a", app_name])
-                return f"Launched app '{app_name}' on macOS."
-            except Exception as exc:
-                return f"Failed to launch app: {exc}"
-        elif SYSTEM == "Linux":
-            try:
-                subprocess.Popen([app_name])
-                return f"Launched '{app_name}' on Linux."
-            except Exception as exc:
-                return f"Failed to launch app: {exc}"
-        return f"Cannot launch app '{app_name}' on {SYSTEM}."
+        # Only apps listed in the Start menu / Applications / .desktop entries, matched by name and launched
+        # without a shell. A name like "notepad & del ..." can never become a command.
+        from tools.plugins.system.actions import open_app
+        return open_app(detail.strip()[:80])
 
     if kind == "list_files":
-        if not folder:
-            raise ValueError("Set ATULYA_AGENT_FOLDER to grant one folder; no folder access is enabled")
-        base = Path(folder).resolve(strict=True)
-        target = (base / (detail or ".")).resolve(strict=True)
-        if not target.is_relative_to(base) or not target.is_dir():
-            raise ValueError("Folder is outside the granted directory")
-        return "\n".join(p.name for p in sorted(target.iterdir())[:100]) or "Folder is empty."
+        target = _granted_path(folder, detail or ".")
+        if not target.is_dir():
+            raise ValueError("Not a folder inside the granted directory")
+        names = [p.name for p in sorted(target.iterdir()) if not p.name.startswith(".")]
+        return "\n".join(names[:100]) or "Folder is empty."
 
     if kind == "read_file":
-        if not folder:
-            raise ValueError("Set ATULYA_AGENT_FOLDER to grant one folder; no folder access is enabled")
-        base = Path(folder).resolve(strict=True)
-        target = (base / (detail or "")).resolve(strict=True)
-        if not target.is_relative_to(base) or not target.is_file():
-            raise ValueError("File is outside the granted directory or does not exist")
+        target = _granted_path(folder, detail)
+        if not target.is_file():
+            raise ValueError("Not a file inside the granted directory")
         if target.stat().st_size > 100_000:
             return f"File too large ({target.stat().st_size} bytes). Max 100KB."
         try:
@@ -168,11 +162,12 @@ def execute(kind: str, detail: str, folder=None):
             return f"Error reading file: {exc}"
 
     if kind == "list_photos":
-        pictures_dir = Path(folder) if folder else Path.home() / "Pictures"
-        if not pictures_dir.exists():
-            return "Pictures folder not found."
+        # Only the folder the owner granted; never Pictures by default, never hidden folders.
+        base = _granted_path(folder, ".")
         extensions = {".jpg", ".jpeg", ".png", ".webp", ".mp4"}
-        photos = [p.name for p in sorted(pictures_dir.rglob("*"), key=lambda x: x.stat().st_mtime, reverse=True) if p.suffix.lower() in extensions][:25]
+        found = [p for p in base.rglob("*") if p.suffix.lower() in extensions and p.is_file()
+                 and not any(part.startswith(".") for part in p.relative_to(base).parts)]
+        photos = [p.name for p in sorted(found, key=lambda x: x.stat().st_mtime, reverse=True)][:25]
         return "\n".join(photos) or "No photos found."
 
     if kind == "take_photo":
@@ -185,8 +180,7 @@ def execute(kind: str, detail: str, folder=None):
             cap.release()
             if not ret:
                 return "Failed to grab frame from camera."
-            save_dir = Path(folder) if folder else Path.home() / "Pictures"
-            save_dir.mkdir(parents=True, exist_ok=True)
+            save_dir = _granted_path(folder, ".")
             filename = f"capture_{int(time.time())}.jpg"
             save_path = save_dir / filename
             cv2.imwrite(str(save_path), frame)

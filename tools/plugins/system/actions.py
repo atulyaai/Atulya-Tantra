@@ -131,6 +131,8 @@ def search_files(query: str, limit: int = 15, budget_seconds: float = 4.0) -> st
         for current, dirs, files in os.walk(root):
             dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not d.startswith(".")]
             for filename in files:
+                if filename.startswith("."):
+                    continue  # hidden files (.env, keys, configs) are private
                 if all(term in _norm(filename) for term in terms):
                     path = Path(current) / filename
                     try:

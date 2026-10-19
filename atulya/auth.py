@@ -140,6 +140,12 @@ class AuthStore:
             challenge_columns = {row[1] for row in db.execute("PRAGMA table_info(challenges)")}
             if "user_id" not in challenge_columns:
                 db.execute("ALTER TABLE challenges ADD COLUMN user_id TEXT NOT NULL DEFAULT 'admin'")
+            # Signed-in devices: what signed in, from where, how, and when it was last used.
+            session_columns = {row[1] for row in db.execute("PRAGMA table_info(sessions)")}
+            for column, kind in (("label", "TEXT NOT NULL DEFAULT ''"), ("ip", "TEXT NOT NULL DEFAULT ''"),
+                                 ("method", "TEXT NOT NULL DEFAULT ''"), ("last_seen", "INTEGER NOT NULL DEFAULT 0")):
+                if column not in session_columns:
+                    db.execute(f"ALTER TABLE sessions ADD COLUMN {column} {kind}")
             db.execute(
                 """INSERT OR IGNORE INTO users(id,display_name,role,created_at)
                    SELECT DISTINCT user_id,CASE WHEN user_id='admin' THEN 'Admin' ELSE user_id END,
@@ -634,11 +640,61 @@ class AuthStore:
         now = int(time.time())
         with self._session() as db:
             row = db.execute(
-                "SELECT s.user_id FROM sessions s JOIN users u ON u.id=s.user_id "
+                "SELECT s.user_id, s.last_seen FROM sessions s JOIN users u ON u.id=s.user_id "
                 "WHERE s.token_hash=? AND s.expires_at>? AND u.disabled_at IS NULL",
                 (self._token_hash(token), now),
             ).fetchone()
+            if row and now - int(row["last_seen"] or 0) > 300:  # "last used", written at most every 5 minutes
+                db.execute("UPDATE sessions SET last_seen=? WHERE token_hash=?", (now, self._token_hash(token)))
         return str(row["user_id"]) if row else None
+
+    @staticmethod
+    def session_id(token_hash: str) -> str:
+        """A short public id for a session (never the token or its full hash)."""
+        return token_hash[:16]
+
+    def describe_session(self, token: str, label: str, ip: str, method: str) -> tuple[str | None, bool]:
+        """Record which device signed in and how. Returns (account, is_new): is_new is True when this
+        device+method has not signed in to the account in the last 30 days, so alerts go out only for new ones."""
+        now = int(time.time())
+        token_hash = self._token_hash(token)
+        with self._session() as db:
+            row = db.execute("SELECT user_id FROM sessions WHERE token_hash=?", (token_hash,)).fetchone()
+            if row is None:
+                return None, False
+            seen_before = db.execute(
+                "SELECT 1 FROM sessions WHERE user_id=? AND token_hash<>? AND label=? AND method=? AND created_at>?",
+                (row["user_id"], token_hash, label[:120], method[:40], now - SESSION_MAX_AGE)).fetchone()
+            db.execute("UPDATE sessions SET label=?, ip=?, method=?, last_seen=? WHERE token_hash=?",
+                       (label[:120], ip[:64], method[:40], now, token_hash))
+        return str(row["user_id"]), seen_before is None
+
+    def sessions_for(self, user_id: str, current_token: str | None = None) -> list[dict]:
+        """Every active sign-in of this account, newest use first."""
+        now = int(time.time())
+        current = self._token_hash(current_token) if current_token else ""
+        with self._session() as db:
+            rows = db.execute(
+                "SELECT token_hash,label,ip,method,created_at,last_seen,expires_at FROM sessions "
+                "WHERE user_id=? AND expires_at>? ORDER BY MAX(last_seen, created_at) DESC", (user_id, now)).fetchall()
+        return [{"id": self.session_id(row["token_hash"]), "label": row["label"] or "Unknown device",
+                 "ip": row["ip"], "method": row["method"], "created_at": row["created_at"],
+                 "last_seen": max(int(row["last_seen"] or 0), int(row["created_at"])),
+                 "expires_at": row["expires_at"], "current": row["token_hash"] == current} for row in rows]
+
+    def revoke_session_id(self, user_id: str, session_id: str) -> bool:
+        """Sign out one device of this account by its public id."""
+        if not re.fullmatch(r"[a-f0-9]{16}", session_id):
+            return False
+        with self._session() as db:
+            cursor = db.execute("DELETE FROM sessions WHERE user_id=? AND substr(token_hash,1,16)=?", (user_id, session_id))
+            return cursor.rowcount > 0
+
+    def revoke_other_sessions(self, user_id: str, keep_token: str | None) -> int:
+        """Sign out everywhere except this device."""
+        keep = self._token_hash(keep_token) if keep_token else ""
+        with self._session() as db:
+            return db.execute("DELETE FROM sessions WHERE user_id=? AND token_hash<>?", (user_id, keep)).rowcount
 
     def revoke_session(self, token: str | None) -> None:
         if not token or len(token) > 128 or not token.isascii() or not all(

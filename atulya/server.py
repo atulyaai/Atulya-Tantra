@@ -157,6 +157,38 @@ async def _empty_receive():
     return {"type": "http.request", "body": b"", "more_body": False}
 
 
+class SecurityHeadersMiddleware:
+    """Browser hardening on every response; a route's own value for the same header wins."""
+
+    HEADERS = (
+        (b"x-content-type-options", b"nosniff"),
+        (b"referrer-policy", b"same-origin"),
+        # Only this site and the Telegram Mini App may frame Atulya (stops click-jacking of APPROVE buttons).
+        (b"content-security-policy",
+         b"frame-ancestors 'self' https://web.telegram.org https://*.telegram.org; object-src 'none'; base-uri 'self'"),
+        (b"permissions-policy", b"camera=(self), microphone=(self), geolocation=(self), payment=(), usb=()"),
+        (b"cross-origin-opener-policy", b"same-origin-allow-popups"),
+    )
+
+    def __init__(self, app, https: bool = False):
+        self.app = app
+        self.headers = self.HEADERS + (((b"strict-transport-security", b"max-age=31536000"),) if https else ())
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def with_headers(message):
+            if message["type"] == "http.response.start":
+                present = {name.lower() for name, _ in message.get("headers", [])}
+                message.setdefault("headers", [])
+                message["headers"] = list(message["headers"]) + [item for item in self.headers if item[0] not in present]
+            await send(message)
+
+        await self.app(scope, receive, with_headers)
+
+
 class SessionAuthMiddleware:
     """Require a valid local passkey session for all private API routes."""
 
@@ -676,6 +708,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(SessionAuthMiddleware, auth_store=auth_store, public_origin=config.public_origin)
     app.add_middleware(LocalApiSecurityMiddleware)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=config.trusted_hosts)
+    app.add_middleware(SecurityHeadersMiddleware, https=config.public_origin.startswith("https://"))
     app.state.settings = config
     app.state.auth_store = auth_store
     app.state.brain = brain
@@ -821,16 +854,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from tools import backup as backups
 
         await asyncio.sleep(300)
+        alerted_at = 0.0
         while True:
             try:
-                path, _created = await asyncio.to_thread(backups.create, config.data_dir)
-                result = await asyncio.to_thread(backups.copy_offsite, path)
-                logging.getLogger(__name__).info("Backup %s (%s)", path.name, result)
+                # Deploys restart the server; one backup a day, not one per restart (14 kept = 14 days).
+                existing = sorted((config.data_dir / "backups").glob("atulya-*.atb"))
+                if not existing or time.time() - existing[-1].stat().st_mtime > 20 * 3600:
+                    path, _created = await asyncio.to_thread(backups.create, config.data_dir)
+                    result = await asyncio.to_thread(backups.copy_offsite, path)
+                    logging.getLogger(__name__).info("Backup %s (%s)", path.name, result)
             except Exception as exc:
                 logging.getLogger(__name__).warning("Backup failed (%s)", type(exc).__name__)
-            await asyncio.sleep(24 * 3600)
+                if time.time() - alerted_at > 24 * 3600:  # tell the owner, at most once a day
+                    alerted_at = time.time()
+                    await telegram.notify("Atulya: today's encrypted backup failed. Data is unchanged; "
+                                          "check the server log.")
+            await asyncio.sleep(3600)
 
-    if os.environ.get("ATULYA_PRELOAD", "1").strip() not in {"0", "false", "no"}:
+    # Daily encrypted backups are on by default and independent of model preloading (ATULYA_PRELOAD=0
+    # on small servers used to switch them off silently). ATULYA_BACKUPS=0 turns them off explicitly.
+    if os.environ.get("ATULYA_BACKUPS", "1").strip().lower() not in {"0", "false", "no", "off"}:
         app.router.add_event_handler("startup", lambda: setattr(app.state, "backup_task", asyncio.create_task(daily_backups())))
 
     async def unload_idle_models() -> None:
@@ -1076,9 +1119,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail="Open Atulya at http://localhost:8501 to use a passkey.")
         return rp_id, f"{request.url.scheme}://{host}"
 
+    SIGN_IN_METHODS = (("/api/auth/register/verify", "new passkey"), ("/api/auth/login/verify", "passkey"),
+                       ("/api/auth/login-requests/", "code or approval"), ("/api/auth/voice-unlock", "voice unlock"),
+                       ("/api/auth/telegram-webapp", "Telegram"), ("/api/auth/password", "password"),
+                       ("/api/auth/google/app", "Google (app)"), ("/api/auth/google/", "Google"))
+
+    async def sign_in_alert(user_id: str, label: str, method: str) -> None:
+        when = time.strftime("%d %b %H:%M")
+        text = (f"New sign-in to Atulya: {label} via {method} at {when}. "
+                "Not you? Open Atulya → ⋮ → SIGNED-IN DEVICES and sign it out.")
+        try:
+            if user_id == "admin":
+                await telegram.notify(text)
+            await notify_user(user_id, "New sign-in", text)
+        except Exception:
+            logging.getLogger(__name__).info("Sign-in alert could not be delivered")
+
     def set_session_cookie(response: Response, request: Request, token: str) -> None:
         if request.client:
             auth_store.clear_ip(request.client.host)
+        path = request.url.path
+        method = next((name for prefix, name in SIGN_IN_METHODS if path.startswith(prefix)), "sign-in")
+        user_id, is_new = auth_store.describe_session(
+            token, _client_label(request), request.client.host if request.client else "", method)
+        if user_id and is_new:
+            asyncio.get_running_loop().create_task(sign_in_alert(user_id, _client_label(request), method))
         secure = request.url.scheme == "https" or config.public_origin.startswith("https://")
         # Clear both the Secure and non-Secure copies so a stale duplicate cannot block sign-in.
         response.delete_cookie(SESSION_COOKIE, path="/")
@@ -1295,7 +1360,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         base = config.public_origin or f"{request.url.scheme}://{request.headers.get('host', 'localhost:8501')}"
         return {"url": f"{base}/#link={token}", "expires_minutes": 10}
 
-    async def strike(request: Request, weight_only_if_remote: bool = False) -> None:
+    async def strike(request: Request) -> None:
         """Count a failed or abusive sign-in attempt against the caller's IP (ban at 10 per hour)."""
         ip = request.client.host if request.client else ""
         # Never ban this machine itself: the owner would lock themselves out. Internet traffic arrives via
@@ -1334,13 +1399,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         user_id = await asyncio.to_thread(auth_store.resolve_login, body.username)
         client = request.client.host if request.client else "unknown"
         label = _client_label(request)
-        await strike(request, weight_only_if_remote=True)
         try:
             created = await asyncio.to_thread(auth_store.create_login_request, user_id, client, label)
         except ValueError as exc:
+            await strike(request)  # more open requests than allowed: count it as abuse
             raise HTTPException(status_code=429, detail=str(exc)) from exc
         if created is None:
-            # Same answer as success, so usernames can't be probed.
+            # Unknown username: count it (name probing), but answer like success so names can't be probed.
+            await strike(request)
             return {"id": secrets.token_urlsafe(18), "channels": [], "expires_in": 300}
         request_id, code = created
         channels = await deliver_login_code(user_id, code, label, request_id)
@@ -1459,7 +1525,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/auth/signup")
     async def signup(body: SignupBody, request: Request) -> dict[str, object]:
         """Anyone can ask for an account; it stays disabled until the owner approves it."""
-        await strike(request, weight_only_if_remote=True)
+        await strike(request)  # public sign-up form: each request counts, so it cannot be spammed
         try:
             user_id = await asyncio.to_thread(auth_store.create_signup, body.name, body.email, body.password, "password")
         except ValueError as exc:
@@ -1577,6 +1643,25 @@ ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
         response = JSONResponse({"authenticated": True, "user": str(account["display_name"]) if account else user_id})
         set_session_cookie(response, request, await asyncio.to_thread(auth_store.create_session, user_id))
         return response
+
+    @app.get("/api/auth/sessions")
+    async def list_sessions(request: Request) -> dict[str, list[dict]]:
+        """Every device signed in to this account: what, where, how, and when it was last used."""
+        current = session_token(request.headers.get("cookie"))
+        return {"sessions": await asyncio.to_thread(auth_store.sessions_for, str(request.state.user_id), current)}
+
+    @app.delete("/api/auth/sessions/{session_id}")
+    async def sign_out_session(session_id: str, request: Request) -> dict[str, bool]:
+        removed = await asyncio.to_thread(auth_store.revoke_session_id, str(request.state.user_id), session_id)
+        if not removed:
+            raise HTTPException(status_code=404, detail="That sign-in is already gone.")
+        return {"signed_out": True}
+
+    @app.post("/api/auth/sessions/sign-out-others")
+    async def sign_out_everywhere_else(request: Request) -> dict[str, int]:
+        current = session_token(request.headers.get("cookie"))
+        removed = await asyncio.to_thread(auth_store.revoke_other_sessions, str(request.state.user_id), current)
+        return {"signed_out": removed}
 
     @app.post("/api/auth/logout")
     async def passkey_logout(request: Request) -> Response:

@@ -53,11 +53,52 @@ async def search_web(query: str, limit: int = 5) -> list[dict]:
     return results[:limit]
 
 
+async def public_address(url: str) -> str | None:
+    """Why a URL must not be fetched, or None when it points only at the public internet.
+
+    Blocks this server, its private network and the cloud metadata service (169.254.169.254), so a page,
+    email or prompt can never make Atulya read internal addresses.
+    """
+    import asyncio
+    import ipaddress
+    import socket
+    from urllib.parse import urlsplit
+
+    try:
+        parts = urlsplit(url)
+        port = parts.port or (443 if parts.scheme == "https" else 80)
+    except ValueError:
+        return "invalid address"
+    if parts.scheme not in {"http", "https"} or not parts.hostname or parts.username or parts.password:
+        return "only plain http(s) web addresses can be read"
+    try:
+        found = await asyncio.get_running_loop().getaddrinfo(parts.hostname, port, type=socket.SOCK_STREAM)
+    except OSError:
+        return "that address does not resolve"
+    for *_rest, sockaddr in found:
+        address = ipaddress.ip_address(sockaddr[0].split("%")[0])
+        if getattr(address, "ipv4_mapped", None):
+            address = address.ipv4_mapped
+        if not address.is_global or address.is_multicast:
+            return "internal and private addresses are never read"
+    return None
+
+
 async def read_page(url: str) -> str:
-    """Fetch and extract text from a web page."""
+    """Fetch and extract text from a public web page (redirects are checked hop by hop)."""
     client = _client()
     try:
-        resp = await client.get(url, follow_redirects=True)
+        for _hop in range(5):
+            refused = await public_address(url)
+            if refused:
+                return f"I won't read that address: {refused}."
+            resp = await client.get(url, follow_redirects=False)
+            if resp.is_redirect and resp.headers.get("location"):
+                url = str(resp.next_request.url) if resp.next_request else str(httpx.URL(url).join(resp.headers["location"]))
+                continue
+            break
+        else:
+            return "That page redirects too many times."
         resp.raise_for_status()
     except (httpx.HTTPError, ValueError) as exc:
         logger.warning("Page fetch failed: %s", type(exc).__name__)
