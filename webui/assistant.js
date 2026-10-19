@@ -2214,6 +2214,7 @@
       let message = {};
       try { message = JSON.parse(event.data); } catch { return; }
       if (message.type === "phone_action") { document.dispatchEvent(new CustomEvent("atulya-phone-receipt", {detail:message})); return; }
+      if (message.type === "native_capabilities") { document.dispatchEvent(new CustomEvent("atulya-native-capabilities", {detail:message})); return; }
       if (message.kind === "ready") { setPhase("listening", "Listening", "Speak naturally. I'll answer when you pause."); return; }
       if (message.kind === "speech" || message.kind === "end") return;
       listening = false;

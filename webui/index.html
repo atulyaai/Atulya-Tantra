@@ -11,11 +11,11 @@
   <link rel="icon" href="./icons/atulya-mark.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <link rel="stylesheet" href="./renderer.css?v=atulya-59">
+  <link rel="stylesheet" href="./renderer.css?v=atulya-60">
   <link rel="stylesheet" href="./controls.css?v=5">
   <script type="module" crossorigin src="./renderer.js?v=atulya-10"></script>
-  <script defer src="./assistant.js?v=atulya-81"></script>
-  <script defer src="./controls.js?v=6"></script>
+  <script defer src="./assistant.js?v=atulya-82"></script>
+  <script defer src="./controls.js?v=9"></script>
 </head>
 <body>
   <div id="root"></div>
@@ -34,6 +34,9 @@
     <button id="quick-status" type="button">Dashboard</button>
     <button id="quick-connections" type="button">Connections</button>
     <button id="quick-maintenance" type="button">Maintenance</button>
+    <button id="quick-implementation" type="button">Work log</button>
+    <button id="quick-operations" type="button">Server operations</button>
+    <button id="quick-tasks" type="button">Tasks</button>
   </nav>
   <dialog id="music-dialog" class="history-dialog" aria-labelledby="music-title">
     <header><h2 id="music-title">Music on this device</h2><button id="close-music" type="button">Close</button></header>
@@ -42,7 +45,7 @@
     <div id="music-queue"></div>
     <form id="music-form"><label>YouTube video link<input id="music-url" type="url" required maxlength="500"></label><button type="submit">Add to queue</button></form>
   </dialog>
-  <script src="./music.js" defer></script>
+  <script src="./music.js?v=2" defer></script>
   <section id="reminder-notices" aria-live="assertive" aria-label="Due reminders"></section>
   <dialog id="control-dialog" aria-labelledby="control-title">
     <header><h2 id="control-title">Reminders</h2><button id="close-control" type="button" aria-label="Close controls">Close</button></header>
@@ -239,6 +242,7 @@
         <details class="account-menu">
           <summary title="Account and settings" aria-label="Account and settings">⋮</summary>
           <div class="account-menu-items">
+            <button id="open-device-connections" type="button" title="Device status, approvals and optional background phone connection">DEVICES & CONNECTION</button>
             <button id="add-passkey" type="button" title="Add a passkey for this device" hidden>ADD PASSKEY</button>
             <button id="link-device" type="button" title="Sign in and add a passkey on another phone or computer">LINK ANOTHER DEVICE</button>
             <button id="signed-in-devices" type="button" title="See every device signed in to your account and sign any of them out">SIGNED-IN DEVICES</button>

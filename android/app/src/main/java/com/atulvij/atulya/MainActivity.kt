@@ -234,6 +234,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun configureBackgroundConnection() {
+        val enabled = PhoneConnectionService.enabled(this)
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Background phone connection")
+            .setMessage(if (enabled) "Background checks are enabled. Disconnect this session?"
+                else "Keep a visible connection notification while this session runs. Only ping and battery checks execute in background. Other commands wait until you open and unlock Atulya. Android may stop the session; this does not enable remote screen control.")
+            .setNegativeButton("CANCEL", null)
+            .setPositiveButton(if (enabled) "DISCONNECT" else "ENABLE") { _, _ ->
+                if (!enabled && Build.VERSION.SDK_INT >= 33 &&
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 5)
+                } else PhoneConnectionService.setEnabled(this, !enabled)
+            }.show()
+    }
+
     private fun controlMediaStream(action: String): Boolean {
         if (!MediaPlaybackService.hasPlayableStream) return false
         val intent = Intent(this, MediaPlaybackService::class.java).apply {
@@ -405,6 +420,9 @@ class MainActivity : AppCompatActivity() {
                         val title = command.optString("title", "Audio Stream")
                         if (url.isNotEmpty()) playMediaStream(url, title)
                     }
+                    "background_connection" -> configureBackgroundConnection()
+                    "native_capabilities" -> reply.postMessage(JSONObject().put("type", "native_capabilities")
+                        .put("version", BuildConfig.VERSION_NAME).put("background_connection", true).toString())
                     "pause_media" -> controlMediaStream(MediaPlaybackService.ACTION_PAUSE)
                     "resume_media" -> controlMediaStream(MediaPlaybackService.ACTION_PLAY)
                     "stop_media" -> controlMediaStream(MediaPlaybackService.ACTION_STOP)
@@ -550,6 +568,10 @@ class MainActivity : AppCompatActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         @Suppress("DEPRECATION")
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 5) {
+            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) PhoneConnectionService.setEnabled(this, true)
+            return
+        }
         val locationGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
                               ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         if (locationGranted && pendingGeo != null) {

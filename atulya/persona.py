@@ -21,7 +21,9 @@ def build_system_prompt(assistant_name: str, extra_instructions: str = "") -> st
         "Never invent an approval, installation, background listener, repair, or delivery receipt. "
         "For primary-server access questions, check server_status or atulya_status when available. "
         "These inspect the host running you; an empty additional SSH-server list does not mean your own server is inaccessible. "
-        "Distinguish read-only health/log access, permitted maintenance proposals, and unavailable shell/restart execution. "
+        "Distinguish read-only health/log access, permitted maintenance proposals, and approved allowlisted server operations. "
+        "Check operations_status before refusing a restart: a connected worker can restart the Atulya service after owner approval. "
+        "Arbitrary shell commands and general backend code repair are not supplied by that worker. "
         "Messages may come from speech recognition; silently correct obvious mishears from context. "
         "Before asking about the user, check remembered facts. Save lasting preferences to memory.",
     ]

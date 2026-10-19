@@ -25,6 +25,10 @@ from tools.plugins.registry import PluginContext
 from tools.plugins.productivity.web_reminders import create_reminder, list_reminders, edit_reminder, cancel_reminder
 from atulya.maintenance import maintenance_check, maintenance_read, maintenance_propose, maintenance_patch, maintenance_search, maintenance_set_proactive
 from atulya.mcp_connections import mcp_list, mcp_call
+from atulya.implementation import implementation_tool
+from atulya.operations import restart_tool, status_tool as operations_status_tool
+from atulya.music import music_status_tool
+from atulya.tasks import start_tool as start_diagnostic_tool, status_tool as task_status_tool, cancel_tool as cancel_diagnostic_tool
 
 logger = logging.getLogger(__name__)
 SKILLS_DIR = Path(__file__).resolve().parents[1] / "skills"
@@ -466,6 +470,8 @@ async def _cast_to_tv(args: dict, ctx: PluginContext | None) -> str:
     url = str(args.get("url") or args.get("content") or "")
     action = str(args.get("action") or "open_url")
     hub = AgentHub(Settings.from_environment().data_dir)
+    if not any(d["name"] == tv and d.get("device_type") == "tv" for d in hub.devices(ctx.user_id)):
+        return "No paired TV with that name. Pair an explicit TV companion first; nothing was cast."
     try:
         job = hub.enqueue(ctx.user_id, tv, action, url)
         return f"Queued a cast to {tv} ({job['kind']}: {url[:100]}). Playback is not confirmed yet."
@@ -798,12 +804,7 @@ async def _server_logs(args: dict, ctx: PluginContext | None) -> str:
 
 
 async def _restart_service(args: dict, ctx: PluginContext | None) -> str:
-    """Report unavailable until a real maintenance executor is connected."""
-    service = _text(args, "service", 64)
-    return (
-        f"Service restart is unavailable for '{service}': no restart executor is connected. "
-        "No approval was queued and no service was changed."
-    )
+    return await restart_tool(args, ctx)
 
 
 async def _gmail_search(args: dict, ctx: PluginContext | None) -> str:
@@ -857,6 +858,16 @@ async def _calendar_delete(args: dict, ctx: PluginContext | None) -> str:
 
 
 TOOLS: tuple[Tool, ...] = (
+    Tool("start_diagnostic_task", "Queue a durable read-only diagnostic plan with checkpoints. Supports primary server health (owner only), your paired devices, and Google authorization flags. Does not repair, send, or inspect email content.",
+         _params({"checks": {"type": "array", "items": {"type": "string", "enum": ["server_health", "devices", "google_connection"]}, "minItems": 1, "maxItems": 3}}, ["checks"]), start_diagnostic_tool, "local-utilities", True),
+    Tool("task_status", "Inspect your durable diagnostic tasks and checkpoint results. Completed means checks finished; individual checks may fail.",
+         _params(), task_status_tool, "local-utilities", True),
+    Tool("cancel_diagnostic_task", "Cancel one of your queued or running diagnostic plans. An already running read-only check may finish, but further checks stop.",
+         _params({"id": {"type": "string"}}, ["id"]), cancel_diagnostic_tool, "local-utilities", True),
+    Tool("music_status", "Inspect your music queue and client playback receipts. Stale playback is unconfirmed; audible sound is never inferred from a queue entry.",
+         _params(), music_status_tool, "local-utilities", True),
+    Tool("implementation_status", "Owner: read the recorded implementation log, completed work, current work and explicit blockers. This is engineering progress, not live connection verification.",
+         _params(), implementation_tool, "local-utilities", True),
     Tool("open_website", "Prepare a clickable HTTPS website button in Telegram or the WebUI/app. The user taps it on their device; do not claim a remote browser opened.",
          _params({"url": {"type": "string"}, "label": {"type": "string"}}, ["url"]), _open_website, "local-utilities", True),
     Tool("prepare_phone_action", "Prepare an SMS composer or dialer request for the owner's Android app. User opens Phone actions and taps; composing does not send and dialing does not place a call.",
@@ -991,9 +1002,11 @@ TOOLS: tuple[Tool, ...] = (
     Tool("read_url", "Fetch a web page and return readable text for summarising.",
          _params({"url": {"type": "string", "description": "Full http(s) URL"}}, ["url"]),
          _read_page, "online-information"),
-    Tool("restart_service", "Check service restart availability; execution is currently unavailable.",
-         _params({"service": {"type": "string"}}, ["service"]),
-         _restart_service, "local-utilities", True),
+    Tool("restart_service", "Owner: request an approved restart of the allowlisted Atulya service using a separate worker. Queued is not executed; check operations_status.",
+         _params({"service": {"type": "string", "enum": ["atulya", "atulya.service"]}}, ["service"]),
+         _restart_service, "local-utilities", True, True, lambda a: "Restart Atulya; the web service will briefly disconnect"),
+    Tool("operations_status", "Owner: inspect operations worker readiness and durable execution receipts.",
+         _params(), operations_status_tool, "local-utilities", True),
     Tool("places_near_me", "Find places (pharmacies, hospitals, shops, restaurants) near the user's location "
          "or a named place. Returns name, address and distance.",
          _params({"query": {"type": "string", "description": "What to find, e.g. 'pharmacy', 'hospital'"},
@@ -1261,12 +1274,15 @@ class Toolbox:
             pass
         try:
             from tools.plugins.system.agents import AgentHub
-            data_dir = Path(os.environ.get("ATULYA_DATA_DIR") or "data")
-            rows = AgentHub(data_dir).devices(str(self.context.user_id))
+            from atulya.settings import Settings
+            rows = AgentHub(Settings.from_environment().data_dir).devices(str(self.context.user_id))
             if rows:
                 parts.append("Paired devices (use ask_device): " + "; ".join(
                     f"{row['name']} — {row['status']} — {', '.join(row['abilities'])}" for row in rows[:6]) +
-                    ". An offline phone acts only after its owner opens Atulya.")
+                    ". An offline phone acts only after its owner opens Atulya. "
+                    "A phone in background mode answers ping/battery only; effects wait for the open app and approval.")
+                if any(row.get("mode") == "background" for row in rows):
+                    parts.append("At least one device is connected in background-checks mode; do not claim other commands can execute while it stays in background.")
             else:
                 parts.append("No phone or computer is paired, so you cannot act on the user's phone or PC; "
                              "say so plainly and point to menu → PAIR DEVICE.")
@@ -1285,6 +1301,14 @@ class Toolbox:
             args = raw_arguments if isinstance(raw_arguments, dict) else json.loads(raw_arguments or "{}")
             if not isinstance(args, dict):
                 raise ValueError("arguments must be an object")
+            if name == "restart_service":
+                from atulya.operations import store, SERVICES
+                if self.context is None or self.context.user_id != "admin":
+                    return "Only the owner may request server operations."
+                if args.get("service") not in SERVICES:
+                    return "Only the Atulya service is allowlisted; nothing was queued."
+                if not store().ready():
+                    return "Operations worker is not connected; no approval or restart was queued."
             if tool.confirm and tool.low_risk and self._safety() == "ask_risky":
                 result = (await asyncio.wait_for(tool.handler(args, self.context), timeout=20))[:4000]
                 outcome = "ok (low risk, no approval)"

@@ -4,6 +4,14 @@
   const camera = $("#quick-camera");
   const shown = new Set();
   let polling = false;
+  let nativeFeatures = null;
+  document.addEventListener("atulya-native-capabilities", event => { nativeFeatures = event.detail; });
+  async function phoneFeatures() {
+    if (!window.AtulyaNative || nativeFeatures) return nativeFeatures;
+    window.AtulyaNative.postMessage(JSON.stringify({cmd:"native_capabilities"}));
+    for (let i = 0; i < 15 && !nativeFeatures; i++) await new Promise(resolve => setTimeout(resolve, 100));
+    return nativeFeatures;
+  }
   const node = (tag, text, className) => {
     const item = document.createElement(tag);
     if (text !== undefined) item.textContent = text;
@@ -331,9 +339,19 @@
       content.append(node("p", "Phone: keep Atulya open and unlocked to stay connected. PC: keep the companion running. Installing the app or signing in alone does not make a device online."));
       const refresh = node("button", "Refresh devices & receipts");
       refresh.addEventListener("click", devicesPanel); content.append(refresh);
+      if (window.AtulyaNative) {
+        const features = await phoneFeatures();
+        if (features?.background_connection) {
+          const background = node("button", "Background phone connection");
+          background.addEventListener("click", () => window.AtulyaNative.postMessage(JSON.stringify({cmd:"background_connection"})));
+          content.append(background, node("p", "Background mode is optional and runs only harmless checks. Open the phone app to approve other commands. Android can stop the session."));
+        } else {
+          content.append(node("p", "This installed APK does not report background-connection support. Foreground connection still works. Install a validated newer APK when available; a server update alone cannot add native phone features."));
+        }
+      }
       for (const device of data.devices) {
         const row = node("div", undefined, "control-row");
-        row.append(node("strong", `${device.name} · ${device.status}`), node("small", device.abilities.join(", ")));
+        row.append(node("strong", `${device.name} · ${device.status}${device.mode === "background" ? " · background checks; open app to approve actions" : ""}`), node("small", device.abilities.join(", ")));
         const test = node("button", "Test connection");
         test.disabled = !device.abilities.includes("ping");
         test.addEventListener("click", async () => {
@@ -386,9 +404,9 @@
         "display_message", "battery_status"
       ];
       const presets = {
-        phone: ["ping", "say", "take_photo", "list_photos", "send_sms", "place_call", "open_app", "battery_status"],
+        phone: ["ping", "say", "send_sms", "place_call", "open_app", "open_url", "media_control", "display_message", "battery_status"],
         tv: ["ping", "say", "media_control", "open_app", "open_url", "display_message"],
-        tablet: ["ping", "say", "take_photo", "list_photos", "open_app", "list_files", "read_file", "display_message"],
+        tablet: ["ping", "say", "open_app", "open_url", "media_control", "display_message", "battery_status"],
         laptop: ["ping", "say", "open_app", "open_url", "list_files", "read_file", "media_control", "display_message"]
       };
       const checkMap = {};
@@ -426,6 +444,66 @@
       for (const job of data.jobs) {
         const row = node("div", undefined, "control-row");
         row.append(node("strong", `${job.device} · ${job.kind} · ${job.status}`), node("small", job.id), node("p", job.output || "No execution receipt yet.")); content.append(row);
+      }
+    } catch (error) { errorMessage(error); }
+  }
+  async function implementationPanel() {
+    open("Work log: completed, active and unfinished");
+    try {
+      const report = await api("/api/implementation");
+      content.replaceChildren(node("p", `${report.scope} Updated ${report.updated}.`));
+      for (const item of report.items) {
+        const row = node("div", undefined, "control-row");
+        row.append(node("strong", `${item.title} · ${item.status.replaceAll("_", " ")}`));
+        row.append(node("p", item.evidence), node("p", `Next: ${item.next}`));
+        content.append(row);
+      }
+    } catch (error) { errorMessage(error); }
+  }
+  async function operationsPanel() {
+    open("Server operations & critical alerts");
+    try {
+      const report = await api("/api/operations");
+      content.replaceChildren(node("p", `Worker: ${report.worker_connected ? "connected" : "not connected"}. ${report.limits}`));
+      const refresh = node("button", "Refresh operations");
+      refresh.addEventListener("click", operationsPanel); content.append(refresh);
+      const toggle = node("button", report.alerts_enabled ? "Mute critical server alerts" : "Enable critical server alerts");
+      toggle.addEventListener("click", async () => {
+        try { await api(`/api/operations/alerts/${!report.alerts_enabled}`, {method:"PUT"}); await operationsPanel(); }
+        catch (error) { errorMessage(error); }
+      });
+      content.append(toggle, node("p", "To restart, ask Atulya to restart its service, review the approval, then check the receipt here. Telegram acceptance does not prove phone sound or delivery."));
+      for (const item of report.jobs) content.append(node("p", `${item.kind} ${item.target} · ${item.status} · ${item.result || "No execution receipt yet"}`));
+      for (const alert of report.alerts) content.append(node("p", `${alert.message} · ${alert.status}`));
+    } catch (error) { errorMessage(error); }
+  }
+  async function tasksPanel() {
+    open("Persistent diagnostic tasks");
+    try {
+      const report = await api("/api/tasks");
+      content.replaceChildren(node("p", report.limits));
+      const refresh = node("button", "Refresh tasks");
+      refresh.addEventListener("click", tasksPanel); content.append(refresh);
+      const start = node("button", "Check my devices and Google connection");
+      start.addEventListener("click", async () => {
+        start.disabled = true;
+        try { await api("/api/tasks", {method:"POST", body:JSON.stringify({checks:["devices","google_connection"]})}); await tasksPanel(); }
+        catch (error) { errorMessage(error); start.disabled = false; }
+      });
+      content.append(start);
+      for (const task of report.tasks) {
+        const row = node("div", undefined, "control-row");
+        row.append(node("strong", `${task.id} · ${task.status} · ${task.checkpoint}/${task.plan.length} checks`));
+        for (const result of task.results) row.append(node("pre", JSON.stringify(result, null, 2)));
+        if (["queued","running"].includes(task.status)) {
+          const cancel = node("button", "Cancel task");
+          cancel.addEventListener("click", async () => {
+            try { await api(`/api/tasks/${encodeURIComponent(task.id)}`, {method:"DELETE"}); await tasksPanel(); }
+            catch (error) { errorMessage(error); }
+          });
+          row.append(cancel);
+        }
+        content.append(row);
       }
     } catch (error) { errorMessage(error); }
   }
@@ -540,6 +618,14 @@
 
   $("#open-connections")?.addEventListener("click", connectionsPanel);
   $("#quick-devices")?.addEventListener("click", devicesPanel);
+  $("#open-device-connections")?.addEventListener("click", () => {
+    const menu = document.querySelector(".account-menu");
+    if (menu) menu.open = false;
+    void devicesPanel();
+  });
+  $("#quick-implementation")?.addEventListener("click", implementationPanel);
+  $("#quick-operations")?.addEventListener("click", operationsPanel);
+  $("#quick-tasks")?.addEventListener("click", tasksPanel);
   $("#quick-smarthome")?.addEventListener("click", smartHomePanel);
   $("#quick-expenses")?.addEventListener("click", expensesPanel);
 

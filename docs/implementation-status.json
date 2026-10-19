@@ -1,0 +1,104 @@
+{
+  "updated": "2026-10-19",
+  "scope": "Jarvis reliability and execution roadmap. These are recorded engineering states; query live connections before claiming an action can run.",
+  "items": [
+    {
+      "id": "server-health",
+      "title": "Primary-server diagnostics",
+      "status": "live_verified",
+      "evidence": "Deployed 064eec7; actual chat executed server_status in 6.1 seconds. Owner-only access tested.",
+      "next": "Retest after later deployments."
+    },
+    {
+      "id": "phone-link",
+      "title": "Phone connection and safe commands",
+      "status": "live_verified",
+      "evidence": "Actual server-to-phone ping and battery-status receipts in 4 and 5 seconds.",
+      "next": "Test each effectful command with phone approval."
+    },
+    {
+      "id": "apk",
+      "title": "Validated signed APK release",
+      "status": "published_install_unverified",
+      "evidence": "Signed APK v0.5.10 published; release CI 39290205406 and deploy passed. Newer background changes are separate and not published.",
+      "next": "Install the signed update and verify the device version; finish the newer background APK checks."
+    },
+    {
+      "id": "pc",
+      "title": "PC connection and startup",
+      "status": "waiting_for_user",
+      "evidence": "Portable executable built and runtime-tested. No paired PC in live audit. User chose to connect later.",
+      "next": "Pair in Devices, paste credential locally, verify ping and approved app launch."
+    },
+    {
+      "id": "google",
+      "title": "Gmail sending and Google Calendar",
+      "status": "waiting_for_user",
+      "evidence": "Gmail read connected; send and Calendar scopes absent. User chose to reconnect later.",
+      "next": "Complete Google consent, then test read/write separately."
+    },
+    {
+      "id": "truth",
+      "title": "Accurate capability readiness",
+      "status": "deployed",
+      "evidence": "Backend and Work log UI deployed at afcce96. Home Assistant/TV dependencies and incomplete visual analysis are exposed honestly.",
+      "next": "Verify real integrations after user setup; do not infer hardware execution."
+    },
+    {
+      "id": "background",
+      "title": "Phone background connection",
+      "status": "implemented_validation_pending",
+      "evidence": "Opt-in foreground-service session and safe-only background API implemented in PR 96. Effectful commands remain queued for foreground approval.",
+      "next": "Resolve CI results, compile/emulator-test final changes, then publish and test on the physical phone."
+    },
+    {
+      "id": "operations",
+      "title": "Restricted server operations and repair",
+      "status": "live_verified",
+      "evidence": "Deployed afcce96 and installed the separate worker. Live model chat requested restart approval; verified no execution before approval. After approval the receipt confirmed systemd active and HTTP health passed.",
+      "next": "Keep exact-service restrictions; general backend code repair remains unimplemented."
+    },
+    {
+      "id": "music",
+      "title": "Verified music playback",
+      "status": "deployed_live_playback_unverified",
+      "evidence": "Player heartbeats, stale-state detection, cancellation protection and music_status deployed. No live audible playback test.",
+      "next": "Test real playback on the chosen device; universal player control remains absent."
+    },
+    {
+      "id": "tasks",
+      "title": "Persistent tasks and proactive monitoring",
+      "status": "partially_live_verified",
+      "evidence": "Durable server restart and critical monitoring deployed. Diagnostic runner deployed at 6cb8910; live server-health/device/Google-flags plan completed all three checkpoints. General autonomous repair workflows remain absent.",
+      "next": "Expand only supported workflows; retain task cancellation, scoping and completion checks."
+    },
+    {
+      "id": "screen",
+      "title": "Consented screen and application automation",
+      "status": "planned",
+      "evidence": "Atulya UI controls are not full phone/desktop screen control.",
+      "next": "Add consented screen sessions and scoped desktop automation after device pairing."
+    },
+    {
+      "id": "vision",
+      "title": "Camera-to-answer visual inspection",
+      "status": "planned",
+      "evidence": "Current visual tool queues capture only; current phone lacks take_photo ability.",
+      "next": "Implement capture/upload/analysis and verify the resulting answer."
+    },
+    {
+      "id": "channels",
+      "title": "WhatsApp and email command channels",
+      "status": "needs_external_setup",
+      "evidence": "Telegram connected. No native WhatsApp channel or email inbox command listener found.",
+      "next": "Implement adapters with authorized accounts, webhook/inbox setup and delivery tests."
+    },
+    {
+      "id": "home",
+      "title": "Home Assistant and TV control",
+      "status": "needs_external_setup",
+      "evidence": "Handlers exist; no verified Home Assistant or paired TV in this audit.",
+      "next": "Connect real devices, discover allowed targets and verify each action."
+    }
+  ]
+}

@@ -48,6 +48,7 @@ jobs:
           "$PY" -m pip install -q -r requirements-dev.lock.txt
           "$PY" -m pytest -q
           "$PY" -m ruff check .
+          node --test tests/webui/music-player.test.cjs
 
       - name: Start the server and check it answers
         shell: bash

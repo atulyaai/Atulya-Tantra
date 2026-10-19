@@ -16,7 +16,7 @@ def test_registry_covers_tools_and_assistant_uses_same_status():
     for row in box.capabilities:
         assert f"{row['name']}: {row['status']}" in report
         assert row['next_step']
-    assert rows(box)['restart_service']['status'] == 'unsupported'
+    assert rows(box)['restart_service']['status'] == 'needs_connection'
 
 
 def test_plugin_toggle_and_public_mcp_boundaries():
