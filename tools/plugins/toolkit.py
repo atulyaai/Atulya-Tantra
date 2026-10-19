@@ -1274,12 +1274,15 @@ class Toolbox:
             pass
         try:
             from tools.plugins.system.agents import AgentHub
-            data_dir = Path(os.environ.get("ATULYA_DATA_DIR") or "data")
-            rows = AgentHub(data_dir).devices(str(self.context.user_id))
+            from atulya.settings import Settings
+            rows = AgentHub(Settings.from_environment().data_dir).devices(str(self.context.user_id))
             if rows:
                 parts.append("Paired devices (use ask_device): " + "; ".join(
                     f"{row['name']} — {row['status']} — {', '.join(row['abilities'])}" for row in rows[:6]) +
-                    ". An offline phone acts only after its owner opens Atulya.")
+                    ". An offline phone acts only after its owner opens Atulya. "
+                    "A phone in background mode answers ping/battery only; effects wait for the open app and approval.")
+                if any(row.get("mode") == "background" for row in rows):
+                    parts.append("At least one device is connected in background-checks mode; do not claim other commands can execute while it stays in background.")
             else:
                 parts.append("No phone or computer is paired, so you cannot act on the user's phone or PC; "
                              "say so plainly and point to menu → PAIR DEVICE.")

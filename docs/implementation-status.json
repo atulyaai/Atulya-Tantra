@@ -68,9 +68,9 @@
     {
       "id": "tasks",
       "title": "Persistent tasks and proactive monitoring",
-      "status": "partially_deployed",
-      "evidence": "Durable restart queue and critical monitoring are live. Added local checkpointed, cancellable diagnostic plans for server/devices/Google flags. General autonomous workflows remain absent.",
-      "next": "Pass full suite, deploy and verify diagnostic resume/cancel path; then expand only supported workflows."
+      "status": "partially_live_verified",
+      "evidence": "Durable server restart and critical monitoring deployed. Diagnostic runner deployed at 6cb8910; live server-health/device/Google-flags plan completed all three checkpoints. General autonomous repair workflows remain absent.",
+      "next": "Expand only supported workflows; retain task cancellation, scoping and completion checks."
     },
     {
       "id": "screen",
