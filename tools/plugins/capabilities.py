@@ -20,6 +20,8 @@ def tool_capabilities(toolbox):
             status, step = "unsupported", "Use an authenticated Atulya channel; this tool is not exported over public MCP."
         elif tool.name == "restart_service":
             status, step = "unsupported", "Service restart execution is not implemented."
+        elif tool.name in {"atulya_status", "server_status", "server_logs"} and ctx is not None and ctx.user_id != "admin":
+            status, step = "unsupported", "Use the owner account for server health and logs."
         elif tool.name not in toolbox._tools:
             status, step = "needs_connection", "Connect the required service or use a supported signed-in channel."
             if tool.plugin_id == "pc-control" or tool.name == "screen_control":
@@ -58,8 +60,11 @@ def tool_capabilities(toolbox):
             from atulya.settings import Settings
             try:
                 hub = AgentHub(Settings.from_environment().data_dir)
-                if not hub.devices(ctx.user_id):
+                devices = hub.devices(ctx.user_id)
+                if not devices:
                     status, step = "needs_connection", "Pair a companion device in Devices."
+                elif tool.name == "ask_device" and not any(device["status"] == "online" for device in devices):
+                    status, step = "needs_connection", "Open/unlock the phone app or start the PC companion, then verify a ping receipt in Devices."
             except Exception:
                 pass
         if tool.name == "mcp_call_tool" and status in {"available", "needs_approval"}:

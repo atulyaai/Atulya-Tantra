@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
+from dataclasses import replace
 from collections.abc import Sequence
 from collections.abc import Callable
 import json
@@ -12,6 +14,31 @@ from typing import Protocol
 import httpx
 
 from .types import BrainError, Message, ProviderError, ToolCall
+
+
+def _text_tool_messages(messages, tools):
+    if not tools:
+        return messages
+    prompt = ('To request a tool, output <tool_call>{"name":"tool_name","arguments":{}}</tool_call>. '
+              'Wait for its result before claiming success. Available schemas: ' + json.dumps(list(tools)))
+    if messages and messages[0].role == "system":
+        return [replace(messages[0], content=messages[0].content + "\n" + prompt), *messages[1:]]
+    return [Message(role="system", content=prompt), *messages]
+
+
+async def _provider_stream(provider, messages, tools=None):
+    method = getattr(provider, "stream", None)
+    accepts_tools = method is not None and any(
+        p.name == "tools" or p.kind == inspect.Parameter.VAR_KEYWORD
+        for p in inspect.signature(method).parameters.values()
+    )
+    if not accepts_tools:
+        messages = _text_tool_messages(messages, tools)
+    if method is None:
+        yield await provider.complete(messages)
+    else:
+        async for item in (method(messages, tools=tools) if tools and accepts_tools else method(messages)):
+            yield item
 
 
 class ChatProvider(Protocol):
@@ -151,6 +178,10 @@ class OpenAICompatibleProvider:
         If the provider rejects the `tools` field before producing output, the
         turn is retried once without tools and tools are skipped from then on.
         """
+        if tools and self._tools_unsupported:
+            async for item in self._stream_once(_text_tool_messages(messages, tools), None):
+                yield item
+            return
         produced = False
         try:
             async for item in self._stream_once(messages, tools):
@@ -160,7 +191,7 @@ class OpenAICompatibleProvider:
             if not tools or produced or self._tools_unsupported or exc.status_code not in {400, 404, 405, 422}:
                 raise
             self._tools_unsupported = True
-            async for item in self._stream_once(messages, None):
+            async for item in self._stream_once(_text_tool_messages(messages, tools), None):
                 yield item
 
     async def _stream_once(self, messages: Sequence[Message], tools: Sequence[dict] | None):
@@ -481,7 +512,6 @@ class AutomaticProvider:
 
     async def stream(self, messages: Sequence[Message], tools: Sequence[dict] | None = None):
         """Hedge initial token only; never replay partial content from another model."""
-        tool_kwargs = {"tools": tools} if tools else {}
         providers = [provider for provider in self._ordered_providers() if self._available(provider)]
         running: dict[asyncio.Task, tuple[ChatProvider, object]] = {}
         next_index = 0
@@ -491,13 +521,7 @@ class AutomaticProvider:
             return iterator, await asyncio.wait_for(iterator.__anext__(), timeout=self._attempt_timeout)
 
         def launch(provider: ChatProvider) -> None:
-            stream_method = getattr(provider, "stream", None)
-            if stream_method is None:
-                async def complete_as_stream():
-                    yield await provider.complete(messages)
-                iterator = complete_as_stream().__aiter__()
-            else:
-                iterator = stream_method(messages, **tool_kwargs).__aiter__()
+            iterator = _provider_stream(provider, messages, tools).__aiter__()
             running[asyncio.create_task(first_token(iterator))] = (provider, iterator)
 
         if providers:
@@ -577,13 +601,9 @@ class AutomaticProvider:
         if self._local_provider is not None:
             try:
                 await asyncio.to_thread(self._ensure_local)
-                stream_method = getattr(self._local_provider, "stream", None)
-                if stream_method is None:
-                    yield await self._local_provider.complete(messages)
-                else:
-                    async for token in stream_method(messages, **tool_kwargs):
-                        if token:
-                            yield token
+                async for token in _provider_stream(self._local_provider, messages, tools):
+                    if token:
+                        yield token
                 self._active = self._local_provider
                 return
             except Exception as exc:

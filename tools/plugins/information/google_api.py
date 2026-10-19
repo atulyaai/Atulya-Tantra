@@ -12,7 +12,8 @@ from pathlib import Path
 
 import httpx
 
-DATA_DIR = Path(os.environ.get("ATULYA_DATA_DIR", "data"))
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+DATA_DIR = PROJECT_ROOT / "data"
 TOKEN_FILE = DATA_DIR / "google_tokens.json"
 LOCK = threading.RLock()
 GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me"
@@ -23,7 +24,13 @@ EVENTS = "https://www.googleapis.com/auth/calendar.events"
 
 
 def _path(data_dir=None):
-    return Path(data_dir) / "google_tokens.json" if data_dir is not None else TOKEN_FILE
+    if data_dir is not None:
+        return Path(data_dir) / "google_tokens.json"
+    configured = os.environ.get("ATULYA_DATA_DIR", "").strip()
+    if not configured:
+        return TOKEN_FILE
+    directory = Path(configured).expanduser()
+    return (directory if directory.is_absolute() else PROJECT_ROOT / directory) / "google_tokens.json"
 
 
 def _load_tokens(data_dir=None):
@@ -161,6 +168,8 @@ async def _request(user_id, method, url, **kwargs):
                 stored[user_id]["last_error"] = message
                 _write(stored)
         raise ValueError(message)
+    if response.status_code == 204:
+        return {}
     return response.json()
 
 

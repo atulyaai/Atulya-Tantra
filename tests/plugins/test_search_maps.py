@@ -57,7 +57,7 @@ def test_read_page_extracts_text() -> None:
 
     async def run():
         with patch("tools.plugins.information.search._client") as mock_client, \
-                patch("tools.plugins.information.search.public_address", AsyncMock(return_value=None)):
+                patch("tools.plugins.information.search._public_target", AsyncMock(return_value=("93.184.216.34", None))):
             mock_resp = Mock()
             mock_resp.is_redirect = False
             mock_resp.text = html

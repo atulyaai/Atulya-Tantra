@@ -82,9 +82,9 @@ class MainActivity : AppCompatActivity() {
         configureWebView()
         phone = PhoneAgent(this, origin, ::sendDirectSms, ::callDirect) { command ->
             when (command) {
-                "play", "resume" -> { controlMediaStream(MediaPlaybackService.ACTION_PLAY); true }
-                "pause" -> { controlMediaStream(MediaPlaybackService.ACTION_PAUSE); true }
-                "stop" -> { controlMediaStream(MediaPlaybackService.ACTION_STOP); true }
+                "play", "resume" -> controlMediaStream(MediaPlaybackService.ACTION_PLAY)
+                "pause" -> controlMediaStream(MediaPlaybackService.ACTION_PAUSE)
+                "stop" -> controlMediaStream(MediaPlaybackService.ACTION_STOP)
                 else -> false
             }
         }
@@ -234,11 +234,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun controlMediaStream(action: String) {
+    private fun controlMediaStream(action: String): Boolean {
+        if (!MediaPlaybackService.hasPlayableStream) return false
         val intent = Intent(this, MediaPlaybackService::class.java).apply {
             this.action = action
         }
         startService(intent)
+        return true
     }
 
     private fun sendDirectSms(number: String, body: String): Boolean {
@@ -509,6 +511,8 @@ class MainActivity : AppCompatActivity() {
 
     /** Native-shell updates: the web UI updates itself; this only offers a newer signed APK. */
     private fun checkForUpdate() {
+        // Private emulator builds must not consult production releases or block tests with an update dialog.
+        if (BuildConfig.ALLOW_SCREENSHOTS) return
         Thread {
             try {
                 val connection = java.net.URL("${origin}/api/app/latest").openConnection() as java.net.HttpURLConnection

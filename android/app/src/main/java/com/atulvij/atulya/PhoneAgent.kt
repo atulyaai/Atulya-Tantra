@@ -55,21 +55,35 @@ class PhoneAgent(
     private val main = Handler(Looper.getMainLooper())
     private val waiting = ArrayDeque<JSONObject>()
     private var asking = false
-    private var running = false
+    @Volatile private var running = false
+    private var polling = false // main-thread owned: at most one network batch at a time
+    private val outbox = ReceiptOutbox(
+        { prefs.getString("receipts", "[]") ?: "[]" },
+        { prefs.edit().putString("receipts", it).commit() },
+    )
     private var tts: TextToSpeech? = null
     private val base get() = origin.toString().trimEnd('/')
     private val tick = object : Runnable {
         override fun run() {
-            if (!running) return
-            io.execute { pollOnce() }
-            main.postDelayed(this, POLL_MS)
+            if (!running || polling) return
+            polling = true
+            val nextTick = this
+            io.execute {
+                try { pollOnce() } finally {
+                    main.post {
+                        polling = false
+                        if (running) main.postDelayed(nextTick, POLL_MS)
+                    }
+                }
+            }
         }
     }
 
     fun start() {
-        if (running) return
+        if (running || io.isShutdown) return
         running = true
         main.post(tick)
+        askNext()
     }
 
     fun stop() {
@@ -140,11 +154,12 @@ class PhoneAgent(
 
     private fun pollOnce() {
         try {
+            if (!running) return
             val token = ensurePaired() ?: return
+            if (!flushReceipts(token) || !running) return
             val (code, text) = http("POST", "/api/agents/poll", JSONObject(), bearer(token))
             if (code == 401) {
-                val cookies = sessionCookie()
-                prefs.edit().remove("token").putString("removed_session", cookies?.let(::fingerprint) ?: "signed-out").apply()
+                revoked()
                 return
             }
             if (code != 200) return
@@ -159,6 +174,11 @@ class PhoneAgent(
     }
 
     private fun handle(job: JSONObject) {
+        if (io.isShutdown) return
+        if (!running || activity.isFinishing || activity.isDestroyed) {
+            io.execute { report(job, Result(false, "Phone app left the foreground; action was not executed.")) }
+            return
+        }
         if (job.optString("kind") in NO_APPROVAL) {
             val result = run(job)
             io.execute { report(job, result) }
@@ -169,7 +189,7 @@ class PhoneAgent(
     }
 
     private fun askNext() {
-        if (asking || activity.isFinishing || activity.isDestroyed) return
+        if (!running || asking || activity.isFinishing || activity.isDestroyed) return
         val job = waiting.poll() ?: return
         asking = true
         AlertDialog.Builder(activity)
@@ -254,8 +274,8 @@ class PhoneAgent(
                     if (!call(detail)) Result(false, "Could not call $detail.")
                     else Result(true, if (direct) "Calling $detail." else "Dialer opened with $detail; the call starts when you tap call.")
                 }
-                "media_control" -> if (media(detail.lowercase())) Result(true, "Media: $detail.")
-                                   else Result(false, "Media control supports play, pause and stop.")
+                "media_control" -> if (media(detail.lowercase())) Result(true, "Requested media control: $detail; audible playback is not confirmed.")
+                                   else Result(false, "No prepared Atulya audio stream, or unsupported control. Start an audio stream first; controls support play, pause and stop.")
                 "display_message" -> {
                     Toast.makeText(activity, detail.take(300), Toast.LENGTH_LONG).show()
                     Result(true, "Message shown on the phone.")
@@ -296,12 +316,26 @@ class PhoneAgent(
     }
 
     private fun report(job: JSONObject, result: Result) {
-        val token = prefs.getString("token", null) ?: return
         try {
-            http("POST", "/api/agents/result", JSONObject().put("id", job.optString("id"))
-                .put("output", result.output.take(3900)).put("success", result.ok), bearer(token))
+            outbox.record(JSONObject().put("id", job.getString("id"))
+                .put("output", result.output.take(3900)).put("success", result.ok))
+            val token = prefs.getString("token", null) ?: return
+            flushReceipts(token)
         } catch (_: Exception) {
-            // The server marks a job it never heard back about as unconfirmed; it is never replayed.
+            // The persisted receipt is retried before the next poll, without repeating the action.
         }
+    }
+
+    private fun flushReceipts(token: String): Boolean = outbox.flush { receipt ->
+        val (code, text) = http("POST", "/api/agents/result", receipt, bearer(token))
+        if (code == 401) revoked()
+        code == 200 && JSONObject(text).optBoolean("ok", false)
+    }
+
+    private fun revoked() {
+        val cookies = sessionCookie()
+        // Receipts belong to the revoked device; never submit them under a new pairing.
+        prefs.edit().remove("token").remove("receipts")
+            .putString("removed_session", cookies?.let(::fingerprint) ?: "signed-out").commit()
     }
 }
