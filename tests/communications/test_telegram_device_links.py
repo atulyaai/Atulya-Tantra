@@ -9,15 +9,22 @@ from tools.plugins.registry import build_default_registry
 from tools.plugins.toolkit import UI_ACTIONS
 
 
-def test_music_request_prepares_device_button_not_server_playback(project_temp_dir):
+def test_music_request_prepares_device_button_not_server_playback(project_temp_dir, monkeypatch):
+    monkeypatch.setenv("ATULYA_DATA_DIR", str(project_temp_dir))
+
+    async def found(query):
+        return {"video_id": "BddP6PYo2gs", "title": "Ammy Virk - Qismat"}
+
+    monkeypatch.setattr("atulya.music.find_youtube", found)
+
     class Brain:
         async def respond_with_tools(self, conversation, toolbox, **kwargs):
             names = {t["function"]["name"] for t in toolbox.schemas}
             assert "find_music" in names and "maintenance_patch" in names
             assert "media_control" not in names and "screen_control" not in names
             result = await toolbox.call("find_music", {"query": "Ammy Virk Punjabi songs"})
-            assert "must tap" in result and "already opened" in result
-            return SimpleNamespace(text="Tap the music button and start playback on your phone.")
+            assert "Telegram cannot play audio" in result and "Do not claim it is playing" in result
+            return SimpleNamespace(text="Here is the song; tap to play it on your phone.")
     class Client:
         def __init__(self):
             self.messages = []
@@ -36,5 +43,5 @@ def test_music_request_prepares_device_button_not_server_playback(project_temp_d
         assert UI_ACTIONS.get() is previous
     asyncio.run(exercise())
     button = client.messages[0]["reply_markup"]["inline_keyboard"][0][0]
-    assert button["url"] == "https://www.youtube.com/results?search_query=Ammy+Virk+Punjabi+songs"
-    assert "music" in button["text"].lower()
+    assert button["url"] == "https://www.youtube.com/watch?v=BddP6PYo2gs"  # the exact song, not a search page
+    assert button["text"] == "▶ Ammy Virk - Qismat"

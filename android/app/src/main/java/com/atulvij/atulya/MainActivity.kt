@@ -393,6 +393,11 @@ class MainActivity : AppCompatActivity() {
                 val command = try { JSONObject(message.data ?: "{}") } catch (_: Exception) { JSONObject() }
                 voiceReply = reply
                 when (command.optString("cmd")) {
+                    "keep_awake" -> runOnUiThread {
+                        // Conversation mode: the screen stays on (no auto-lock mid-conversation); normal timeout otherwise.
+                        if (command.optBoolean("on")) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    }
                     "listen" -> startRecognition(command.optString("lang", "en-IN"))
                     "stop" -> stopRecognition()
                     "google_login" -> beginGoogleLogin(Uri.parse(command.optString("url")))

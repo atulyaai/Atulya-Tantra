@@ -429,6 +429,28 @@ async def _list_devices(_args: dict, ctx: PluginContext | None) -> str:
     return "Your devices:\n" + "\n".join(f"• {row['name']} · {row['status']} · {', '.join(row['abilities'])}" for row in rows) + recent
 
 
+async def _rename_device(args: dict, ctx: PluginContext | None) -> str:
+    if ctx is None:
+        return "Sign in to rename your devices."
+    from atulya.settings import Settings
+    from tools.plugins.system.agents import AgentHub
+    hub = AgentHub(Settings.from_environment().data_dir)
+    current, wanted = _text(args, "device", 40), _text(args, "new_name", 60)
+    names = [row["name"] for row in hub.devices(ctx.user_id)]
+    if current not in names:
+        # "my phone" / a partial name: accept it when exactly one paired device matches.
+        matches = [name for name in names if current.lower() in name.lower()] or (
+            [name for name in names if name.lower().startswith("phone")] if "phone" in current.lower() else [])
+        if len(matches) != 1:
+            return f"Which device? Paired: {', '.join(names) or 'none'}."
+        current = matches[0]
+    try:
+        renamed = hub.rename(ctx.user_id, current, wanted)
+    except ValueError as exc:
+        return str(exc)
+    return f"Renamed '{current}' to '{renamed['name']}'."
+
+
 def _describe_device_job(args: dict) -> str:
     """What the owner sees on the approval card: the device, the command and its full detail."""
     detail = str(args.get("detail") or "").strip()
@@ -741,10 +763,28 @@ async def _open_website(args: dict, ctx: PluginContext | None) -> str:
 
 
 async def _find_music(args: dict, ctx: PluginContext | None) -> str:
+    """Find the song and start it in Atulya's player (app/website); Telegram gets the exact song link."""
     from urllib.parse import quote_plus
+    from atulya.music import MusicStore, find_youtube
+    from atulya.settings import Settings
     query = _text(args, "query", 150)
-    return await _open_website({"url": "https://www.youtube.com/results?search_query=" + quote_plus(query),
-                                "label": "Open music on YouTube"}, ctx)
+    if ctx is None:
+        return "A signed-in device is required."
+    found = await find_youtube(query)
+    if found is None:
+        return await _open_website({"url": "https://www.youtube.com/results?search_query=" + quote_plus(query),
+                                    "label": "Search on YouTube"}, ctx) + " (No playable match was found automatically.)"
+    watch = f"https://www.youtube.com/watch?v={found['video_id']}"
+    track = MusicStore(Settings.from_environment().data_dir).add(ctx.user_id, watch, found["title"])
+    actions = UI_ACTIONS.get()
+    if actions is not None:
+        actions.append({"type": "play_music", "track": track})
+        actions.append({"type": "link", "label": f"▶ {found['title'][:55]}", "url": watch})
+    if getattr(ctx, "channel", "web") == "telegram":
+        return (f"Found '{found['title']}'. Telegram cannot play audio from the server, so a button to that exact "
+                "song was added below the reply. Do not claim it is playing.")
+    return (f"Started '{found['title']}' in the Atulya player on the user's screen. If the device blocks autoplay, "
+            "they tap Play once. Say what is playing in one short line; do not paste the link.")
 
 
 async def _prepare_phone(args: dict, ctx: PluginContext | None) -> str:
@@ -874,7 +914,7 @@ TOOLS: tuple[Tool, ...] = (
          _params({"kind": {"type": "string", "enum": ["compose_sms", "dial"]}, "number": {"type": "string"}, "body": {"type": "string"}}, ["kind", "number"]), _prepare_phone, "local-utilities", True),
     Tool("queue_music", "Queue an explicit YouTube video URL for the signed-in user's Atulya music player. Device playback requires opening Music and tapping Play; queued does not mean playing.",
          _params({"url": {"type": "string"}, "title": {"type": "string"}}, ["url"]), _queue_music, "local-utilities", True),
-    Tool("find_music", "Prepare a YouTube music search button in Telegram or the WebUI/app. The user taps and starts playback on their device; no server audio playback.",
+    Tool("find_music", "Play a song or video the user asks for ('play Kesariya', 'play lo-fi'): finds the top YouTube match and starts it in Atulya's player in the app/website (Telegram gets a link to that exact song). Use this for every play-music request.",
          _params({"query": {"type": "string"}}, ["query"]), _find_music, "local-utilities", True),
     Tool("maintenance_check", "Owner: inspect WebUI syntax and missing gesture assets. Read-only diagnostics.",
          _params(), maintenance_check, "local-utilities", True),
@@ -1014,6 +1054,11 @@ TOOLS: tuple[Tool, ...] = (
                 ["query"]), _places_near_me, "online-information", True),
     Tool("list_devices", "List all paired devices (Phone, TV, Tablet, Laptop) connected to Atulya.",
          _params(), _list_devices, "local-utilities", True),
+    Tool("rename_device", "Rename one of the user's paired devices (e.g. 'Phone 22115 a1b2' → 'Atul's Phone'). Runs directly; it only changes the label.",
+         _params({"device": {"type": "string", "description": "Current device name, or 'my phone' when only one phone is paired"},
+                  "new_name": {"type": "string", "description": "New name: letters, numbers, spaces or hyphens, up to 40"}},
+                 ["device", "new_name"]),
+         _rename_device, "local-utilities", True),
     Tool("ask_device", "Send a command to a paired device (use list_devices for exact names and abilities): ping, say, open_url, open_app, list_files, read_file, take_photo, list_photos, media_control, send_sms, place_call, display_message, battery_status. "
                        "Detail formats: send_sms {\"to\": \"+91…\", \"body\": \"…\"}; place_call the number; open_app the app name; open_url an https link; media_control play|pause|stop; say/display_message the text. "
                        "The owner approves each request here first; the Atulya phone app also asks ALLOW on the phone (except ping and battery_status). A job is not done until list_devices shows its result.",

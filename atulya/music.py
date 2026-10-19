@@ -24,6 +24,38 @@ def youtube_id(url):
     return video
 
 
+async def find_youtube(query, limit=5):
+    """The top YouTube result for a request ("play Kesariya") that YouTube allows inside other apps.
+
+    Returns {"video_id", "title"} or None. Uses YouTube's public results page and oEmbed (no API key);
+    oEmbed answers 401 for videos whose owners block embedding, so the in-app player never gets one of those.
+    """
+    import httpx
+
+    query = " ".join(str(query).split())[:150]
+    if not query:
+        return None
+    # Desktop page: the mobile one (m.youtube.com) carries results in a different, script-built form.
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36",
+               "Accept-Language": "en-IN,en;q=0.8"}
+    async with httpx.AsyncClient(timeout=httpx.Timeout(10, connect=5), headers=headers, follow_redirects=True) as client:
+        try:
+            page = await client.get("https://www.youtube.com/results", params={"search_query": query})
+            page.raise_for_status()
+        except httpx.HTTPError:
+            return None
+        candidates = list(dict.fromkeys(re.findall(r'"videoId":"([A-Za-z0-9_-]{11})"', page.text)))[:limit]
+        for video in candidates:
+            try:
+                check = await client.get("https://www.youtube.com/oembed",
+                                         params={"url": f"https://www.youtube.com/watch?v={video}", "format": "json"})
+            except httpx.HTTPError:
+                continue
+            if check.status_code == 200:
+                return {"video_id": video, "title": str(check.json().get("title") or query)[:150]}
+    return None
+
+
 class MusicStore:
     def __init__(self, data_dir):
         self.path = Path(data_dir) / "music.sqlite3"

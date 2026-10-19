@@ -1753,6 +1753,10 @@
 
   // Screen actions requested by the brain (tool screen_control), so any phrasing works.
   function runScreenAction(action) {
+    if (action && typeof action === "object" && action.type === "play_music") {
+      window.atulyaMusic?.playNow(action.track); // opens the player and starts it (one tap only if the device blocks autoplay)
+      return;
+    }
     if (action && typeof action === "object" && action.type === "link") {
       let url;
       try { url = new URL(action.url); } catch { return; }
@@ -1799,6 +1803,8 @@
   // Conversation mode (like ChatGPT/Claude voice): hide the chat, keep it recorded, and keep listening.
   async function setConversationMode(on) {
     document.body.classList.toggle("panel-chat-hidden", on);
+    // In the Android app, a conversation keeps the screen on so the phone doesn't lock mid-sentence.
+    try { window.AtulyaNative?.postMessage?.(JSON.stringify({ cmd: "keep_awake", on: Boolean(on) })); } catch { /* browser */ }
     exitFocusedLayout();
     if (on && voiceReady && !voiceSessionActive && !listening) await toggleListening();
     syncLayoutControls();
@@ -1965,7 +1971,7 @@
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream, application/json" },
-        body: JSON.stringify({ messages: conversation, image: includeVision ? captureCameraFrame() : null, conversation_id: conversationId, stream: true }),
+        body: JSON.stringify({ messages: conversation, image: includeVision ? captureCameraFrame() : null, conversation_id: conversationId, stream: true, spoken: Boolean(speakReply) }),
       });
       if (!response.ok) {
         if (response.status === 401) { await refreshAuthState(); throw new Error("Please sign in again to continue."); }
