@@ -87,7 +87,8 @@ class LocalApiSecurityMiddleware:
         origin = headers.get(b"origin", b"").decode("latin1")
         fetch_site = headers.get(b"sec-fetch-site", b"").decode("latin1").lower()
         host = headers.get(b"host", b"").decode("latin1")
-        if method in self.MUTATING_METHODS and (
+        app_handoff = path == "/api/auth/google/app" and origin in {"", "null"}  # secret handoff + app verifier
+        if method in self.MUTATING_METHODS and not app_handoff and (
             (origin and not self._same_origin(origin, scope.get("scheme", "http"), host))
             or fetch_site == "cross-site"
         ):

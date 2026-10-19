@@ -1197,7 +1197,42 @@ class Toolbox:
             lines.append("Skills available through use_skill: " + "; ".join(
                 f"{s['name']} ({s['description']})" for s in skills))
         lines.append("Read what_can_you_do for current per-tool readiness and next steps; availability does not establish delivery or device verification.")
+        live = self._live_connections()
+        if live:
+            lines.append(live)
         return "\n".join(lines)
+
+    def _live_connections(self) -> str:
+        """One honest line about what is connected right now, so the assistant never over- or under-claims access."""
+        if self.context is None:
+            return ""
+        parts = []
+        try:
+            from tools.plugins.information.google_api import connection_status
+            google = connection_status(str(self.context.user_id))
+            if google.get("connected"):
+                access = [name for name, ok in (("Gmail read", google.get("gmail_read")), ("Gmail send", google.get("gmail_send")),
+                                                ("Calendar write", google.get("calendar_write"))) if ok]
+                note = f" Last Google error: {google['last_error']}" if google.get("last_error") else ""
+                parts.append(f"Google connected as {google.get('email') or 'the owner'} ({', '.join(access) or 'sign-in only'}).{note}")
+            else:
+                parts.append("Google (Gmail/Calendar) is not connected; the owner connects it from the menu.")
+        except Exception:
+            pass
+        try:
+            import sqlite3
+            data_dir = Path(os.environ.get("ATULYA_DATA_DIR") or "data")
+            with sqlite3.connect(data_dir / "agents.sqlite3") as db:
+                rows = db.execute("SELECT name, abilities FROM devices WHERE owner=? AND revoked IS NULL",
+                                  (str(self.context.user_id),)).fetchall()
+            if rows:
+                parts.append("Paired devices: " + "; ".join(f"{name} ({abilities})" for name, abilities in rows[:6]) + ".")
+            else:
+                parts.append("No phone or computer is paired, so you cannot act on the user's phone or PC; "
+                             "say so plainly and point to menu → PAIR DEVICE.")
+        except Exception:
+            pass
+        return ("Live connections: " + " ".join(parts)) if parts else ""
 
     async def call(self, name: str, raw_arguments: str | dict) -> str:
         tool = self._tools.get(name)

@@ -42,7 +42,7 @@ def test_telegram_uses_shared_command_registry(project_temp_dir: Path) -> None:
         "from": {"id": 12345}, "chat": {"id": 12345, "type": "private"},
         "message_id": 1, "text": "calculate 24 * 7",
     }))
-    assert client.sent == [{"chat_id": "12345", "text": "168"}]
+    assert client.sent == [{"chat_id": "12345", "text": "168", "parse_mode": "HTML", "disable_web_page_preview": True}]
 
 
 def test_reminder_is_private_persistent_and_delivered_once(project_temp_dir: Path) -> None:

@@ -3108,6 +3108,7 @@
     const result = location.hash.match(/google=(ok|pending|failed|expired)/)?.[1];
     if (result) {
       history.replaceState(null, "", location.pathname + location.search);
+      if (result === "ok") offerPasskeyAfterSignIn();
       if (result !== "ok" && authMessage) authMessage.textContent = {
         pending: "Your Google account is waiting for the owner's approval.",
         failed: "Google sign-in failed. Try again or use another way.",

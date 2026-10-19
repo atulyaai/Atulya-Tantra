@@ -16,6 +16,7 @@ import platform
 import subprocess
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from urllib.parse import urlsplit
 
 import httpx
@@ -30,6 +31,17 @@ def _session_cookie(client: httpx.Client) -> str:
     except Exception:
         values = [cookie.value for cookie in client.cookies.jar if cookie.name == "atulya_session"]
         return values[-1] if values else ""
+
+
+def _purge_selftest_user(data_dir, user_id: str) -> None:
+    """Delete the throwaway self-test account and everything tied to it."""
+    import sqlite3
+    with sqlite3.connect(Path(data_dir) / "auth.sqlite3") as db:
+        for (table,) in db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall():
+            columns = {row[1] for row in db.execute(f"PRAGMA table_info({table})")}
+            if "user_id" in columns:
+                db.execute(f"DELETE FROM {table} WHERE user_id=?", (user_id,))
+        db.execute("DELETE FROM users WHERE id=? AND display_name='Selftest device'", (user_id,))
 
 
 @dataclass
@@ -170,6 +182,7 @@ def main(actions: bool = False) -> int:
                 finally:
                     store.revoke_session(trusted)
                     store.disable_user(user_id)
+                    _purge_selftest_user(settings.data_dir, user_id)
             _timed(report, "sign in with code / approval", code_login)
 
             def voice_unlock():

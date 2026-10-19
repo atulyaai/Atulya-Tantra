@@ -126,6 +126,7 @@ class Brain:
         *,
         system_instructions: str = "",
         toolbox=None,
+        acknowledge: bool = True,  # spoken "Checking the weather." fillers; off for text-only channels
     ):
         """Yield reply text chunks, running any tool calls the model makes in between.
 
@@ -141,7 +142,7 @@ class Brain:
         messages = self._prepare_messages(conversation, system_instructions)
         rounds = toolbox.MAX_ROUNDS if toolbox else 1
         latest = next((item.content for item in reversed(messages) if item.role == "user"), "")
-        early = instant_ack(latest) if toolbox else ""
+        early = instant_ack(latest) if toolbox and acknowledge else ""
         spoken: set[str] = set()  # each acknowledgement at most once per reply
         if early:
             spoken.add(early.strip())
@@ -176,7 +177,7 @@ class Brain:
                     yield leftover
                 if not calls:
                     return
-                if not text_parts:
+                if not text_parts and acknowledge:
                     # Say something immediately so voice users hear a reply while tools run.
                     filler = " ".join(part for part in _tool_filler(calls).replace(". ", ".|").split("|")
                                       if part.strip() and part.strip() not in spoken).strip()
@@ -199,7 +200,7 @@ class Brain:
     async def respond_with_tools(self, conversation: Sequence[Message], toolbox, *, system_instructions: str = "") -> BrainReply:
         """Non-streaming convenience for channels like Telegram."""
         text = "".join([chunk async for chunk in self.stream(
-            conversation, system_instructions=system_instructions, toolbox=toolbox)]).strip()
+            conversation, system_instructions=system_instructions, toolbox=toolbox, acknowledge=False)]).strip()
         if not text:
             raise BrainError("The model provider returned an empty reply")
         return BrainReply(text=text, provider=self._provider.name, model=self._provider.model)

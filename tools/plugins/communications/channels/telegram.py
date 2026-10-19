@@ -25,6 +25,20 @@ logger = logging.getLogger(__name__)
 # The allowlisted owner is the same person as the web admin: one account, memory, profile and history.
 OWNER_USER = "admin"
 OWNER_MEMORY = "web"      # same memory/calendar owner as the WebUI
+
+
+def _telegram_html(text: str) -> str:
+    """Model replies use Markdown; Telegram shows it raw. Convert the common parts to Telegram HTML."""
+    import html as _html
+    out = _html.escape(text, quote=False)
+    out = re.sub(r"\[([^\]\n]{1,200})\]\((https?://[^\s)]{1,500})\)",
+                 lambda m: f'<a href="{m.group(2).replace(chr(34), "%22")}">{m.group(1)}</a>', out)
+    out = re.sub(r"\*\*([^*\n]{1,300})\*\*", r"<b>\1</b>", out)
+    out = re.sub(r"(?<![\w*])\*([^*\n]{1,300})\*(?![\w*])", r"<i>\1</i>", out)
+    out = re.sub(r"`([^`\n]{1,300})`", r"<code>\1</code>", out)
+    out = re.sub(r"(?m)^#{1,6}\s+(.+)$", r"<b>\1</b>", out)
+    out = re.sub(r"(?m)^\s*[-*]\s+", "• ", out)
+    return out
 OWNER_THREAD = "telegram"  # the owner's Telegram chat appears as this conversation everywhere
 
 def _parse_due(value: str, now: datetime | None = None) -> datetime:
@@ -91,7 +105,7 @@ class TelegramChannel:
         self._webapp_url = webapp_url    # Mini App button on every reply
         self._maintenance = maintenance
         self._mcp_connections = mcp_connections
-        self._pending_links: list[dict] = []
+        self._pending_links: dict[str, list[dict]] = {}  # per chat, so one chat's links never reach another
         self._pending_cards: list = []
         self._location_wanted: dict[str, str] = {}  # chat_id -> question waiting for the user's location
         self._last_wants_location = False
@@ -368,7 +382,8 @@ class TelegramChannel:
         rows = list(buttons or [])
         if self._webapp_url and not buttons:
             rows.append([{"text": "Open Atulya", "web_app": {"url": self._webapp_url}}])
-        payload = {"chat_id": chat_id, "text": text[:4000]}
+        payload = {"chat_id": chat_id, "text": _telegram_html(text[:4000]), "parse_mode": "HTML",
+                   "disable_web_page_preview": True}
         if request_location:  # Telegram's own one-tap "share location" button (the user decides)
             payload["reply_markup"] = {"keyboard": [[{"text": "📍 Share my location", "request_location": True}]],
                                        "one_time_keyboard": True, "resize_keyboard": True}
@@ -378,6 +393,10 @@ class TelegramChannel:
             payload["reply_markup"] = {"inline_keyboard": rows}
         try:
             response = await client.post(self._url("sendMessage"), json=payload)
+            if getattr(response, "status_code", 200) == 400:  # formatting Telegram rejected: send the same words as plain text
+                payload.pop("parse_mode", None)
+                payload["text"] = text[:4000]
+                response = await client.post(self._url("sendMessage"), json=payload)
             response.raise_for_status()
         except httpx.HTTPError:
             pass  # never log bot URLs, tokens or chat ids
@@ -569,7 +588,7 @@ class TelegramChannel:
                     reply = "That feature is unavailable right now."
             if reply is None:
                 reply = await self._answer(user_id, message_id, text, chat_id=chat_id)
-        links, self._pending_links = self._pending_links, []
+        links = self._pending_links.pop(chat_id, [])
         link_buttons = [[{"text": item["label"], "url": item["url"]}] for item in links[:4]]
         if self._last_wants_location:
             self._last_wants_location = False
@@ -612,7 +631,7 @@ class TelegramChannel:
                 finally:
                     _toolkit.UI_ACTIONS.reset(token)
                 self._last_wants_location = "share_location" in ui_actions
-                self._pending_links = [item for item in ui_actions if isinstance(item, dict) and item.get("type") == "link"]
+                self._pending_links[chat_id or user_id] = [item for item in ui_actions if isinstance(item, dict) and item.get("type") == "link"]
                 if view is not None:
                     self._pending_cards.extend(view.created)
             else:
