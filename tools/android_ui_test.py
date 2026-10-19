@@ -113,7 +113,9 @@ def screen_size() -> tuple[int, int]:
     """Current screen size in its current orientation (wm size always reports portrait)."""
     found = nodes()
     if found:
-        return max(n["box"][2] for n in found), max(n["box"][3] for n in found)
+        # Scrollable WebView children can extend beyond the physical screen.
+        # The native root bounds represent the display; offscreen children do not.
+        return found[0]["box"][2], found[0]["box"][3]
     match = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size"))
     return (int(match.group(1)), int(match.group(2))) if match else (1080, 2400)
 
@@ -305,10 +307,20 @@ if step("phone pairs itself after sign-in and polls", bool(device and device[2])
     # Reopening can leave a receipt/approval dialog closing during the first tap.
     # Require the actual Devices dialog before looking for its background control.
     background_button = None
-    for _ in range(3):
+    for _ in range(8):
         devices_button = find(r"^Devices$", 10)
         if devices_button and inside_screen(devices_button):
             tap(devices_button)
+        else:
+            # The phone uses a horizontal quick-controls strip. Reveal Devices
+            # rather than tapping the accessibility bounds of an offscreen button.
+            width, _height = screen_size()
+            camera = find(r"^Camera$", 2)
+            target = devices_button or camera
+            if target:
+                _x1, y1, _x2, y2 = target["box"]
+                adb("shell", "input", "swipe", str(int(width * .85)), str((y1 + y2) // 2),
+                    str(int(width * .15)), str((y1 + y2) // 2), "400")
         background_button = find(r"^Background phone connection$", 6)
         if background_button:
             break
