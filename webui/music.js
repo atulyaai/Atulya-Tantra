@@ -2,6 +2,7 @@
   const dialog = document.getElementById("music-dialog"), list = document.getElementById("music-queue");
   const status = document.getElementById("music-status");
   let player, selected, apiPromise;
+  let currentState = "", receiptQueue = Promise.resolve();
   async function api(path, options={}) {
     const response = await fetch(path, {...options,headers:{"Content-Type":"application/json"}});
     const body = await response.json();
@@ -20,25 +21,27 @@
   }
   async function receipt(state,error="") {
     if (!selected) return;
-    try { await api(`/api/music/${selected.id}/receipt`,{method:"POST",body:JSON.stringify({state,error})}); }
-    catch (err) { status.textContent=`Playback status could not sync: ${err.message}`; }
+    const trackId = selected.id;
+    receiptQueue = receiptQueue.then(() => api(`/api/music/${trackId}/receipt`,{method:"POST",body:JSON.stringify({state,error})}))
+      .catch(err => { status.textContent=`Playback status could not sync: ${err.message}`; });
+    await receiptQueue;
   }
   async function play(track) {
     if (!/^[A-Za-z0-9_-]{11}$/.test(track.video_id)) return;
     try {
       if (selected && selected.id !== track.id) { player?.pauseVideo(); await receipt("paused"); }
-      selected=track; status.textContent="Loading player…";
+      selected=track; currentState=""; status.textContent="Loading player…";
       await youtubeApi();
       if (player) { player.loadVideoById(track.video_id); return; }
       player = new YT.Player("music-player",{height:"270",width:"100%",videoId:track.video_id,
         playerVars:{playsinline:1,origin:location.origin},events:{
-          onReady:event=>{status.textContent="Tap Play in the video to listen.";receipt("ready");event.target.playVideo();},
+          onReady:event=>{status.textContent="Tap Play in the video to listen.";currentState="ready";receipt("ready");event.target.playVideo();},
           onAutoplayBlocked:()=>{status.textContent="Your browser requires a tap: press Play in the video.";},
           onStateChange:event=>{
             const states={1:"playing",2:"paused",0:"ended"};
-            if (states[event.data]) {status.textContent=`Player: ${states[event.data]}. Sound depends on your phone volume.`;receipt(states[event.data]);}
+            if (states[event.data]) {currentState=states[event.data];status.textContent=`Player: ${states[event.data]}. Sound depends on your phone volume.`;receipt(states[event.data]);}
           },
-          onError:event=>{const error=`YouTube playback error ${event.data}. This video may restrict embedding or be unavailable.`;status.textContent=error;receipt("failed",error);}
+          onError:event=>{currentState="failed";const error=`YouTube playback error ${event.data}. This video may restrict embedding or be unavailable.`;status.textContent=error;receipt("failed",error);}
         }});
     } catch (error) {status.textContent=error.message;await receipt("failed",error.message);}
   }
@@ -51,7 +54,7 @@
         label.textContent=`${track.title} · ${track.state}`;button.textContent="Play here";button.addEventListener("click",()=>play(track));
         const remove=document.createElement("button");remove.textContent="Remove";
         remove.addEventListener("click",async()=>{
-          try {if(selected?.id===track.id)player?.stopVideo();await api(`/api/music/${track.id}/receipt`,{method:"POST",body:JSON.stringify({state:"cancelled"})});await refresh();}
+          try {if(selected?.id===track.id){selected=null;currentState="";player?.stopVideo();}await api(`/api/music/${track.id}/receipt`,{method:"POST",body:JSON.stringify({state:"cancelled"})});await refresh();}
           catch(error){status.textContent=error.message;}
         });
         if(track.state!=="cancelled") {row.append(label,button,remove);list.append(row);}
@@ -67,4 +70,5 @@
     catch(error){status.textContent=error.message;}
   });
   setInterval(()=>{if(dialog.open&&!document.hidden)refresh();},5000);
+  setInterval(()=>{if(selected&&currentState==="playing"&&player?.getPlayerState()===1)receipt("playing");},15000);
 })();

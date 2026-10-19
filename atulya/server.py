@@ -998,6 +998,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.router.add_event_handler("startup", warm_models)
     app.router.add_event_handler("shutdown", stop_telegram)
+    async def monitor_server_alerts():
+        from atulya.operations import Operations, deliver_alerts
+        ops = Operations(config.data_dir)
+        while True:
+            await deliver_alerts(ops, lambda text: telegram.notify(text, source="server-monitor"))
+            await asyncio.sleep(20)
+
+    app.router.add_event_handler("startup", lambda: setattr(app.state, "operations_alert_task", asyncio.create_task(monitor_server_alerts())))
+
+    async def stop_server_alerts():
+        task = getattr(app.state, "operations_alert_task", None)
+        if task:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+    app.router.add_event_handler("shutdown", stop_server_alerts)
     if brain is not None:
         provider = getattr(brain, "_provider", None)
         async_close = getattr(provider, "aclose", None)
@@ -1045,6 +1060,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_device_routes(app, config.data_dir)
     from atulya.implementation import register_implementation_routes
     register_implementation_routes(app, auth_store)
+    from atulya.operations import register_operations_routes
+    register_operations_routes(app, auth_store)
     from atulya.music import register_music_routes
     register_music_routes(app, config.data_dir)
     from atulya.phone_actions import register_phone_routes

@@ -26,6 +26,8 @@ from tools.plugins.productivity.web_reminders import create_reminder, list_remin
 from atulya.maintenance import maintenance_check, maintenance_read, maintenance_propose, maintenance_patch, maintenance_search, maintenance_set_proactive
 from atulya.mcp_connections import mcp_list, mcp_call
 from atulya.implementation import implementation_tool
+from atulya.operations import restart_tool, status_tool as operations_status_tool
+from atulya.music import music_status_tool
 
 logger = logging.getLogger(__name__)
 SKILLS_DIR = Path(__file__).resolve().parents[1] / "skills"
@@ -801,12 +803,7 @@ async def _server_logs(args: dict, ctx: PluginContext | None) -> str:
 
 
 async def _restart_service(args: dict, ctx: PluginContext | None) -> str:
-    """Report unavailable until a real maintenance executor is connected."""
-    service = _text(args, "service", 64)
-    return (
-        f"Service restart is unavailable for '{service}': no restart executor is connected. "
-        "No approval was queued and no service was changed."
-    )
+    return await restart_tool(args, ctx)
 
 
 async def _gmail_search(args: dict, ctx: PluginContext | None) -> str:
@@ -860,6 +857,8 @@ async def _calendar_delete(args: dict, ctx: PluginContext | None) -> str:
 
 
 TOOLS: tuple[Tool, ...] = (
+    Tool("music_status", "Inspect your music queue and client playback receipts. Stale playback is unconfirmed; audible sound is never inferred from a queue entry.",
+         _params(), music_status_tool, "local-utilities", True),
     Tool("implementation_status", "Owner: read the recorded implementation log, completed work, current work and explicit blockers. This is engineering progress, not live connection verification.",
          _params(), implementation_tool, "local-utilities", True),
     Tool("open_website", "Prepare a clickable HTTPS website button in Telegram or the WebUI/app. The user taps it on their device; do not claim a remote browser opened.",
@@ -996,9 +995,11 @@ TOOLS: tuple[Tool, ...] = (
     Tool("read_url", "Fetch a web page and return readable text for summarising.",
          _params({"url": {"type": "string", "description": "Full http(s) URL"}}, ["url"]),
          _read_page, "online-information"),
-    Tool("restart_service", "Check service restart availability; execution is currently unavailable.",
-         _params({"service": {"type": "string"}}, ["service"]),
-         _restart_service, "local-utilities", True),
+    Tool("restart_service", "Owner: request an approved restart of the allowlisted Atulya service using a separate worker. Queued is not executed; check operations_status.",
+         _params({"service": {"type": "string", "enum": ["atulya", "atulya.service"]}}, ["service"]),
+         _restart_service, "local-utilities", True, True, lambda a: "Restart Atulya; the web service will briefly disconnect"),
+    Tool("operations_status", "Owner: inspect operations worker readiness and durable execution receipts.",
+         _params(), operations_status_tool, "local-utilities", True),
     Tool("places_near_me", "Find places (pharmacies, hospitals, shops, restaurants) near the user's location "
          "or a named place. Returns name, address and distance.",
          _params({"query": {"type": "string", "description": "What to find, e.g. 'pharmacy', 'hospital'"},
@@ -1290,6 +1291,14 @@ class Toolbox:
             args = raw_arguments if isinstance(raw_arguments, dict) else json.loads(raw_arguments or "{}")
             if not isinstance(args, dict):
                 raise ValueError("arguments must be an object")
+            if name == "restart_service":
+                from atulya.operations import store, SERVICES
+                if self.context is None or self.context.user_id != "admin":
+                    return "Only the owner may request server operations."
+                if args.get("service") not in SERVICES:
+                    return "Only the Atulya service is allowlisted; nothing was queued."
+                if not store().ready():
+                    return "Operations worker is not connected; no approval or restart was queued."
             if tool.confirm and tool.low_risk and self._safety() == "ask_risky":
                 result = (await asyncio.wait_for(tool.handler(args, self.context), timeout=20))[:4000]
                 outcome = "ok (low risk, no approval)"

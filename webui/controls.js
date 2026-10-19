@@ -447,6 +447,23 @@
       }
     } catch (error) { errorMessage(error); }
   }
+  async function operationsPanel() {
+    open("Server operations & critical alerts");
+    try {
+      const report = await api("/api/operations");
+      content.replaceChildren(node("p", `Worker: ${report.worker_connected ? "connected" : "not connected"}. ${report.limits}`));
+      const refresh = node("button", "Refresh operations");
+      refresh.addEventListener("click", operationsPanel); content.append(refresh);
+      const toggle = node("button", report.alerts_enabled ? "Mute critical server alerts" : "Enable critical server alerts");
+      toggle.addEventListener("click", async () => {
+        try { await api(`/api/operations/alerts/${!report.alerts_enabled}`, {method:"PUT"}); await operationsPanel(); }
+        catch (error) { errorMessage(error); }
+      });
+      content.append(toggle, node("p", "To restart, ask Atulya to restart its service, review the approval, then check the receipt here. Telegram acceptance does not prove phone sound or delivery."));
+      for (const item of report.jobs) content.append(node("p", `${item.kind} ${item.target} · ${item.status} · ${item.result || "No execution receipt yet"}`));
+      for (const alert of report.alerts) content.append(node("p", `${alert.message} · ${alert.status}`));
+    } catch (error) { errorMessage(error); }
+  }
 
   async function smartHomePanel() {
     open("Smart Home & Ambient Scenes");
@@ -559,6 +576,7 @@
   $("#open-connections")?.addEventListener("click", connectionsPanel);
   $("#quick-devices")?.addEventListener("click", devicesPanel);
   $("#quick-implementation")?.addEventListener("click", implementationPanel);
+  $("#quick-operations")?.addEventListener("click", operationsPanel);
   $("#quick-smarthome")?.addEventListener("click", smartHomePanel);
   $("#quick-expenses")?.addEventListener("click", expensesPanel);
 

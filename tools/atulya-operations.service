@@ -1,0 +1,16 @@
+[Unit]
+Description=Atulya approved operations worker
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/Atulya-Tantra
+ExecStart=/home/ubuntu/Atulya-Tantra/.venv/bin/python -u -m tools.operations_worker --data-dir /home/ubuntu/Atulya-Tantra/data
+Restart=on-failure
+RestartSec=5
+UMask=0077
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

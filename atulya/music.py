@@ -43,14 +43,35 @@ class MusicStore:
         with closing(sqlite3.connect(self.path)) as db:
             db.row_factory=sqlite3.Row
             rows=db.execute("SELECT id,video_id,title,state,updated,error FROM tracks WHERE user_id=? ORDER BY created DESC LIMIT 30", (user_id,)).fetchall()
-        return [dict(row) for row in rows]
+        tracks = [dict(row) for row in rows]
+        for track in tracks:
+            track["receipt_age_seconds"] = max(0, int(time.time() - track["updated"]))
+            track["verification"] = "Client-reported player state; audible output is not verified."
+            if track["state"] == "playing" and track["receipt_age_seconds"] > 45:
+                track["state"] = "unconfirmed"
+                track["verification"] = "Player heartbeat is stale; current playback is unconfirmed."
+        return tracks
 
     def receipt(self, user_id, track_id, state, error=""):
         if state not in {"ready","playing","paused","ended","failed","cancelled"}:
             raise ValueError("Invalid playback state")
         with closing(sqlite3.connect(self.path)) as db, db:
-            result=db.execute("UPDATE tracks SET state=?,error=?,updated=? WHERE user_id=? AND id=?",(state,error[:200],time.time(),user_id,track_id))
+            if state == "cancelled":
+                condition = ""
+            else:
+                condition = " AND state!='cancelled'"
+            result=db.execute("UPDATE tracks SET state=?,error=?,updated=? WHERE user_id=? AND id=?" + condition,(state,error[:200],time.time(),user_id,track_id))
             return result.rowcount == 1
+
+
+async def music_status_tool(_args, ctx):
+    if ctx is None:
+        return "Sign in to inspect your music queue."
+    import asyncio
+    import json
+    from atulya.settings import Settings
+    tracks = await asyncio.to_thread(MusicStore(Settings.from_environment().data_dir).list, ctx.user_id)
+    return json.dumps({"tracks": tracks, "limits": "Client player receipts are not proof of audible sound. Stale playing receipts are unconfirmed."})
 
 
 def register_music_routes(app, data_dir):

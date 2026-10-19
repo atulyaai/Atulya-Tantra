@@ -18,9 +18,7 @@ def tool_capabilities(toolbox):
             status, step = "disabled", "Enable the plugin in Connections."
         elif toolbox.public_only and tool.name not in MCP_PUBLIC_TOOLS:
             status, step = "unsupported", "Use an authenticated Atulya channel; this tool is not exported over public MCP."
-        elif tool.name == "restart_service":
-            status, step = "unsupported", "Service restart execution is not implemented."
-        elif tool.name in {"atulya_status", "server_status", "server_logs", "implementation_status"} and ctx is not None and ctx.user_id != "admin":
+        elif tool.name in {"atulya_status", "server_status", "server_logs", "implementation_status", "operations_status", "restart_service"} and ctx is not None and ctx.user_id != "admin":
             status, step = "unsupported", "Use the owner account for server health and logs."
         elif tool.name not in toolbox._tools:
             status, step = "needs_connection", "Connect the required service or use a supported signed-in channel."
@@ -86,6 +84,10 @@ def tool_capabilities(toolbox):
                 status, step = "needs_connection", "Start the paired TV companion and verify its receipt."
         if tool.name == "visual_inspect" and status in {"available", "needs_approval"}:
             status, step = "unsupported", "Complete remote capture-to-analysis is not implemented; capture requests alone are not visual answers."
+        if tool.name == "restart_service" and status in {"available", "needs_approval"}:
+            from atulya.operations import store
+            if not store().ready():
+                status, step = "needs_connection", "Start the separate allowlisted operations worker; no restart can execute until it is connected."
         rows.append({"id": tool.name, "name": tool.name, "plugin_id": tool.plugin_id,
                      "description": tool.description, "channel": channel, "status": status,
                      "next_step": step, "verification": "Not established by this registry."})

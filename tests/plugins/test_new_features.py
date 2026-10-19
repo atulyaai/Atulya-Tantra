@@ -75,7 +75,7 @@ def test_expense_store_and_sms_parser(project_temp_dir):
 def test_visual_inspect_and_cast_to_tv(project_temp_dir, monkeypatch):
     monkeypatch.setenv("ATULYA_DATA_DIR", str(project_temp_dir))
     hub = AgentHub(project_temp_dir)
-    hub.pair("alice", "Living Room TV", ["open_url", "media_control"])
+    hub.pair("alice", "Living Room TV", ["open_url", "media_control"], "tv")
     hub.pair("alice", "Phone", ["take_photo"])
 
     from tools.plugins.toolkit import _cast_to_tv, _visual_inspect

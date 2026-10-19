@@ -302,10 +302,17 @@ if step("phone pairs itself after sign-in and polls", bool(device and device[2])
     step("reopening phone resumes queued ping", status == "executed", output)
 
     adb("shell", "pm", "grant", PKG, "android.permission.POST_NOTIFICATIONS")
-    devices_button = find(r"^Devices$", 10)
-    if devices_button:
-        tap(devices_button)
-    background_button = find(r"^Background phone connection$", 10)
+    # Reopening can leave a receipt/approval dialog closing during the first tap.
+    # Require the actual Devices dialog before looking for its background control.
+    background_button = None
+    for _ in range(3):
+        devices_button = find(r"^Devices$", 10)
+        if devices_button and inside_screen(devices_button):
+            tap(devices_button)
+        background_button = find(r"^Background phone connection$", 6)
+        if background_button:
+            break
+    step("Devices panel opens after reconnect", find(r"^Devices & execution receipts$", 3) is not None)
     step("background connection opt-in is visible", background_button is not None)
     if background_button:
         tap(background_button)
