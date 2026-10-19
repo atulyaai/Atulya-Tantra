@@ -24,8 +24,6 @@ from atulya.auth import AuthStore
 from atulya.settings import Settings
 
 
-@dataclass
-
 def _session_cookie(client: httpx.Client) -> str:
     try:
         return str(client.cookies.get("atulya_session") or "")
@@ -34,6 +32,7 @@ def _session_cookie(client: httpx.Client) -> str:
         return values[-1] if values else ""
 
 
+@dataclass
 class Report:
     rows: list[tuple[str, bool, str, float]] = field(default_factory=list)
 
