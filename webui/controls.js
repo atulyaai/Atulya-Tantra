@@ -605,6 +605,11 @@
 
   $("#open-connections")?.addEventListener("click", connectionsPanel);
   $("#quick-devices")?.addEventListener("click", devicesPanel);
+  $("#open-device-connections")?.addEventListener("click", () => {
+    const menu = document.querySelector(".account-menu");
+    if (menu) menu.open = false;
+    void devicesPanel();
+  });
   $("#quick-implementation")?.addEventListener("click", implementationPanel);
   $("#quick-operations")?.addEventListener("click", operationsPanel);
   $("#quick-tasks")?.addEventListener("click", tasksPanel);

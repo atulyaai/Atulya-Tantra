@@ -304,26 +304,17 @@ if step("phone pairs itself after sign-in and polls", bool(device and device[2])
     step("reopening phone resumes queued ping", status == "executed", output)
 
     adb("shell", "pm", "grant", PKG, "android.permission.POST_NOTIFICATIONS")
-    # Reopening can leave a receipt/approval dialog closing during the first tap.
-    # Require the actual Devices dialog before looking for its background control.
+    # Use the account menu's visible connection entry. Horizontal toolbar items
+    # can be offscreen; users also need a direct, accessible route to pairing.
     background_button = None
-    for _ in range(8):
-        devices_button = find(r"^Devices$", 10)
-        if devices_button and inside_screen(devices_button):
-            tap(devices_button)
-        else:
-            # The phone uses a horizontal quick-controls strip. Reveal Devices
-            # rather than tapping the accessibility bounds of an offscreen button.
-            width, _height = screen_size()
-            camera = find(r"^Camera$", 2)
-            target = devices_button or camera
-            if target:
-                _x1, y1, _x2, y2 = target["box"]
-                adb("shell", "input", "swipe", str(int(width * .85)), str((y1 + y2) // 2),
-                    str(int(width * .15)), str((y1 + y2) // 2), "400")
-        background_button = find(r"^Background phone connection$", 6)
-        if background_button:
-            break
+    menu = find(r"^⋮$|Account and settings", 10)
+    if menu:
+        tap(menu)
+    connection_entry = find(r"^DEVICES & CONNECTION$", 10)
+    step("account menu exposes device connection setup", connection_entry is not None)
+    if connection_entry:
+        tap(connection_entry)
+    background_button = find(r"^Background phone connection$", 10)
     step("Devices panel opens after reconnect", find(r"^Devices & execution receipts$", 3) is not None)
     step("background connection opt-in is visible", background_button is not None)
     if background_button:
