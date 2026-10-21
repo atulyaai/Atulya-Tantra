@@ -31,7 +31,7 @@ class PhoneActions:
         return [dict(row) for row in rows]
 
     def receipt(self,user_id,request_id,state):
-        if state not in {"composer_opened","dialer_opened","failed","cancelled"}:
+        if state not in {"composer_opened","dialer_opened","sms_sent","call_placed","failed","cancelled"}:
             raise ValueError("Invalid phone receipt")
         with closing(sqlite3.connect(self.path)) as db,db:
             return db.execute("UPDATE requests SET state=? WHERE user_id=? AND id=? AND state='queued' AND created>?",(state,user_id,request_id,time.time()-600)).rowcount==1
@@ -55,4 +55,9 @@ def register_phone_routes(app,data_dir):
             raise HTTPException(422,str(exc)) from exc
         if not ok:
             raise HTTPException(404,"Phone action expired or unavailable")
+        if body.state == "sms_sent":
+            from tools.plugins.system.agents import AgentHub
+            await asyncio.to_thread(
+                AgentHub(data_dir).note_executed, str(request.state.user_id), "send_sms",
+                "handed to Android", "SMS handed to Android for sending.")
         return {"updated":True}

@@ -334,6 +334,11 @@
       content.replaceChildren(node("p", "Each device has its own revocable credential and allowed actions. A queued request is not execution."));
       const refresh = node("button", "Refresh devices & receipts");
       refresh.addEventListener("click", devicesPanel); content.append(refresh);
+      if (window.AtulyaNative) {
+        const stay = node("button", "Keep this phone connected");
+        stay.addEventListener("click", () => window.AtulyaNative.postMessage(JSON.stringify({cmd:"background_connection"})));
+        content.append(stay);
+      }
       for (const device of data.devices) {
         const row = node("details", undefined, "control-row device-block");
         const deviceJobs = data.jobs.filter(job => job.device === device.name);

@@ -149,6 +149,24 @@ class AgentHub:
                              (job_id, owner, name)).fetchone()
             return bool(row and row == ("executed" if success else "failed", output[:4000]))
 
+
+    def note_executed(self, owner: str, kind: str, detail: str, output: str) -> str | None:
+        """Record a receipt for an action the phone already performed. Does not invent one."""
+        with closing(sqlite3.connect(self.path)) as db, db:
+            chosen = None
+            for name, abilities in db.execute(
+                    "SELECT name, abilities FROM devices WHERE owner=? AND revoked=0", (owner,)):
+                if kind in json.loads(abilities):
+                    chosen = name
+                    break
+            if chosen is None:
+                return None
+            job_id = secrets.token_urlsafe(16)
+            now = time.time()
+            db.execute("INSERT INTO jobs VALUES(?,?,?,?,?,?,?,?,?)",
+                       (job_id, owner, chosen, kind, detail[:500], "executed", now, now, output[:4000]))
+            return job_id
+
     def jobs(self, owner):
         with closing(sqlite3.connect(self.path)) as db, db:
             db.execute("UPDATE jobs SET status='unconfirmed',updated=? WHERE owner=? AND status='running' AND updated<?",

@@ -55,13 +55,15 @@ def test_google_actions_do_not_claim_success_without_provider_id(monkeypatch):
         asyncio.run(google_api.calendar_create("alice","Meeting","2026-11-01T12:00:00"))
 
 
-def test_phone_requests_are_private_and_never_report_sms_sent(project_temp_dir):
+def test_phone_requests_are_private_and_record_a_real_sms_receipt(project_temp_dir):
     from atulya.phone_actions import PhoneActions
     store=PhoneActions(project_temp_dir)
     item=store.add("alice","compose_sms","+911234567890","Hello")
     assert store.pending("bob")==[]
     assert not store.receipt("bob",item["id"],"composer_opened")
     with pytest.raises(ValueError):
-        store.receipt("alice",item["id"],"sms_sent")
+        store.receipt("alice",item["id"],"delivered")
+    sent=store.add("alice","compose_sms","+911234567890","Hello")
+    assert store.receipt("alice",sent["id"],"sms_sent")
     assert store.receipt("alice",item["id"],"composer_opened")
     assert not store.pending("alice")

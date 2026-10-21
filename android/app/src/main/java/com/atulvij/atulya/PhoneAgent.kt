@@ -65,7 +65,11 @@ class PhoneAgent(
     private val base get() = origin.toString().trimEnd('/')
     private val tick = object : Runnable {
         override fun run() {
-            if (!running || polling) return
+            if (!running) return
+            if (polling) {
+                main.postDelayed(this, POLL_MS)
+                return
+            }
             polling = true
             val nextTick = this
             io.execute {
@@ -83,11 +87,15 @@ class PhoneAgent(
         if (running || io.isShutdown) return
         running = true
         PhoneConnectionService.appForeground = true
-        if (PhoneConnectionService.enabled(activity)) {
-            try { PhoneConnectionService.setEnabled(activity, true) } catch (_: Exception) { }
-        }
+        if (!prefs.getString("token", null).isNullOrBlank()) armBackground()
         main.post(tick)
         askNext()
+    }
+
+
+    private fun armBackground() {
+        if (prefs.contains("background_enabled")) return
+        try { PhoneConnectionService.setEnabled(activity, true) } catch (_: Exception) { }
     }
 
     fun stop() {
@@ -161,6 +169,7 @@ class PhoneAgent(
         try {
             if (!running) return
             val token = ensurePaired() ?: return
+            if (!prefs.contains("background_enabled")) main.post { armBackground() }
             if (!flushReceipts(token) || !running) return
             val (code, text) = http("POST", "/api/agents/poll", JSONObject(), bearer(token))
             if (code == 401) {

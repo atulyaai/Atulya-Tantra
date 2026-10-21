@@ -97,7 +97,7 @@ class MainActivity : AppCompatActivity() {
         web.onPause()
         browser?.page?.onPause()
         web.pauseTimers()
-        phone.stop() // the phone answers Atulya only while the app is open and unlocked
+        phone.stop() // foreground jobs stop; the connection service keeps polling
         super.onPause()
     }
 

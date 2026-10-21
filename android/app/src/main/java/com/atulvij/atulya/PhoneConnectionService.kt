@@ -46,8 +46,15 @@ class PhoneConnectionService : Service() {
         override fun run() {
             if (!active) return
             val next = this
-            io.execute {
-                if (!appForeground) checkServer()
+            try {
+                io.execute {
+                    try {
+                        if (!appForeground) checkServer()
+                    } finally {
+                        main.post { if (active) main.postDelayed(next, 15_000L) }
+                    }
+                }
+            } catch (_: Exception) {
                 main.post { if (active) main.postDelayed(next, 15_000L) }
             }
         }
@@ -68,7 +75,7 @@ class PhoneConnectionService : Service() {
         }
         startForeground(NOTICE, notification("Connecting; only ping and battery run in background."))
         if (!active) { active = true; main.post(tick) }
-        return START_NOT_STICKY
+        return START_STICKY
     }
 
     private fun notification(message: String): Notification {

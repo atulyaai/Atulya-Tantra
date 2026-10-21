@@ -2185,6 +2185,11 @@
   }
   let nativeVoice = window.AtulyaNative && typeof window.AtulyaNative.postMessage === "function"
     ? window.AtulyaNative : browserSpeechBridge();
+
+  if (window.AtulyaNative && !localStorage.getItem("atulya-bg-asked")) {
+    localStorage.setItem("atulya-bg-asked", "1");
+    window.AtulyaNative.postMessage(JSON.stringify({cmd:"background_connection"}));
+  }
   let nativeVoiceErrors = 0;
   if (nativeVoice) {
     nativeVoice.onmessage = async (event) => {
