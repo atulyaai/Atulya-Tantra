@@ -42,6 +42,11 @@ ROUTE_ACCESS: dict[tuple[str, str], str] = {
     ("POST", "/api/agents/register"): "device",
     ("POST", "/api/agents/poll"): "device",
     ("POST", "/api/agents/result"): "device",
+    ("POST", "/api/agents/background"): "device",
+    ("POST", "/api/agents/inbox"): "device",
+    ("GET", "/api/inbox"): "user",
+    ("GET", "/api/briefing/settings"): "user",
+    ("PUT", "/api/briefing/settings"): "user",
     # admin
     ("GET", "/api/maintenance"): "admin",
     ("PUT", "/api/maintenance/proactive"): "admin",
@@ -129,6 +134,16 @@ ROUTE_ACCESS: dict[tuple[str, str], str] = {
     ("POST", "/api/location"): "user",
     ("POST", "/api/briefing"): "user",
     ("POST", "/api/actions/{action_id}"): "user",
+
+    ("GET", "/api/auth/sessions"): "user",
+    ("DELETE", "/api/auth/sessions/{session_id}"): "user",
+    ("POST", "/api/auth/sessions/sign-out-others"): "user",
+    ("GET", "/api/implementation"): "admin",
+    ("GET", "/api/operations"): "admin",
+    ("PUT", "/api/operations/alerts/{enabled}"): "admin",
+    ("GET", "/api/tasks"): "user",
+    ("POST", "/api/tasks"): "user",
+    ("DELETE", "/api/tasks/{identifier}"): "user",
 }
 
 

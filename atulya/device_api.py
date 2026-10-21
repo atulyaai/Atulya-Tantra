@@ -50,7 +50,7 @@ def register_device_routes(app, data_dir):
             # The voice-loop token speaks to /api/chat as its owner: admins only (PLAN M12).
             raise HTTPException(403, "Only the administrator can pair a voice-loop device.")
         try:
-            return await asyncio.to_thread(hub.pair, str(request.state.user_id), body.name, body.abilities)
+            return await asyncio.to_thread(hub.pair, str(request.state.user_id), body.name, body.abilities, body.device_type)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
 
@@ -67,6 +67,22 @@ def register_device_routes(app, data_dir):
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         return {"job": job, "message": "Ping queued. Connection is verified only after an executed receipt."}
+
+
+    @app.post("/api/agents/background")
+    async def background(request: Request):
+        """Phone left in the background: only ping and battery. Everything else waits for the open app."""
+        identity = await device(request)
+        jobs = await asyncio.to_thread(hub.poll, identity["owner"], identity["name"], True)
+        waiting = await asyncio.to_thread(hub.waiting_for_foreground, identity["owner"], identity["name"])
+        return {"jobs": jobs, "waiting_for_approval": waiting}
+
+    @app.post("/api/agents/inbox")
+    async def agent_inbox(request: Request):
+        """Alerts for this phone's owner. Delivered once, so the next poll does not repeat them."""
+        identity = await device(request)
+        from atulya.inbox import Inbox
+        return {"items": await asyncio.to_thread(Inbox(data_dir).pull, identity["owner"])}
 
     @app.post("/api/agents/register")
     async def register(request: Request):

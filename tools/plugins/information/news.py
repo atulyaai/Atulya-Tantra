@@ -64,9 +64,15 @@ async def section(kind: str, city: str = "", limit: int = 2) -> dict:
         return {"kind": kind, "source": source, "items": [], "status": "unavailable"}
 
 
-async def briefing_news(city: str) -> list[dict]:
-    return list(await asyncio.gather(section("local", city, 1) if city else _no_city(),
-                                    section("india", limit=2), section("world", limit=2)))
+async def briefing_news(city: str, topics: list[str] | None = None) -> list[dict]:
+    wanted = [item for item in (topics or ["local", "india", "world"]) if item in FEEDS]
+    jobs = []
+    for kind in wanted:
+        if kind == "local":
+            jobs.append(section("local", city, 1) if city else _no_city())
+        else:
+            jobs.append(section(kind, limit=2))
+    return list(await asyncio.gather(*jobs)) if jobs else []
 
 
 async def _no_city():

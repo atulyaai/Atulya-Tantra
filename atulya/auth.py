@@ -645,7 +645,7 @@ class AuthStore:
             ).fetchone()
         return str(row["user_id"]) if row else None
 
-    def session_id(token_hash: str) -> str:
+    def session_id(self, token_hash: str) -> str:
         """A short public id for a session (never the token or its full hash)."""
         return token_hash[:16]
 

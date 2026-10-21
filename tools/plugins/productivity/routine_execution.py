@@ -5,12 +5,12 @@ from datetime import datetime
 from .briefing import build_briefing
 
 
-async def render_routine(item, city, calendar, owner="web", user_id="admin"):
+async def render_routine(item, city, calendar, owner="web", user_id="admin", topics=None):
     action = item.get("action")
     if action == "message":
         return {"text": str(item.get("message") or "").strip(), "links": []}
     if action == "briefing":
-        return await build_briefing(city, calendar, owner, user_id)
+        return await build_briefing(city, calendar, owner, user_id, topics)
     if action == "calendar":
         rows = await asyncio.to_thread(calendar.list, owner, 50, user_id)
         now = datetime.now().astimezone()
@@ -31,4 +31,14 @@ async def render_routine(item, city, calendar, owner="web", user_id="admin"):
             if not probability or not isinstance(probability[0], (float, int)) or probability[0] < 50:
                 return None
         return {"text": await forecast(spot["latitude"], spot["longitude"], city, "today"), "links": []}
+
+    if action == "mail":
+        from tools.plugins.information.google_api import gmail_search
+        try:
+            text = await gmail_search(user_id, "is:unread newer_than:2d", limit=5)
+        except Exception:
+            return None
+        if str(text).startswith("No matching"):
+            return None
+        return {"text": "Unread mail\n" + str(text)[:900], "links": []}
     raise ValueError("Unsupported routine action")

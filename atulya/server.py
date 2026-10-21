@@ -180,6 +180,8 @@ class SessionAuthMiddleware:
         "/api/agents/register",
         "/api/agents/poll",
         "/api/agents/result",
+        "/api/agents/background",
+        "/api/agents/inbox",
     }
 
     # The PC voice loop has no browser session: a paired device with the "voice_loop" ability may
@@ -1006,29 +1008,47 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         while True:
             try:
                 due = await asyncio.to_thread(store.due)
+                settings = await asyncio.to_thread(profiles.briefing_settings, "admin")
                 for item in due:
-                    # The explicit Telegram briefing schedule is the sole sender
-                    # when configured, preventing a second routine briefing.
-                    if item.get("action") == "briefing" and briefing_time() is not None:
-                        await asyncio.to_thread(store.mark_fired, str(item["id"]))
-                        continue
-                    profile = await asyncio.to_thread(profiles.get, "admin")
-                    report = await render_routine(item, profile.get("city") or briefing_city(), calendar, WEB_OWNER)
-                    if report is None:
-                        await asyncio.to_thread(store.mark_fired, str(item["id"]))
-                        continue
-                    if not await asyncio.to_thread(store.still_enabled, str(item["id"])):
-                        continue
-                    if not getattr(telegram, "configured", False):
-                        continue
-                    rows = [[{"text": link["label"], "url": link["url"]}] for link in report["links"]]
-                    body = f"{item.get('name', 'Routine')}\n{report['text']}"[:4000]
-                    sent = await telegram.notify(body, buttons=rows or None, source=f"routine:{item.get('name')}")
-                    if sent:
+                    try:
+                        if item.get("action") == "briefing" and briefing_time() is not None:
+                            await asyncio.to_thread(store.mark_fired, str(item["id"]))
+                            continue
+                        if item.get("action") == "briefing" and (not settings["enabled"] or settings["channel"] == "off"):
+                            await asyncio.to_thread(store.mark_fired, str(item["id"]))
+                            continue
+                        profile = await asyncio.to_thread(profiles.get, "admin")
+                        city = (settings.get("city") if item.get("action") == "briefing" else "") or profile.get("city") or briefing_city()
+                        topics = settings["topics"] if item.get("action") == "briefing" else None
+                        report = await render_routine(item, city, calendar, WEB_OWNER, "admin", topics)
+                        if report is None or not await asyncio.to_thread(store.still_enabled, str(item["id"])):
+                            if report is None:
+                                await asyncio.to_thread(store.mark_fired, str(item["id"]))
+                            continue
+                        channel = settings["channel"] if item.get("action") == "briefing" else "both"
+                        delivered = False
+                        if channel in {"app", "both"}:
+                            from atulya.inbox import Inbox
+                            Inbox(config.data_dir).add(
+                                "admin", str(item.get("name") or "Atulya"), report["text"],
+                                str(item.get("action") or "notice"),
+                                dedupe=f"{item['id']}:{datetime.now().astimezone().date().isoformat()}")
+                            delivered = channel == "app" or not getattr(telegram, "configured", False)
+                        if channel in {"telegram", "both"} and getattr(telegram, "configured", False):
+                            rows = [[{"text": link["label"], "url": link["url"]}] for link in report["links"]]
+                            body = f"{item.get('name', 'Routine')}\n{report['text']}"[:4000]
+                            if await telegram.notify(body, buttons=rows or None, source=f"routine:{item.get('name')}"):
+                                delivered = True
+                            elif not delivered:
+                                continue
+                        if not delivered:
+                            continue
                         await asyncio.to_thread(store.mark_fired, str(item["id"]))
                         from tools.plugins.audit import record_tool_run
-                        record_tool_run(user_id="admin", channel="telegram", tool=f"routine:{item.get('name')}",
-                                        args={"action": item.get("action")}, outcome="accepted_by_telegram")
+                        record_tool_run(user_id="admin", channel="routine", tool=f"routine:{item.get('name')}",
+                                        args={"action": item.get("action")}, outcome="delivered")
+                    except Exception as exc:
+                        logging.getLogger(__name__).warning("Routine %s failed (%s)", item.get("name"), type(exc).__name__)
             except Exception as exc:
                 logging.getLogger(__name__).warning("Routine runner failed (%s)", type(exc).__name__)
             try:
@@ -2429,6 +2449,27 @@ ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return {"profile": profile}
+
+
+    @app.get("/api/inbox")
+    async def inbox_list(http_request: Request) -> dict[str, object]:
+        from atulya.inbox import Inbox
+        items = await asyncio.to_thread(Inbox(config.data_dir).recent, str(http_request.state.user_id))
+        return {"items": items}
+
+    @app.get("/api/briefing/settings")
+    async def get_briefing_settings(http_request: Request) -> dict[str, object]:
+        return await asyncio.to_thread(profiles.briefing_settings, str(http_request.state.user_id))
+
+    @app.put("/api/briefing/settings")
+    async def put_briefing_settings(body: dict, http_request: Request) -> dict[str, object]:
+        from tools.plugins.productivity.briefing import apply_briefing_schedule
+        try:
+            settings = await asyncio.to_thread(profiles.set_briefing, str(http_request.state.user_id), **body)
+            note = await asyncio.to_thread(apply_briefing_schedule, config.data_dir, settings)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {"settings": settings, "schedule": note}
 
     @app.post("/api/briefing")
     async def morning_briefing(body: BriefingRequest, http_request: Request) -> dict[str, object]:

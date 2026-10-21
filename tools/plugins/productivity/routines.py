@@ -16,7 +16,7 @@ from pathlib import Path
 
 _WHEN = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
 DAYS = {"all", "weekdays", "weekends"}
-ACTIONS = {"message", "briefing", "weather", "rain", "calendar"}
+ACTIONS = {"message", "briefing", "weather", "rain", "calendar", "mail"}
 WINDOW_MINUTES = 20
 _LOCK = threading.RLock()
 

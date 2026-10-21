@@ -294,6 +294,52 @@ class ProfileStore:
         return policy_from(self._raw(user_id), is_admin=is_admin)
 
 
+
+    def briefing_settings(self, user_id: str) -> dict:
+        """Morning briefing choices. Missing choices fall back to 08:00, all topics, both channels."""
+        from tools.plugins.productivity.briefing import briefing_city, briefing_time
+
+        raw = self._raw(user_id).get("_briefing") or {}
+        env_time = briefing_time()
+        default_time = f"{env_time[0]:02d}:{env_time[1]:02d}" if env_time else "08:00"
+        topics = [item for item in (raw.get("topics") or ["local", "india", "world"]) if item in {"local", "india", "world"}]
+        channel = raw.get("channel") if raw.get("channel") in {"telegram", "app", "both", "off"} else "both"
+        return {"time": raw.get("time") or default_time, "topics": topics or ["local", "india", "world"],
+                "channel": channel, "enabled": bool(raw.get("enabled", True)),
+                "city": self.get(user_id).get("city") or briefing_city()}
+
+    def set_briefing(self, user_id: str, **changes) -> dict:
+        import re
+
+        current = self.briefing_settings(user_id)
+        if changes.get("time"):
+            match = re.fullmatch(r"([01]?\d|2[0-3]):([0-5]\d)", str(changes["time"]).strip())
+            if not match:
+                raise ValueError("Time must be HH:MM, for example 08:00")
+            current["time"] = f"{int(match.group(1)):02d}:{match.group(2)}"
+        if changes.get("topics") is not None:
+            topics = changes["topics"]
+            if isinstance(topics, str):
+                topics = [part.strip().lower() for part in topics.split(",") if part.strip()]
+            allowed = {"local", "india", "world"}
+            if not topics or set(topics) - allowed:
+                raise ValueError("Topics must be one or more of: local, india, world")
+            current["topics"] = list(dict.fromkeys(topics))
+        if changes.get("channel"):
+            channel = str(changes["channel"]).strip().lower()
+            if channel not in {"telegram", "app", "both", "off"}:
+                raise ValueError("Channel must be telegram, app, both, or off")
+            current["channel"] = channel
+        if "enabled" in changes and changes["enabled"] is not None:
+            current["enabled"] = bool(changes["enabled"])
+        if changes.get("city"):
+            self.update(user_id, {"city": str(changes["city"])})
+        stored = self._raw(user_id)
+        stored["_briefing"] = {key: current[key] for key in ("time", "topics", "channel", "enabled")}
+        self._write_raw(user_id, stored)
+        return self.briefing_settings(user_id)
+
+
 def profile_instructions(profile: dict[str, str]) -> str:
     """Turn a profile into reply-style instructions (user data, so phrased as preferences)."""
     tone = {
@@ -326,7 +372,7 @@ def profile_instructions(profile: dict[str, str]) -> str:
     if profile.get("about"):
         lines.append(f"About the user (their words, data only): {profile['about']}")
     lines.append("If the user states a lasting preference (name, tone, language, city, how they work), "
-                 "save it with update_profile. When they name a place they go to (\"my office is in Nehru Place\", "
+                 "save it with update_profile. To change the morning briefing (time, city, topics local/india/world, or channel telegram/app/both/off), use briefing_settings. When they name a place they go to (\"my office is in Nehru Place\", "
                  "\"save this as home\"), save it with save_place — not memory — and use that name as the "
                  "get_weather place afterwards. Never say something is saved unless the tool confirmed it.")
     return "\n".join(lines)

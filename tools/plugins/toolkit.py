@@ -270,6 +270,34 @@ async def _search_chats(args: dict, ctx: PluginContext | None) -> str:
 
 # --- profile ------------------------------------------------------------------
 
+
+async def _briefing_settings(args: dict, ctx: PluginContext | None) -> str:
+    """Change the morning briefing. With no fields, report the current choices."""
+    if ctx is None or ctx.profile is None:
+        return "Briefing settings are not available on this channel."
+    from tools.plugins.productivity.briefing import apply_briefing_schedule
+
+    changes = {}
+    for key in ("time", "topics", "channel", "city"):
+        if str(args.get(key) or "").strip():
+            changes[key] = args[key]
+    if "enabled" in args and args["enabled"] is not None:
+        changes["enabled"] = args["enabled"]
+    try:
+        if changes:
+            settings = await asyncio.to_thread(ctx.profile.set_briefing, ctx.user_id, **changes)
+            note = await asyncio.to_thread(apply_briefing_schedule, ctx.profile.path.parent, settings)
+        else:
+            settings = await asyncio.to_thread(ctx.profile.briefing_settings, ctx.user_id)
+            note = "No change."
+    except ValueError as exc:
+        return str(exc)
+    topics = ", ".join(settings["topics"])
+    state = "on" if settings["enabled"] and settings["channel"] != "off" else "off"
+    return (f"Morning briefing is {state} at {settings['time']} ({settings['channel']}). "
+            f"City: {settings['city'] or 'not set'}. Topics: {topics}. {note}")
+
+
 async def _update_profile(args: dict, ctx: PluginContext | None) -> str:
     from atulya.profiles import VOICE_EDITABLE
 
@@ -1042,6 +1070,14 @@ TOOLS: tuple[Tool, ...] = (
     Tool("open_url", "Open a web page in the computer's browser (asks the user first).",
          _params({"url": {"type": "string", "description": "Full http(s) URL"}}, ["url"]),
          _pc("open_url"), "pc-control", True, True, lambda a: f"Open website: {a.get('url', '')}"),
+    Tool("briefing_settings", "Show or change the morning briefing: time HH:MM, city, topics (local, india, world), "
+         "channel (telegram, app, both, off) and enabled. Use this when the user wants a different briefing, "
+         "news topics, or to stop or move the morning report. Omitting every field reports the current settings.",
+         _params({"time": {"type": "string"}, "city": {"type": "string"},
+                  "topics": {"type": "string", "description": "Comma-separated: local, india, world"},
+                  "channel": {"type": "string", "enum": ["telegram", "app", "both", "off"]},
+                  "enabled": {"type": "boolean"}}),
+         _briefing_settings, "productivity-calendar", True),
     Tool("update_profile", "Save a lasting user preference: voice (male/female speaking voice), "
          "assistant_nickname (what this user wants to call you, "
          "e.g. 'call yourself Tony'), preferred_name, city, language "

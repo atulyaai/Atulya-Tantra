@@ -58,7 +58,7 @@ class BriefingLog:
         self._path.write_text(json.dumps(data), encoding="utf-8")
 
 
-async def build_briefing(city: str, calendar=None, owner: str = "web", user_id: str = "admin") -> dict:
+async def build_briefing(city: str, calendar=None, owner: str = "web", user_id: str = "admin", topics: list[str] | None = None) -> dict:
     """Use real data directly so scheduled briefings cannot fabricate tool results."""
     import asyncio
     from tools.plugins.information.news import briefing_news
@@ -75,7 +75,7 @@ async def build_briefing(city: str, calendar=None, owner: str = "web", user_id: 
         except Exception:
             return "🌦️ Weather temporarily unavailable."
 
-    weather, news = await asyncio.gather(weather_section(), briefing_news(city))
+    weather, news = await asyncio.gather(weather_section(), briefing_news(city, topics))
     lines = ["🌅 Your morning briefing · " + datetime.now().astimezone().strftime("%a %d %b"), "", weather]
     buttons = []
     labels = {"local": "📍 Local", "india": "🇮🇳 India", "world": "🌍 World"}
@@ -100,3 +100,19 @@ async def build_briefing(city: str, calendar=None, owner: str = "web", user_id: 
         except Exception:
             lines.extend(["", "📅 Calendar unavailable."])
     return {"text": "\n".join(lines)[:3800], "links": buttons, "news": news}
+
+
+def apply_briefing_schedule(data_dir, settings: dict) -> str:
+    """Keep the Morning briefing routine on the same clock and switch the user just chose."""
+    from tools.plugins.productivity.routines import RoutineStore
+
+    store = RoutineStore(data_dir)
+    enabled = bool(settings.get("enabled", True) and settings.get("channel") != "off")
+    try:
+        store.edit("Morning briefing", when=settings["time"], enabled=enabled)
+        return "Updated the Morning briefing routine."
+    except ValueError:
+        if not enabled:
+            return "Morning briefing is off. No routine was added."
+        store.add("Morning briefing", settings["time"], "weekdays", "briefing", "")
+        return "Added a weekday Morning briefing routine."

@@ -124,6 +124,23 @@ class PhoneConnectionService : Service() {
                     .put("success", kind == "ping" || kind == "battery_status"))
             }
             outbox.flush { post("/api/agents/result", it, token).optBoolean("ok", false) }
+            val alerts = post("/api/agents/inbox", JSONObject(), token).optJSONArray("items")
+            if (alerts != null) {
+                val manager = getSystemService(NotificationManager::class.java)
+                manager.createNotificationChannel(NotificationChannel("atulya_alerts", "Atulya alerts", NotificationManager.IMPORTANCE_DEFAULT))
+                val open = PendingIntent.getActivity(this, 2, Intent(this, MainActivity::class.java),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+                for (index in 0 until alerts.length()) {
+                    val item = alerts.getJSONObject(index)
+                    val body = item.optString("body")
+                    manager.notify(3000 + item.optInt("id"), NotificationCompat.Builder(this, "atulya_alerts")
+                        .setSmallIcon(android.R.drawable.stat_notify_chat)
+                        .setContentTitle(item.optString("title", "Atulya"))
+                        .setContentText(body.lineSequence().firstOrNull()?.take(140) ?: "")
+                        .setStyle(NotificationCompat.BigTextStyle().bigText(body.take(600)))
+                        .setAutoCancel(true).setContentIntent(open).build())
+                }
+            }
             val waiting = data.optInt("waiting_for_approval")
             update(if (waiting > 0) "$waiting request(s) waiting. Open Atulya to review and approve."
                    else "Connected for ping and battery. Actions need the open app.")

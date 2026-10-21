@@ -53,6 +53,7 @@ POLICY = {
     "open_app": "confirm",
     "open_url": "confirm",
     "update_profile": "direct",
+    "briefing_settings": "direct",
     "search_files": "confirm_low_risk",
     "read_document": "confirm_low_risk",
     "media_control": "confirm_low_risk",
