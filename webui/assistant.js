@@ -1210,7 +1210,6 @@
   };
   // While the app is open the user is clearly talking to Atulya; the wake word is opt-in.
   let wakeWordEnabled = readFlag("atulya.voice.wake", false);
-  let quietMicFailure = false;
   // Voice-first: every reply is spoken unless muted.
   let voiceReplies = readFlag("atulya.voice.replies", true);
   let bargeInEnabled = readFlag("atulya.voice.bargein", true);
@@ -1445,42 +1444,15 @@
     voiceSessionActive = voiceReady && !window.Telegram?.WebApp?.initData;
     speak(greeting);
     deliverMorningBriefing();
-    // If the browser already has microphone permission, listen without another click.
-    // A missing permission fails quietly; the wave still starts it on the first tap.
-    if (voiceSessionActive) {
-      quietMicFailure = true;
-      window.setTimeout(() => { if (!listening) startListening(true); }, 900);
+    // Auto-start mic if permission already granted (no extra click needed).
+    if (voiceSessionActive && navigator.permissions) {
+      navigator.permissions.query({ name: "microphone" }).then((result) => {
+        if (result.state === "granted") {
+          window.setTimeout(() => { if (voiceSessionActive && !listening) startListening(true); }, 800);
+        }
+      }).catch(() => {});
     }
   }
-
-  async function watchRoom() {
-    if (!cameraStream || speaking || listening || phase === "thinking" || document.visibilityState === "hidden") return;
-    const image = captureCameraFrame();
-    if (!image) return;
-    let body;
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({
-          messages: [{ role: "user", content: "Camera check. If a person is visible, reply with one short sentence about what they are doing or how they look. If the frame is empty, dark, or nothing important, reply with exactly QUIET." }],
-          image,
-          conversation_id: conversationId,
-          stream: false,
-        }),
-      });
-      if (!response.ok) return;
-      body = await response.json();
-    } catch { return; }
-    const text = String(body?.text || "").trim();
-    if (!text || /\bquiet\b/i.test(text)) return;
-    const bubble = appendMessage("assistant", text);
-    conversation.push({ role: "assistant", content: text });
-    highlightSpokenReply(bubble);
-    await speak(text);
-  }
-  window.setTimeout(() => { void watchRoom(); }, 90_000);
-  window.setInterval(() => { void watchRoom(); }, 12 * 60 * 1000);
 
   // First visit of the day: show and read the morning briefing once the greeting ends.
   async function deliverMorningBriefing() {
@@ -1532,7 +1504,7 @@
   // Sentence-pipelined speech: each sentence is synthesized as soon as it is
   // pushed (while earlier ones play), so the first words start almost
   // immediately instead of after the whole reply has been generated.
-  function createSpeechStream() {
+  function createSpeechStream(mode = "text") {
     const requestId = ++activeAudioRequest;
     const pending = [];
     let closed = false;
@@ -1543,7 +1515,7 @@
     const synthesize = (text) => fetch("/api/voice/synthesize", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "audio/wav" },
-      body: JSON.stringify({ text, language: "auto" }),
+      body: JSON.stringify({ text, language: "auto", mode }),
     }).then((response) => {
       if (!response.ok) throw new Error("Local speech generation failed");
       return response.blob();
@@ -1629,12 +1601,12 @@
   // Split streamed text into speakable sentences; returns [complete sentences, remainder].
   function takeSentences(buffer, flush = false) {
     const sentences = [];
-    const pattern = /[^.!?।\n]*[.!?।\n]+["')\]]*\s+/g;
+    const pattern = /[.!?।]+["')\]]*\s+|\n+/g;
     let consumed = 0;
     let match;
     while ((match = pattern.exec(buffer))) {
-      if (match[0].trim().length < 2) continue;
-      sentences.push(match[0].trim());
+      const sentence = buffer.slice(consumed, pattern.lastIndex).trim();
+      if (sentence.length >= 2) sentences.push(sentence);
       consumed = pattern.lastIndex;
     }
     let rest = buffer.slice(consumed);
@@ -1753,10 +1725,6 @@
 
   // Screen actions requested by the brain (tool screen_control), so any phrasing works.
   function runScreenAction(action) {
-    if (action && typeof action === "object" && action.type === "play_music") {
-      window.atulyaMusic?.playNow(action.track); // opens the player and starts it (one tap only if the device blocks autoplay)
-      return;
-    }
     if (action && typeof action === "object" && action.type === "link") {
       let url;
       try { url = new URL(action.url); } catch { return; }
@@ -1783,7 +1751,12 @@
       reload: () => window.setTimeout(() => window.location.reload(), 1500),
       share_location: () => shareLocationAndRetry(),
     };
-    try { actions[action]?.(); } catch { /* the spoken reply still explains */ }
+    const fail = (detail) => appendMessage("notice", `That screen action didn't work (${action}): ${detail}`, null, false);
+    if (!actions[action]) { fail("this screen doesn't support it"); return; }
+    try {
+      const result = actions[action]();
+      if (result && typeof result.catch === "function") result.catch(error => fail(error?.message || "it failed"));
+    } catch (error) { fail(error?.message || "it failed"); }
   }
 
   // Android Back button (MainActivity asks this first): close what is open instead of leaving the app.
@@ -1803,8 +1776,6 @@
   // Conversation mode (like ChatGPT/Claude voice): hide the chat, keep it recorded, and keep listening.
   async function setConversationMode(on) {
     document.body.classList.toggle("panel-chat-hidden", on);
-    // In the Android app, a conversation keeps the screen on so the phone doesn't lock mid-sentence.
-    try { window.AtulyaNative?.postMessage?.(JSON.stringify({ cmd: "keep_awake", on: Boolean(on) })); } catch { /* browser */ }
     exitFocusedLayout();
     if (on && voiceReady && !voiceSessionActive && !listening) await toggleListening();
     syncLayoutControls();
@@ -1861,7 +1832,7 @@
     try { return await sendMessageNow(...args); } finally { chatInFlight -= 1; }
   }
 
-  async function sendMessageNow(text, speakReply = false, includeVision = null) {
+  async function sendMessageNow(text, speakReply = false, includeVision = null, mode = "text") {
     if (includeVision === null) includeVision = needsVision(String(text || ""));
     if (includeVision && !cameraStream) {
       const started = await enableCamera();
@@ -1971,7 +1942,7 @@
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream, application/json" },
-        body: JSON.stringify({ messages: conversation, image: includeVision ? captureCameraFrame() : null, conversation_id: conversationId, stream: true, spoken: Boolean(speakReply) }),
+        body: JSON.stringify({ messages: mode === "voice" ? conversation.slice(-9) : conversation, image: includeVision ? captureCameraFrame() : null, conversation_id: conversationId, stream: true, mode }),
       });
       if (!response.ok) {
         if (response.status === 401) { await refreshAuthState(); throw new Error("Please sign in again to continue."); }
@@ -2005,7 +1976,7 @@
           if (typeof event.text === "string" && event.text) {
             reply += event.text;
             if (speakReply && localTtsReady) {
-              if (!speechStream) speechStream = createSpeechStream();
+              if (!speechStream) speechStream = createSpeechStream(mode);
               let [sentences, rest] = takeSentences(speechBuffer + event.text);
               // First audio fast: speak the opening clause (comma or ~8 words) instead of waiting for
               // the whole first sentence; server voice time grows with length (~0.15 s per word).
@@ -2152,7 +2123,7 @@
         resumeLiveVoice();
         return;
       }
-      await sendMessage(transcript, true);
+      await sendMessage(transcript, true, null, "voice");
     } catch (error) {
       setPhase("idle", "I missed that", error.message || "Speech recognition failed. You can type below.");
       appendMessage("notice", error.message || "Local speech recognition failed.");
@@ -2220,7 +2191,6 @@
       let message = {};
       try { message = JSON.parse(event.data); } catch { return; }
       if (message.type === "phone_action") { document.dispatchEvent(new CustomEvent("atulya-phone-receipt", {detail:message})); return; }
-      if (message.type === "native_capabilities") { document.dispatchEvent(new CustomEvent("atulya-native-capabilities", {detail:message})); return; }
       if (message.kind === "ready") { setPhase("listening", "Listening", "Speak naturally. I'll answer when you pause."); return; }
       if (message.kind === "speech" || message.kind === "end") return;
       listening = false;
@@ -2230,16 +2200,13 @@
         nativeVoiceErrors = 0;
         const transcript = applyWakeWord(String(message.text || "").trim());
         if (!transcript) { resumeLiveVoice(); return; } // not addressed to Atulya, or just the name
-        await sendMessage(transcript, true);
+        await sendMessage(transcript, true, null, "voice");
         if (!speaking) resumeLiveVoice();
         return;
       }
       if (message.kind === "nomatch" || message.kind === "busy") { resumeLiveVoice(); return; } // silence: just listen again
       voiceSessionActive = false;
-      if (message.kind === "denied") {
-        if (quietMicFailure) { quietMicFailure = false; listening = false; voiceSessionActive = false; restoreIdlePhase(); return; }
-        setPhase("idle", "Allow microphone", "Allow the microphone for Atulya in Android settings, then tap the wave.");
-      }
+      if (message.kind === "denied") setPhase("idle", "Allow microphone", "Allow the microphone for Atulya in Android settings, then tap the wave.");
       else if (++nativeVoiceErrors >= 3) {
         if (!window.AtulyaNative) { // browser recognizer unavailable here (offline, blocked): use the server's
           nativeVoice = null;
@@ -2263,11 +2230,9 @@
   }
 
   async function startListening(resume = false) {
-    const automatic = quietMicFailure;
     if (!resume) voiceSessionActive = true;
     if (nativeVoice) {
       listening = true;
-      quietMicFailure = false;
       setPhase("listening", "Listening", "Speak naturally. I'll answer when you pause.");
       refreshWave();
       nativeVoice.postMessage(JSON.stringify({ cmd: "listen", lang: /^hi/i.test(navigator.language || "") ? "hi-IN" : "en-IN" }));
@@ -2327,7 +2292,6 @@
       };
       recorder.start(200);
       const waiting = wakeWordEnabled && Date.now() >= awakeUntil;
-      quietMicFailure = false;
       setPhase("listening", waiting ? "Say “Hey Atulya”" : "Listening",
         waiting ? "Live voice is on. Start with “Hey Atulya”; talk over me to interrupt."
           : "Speak naturally. Each turn sends after a pause; Atulya then listens again.");
@@ -2336,12 +2300,6 @@
       if (requestId !== voiceRequest) return;
       await releaseMicrophone();
       listening = false;
-      if (automatic) {
-        quietMicFailure = false;
-        voiceSessionActive = false;
-        restoreIdlePhase();
-        return;
-      }
       voiceSessionActive = false;
       voiceBrowserBlocked = true;
       const errors = {
@@ -2547,21 +2505,10 @@
         prompt.disabled = !brainReady;
         prompt.placeholder = brainReady ? "Type a message…" : "Chat is starting or unavailable";
         if (visionChannel) setChannelState(visionChannel, "off");
-        // Stay off only after an explicit turn-off. Otherwise resume when permission is already granted.
-        let cameraOff = false;
-        try { cameraOff = localStorage.getItem("atulya.camera.on") === "0"; } catch { /* ignore */ }
-        if (!cameraOff) {
-          const startIfGranted = () => { void startCamera(); };
-          if (navigator.permissions?.query) {
-            navigator.permissions.query({ name: "camera" }).then((result) => {
-              if (result.state === "granted") startIfGranted();
-            }).catch(() => {
-              try { if (localStorage.getItem("atulya.camera.on") === "1") startIfGranted(); } catch { /* ignore */ }
-            });
-          } else {
-            try { if (localStorage.getItem("atulya.camera.on") === "1") startIfGranted(); } catch { /* ignore */ }
-          }
-        }
+        // Camera on demand only (button, "turn on camera", or a question that needs vision).
+        let cameraWanted = false;
+        try { cameraWanted = localStorage.getItem("atulya.camera.on") === "1"; } catch { /* ignore */ }
+        if (cameraWanted) void startCamera();
         return restoreConversation().then(greet);
       })
       .catch(() => {
@@ -3115,7 +3062,6 @@
     const result = location.hash.match(/google=(ok|pending|failed|expired)/)?.[1];
     if (result) {
       history.replaceState(null, "", location.pathname + location.search);
-      if (result === "ok") offerPasskeyAfterSignIn();
       if (result !== "ok" && authMessage) authMessage.textContent = {
         pending: "Your Google account is waiting for the owner's approval.",
         failed: "Google sign-in failed. Try again or use another way.",
@@ -3199,6 +3145,42 @@
           card.append(row);
         }
         if (user.role !== "admin") {
+          // PLAN M12-4/M12-6: today's usage against limits, and the server-decided age group.
+          const usage = user.usage_today || {};
+          const limits = user.limits || {};
+          const settings = document.createElement("small");
+          settings.className = "user-settings";
+          settings.textContent = `Today: ${usage.messages || 0}/${limits.messages_per_day ?? "∞"} messages · `
+            + `${usage.tools || 0}/${limits.tools_per_day ?? "∞"} tool calls · Age: ${user.age_group} (${user.age_source})`
+            + (user.notify_blocked ? " · alerts on" : "");
+          card.append(settings);
+          const send = async (path, payload, failure) => {
+            const result = await fetch(path, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+            if (!result.ok) {
+              const data = await result.json().catch(() => ({}));
+              setPhase("idle", failure, typeof data.detail === "string" ? data.detail : "Check the values and try again.");
+            }
+            await refreshUsers();
+          };
+          appendUserAction(card, "SET LIMITS", async () => {
+            const messages = window.prompt(`Messages per day for ${user.display_name} (blank = default):`, limits.messages_per_day ?? "");
+            if (messages === null) return;
+            const tools = window.prompt(`Tool calls per day for ${user.display_name} (blank = default):`, limits.tools_per_day ?? "");
+            if (tools === null) return;
+            const value = (text) => (String(text).trim() === "" ? null : Number.parseInt(text, 10));
+            await send(`/api/auth/users/${encodeURIComponent(user.id)}/limits`,
+              { messages_per_day: value(messages), tools_per_day: value(tools) }, "Limits not changed");
+          });
+          const nextAge = { auto: "adult", adult: "child", child: null };
+          const currentAge = user.age_source === "admin" ? user.age_group : "auto";
+          appendUserAction(card, `AGE: ${currentAge.toUpperCase()}`, async () => {
+            const target = nextAge[currentAge];
+            if (!window.confirm(`Set ${user.display_name}'s age group to ${target ?? "automatic (date of birth)"}?`)) return;
+            await send(`/api/auth/users/${encodeURIComponent(user.id)}/content`, { age_group: target }, "Age group not changed");
+          });
+          appendUserAction(card, user.notify_blocked ? "ALERTS: ON" : "ALERTS: OFF", async () => {
+            await send(`/api/auth/users/${encodeURIComponent(user.id)}/content`, { notify_blocked: !user.notify_blocked }, "Alert setting not changed");
+          });
           appendUserAction(card, "DISABLE USER", async () => {
             if (!window.confirm(`Disable ${user.display_name}? Their passkeys and sessions will be revoked. Saved records will remain on this device.`)) return;
             const result = await fetch(`/api/auth/users/${encodeURIComponent(user.id)}`, { method: "DELETE" });
@@ -3223,6 +3205,70 @@
     void refreshUsers();
   });
   $("#close-users")?.addEventListener("click", () => usersDialog?.close());
+  document.getElementById("link-device")?.addEventListener("click", async () => {
+    try {
+      const response = await fetch("/api/auth/device-link", { method: "POST", headers: { Accept: "application/json" } });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.detail || "Could not create a device link.");
+      const linkDialog = document.createElement("dialog");
+      linkDialog.className = "device-link-dialog";
+      const inviteResult = document.createElement("div");
+      linkDialog.append(inviteResult);
+      const close = document.createElement("button"); close.textContent = "Close";
+      close.addEventListener("click", () => linkDialog.close()); linkDialog.append(close);
+      linkDialog.addEventListener("close", () => linkDialog.remove());
+      document.body.append(linkDialog); linkDialog.showModal();
+      const label = document.createElement("span");
+      label.textContent = `Open this on your phone or other computer within ${body.expires_minutes} minutes to add a passkey for your account:`;
+      const code = document.createElement("code");
+      code.textContent = body.url;
+      const copy = document.createElement("button");
+      copy.type = "button";
+      copy.textContent = "COPY LINK";
+      copy.addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(body.url); copy.textContent = "COPIED"; }
+        catch { copy.textContent = "SELECT LINK TO COPY"; }
+      });
+      inviteResult.append(label, code, copy);
+    } catch (error) {
+      setPhase("idle", "Device link not created", error.message || "Try again.");
+    }
+  });
+
+  inviteUserForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const button = inviteUserForm.querySelector("button[type=submit]");
+    button.disabled = true;
+    try {
+      const response = await fetch("/api/auth/users", {
+        method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ display_name: inviteDisplayName.value }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.detail || "Could not create an invitation.");
+      inviteResult.hidden = false;
+      inviteResult.replaceChildren();
+      const label = document.createElement("span");
+      label.textContent = `Share this one-time code with ${body.display_name} (expires in 24 hours):`;
+      const code = document.createElement("code");
+      code.textContent = body.invitation_token;
+      const copy = document.createElement("button");
+      copy.type = "button";
+      copy.textContent = "COPY CODE";
+      copy.addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(body.invitation_token); copy.textContent = "COPIED"; }
+        catch { copy.textContent = "SELECT CODE TO COPY"; }
+      });
+      inviteResult.append(label, code, copy);
+      inviteDisplayName.value = "";
+      await refreshUsers();
+    } catch (error) {
+      setPhase("idle", "Invitation not created", error.message || "Try again.");
+    } finally {
+      button.disabled = false;
+    }
+  });
+
   document.getElementById("pair-device")?.addEventListener("click", async () => {
     const name = prompt("Device name (Laptop, Phone, etc.):", "Laptop");
     if (!name) return;
@@ -3304,70 +3350,6 @@
       if (body) void draw();
     });
     void draw();
-  });
-
-  document.getElementById("link-device")?.addEventListener("click", async () => {
-    try {
-      const response = await fetch("/api/auth/device-link", { method: "POST", headers: { Accept: "application/json" } });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.detail || "Could not create a device link.");
-      const linkDialog = document.createElement("dialog");
-      linkDialog.className = "device-link-dialog";
-      const inviteResult = document.createElement("div");
-      linkDialog.append(inviteResult);
-      const close = document.createElement("button"); close.textContent = "Close";
-      close.addEventListener("click", () => linkDialog.close()); linkDialog.append(close);
-      linkDialog.addEventListener("close", () => linkDialog.remove());
-      document.body.append(linkDialog); linkDialog.showModal();
-      const label = document.createElement("span");
-      label.textContent = `Open this on your phone or other computer within ${body.expires_minutes} minutes to add a passkey for your account:`;
-      const code = document.createElement("code");
-      code.textContent = body.url;
-      const copy = document.createElement("button");
-      copy.type = "button";
-      copy.textContent = "COPY LINK";
-      copy.addEventListener("click", async () => {
-        try { await navigator.clipboard.writeText(body.url); copy.textContent = "COPIED"; }
-        catch { copy.textContent = "SELECT LINK TO COPY"; }
-      });
-      inviteResult.append(label, code, copy);
-    } catch (error) {
-      setPhase("idle", "Device link not created", error.message || "Try again.");
-    }
-  });
-
-  inviteUserForm?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const button = inviteUserForm.querySelector("button[type=submit]");
-    button.disabled = true;
-    try {
-      const response = await fetch("/api/auth/users", {
-        method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ display_name: inviteDisplayName.value }),
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.detail || "Could not create an invitation.");
-      inviteResult.hidden = false;
-      inviteResult.replaceChildren();
-      const label = document.createElement("span");
-      label.textContent = `Share this one-time code with ${body.display_name} (expires in 24 hours):`;
-      const code = document.createElement("code");
-      code.textContent = body.invitation_token;
-      const copy = document.createElement("button");
-      copy.type = "button";
-      copy.textContent = "COPY CODE";
-      copy.addEventListener("click", async () => {
-        try { await navigator.clipboard.writeText(body.invitation_token); copy.textContent = "COPIED"; }
-        catch { copy.textContent = "SELECT CODE TO COPY"; }
-      });
-      inviteResult.append(label, code, copy);
-      inviteDisplayName.value = "";
-      await refreshUsers();
-    } catch (error) {
-      setPhase("idle", "Invitation not created", error.message || "Try again.");
-    } finally {
-      button.disabled = false;
-    }
   });
 
   void refreshAuthState();

@@ -32,6 +32,12 @@ class WebReminderStore:
             raise ValueError("Reminder time must be in the future")
         stamp = due_at.astimezone(timezone.utc).isoformat(timespec="seconds")
         with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
+            # A repeated tool call or resend must not create a second reminder that fires twice.
+            same = db.execute("SELECT id FROM reminders WHERE user_id=? AND lower(message)=lower(?) AND due_at=? "
+                              "AND shown_at IS NULL AND cancelled_at IS NULL", (user_id, message, stamp)).fetchone()
+            if same:
+                return {"id": same[0], "message": message, "due_at": stamp,
+                        "shown_at": None, "cancelled_at": None, "duplicate": True}
             cur = db.execute("INSERT INTO reminders(user_id,message,due_at) VALUES(?,?,?)",
                              (user_id, message, stamp))
             return {"id": cur.lastrowid, "message": message, "due_at": stamp,

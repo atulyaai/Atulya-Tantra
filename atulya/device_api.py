@@ -13,10 +13,6 @@ class PairRequest(BaseModel):
     device_type: str = Field(default="generic", max_length=32)
 
 
-class RenameRequest(BaseModel):
-    name: str = Field(min_length=1, max_length=40)
-
-
 class ResultRequest(BaseModel):
     id: str = Field(min_length=1, max_length=100)
     output: str = Field(default="", max_length=4000)
@@ -39,31 +35,38 @@ def register_device_routes(app, data_dir):
         owner = str(request.state.user_id)
         return {"devices": await asyncio.to_thread(hub.devices, owner), "jobs": await asyncio.to_thread(hub.jobs, owner)}
 
+    async def own_device(request, name):
+        """404, never 403, for a device of another account: its existence is not revealed (PLAN M12-3)."""
+        owner = str(request.state.user_id)
+        names = {row["name"] for row in await asyncio.to_thread(hub.devices, owner)}
+        if name not in names:
+            raise HTTPException(404, "No such device.")
+        return owner
+
     @app.post("/api/devices/pair", status_code=201)
     async def pair(body: PairRequest, request: Request):
+        if "voice_loop" in body.abilities and not await asyncio.to_thread(
+                request.app.state.auth_store.is_admin, str(request.state.user_id)):
+            # The voice-loop token speaks to /api/chat as its owner: admins only (PLAN M12).
+            raise HTTPException(403, "Only the administrator can pair a voice-loop device.")
         try:
-            return await asyncio.to_thread(hub.pair, str(request.state.user_id), body.name, body.abilities, body.device_type)
-        except ValueError as exc:
-            raise HTTPException(422, str(exc)) from exc
-
-    @app.patch("/api/devices/{name}")
-    async def rename(name: str, body: RenameRequest, request: Request):
-        try:
-            return await asyncio.to_thread(hub.rename, str(request.state.user_id), name, body.name)
+            return await asyncio.to_thread(hub.pair, str(request.state.user_id), body.name, body.abilities)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
 
     @app.delete("/api/devices/{name}")
     async def revoke(name: str, request: Request):
-        return {"revoked": await asyncio.to_thread(hub.revoke, str(request.state.user_id), name)}
+        owner = await own_device(request, name)
+        return {"revoked": await asyncio.to_thread(hub.revoke, owner, name)}
 
     @app.post("/api/devices/{name}/test", status_code=202)
     async def test_device(name: str, request: Request):
+        owner = await own_device(request, name)
         try:
-            job = await asyncio.to_thread(hub.enqueue, str(request.state.user_id), name, "ping")
+            job = await asyncio.to_thread(hub.enqueue, owner, name, "ping")
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
-        return {"job": job, "message": "Ping queued; connection is verified only by an executed receipt."}
+        return {"job": job, "message": "Ping queued. Connection is verified only after an executed receipt."}
 
     @app.post("/api/agents/register")
     async def register(request: Request):
@@ -79,10 +82,3 @@ def register_device_routes(app, data_dir):
     async def result(body: ResultRequest, request: Request):
         identity = await device(request)
         return {"ok": await asyncio.to_thread(hub.complete, identity["owner"], identity["name"], body.id, body.output, body.success)}
-
-    @app.post("/api/agents/background")
-    async def background(request: Request):
-        identity = await device(request)
-        jobs = await asyncio.to_thread(hub.poll, identity["owner"], identity["name"], True)
-        waiting = await asyncio.to_thread(hub.waiting_for_foreground, identity["owner"], identity["name"])
-        return {"jobs": jobs, "waiting_for_approval": waiting}

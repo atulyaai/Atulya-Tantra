@@ -12,11 +12,11 @@ from atulya.settings import Settings
 
 def test_conversation_history_is_persistent_and_idempotent(project_temp_dir: Path) -> None:
     first = ConversationHistory(project_temp_dir)
-    first.append("browser_1", "message_1", "user", "Hello")
-    first.append("browser_1", "message_1", "user", "Hello")
+    first.append("browser_1", "message_1", "user", "Hello", user_id="u1")
+    first.append("browser_1", "message_1", "user", "Hello", user_id="u1")
 
     second = ConversationHistory(project_temp_dir)
-    restored = second.read("browser_1")
+    restored = second.read("browser_1", user_id="u1")
     assert len(restored) == 1
     assert (restored[0]["message_id"], restored[0]["role"], restored[0]["content"]) == (
         "message_1",
@@ -27,19 +27,19 @@ def test_conversation_history_is_persistent_and_idempotent(project_temp_dir: Pat
 
 def test_conversation_history_delete_is_scoped_and_idempotent(project_temp_dir: Path) -> None:
     history = ConversationHistory(project_temp_dir)
-    history.append("browser_1", "message_1", "user", "Private one")
-    history.append("browser_2", "message_2", "user", "Private two")
+    history.append("browser_1", "message_1", "user", "Private one", user_id="u1")
+    history.append("browser_2", "message_2", "user", "Private two", user_id="u1")
 
-    assert history.delete("browser_1") == 1
-    assert history.delete("browser_1") == 0
-    assert history.read("browser_1") == []
-    assert [item["content"] for item in history.read("browser_2")] == ["Private two"]
+    assert history.delete("browser_1", user_id="u1") == 1
+    assert history.delete("browser_1", user_id="u1") == 0
+    assert history.read("browser_1", user_id="u1") == []
+    assert [item["content"] for item in history.read("browser_2", user_id="u1")] == ["Private two"]
 
 
 def test_history_rejects_path_like_identifiers(project_temp_dir: Path) -> None:
     history = ConversationHistory(project_temp_dir)
     try:
-        history.read("../private")
+        history.read("../private", user_id="u1")
     except ValueError as exc:
         assert "identifiers" in str(exc)
     else:

@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 
 from tools.plugins.brain import Brain, Message
-from atulya.history import ConversationHistory, cross_channel_note
+from atulya.history import ConversationHistory
 from tools.plugins.productivity.reminders import ReminderStore
 from tools.plugins.registry import PluginContext, PluginExecutionError, PluginRegistry
 from tools.plugins.productivity.briefing import briefing_city, briefing_time, build_briefing
@@ -25,20 +25,6 @@ logger = logging.getLogger(__name__)
 # The allowlisted owner is the same person as the web admin: one account, memory, profile and history.
 OWNER_USER = "admin"
 OWNER_MEMORY = "web"      # same memory/calendar owner as the WebUI
-
-
-def _telegram_html(text: str) -> str:
-    """Model replies use Markdown; Telegram shows it raw. Convert the common parts to Telegram HTML."""
-    import html as _html
-    out = _html.escape(text, quote=False)
-    out = re.sub(r"\[([^\]\n]{1,200})\]\((https?://[^\s)]{1,500})\)",
-                 lambda m: f'<a href="{m.group(2).replace(chr(34), "%22")}">{m.group(1)}</a>', out)
-    out = re.sub(r"\*\*([^*\n]{1,300})\*\*", r"<b>\1</b>", out)
-    out = re.sub(r"(?<![\w*])\*([^*\n]{1,300})\*(?![\w*])", r"<i>\1</i>", out)
-    out = re.sub(r"`([^`\n]{1,300})`", r"<code>\1</code>", out)
-    out = re.sub(r"(?m)^#{1,6}\s+(.+)$", r"<b>\1</b>", out)
-    out = re.sub(r"(?m)^\s*[-*]\s+", "• ", out)
-    return out
 OWNER_THREAD = "telegram"  # the owner's Telegram chat appears as this conversation everywhere
 
 def _parse_due(value: str, now: datetime | None = None) -> datetime:
@@ -105,7 +91,7 @@ class TelegramChannel:
         self._webapp_url = webapp_url    # Mini App button on every reply
         self._maintenance = maintenance
         self._mcp_connections = mcp_connections
-        self._pending_links: dict[str, list[dict]] = {}  # per chat, so one chat's links never reach another
+        self._pending_links: list[dict] = []
         self._pending_cards: list = []
         self._location_wanted: dict[str, str] = {}  # chat_id -> question waiting for the user's location
         self._last_wants_location = False
@@ -294,7 +280,7 @@ class TelegramChannel:
         else:
             scoped = f"tgguest_{user_id}"
             try:
-                saved = await asyncio.to_thread(self._history.read, f"tg{user_id}", 10, scoped)
+                saved = await asyncio.to_thread(self._history.read, f"tg{user_id}", 10, user_id=scoped)
                 conversation = [Message(role=row["role"], content=row["content"]) for row in saved
                                 if row["role"] in {"user", "assistant"}]
                 conversation.append(Message(role="user", content=text[:1000]))
@@ -303,8 +289,8 @@ class TelegramChannel:
                          "their memory, calendar, devices or settings. Keep answers short.")
                 reply = (await self._brain.respond_with_tools(conversation, toolbox, system_instructions=guard)).text \
                     if toolbox else (await self._brain.respond(conversation, system_instructions=guard)).text
-                await asyncio.to_thread(self._history.append, f"tg{user_id}", f"u{message_id}", "user", text[:1000], scoped)
-                await asyncio.to_thread(self._history.append, f"tg{user_id}", f"a{message_id}", "assistant", reply, scoped)
+                await asyncio.to_thread(self._history.append, f"tg{user_id}", f"u{message_id}", "user", text[:1000], user_id=scoped)
+                await asyncio.to_thread(self._history.append, f"tg{user_id}", f"a{message_id}", "assistant", reply, user_id=scoped)
             except Exception:
                 reply = "I couldn't answer that just now. Please try again."
         self._guest_usage[user_id] = (today, used + 1)
@@ -382,8 +368,7 @@ class TelegramChannel:
         rows = list(buttons or [])
         if self._webapp_url and not buttons:
             rows.append([{"text": "Open Atulya", "web_app": {"url": self._webapp_url}}])
-        payload = {"chat_id": chat_id, "text": _telegram_html(text[:4000]), "parse_mode": "HTML",
-                   "disable_web_page_preview": True}
+        payload = {"chat_id": chat_id, "text": text[:4000]}
         if request_location:  # Telegram's own one-tap "share location" button (the user decides)
             payload["reply_markup"] = {"keyboard": [[{"text": "📍 Share my location", "request_location": True}]],
                                        "one_time_keyboard": True, "resize_keyboard": True}
@@ -393,10 +378,6 @@ class TelegramChannel:
             payload["reply_markup"] = {"inline_keyboard": rows}
         try:
             response = await client.post(self._url("sendMessage"), json=payload)
-            if getattr(response, "status_code", 200) == 400:  # formatting Telegram rejected: send the same words as plain text
-                payload.pop("parse_mode", None)
-                payload["text"] = text[:4000]
-                response = await client.post(self._url("sendMessage"), json=payload)
             response.raise_for_status()
         except httpx.HTTPError:
             pass  # never log bot URLs, tokens or chat ids
@@ -439,7 +420,11 @@ class TelegramChannel:
         answer = "Not allowed."
         if user_id in self._allowed and data.startswith("act:") and self._actions is not None:
             _, action_id, approve = (data.split(":") + ["", ""])[:3]
-            action = self._actions.take(action_id, OWNER_USER)
+            # Bound to the Telegram id that asked (AUDIT S3): another allow-listed id can't approve it.
+            action = self._actions.take(action_id, OWNER_USER, origin=f"tg:{user_id}")
+            from atulya.security_log import record_event
+            record_event("approval", f"tg:{user_id}", "approve" if approve == "1" else "deny",
+                         target=action.tool if action else action_id, outcome="ok" if action else "not found")
             if action is None:
                 answer = "That request expired or was already handled."
             elif approve != "1":
@@ -449,7 +434,8 @@ class TelegramChannel:
                     OWNER_MEMORY, self._personal_memory, self._calendar, OWNER_USER, actions=self._actions.view(),
                     history=self._history, profile=self._profiles, channel="telegram",
                     reminders=TelegramReminderAccess(self._reminders, user_id, str((query.get("message") or {}).get("chat", {}).get("id", user_id))),
-                    maintenance=self._maintenance, mcp_connections=self._mcp_connections))
+                    maintenance=self._maintenance, mcp_connections=self._mcp_connections,
+                    is_admin=True, origin=f"tg:{user_id}"))  # allow-listed owner chats only (guests get no tools)
                 answer = await toolbox.run_approved(action)
         try:
             await client.post(self._url("answerCallbackQuery"), json={"callback_query_id": query.get("id"), "text": answer[:190]})
@@ -554,7 +540,8 @@ class TelegramChannel:
                 reply = "Use /editreminder <id> | 10m | new text. See /reminders for IDs."
         elif command == "/meetings" and self._calendar is not None:
             from tools.plugins.toolkit import _list_meetings
-            reply = await _list_meetings({}, PluginContext(OWNER_MEMORY, self._personal_memory, self._calendar, OWNER_USER, channel="telegram"))
+            reply = await _list_meetings({}, PluginContext(OWNER_MEMORY, self._personal_memory, self._calendar, OWNER_USER, channel="telegram",
+                                                                is_admin=True))
         elif command in {"/approve", "/deny"}:
             reply = self._decide_member(command_args.strip(), command == "/approve")
         elif command == "/members":
@@ -582,13 +569,14 @@ class TelegramChannel:
                 try:
                     reply = await self._command_plugins.dispatch(
                         text, PluginContext(OWNER_MEMORY, self._personal_memory, self._calendar, OWNER_USER,
-                                            history=self._history, profile=self._profiles, channel="telegram")
+                                            history=self._history, profile=self._profiles, channel="telegram",
+                                            is_admin=True)
                     )
                 except PluginExecutionError:
                     reply = "That feature is unavailable right now."
             if reply is None:
                 reply = await self._answer(user_id, message_id, text, chat_id=chat_id)
-        links = self._pending_links.pop(chat_id, [])
+        links, self._pending_links = self._pending_links, []
         link_buttons = [[{"text": item["label"], "url": item["url"]}] for item in links[:4]]
         if self._last_wants_location:
             self._last_wants_location = False
@@ -610,11 +598,8 @@ class TelegramChannel:
         conversation_id = OWNER_THREAD
         try:
             scoped_user = OWNER_USER
-            saved = await asyncio.to_thread(self._history.read, conversation_id, 30, scoped_user)
+            saved = await asyncio.to_thread(self._history.read, conversation_id, 30, user_id=scoped_user)
             conversation = [Message(role=row["role"], content=row["content"]) for row in saved if row["role"] in {"user", "assistant"}]
-            note = await asyncio.to_thread(cross_channel_note, self._history, scoped_user, conversation_id)
-            if note:
-                conversation.insert(0, Message(role="user", content=note))
             conversation.append(Message(role="user", content=text))
             if self._command_plugins is not None and self._personal_memory is not None and self._calendar is not None:
                 view = self._actions.view() if self._actions is not None else None
@@ -622,7 +607,8 @@ class TelegramChannel:
                     OWNER_MEMORY, self._personal_memory, self._calendar, scoped_user, history=self._history,
                     profile=self._profiles, actions=view, channel="telegram",
                     reminders=TelegramReminderAccess(self._reminders, user_id, chat_id or user_id),
-                    maintenance=self._maintenance, mcp_connections=self._mcp_connections))
+                    maintenance=self._maintenance, mcp_connections=self._mcp_connections,
+                    is_admin=True, origin=f"tg:{user_id}"))  # allow-listed owner chats only (guests get no tools)
                 ui_actions: list[str] = []
                 token = _toolkit.UI_ACTIONS.set(ui_actions)
                 try:
@@ -631,7 +617,7 @@ class TelegramChannel:
                 finally:
                     _toolkit.UI_ACTIONS.reset(token)
                 self._last_wants_location = "share_location" in ui_actions
-                self._pending_links[chat_id or user_id] = [item for item in ui_actions if isinstance(item, dict) and item.get("type") == "link"]
+                self._pending_links = [item for item in ui_actions if isinstance(item, dict) and item.get("type") == "link"]
                 if view is not None:
                     self._pending_cards.extend(view.created)
             else:
@@ -639,8 +625,8 @@ class TelegramChannel:
         except Exception:
             return "I couldn't complete that reply. Please try again in a moment."
         try:
-            await asyncio.to_thread(self._history.append, conversation_id, f"u{message_id}", "user", text, scoped_user)
-            await asyncio.to_thread(self._history.append, conversation_id, f"a{message_id}", "assistant", reply.text, scoped_user)
+            await asyncio.to_thread(self._history.append, conversation_id, f"u{message_id}", "user", text, user_id=scoped_user)
+            await asyncio.to_thread(self._history.append, conversation_id, f"a{message_id}", "assistant", reply.text, user_id=scoped_user)
         except ValueError:
             pass
         return reply.text

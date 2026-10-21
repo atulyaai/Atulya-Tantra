@@ -33,7 +33,7 @@ def test_history_is_scoped_to_user_and_migrates_existing_rows(project_temp_dir: 
         )
 
     history = ConversationHistory(project_temp_dir)
-    assert history.read("legacy_chat")[0]["content"] == "keep this"
+    assert history.read("legacy_chat", user_id="admin")[0]["content"] == "keep this"
     assert history.read("tg12345", user_id="tg_12345")[0]["content"] == "telegram history"
 
     history.append("shared", "same_message", "user", "admin only", user_id="admin")
@@ -54,7 +54,7 @@ def test_memory_and_calendar_scope_records_by_account_and_migrate_telegram_data(
         db.execute("INSERT INTO facts(owner,fact,created_at) VALUES('tg12345','telegram fact','2025-01-01T00:00:00Z')")
 
     memories = PersonalMemory(project_temp_dir)
-    assert memories.list("legacy_chat") == ["legacy fact"]
+    assert memories.list("legacy_chat", user_id="admin") == ["legacy fact"]
     assert memories.list("tg12345", user_id="tg_12345") == ["telegram fact"]
     memories.remember("shared", "admin fact", user_id="admin")
     memories.remember("shared", "other fact", user_id="other")

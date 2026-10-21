@@ -67,7 +67,6 @@ def test_synthesis_api_serves_local_wav(
             assert speaker_id is None
             return b"RIFF-test-wav"
 
-    monkeypatch.delenv("ATULYA_VOICE_BACKEND", raising=False)
     monkeypatch.setattr(server, "LocalSupertonicTTS", FakeSpeech)
     settings = Settings(
         assistant_name="Atulya", host="127.0.0.1", port=8501,

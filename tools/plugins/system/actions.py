@@ -119,9 +119,31 @@ def open_url(url: str) -> str:
 
 # --- files ------------------------------------------------------------------
 
-def search_files(query: str, limit: int = 15, budget_seconds: float = 4.0) -> str:
+DOCUMENT_ROOTS = [HOME / name for name in ("Desktop", "Documents", "Downloads")]
+MAX_DOCUMENT_BYTES = 25 * 1024 * 1024
+
+
+def resolve_document(path_text: str, roots: list[Path] | None = None) -> Path:
+    """A readable file inside Desktop, Documents or Downloads (absolute, or relative to the home folder
+    as search_files prints it). Symlinks and '..' are resolved first, so nothing escapes those folders."""
+    roots = [root.resolve() for root in (roots or DOCUMENT_ROOTS)]
+    raw = Path(path_text.strip().strip('"'))
+    candidate = (raw if raw.is_absolute() else HOME / raw).resolve()
+    if not any(candidate == root or root in candidate.parents for root in roots):
+        raise ValueError("I can only read documents in your Desktop, Documents or Downloads folders.")
+    if not candidate.is_file():
+        raise ValueError(f"No such file: {path_text.strip()}")
+    if candidate.stat().st_size > MAX_DOCUMENT_BYTES:
+        raise ValueError("That file is larger than 25 MB.")
+    return candidate
+
+
+def search_files(query: str, limit: int = 15, budget_seconds: float = 4.0, ext: str = "") -> str:
     terms = _norm(query).split()
-    if not terms:
+    ext = ext.strip().lower()
+    if ext and not ext.startswith("."):
+        ext = "." + ext
+    if not terms and not ext:
         return "Say what file name to look for."
     deadline = time.monotonic() + budget_seconds
     hits: list[tuple[float, Path]] = []
@@ -131,9 +153,7 @@ def search_files(query: str, limit: int = 15, budget_seconds: float = 4.0) -> st
         for current, dirs, files in os.walk(root):
             dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not d.startswith(".")]
             for filename in files:
-                if filename.startswith("."):
-                    continue  # hidden files (.env, keys, configs) are private
-                if all(term in _norm(filename) for term in terms):
+                if (not ext or filename.lower().endswith(ext)) and all(term in _norm(filename) for term in terms):
                     path = Path(current) / filename
                     try:
                         hits.append((path.stat().st_mtime, path))

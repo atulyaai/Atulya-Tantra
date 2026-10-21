@@ -3,8 +3,28 @@ import base64
 from email import message_from_bytes
 
 import pytest
+import httpx
 
 from tools.plugins.information import google_api
+
+
+def test_google_tokens_follow_data_dir_loaded_after_module_import(project_temp_dir, monkeypatch):
+    monkeypatch.setenv("ATULYA_DATA_DIR", str(project_temp_dir))
+    google_api.save_connection("alice", {"refresh_token": "test-refresh", "scope": google_api.READ})
+    assert google_api.connection_status("alice")["connected"]
+    assert (project_temp_dir / "google_tokens.json").is_file()
+
+
+def test_calendar_delete_accepts_real_empty_204_response(monkeypatch):
+    async def token(*args):
+        return "test-token"
+    monkeypatch.setattr(google_api, "get_access_token", token)
+    original = httpx.AsyncClient
+    def handler(request):
+        assert request.method == "DELETE"
+        return httpx.Response(204)
+    monkeypatch.setattr(google_api.httpx, "AsyncClient", lambda **kwargs: original(transport=httpx.MockTransport(handler)))
+    assert "Deleted Google Calendar event evt123" in asyncio.run(google_api.calendar_delete("admin", "evt123"))
 
 
 def test_gmail_send_has_real_receipt_and_rejects_header_injection(monkeypatch):

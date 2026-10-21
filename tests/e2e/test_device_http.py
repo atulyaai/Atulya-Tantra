@@ -1,5 +1,4 @@
 """Real HTTP server and separate companion process on this PC, without production data."""
-
 import os
 import socket
 import subprocess
@@ -43,14 +42,14 @@ def test_real_http_pc_pair_ping_receipt_and_revoke(project_temp_dir, record_prop
             ping_started = time.perf_counter()
             job = client.post("/api/devices/This-PC/test").json()["job"]
             env = dict(os.environ, ATULYA_TEST_ORIGIN=origin, ATULYA_AGENT_TOKEN=token)
-            code = """
+            code = '''
 import os, httpx
 from tools.device_companion import poll_once
 with httpx.Client(base_url=os.environ['ATULYA_TEST_ORIGIN'], trust_env=False,
                  headers={'Authorization': 'Bearer ' + os.environ['ATULYA_AGENT_TOKEN']}) as client:
     client.post('/api/agents/register').raise_for_status()
     assert poll_once(client)[0]['success']
-"""
+'''
             result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=20)
             assert result.returncode == 0, result.stderr
             snapshot = client.get("/api/devices").json()

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import ast
 import difflib
 import hashlib
 import json
@@ -15,7 +16,9 @@ from pathlib import Path
 from uuid import uuid4
 
 EDITABLE = frozenset({"webui/index.html", "webui/assistant.js", "webui/renderer.css",
-                      "webui/controls.js", "webui/controls.css"})
+                      "webui/controls.js", "webui/controls.css", "webui/music.js",
+                      "tools/plugins/brain/engine.py", "tools/plugins/brain/textcalls.py", "tools/plugins/brain/providers.py",
+                      "tools/plugins/voice/tts.py", "tools/device_companion.py", "atulya/music.py"})
 
 
 class Maintenance:
@@ -26,6 +29,8 @@ class Maintenance:
         self.lock = threading.Lock()
         self.last_check = {}
         self.on_problem = None
+        self.on_notification = None
+        self.runtime_probe = None
         self.policy_path = data_dir / "maintenance-policy.json"
         self.proactive_path = data_dir / "maintenance-proactive-status.json"
 
@@ -67,11 +72,16 @@ class Maintenance:
             record.update(state="proposed_or_explained", result=str(result)[:4000])
         except Exception as exc:
             record.update(state="failed", result=f"Proposal run failed ({type(exc).__name__}); no changes applied.")
+        if self.on_notification is not None:
+            try:
+                record["notifications"] = await asyncio.wait_for(self.on_notification(report, record), timeout=20)
+            except Exception as exc:
+                record["notification_error"] = type(exc).__name__
         self.proactive_path.write_text(json.dumps(record), encoding="utf-8")
 
     def path(self, name: str) -> Path:
         if name not in EDITABLE and not re.fullmatch(r"tools/skills/[a-z0-9][a-z0-9-]{0,63}/SKILL\.md", name):
-            raise ValueError("This file is protected. Only permitted WebUI files and skill documents can be edited.")
+            raise ValueError("This file is protected. Only listed WebUI/backend files and skill documents can be edited.")
         path = self.root / name
         if path.is_symlink() or path.resolve() != path.absolute():
             raise ValueError("Linked files or directories cannot be edited.")
@@ -102,6 +112,12 @@ class Maintenance:
             self.directory.mkdir(parents=True, exist_ok=True)
             proposal_id = uuid4().hex
             check = "Manual browser review required"
+            if name.endswith(".py"):
+                try:
+                    ast.parse(content, filename=name)
+                except SyntaxError as exc:
+                    raise ValueError("Python syntax check failed; proposal was not saved") from exc
+                check = "Python syntax passed; regression tests and owner review required before applying"
             if name.startswith("tools/skills/"):
                 slug = Path(name).parent.name
                 if not content.startswith("---\n") or len(content.split("---", 2)) != 3:
@@ -215,6 +231,11 @@ class Maintenance:
             except FileNotFoundError:
                 findings.append({"area": "verification", "message": "Node unavailable: WebUI syntax not checked"})
                 break
+        if self.runtime_probe is not None:
+            try:
+                findings.extend(self.runtime_probe())
+            except Exception as exc:
+                findings.append({"area": "connections", "message": f"Runtime connection checks failed ({type(exc).__name__})"})
         self.last_check = {"checked_at": datetime.now(timezone.utc).isoformat(), "findings": findings,
                            "editable_files": sorted(EDITABLE),
                            "skill_policy": "New or existing tools/skills/<slug>/SKILL.md can be proposed and reviewed. Skills grant no new tool permissions.",

@@ -4,8 +4,10 @@
     python -m atulya.cli secrets status
 
 Windows: DPAPI (CryptProtectData), bound to the current Windows user — another user,
-or the file copied to another PC, cannot decrypt it. Other systems: the file is
-written with owner-only permissions (0600); install the OS keyring later for more.
+or the file copied to another PC, cannot decrypt it. Other systems (PLAN M13-2, AUDIT H3):
+Fernet (AES-128-CBC + HMAC-SHA256, from `cryptography`) with a random key kept OUTSIDE the
+data folder ($XDG_CONFIG_HOME/atulya/secrets.key, or ATULYA_SECRETS_KEY_FILE), mode 0600, so a
+copied data folder or backup alone cannot be read. Older "PLAIN:" files are migrated on load.
 At startup `load_protected()` puts the values into the process environment, so the
 rest of Atulya keeps reading os.environ as before.
 """
@@ -41,19 +43,70 @@ def _dpapi(data: bytes, protect: bool) -> bytes:
         kernel32.LocalFree(out.pbData)
 
 
+def _scheme() -> str:
+    """dpapi on Windows, fernet elsewhere. ATULYA_SECRETS_SCHEME=fernet lets tests run the Linux path."""
+    forced = os.environ.get("ATULYA_SECRETS_SCHEME", "").strip().lower()
+    if forced in {"dpapi", "fernet"}:
+        return forced
+    return "dpapi" if os.name == "nt" else "fernet"
+
+
+def key_path() -> Path:
+    configured = os.environ.get("ATULYA_SECRETS_KEY_FILE", "").strip()
+    if configured:
+        return Path(configured)
+    base = Path(os.environ.get("XDG_CONFIG_HOME", "").strip() or Path.home() / ".config")
+    return base / "atulya" / "secrets.key"
+
+
+def _owner_only(path: Path, mode: int) -> None:
+    if os.name != "nt":
+        path.chmod(mode)
+
+
+def _fernet():
+    from cryptography.fernet import Fernet
+
+    path = key_path()
+    if not path.is_file():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        _owner_only(path.parent, 0o700)
+        # O_EXCL: never overwrite a key another process just created (that would lose every secret).
+        try:
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            pass
+        else:
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(Fernet.generate_key())
+    _owner_only(path, 0o600)
+    return Fernet(path.read_bytes().strip())
+
+
 def _encode(values: dict[str, str]) -> bytes:
     raw = json.dumps(values).encode("utf-8")
-    if os.name == "nt":
+    if _scheme() == "dpapi":
         return b"DPAPI:" + base64.b64encode(_dpapi(raw, True))
-    return b"PLAIN:" + base64.b64encode(raw)
+    return b"FERNET:" + _fernet().encrypt(raw)
 
 
 def _decode(blob: bytes) -> dict[str, str]:
     kind, _, payload = blob.partition(b":")
-    raw = base64.b64decode(payload)
-    if kind == b"DPAPI":
-        raw = _dpapi(raw, False)
+    if kind == b"FERNET":
+        raw = _fernet().decrypt(payload)
+    else:
+        raw = base64.b64decode(payload)
+        if kind == b"DPAPI":
+            raw = _dpapi(raw, False)
     return json.loads(raw.decode("utf-8"))
+
+
+def _write(path: Path, values: dict[str, str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(_encode(values))
+    _owner_only(path, 0o600)
+    if _decode(path.read_bytes()) != values:
+        raise OSError("Encrypted secrets did not verify")
 
 
 def secrets_path(data_dir: Path) -> Path:
@@ -65,7 +118,10 @@ def load_protected(data_dir: Path) -> int:
     path = secrets_path(data_dir)
     if not path.is_file():
         return 0
-    values = _decode(path.read_bytes())
+    blob = path.read_bytes()
+    values = _decode(blob)
+    if blob.startswith(b"PLAIN:") and _scheme() == "fernet":
+        _write(path, values)  # migrate the old unencrypted format (AUDIT H3)
     for key, value in values.items():
         if not os.environ.get(key):
             os.environ[key] = value
@@ -79,10 +135,7 @@ def set_secret(data_dir: Path, key: str, value: str) -> None:
     path = secrets_path(data_dir)
     stored = _decode(path.read_bytes()) if path.is_file() else {}
     stored[key] = value.strip()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(_encode(stored))
-    if _decode(path.read_bytes()) != stored:
-        raise OSError("Encrypted secrets did not verify")
+    _write(path, stored)
 
 
 def protect(env_file: Path, data_dir: Path) -> list[str]:
@@ -101,12 +154,7 @@ def protect(env_file: Path, data_dir: Path) -> list[str]:
             lines[index] = f"{match.group(1)}=  # stored encrypted in data/secrets.enc"
             moved.append(match.group(1))
     if moved:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(_encode(stored))
-        if os.name != "nt":
-            path.chmod(0o600)
-        # Verify before touching .env, so a failed encryption can never lose a key.
-        if _decode(path.read_bytes()) != stored:
-            raise OSError("Encrypted secrets did not verify; .env was left unchanged")
+        # _write verifies before .env is touched, so a failed encryption can never lose a key.
+        _write(path, stored)
         env_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return moved

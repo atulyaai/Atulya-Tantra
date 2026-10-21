@@ -42,7 +42,7 @@ def test_telegram_uses_shared_command_registry(project_temp_dir: Path) -> None:
         "from": {"id": 12345}, "chat": {"id": 12345, "type": "private"},
         "message_id": 1, "text": "calculate 24 * 7",
     }))
-    assert client.sent == [{"chat_id": "12345", "text": "168", "parse_mode": "HTML", "disable_web_page_preview": True}]
+    assert client.sent == [{"chat_id": "12345", "text": "168"}]
 
 
 def test_reminder_is_private_persistent_and_delivered_once(project_temp_dir: Path) -> None:
@@ -179,13 +179,15 @@ def test_telegram_approve_button_runs_only_for_its_owner_once(tmp_path) -> None:
                     return None
             return Ok()
 
-    action = queue.add("search_files", {"query": "zz-no-such-file-zz"}, "Search files for: zz", "admin")
+    action = queue.add("search_files", {"query": "zz-no-such-file-zz"}, "Search files for: zz", "admin", origin="tg:111")
 
     async def press(user, data):
         await channel._handle_callback(FakeClient(), {"id": "q", "from": {"id": user}, "data": data,
                                                       "message": {"chat": {"id": user}, "message_id": 5}})
     asyncio.run(press(333, f"act:{action.id}:1"))                 # a stranger: refused
     assert posts[-1][1]["text"] == "Not allowed."
+    asyncio.run(press(222, f"act:{action.id}:1"))                 # another allow-listed id: not its request
+    assert "expired or was already handled" in posts[-1][1]["text"]
     asyncio.run(press(111, f"act:{action.id}:1"))
     # Server Telegram has no local-PC control grant, including for stale queued actions.
     assert posts[-1][1]["text"] == "That action is no longer available."

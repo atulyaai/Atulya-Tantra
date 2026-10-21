@@ -22,7 +22,9 @@ Capabilities:
 from __future__ import annotations
 
 import json
+import base64
 import argparse
+import getpass
 import os
 import platform
 import subprocess
@@ -60,47 +62,30 @@ def _get_battery_status() -> str:
         return "Battery status is unavailable on this platform."
 
 
-def _granted_path(folder, relative: str) -> Path:
-    """A path inside the one folder the owner granted (ATULYA_AGENT_FOLDER); hidden files and folders
-    (".env", ".ssh", ".git" …) are never readable or listed."""
-    if not folder:
-        raise ValueError("Set ATULYA_AGENT_FOLDER to grant one folder; no folder access is enabled")
-    base = Path(folder).resolve(strict=True)
-    target = (base / (relative or ".")).resolve(strict=True)
-    if not target.is_relative_to(base):
-        raise ValueError("Outside the granted directory")
-    if any(part.startswith(".") for part in target.relative_to(base).parts):
-        raise ValueError("Hidden files and folders are private and never shared")
-    return target
-
-
 def _display_toast(message: str) -> str:
-    # The text is passed as data (environment / argv), never pasted into a script: "$(...)" or quotes in a
-    # message must not run anything.
-    clean = message.strip()[:500]
     if SYSTEM == "Windows":
         try:
-            script = ('[reflection.assembly]::loadwithpartialname("System.Windows.Forms") | Out-Null; '
-                      '[System.Windows.Forms.MessageBox]::Show($env:ATULYA_MESSAGE, "Atulya")')
-            subprocess.Popen(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
-                             env={**os.environ, "ATULYA_MESSAGE": clean}, creationflags=0x08000000)
+            encoded = base64.b64encode(message.encode("utf-8")).decode("ascii")
+            cmd = ('Add-Type -AssemblyName System.Windows.Forms; '
+                   f"$alertText = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{encoded}')); "
+                   '[System.Windows.Forms.MessageBox]::Show($alertText, "Atulya Tantra Alert")')
+            subprocess.Popen(["powershell", "-NoProfile", "-Command", cmd], creationflags=0x08000000)
             return "Windows accepted a visual notification request; user viewing is not verified."
         except Exception as exc:
-            raise RuntimeError(f"Failed to show notification: {exc}") from exc
+            raise RuntimeError(f"Failed to request notification: {exc}") from exc
     elif SYSTEM == "Darwin":
         try:
-            subprocess.run(["osascript", "-e", "on run argv", "-e", 'display notification (item 1 of argv) with title "Atulya"',
-                            "-e", "end run", clean], timeout=5, check=True)
-            return f"Notification displayed: {clean[:100]}"
+            subprocess.run(["osascript", "-e", 'on run argv\ndisplay notification (item 1 of argv) with title "Atulya Tantra"\nend run', message], timeout=5, check=True)
+            return "macOS accepted a notification request; user viewing is not verified."
         except Exception as exc:
-            raise RuntimeError(f"Failed to show notification: {exc}") from exc
+            raise RuntimeError(f"Failed to request notification: {exc}") from exc
     elif SYSTEM == "Linux":
         try:
-            subprocess.run(["notify-send", "--", "Atulya", clean], timeout=5, check=True)
-            return f"Notification displayed: {clean[:100]}"
+            subprocess.run(["notify-send", "--", "Atulya Tantra", message], timeout=5, check=True)
+            return "Notification service accepted the request; user viewing is not verified."
         except Exception as exc:
-            raise RuntimeError("No notification service on this device; nothing was shown.") from exc
-    raise ValueError("No notification service on this device; nothing was shown.")
+            raise RuntimeError(f"Failed to request notification: {exc}") from exc
+    raise ValueError(f"Visual notifications are not implemented on {SYSTEM}")
 
 
 def _media_control(action: str) -> str:
@@ -119,8 +104,105 @@ def _media_control(action: str) -> str:
                 ctypes.windll.user32.keybd_event(vk, 0, 2, 0)
                 return f"Media key '{action}' triggered."
             except Exception as exc:
-                raise RuntimeError(f"Failed to send media key: {exc}") from exc
-    raise ValueError(f"Media action '{action}' is not supported on this companion")
+                return f"Failed to send media key: {exc}"
+    raise ValueError(f"Media action '{action}' is not implemented on {SYSTEM}")
+
+
+# --- file jobs (PLAN M18-1): everything stays inside the one granted folder ----------------------------
+FILE_KINDS = {"file_search", "file_stat", "file_copy", "file_move", "file_rename", "file_write", "file_trash"}
+MAX_WRITE_CHARS = 1500  # the whole job detail is capped at 2000 characters on the server
+
+
+def _granted(folder) -> Path:
+    if not folder:
+        raise ValueError("Set ATULYA_AGENT_FOLDER to grant one folder; no folder access is enabled")
+    return Path(folder).resolve(strict=True)
+
+
+def _inside(base: Path, relative: str, *, exists: bool = True) -> Path:
+    """A path inside the granted folder. Symlinks and '..' are resolved before the check, so neither can
+    escape it; absolute paths elsewhere are refused the same way."""
+    if not relative or "\x00" in relative:
+        raise ValueError("A path inside the granted folder is required")
+    candidate = base / relative
+    resolved = candidate.resolve(strict=exists) if exists else candidate.parent.resolve(strict=True) / candidate.name
+    if resolved == base or not resolved.is_relative_to(base):
+        raise ValueError("That path is outside the granted folder")
+    if not exists and resolved.exists():
+        raise ValueError(f"{resolved.name} already exists; nothing was overwritten")
+    return resolved
+
+
+def _sha256(path: Path) -> str:
+    import hashlib
+
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _file_job(kind: str, detail: str, folder) -> str:
+    """detail is JSON: {"path": ..., "to": ..., "text": ..., "base_sha256": ..., "query": ...}.
+    Mutations return a receipt with the original path so the change can be undone by hand."""
+    import shutil
+
+    base = _granted(folder)
+    try:
+        args = json.loads(detail or "{}")
+    except ValueError as exc:
+        raise ValueError("File job details must be JSON") from exc
+    if not isinstance(args, dict):
+        raise ValueError("File job details must be a JSON object")
+
+    if kind == "file_search":
+        words = str(args.get("query", "")).lower().split()
+        if not words:
+            raise ValueError("Say what to look for")
+        hits = [p for p in base.rglob("*") if p.is_file() and all(w in p.name.lower() for w in words)]
+        hits.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        return "\n".join(str(p.relative_to(base)) for p in hits[:50]) or "No matching files."
+
+    source = _inside(base, str(args.get("path", "")))
+    rel = lambda p: str(p.relative_to(base))  # noqa: E731
+    if kind == "file_stat":
+        info = source.stat()
+        return json.dumps({"path": rel(source), "bytes": info.st_size, "modified": int(info.st_mtime),
+                           "sha256": _sha256(source) if source.is_file() and info.st_size <= 50_000_000 else None})
+    if kind == "file_trash":
+        from send2trash import send2trash
+
+        send2trash(str(source))
+        return f"Moved {rel(source)} to the recycle bin; restore it from there. Original path: {rel(source)}"
+    if kind == "file_write":
+        text = str(args.get("text", ""))
+        if len(text) > MAX_WRITE_CHARS:
+            raise ValueError(f"Text is longer than {MAX_WRITE_CHARS} characters")
+        if not source.is_file():
+            raise ValueError("Only existing files can be edited")
+        expected = str(args.get("base_sha256", ""))
+        if not expected or expected != _sha256(source):
+            raise ValueError("The file changed since it was read (or base_sha256 is missing); nothing was written")
+        backup = source.with_name(source.name + f".atulya-{int(time.time())}.bak")
+        shutil.copy2(source, backup)
+        source.write_text(text, encoding="utf-8")
+        return f"Wrote {len(text)} characters to {rel(source)}. Previous version kept as {rel(backup)}"
+    if kind == "file_rename":
+        new_name = str(args.get("to", ""))
+        if not new_name or Path(new_name).name != new_name:
+            raise ValueError("A new name without folders is required")
+        target = _inside(base, str(source.parent.relative_to(base) / new_name), exists=False)
+    else:
+        target = _inside(base, str(args.get("to", "")), exists=False)
+    if kind == "file_copy":
+        (shutil.copytree if source.is_dir() else shutil.copy2)(source, target)
+        return f"Copied {rel(source)} to {rel(target)}"
+    free = shutil.disk_usage(target.parent).free
+    if source.is_file() and source.stat().st_size > free:
+        raise ValueError("Not enough free space at the destination")
+    shutil.move(str(source), str(target))
+    return f"Moved {rel(source)} to {rel(target)}. Original path: {rel(source)}"
 
 
 def execute(kind: str, detail: str, folder=None):
@@ -128,7 +210,7 @@ def execute(kind: str, detail: str, folder=None):
         return f"{platform.node()} ({SYSTEM}) companion active; ready for instructions."
 
     if kind == "say":
-        return _display_toast(detail) + " (shown as text; this companion has no voice)"
+        raise ValueError("Speech output is not implemented by this desktop companion; use display_message for a visual notification")
 
     if kind == "open_url":
         url = urlsplit(detail)
@@ -139,25 +221,42 @@ def execute(kind: str, detail: str, folder=None):
         return f"Opened {detail} in default browser."
 
     if kind == "open_app":
-        # Only apps listed in the Start menu / Applications / .desktop entries, matched by name and launched
-        # without a shell. A name like "notepad & del ..." can never become a command.
-        from tools.plugins.system.actions import open_app
-        result = open_app(detail.strip()[:80])
-        if not result.startswith("Opened "):
-            raise ValueError(result)
-        return result
+        app_name = detail.strip()
+        if not app_name:
+            raise ValueError("Specify an application name to open")
+        if SYSTEM == "Windows":
+            os.startfile(app_name)
+            return f"Windows accepted the request to open '{app_name}'. App readiness is not verified."
+        elif SYSTEM == "Darwin":
+            try:
+                subprocess.Popen(["open", "-a", app_name])
+                return f"Launched app '{app_name}' on macOS."
+            except Exception as exc:
+                raise RuntimeError(f"Failed to launch app: {exc}") from exc
+        elif SYSTEM == "Linux":
+            try:
+                subprocess.Popen([app_name])
+                return f"Launched '{app_name}' on Linux."
+            except Exception as exc:
+                raise RuntimeError(f"Failed to launch app: {exc}") from exc
+        raise ValueError(f"Cannot launch app '{app_name}' on {SYSTEM}.")
 
     if kind == "list_files":
-        target = _granted_path(folder, detail or ".")
-        if not target.is_dir():
-            raise ValueError("Not a folder inside the granted directory")
-        names = [p.name for p in sorted(target.iterdir()) if not p.name.startswith(".")]
-        return "\n".join(names[:100]) or "Folder is empty."
+        if not folder:
+            raise ValueError("Set ATULYA_AGENT_FOLDER to grant one folder; no folder access is enabled")
+        base = Path(folder).resolve(strict=True)
+        target = (base / (detail or ".")).resolve(strict=True)
+        if not target.is_relative_to(base) or not target.is_dir():
+            raise ValueError("Folder is outside the granted directory")
+        return "\n".join(p.name for p in sorted(target.iterdir())[:100]) or "Folder is empty."
 
     if kind == "read_file":
-        target = _granted_path(folder, detail)
-        if not target.is_file():
-            raise ValueError("Not a file inside the granted directory")
+        if not folder:
+            raise ValueError("Set ATULYA_AGENT_FOLDER to grant one folder; no folder access is enabled")
+        base = Path(folder).resolve(strict=True)
+        target = (base / (detail or "")).resolve(strict=True)
+        if not target.is_relative_to(base) or not target.is_file():
+            raise ValueError("File is outside the granted directory or does not exist")
         if target.stat().st_size > 100_000:
             return f"File too large ({target.stat().st_size} bytes). Max 100KB."
         try:
@@ -166,36 +265,33 @@ def execute(kind: str, detail: str, folder=None):
             return f"Error reading file: {exc}"
 
     if kind == "list_photos":
-        # Only the folder the owner granted; never Pictures by default, never hidden folders.
-        base = _granted_path(folder, ".")
+        pictures_dir = Path(folder) if folder else Path.home() / "Pictures"
+        if not pictures_dir.exists():
+            return "Pictures folder not found."
         extensions = {".jpg", ".jpeg", ".png", ".webp", ".mp4"}
-        found = [p for p in base.rglob("*") if p.suffix.lower() in extensions and p.is_file()
-                 and not any(part.startswith(".") for part in p.relative_to(base).parts)]
-        photos = [p.name for p in sorted(found, key=lambda x: x.stat().st_mtime, reverse=True)][:25]
+        photos = [p.name for p in sorted(pictures_dir.rglob("*"), key=lambda x: x.stat().st_mtime, reverse=True) if p.suffix.lower() in extensions][:25]
         return "\n".join(photos) or "No photos found."
 
     if kind == "take_photo":
-        save_dir = _granted_path(folder, ".")
         try:
             import cv2  # type: ignore
             cap = cv2.VideoCapture(0)
-            try:
-                if not cap.isOpened():
-                    raise RuntimeError("Camera unavailable or in use by another app.")
-                ret, frame = cap.read()
-            finally:
-                cap.release()
+            if not cap.isOpened():
+                return "Camera unavailable or in use by another app."
+            ret, frame = cap.read()
+            cap.release()
             if not ret:
-                raise RuntimeError("Failed to grab frame from camera.")
+                return "Failed to grab frame from camera."
+            save_dir = Path(folder) if folder else Path.home() / "Pictures"
+            save_dir.mkdir(parents=True, exist_ok=True)
             filename = f"capture_{int(time.time())}.jpg"
             save_path = save_dir / filename
-            if not cv2.imwrite(str(save_path), frame):
-                raise RuntimeError("Camera image could not be saved.")
+            cv2.imwrite(str(save_path), frame)
             return f"Photo captured and saved to {save_path.name}"
-        except ImportError as exc:
-            raise RuntimeError("Camera capture module (OpenCV) not installed on companion device.") from exc
+        except ImportError:
+            return "Camera capture module (OpenCV) not installed on companion device."
         except Exception as exc:
-            raise RuntimeError(f"Camera capture failed: {exc}") from exc
+            return f"Camera capture failed: {exc}"
 
     if kind == "media_control":
         return _media_control(detail)
@@ -206,14 +302,17 @@ def execute(kind: str, detail: str, folder=None):
     if kind == "battery_status":
         return _get_battery_status()
 
+    if kind in FILE_KINDS:
+        return _file_job(kind, detail, folder)
+
     if kind in {"send_sms", "place_call"}:
-        raise ValueError("SMS and calls run on the Atulya Android app (paired automatically after sign-in), not on this device")
+        raise ValueError(f"This desktop companion cannot execute {kind}; use a connected Android executor")
 
     raise ValueError(f"This companion does not implement action: {kind}")
 
 
 def poll_once(client, *, folder=None, executor=execute, pending=None, persist=lambda pending: None):
-    """Retry accepted-result acknowledgements without executing the job again."""
+    """Execute one poll batch and require the server to accept each receipt."""
     pending = pending if pending is not None else {}
     completed = []
 
@@ -222,7 +321,7 @@ def poll_once(client, *, folder=None, executor=execute, pending=None, persist=la
             receipt = client.post("/api/agents/result", json=body)
             receipt.raise_for_status()
             if not receipt.json().get("ok"):
-                raise RuntimeError("Execution receipt rejected; inspect Devices before retrying the action")
+                raise RuntimeError("Server rejected the execution receipt; check Devices before retrying the action")
             completed.append({"id": job_id, "success": body["success"]})
             del pending[job_id]
             persist(pending)
@@ -243,22 +342,38 @@ def poll_once(client, *, folder=None, executor=execute, pending=None, persist=la
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run the paired Atulya device companion")
-    parser.add_argument("--saved", action="store_true", help="Use the credential saved by the PC setup window")
+    parser = argparse.ArgumentParser(description="Connect this computer to an Atulya server with a per-device token")
+    parser.add_argument("--url", default=os.environ.get("ATULYA_AGENT_URL", ""))
+    parser.add_argument("--once", action="store_true", help="Poll once and exit; useful for connection tests")
+    parser.add_argument("--check", action="store_true", help="Verify the paired credential without executing jobs")
+    parser.add_argument("--saved", action="store_true", help="Use this Windows user's saved companion connection")
+    parser.add_argument("--interval", type=float, default=2.0, help="Seconds between polls (0.5–60; default 2)")
     args = parser.parse_args()
+    connection_lock = None
     if args.saved:
-        from atulya.secrets_store import _decode
-        from tools.companion_paths import connection_directory, acquire_connection_lock
+        from atulya.secrets_store import load_protected
+        from tools.companion_paths import connection_directory
         directory = connection_directory()
+        directory.mkdir(parents=True, exist_ok=True)
+        connection_lock = (directory / "connection.lock").open("a+b")
+        connection_lock.write(b"0"); connection_lock.flush(); connection_lock.seek(0)
         try:
-            _connection_lock = acquire_connection_lock(directory)  # retained for the worker's lifetime
-        except ValueError as exc:
-            raise SystemExit(str(exc)) from None
-        saved = _decode((directory / "secrets.enc").read_bytes())
-    else:
-        saved = os.environ
-    origin = saved.get("ATULYA_AGENT_URL", "").rstrip("/")
-    token = saved.get("ATULYA_AGENT_TOKEN", "")
+            if os.name == "nt":
+                import msvcrt
+                msvcrt.locking(connection_lock.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(connection_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            raise SystemExit("A saved Atulya companion is already running. Reuse it or stop it before reconnecting.") from None
+        load_protected(directory)
+        args.url = args.url or os.environ.get("ATULYA_AGENT_URL", "")
+    if not 0.5 <= args.interval <= 60:
+        parser.error("--interval must be between 0.5 and 60 seconds")
+    origin = args.url.rstrip("/")
+    token = os.environ.get("ATULYA_AGENT_TOKEN", "")
+    if not token and origin:
+        token = getpass.getpass("Device token from Atulya → Devices (hidden): ").strip()
     device_name = os.environ.get("ATULYA_DEVICE_NAME", platform.node())
     parsed = urlsplit(origin)
     if parsed.scheme != "https" or not parsed.hostname or parsed.username or not token:
@@ -266,10 +381,13 @@ def main():
     with httpx.Client(base_url=origin, timeout=15, headers={"Authorization": "Bearer " + token}) as client:
         response = client.post("/api/agents/register")
         response.raise_for_status()
-        print(f"Paired companion '{device_name}' connected to {origin}. Ctrl+C stops it.")
+        device_name = response.json().get("name", device_name)
+        print(f"Paired companion '{device_name}' connected to {origin}. Ctrl+C stops it.", flush=True)
+        if args.check:
+            print("Credential accepted. Run Devices → Test connection to verify an execution receipt.")
+            return
         pending = {}
-        def persist(pending):
-            pass
+        persist = lambda pending: None
         if args.saved:
             from atulya.secrets_store import _encode, _decode
             outbox = directory / "receipts.enc"
@@ -282,14 +400,22 @@ def main():
                 os.replace(temporary, outbox)
         while True:
             try:
-                poll_once(client, folder=os.environ.get("ATULYA_AGENT_FOLDER"), pending=pending, persist=persist)
+                results = poll_once(client, folder=os.environ.get("ATULYA_AGENT_FOLDER"), pending=pending, persist=persist)
+                for result in results:
+                    print(f"Receipt accepted: {result['id']} · {'executed' if result['success'] else 'failed'}", flush=True)
+                if args.once:
+                    return
             except httpx.HTTPStatusError as exc:
                 if exc.response.status_code == 401:
                     raise SystemExit("Device credential revoked or invalid; pair again") from None
+                if args.once:
+                    raise
                 print(f"Server returned HTTP {exc.response.status_code}; waiting to retry...")
             except httpx.HTTPError:
+                if args.once:
+                    raise
                 print("Server temporarily unavailable; waiting to retry...")
-            time.sleep(2)
+            time.sleep(args.interval)
 
 
 if __name__ == "__main__":

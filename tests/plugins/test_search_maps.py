@@ -56,11 +56,10 @@ def test_read_page_extracts_text() -> None:
     html = "<html><head><style>body{}</style></head><body><h1>Hello</h1><p>World</p><script>alert(1)</script></body></html>"
 
     async def run():
-        with patch("tools.plugins.information.search._client") as mock_client, \
-                patch("tools.plugins.information.search._public_target", AsyncMock(return_value=("93.184.216.34", None))):
+        with patch("tools.plugins.information.search._client") as mock_client:
             mock_resp = Mock()
-            mock_resp.is_redirect = False
             mock_resp.text = html
+            mock_resp.is_redirect = False
             mock_resp.raise_for_status = lambda: None
             mock_client.return_value.get = AsyncMock(return_value=mock_resp)
             text = await read_page("https://example.com")

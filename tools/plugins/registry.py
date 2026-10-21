@@ -28,6 +28,12 @@ class PluginContext:
     reminders: object | None = None
     maintenance: object | None = None
     mcp_connections: object | None = None
+    # Owner/admin role from the auth store. None (unset) means not an admin.
+    is_admin: bool | None = None
+    # Server-decided content level (atulya/content_policy.py): child, adult or adult_open.
+    content_level: str = "adult"
+    # Who on the channel triggered this request (e.g. "tg:<telegram id>"); pending actions are bound to it.
+    origin: str = ""
 
 
 CommandHandler = Callable[[str, PluginContext], Awaitable[str | None]]

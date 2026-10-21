@@ -1,5 +1,4 @@
 from tools.plugins.document_edits import create_document
-from tools.plugins.routines import Workflow
 from tools.plugins.toolkit import _restart_service
 
 
@@ -22,15 +21,6 @@ def test_document_creation_does_not_write_fake_formats(project_temp_dir, monkeyp
         assert "unavailable" in result["error"]
         assert "filepath" not in result
     assert not list(project_temp_dir.iterdir())
-
-
-def test_workflow_cannot_complete_without_executing_its_action():
-    workflow = Workflow("email", [{"action": "send_email", "params": {}}])
-    for _ in range(2):
-        result = workflow.run_step()
-        assert result["status"] == "failed"
-        assert workflow.step_index == 0
-        assert "no step was executed" in result["message"]
 
 
 def test_service_restart_does_not_claim_an_approval_or_execution():

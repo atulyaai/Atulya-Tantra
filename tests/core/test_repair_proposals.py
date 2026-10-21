@@ -24,10 +24,15 @@ def test_skill_creation_needs_review_and_can_be_rolled_back(project_temp_dir):
 def test_automatic_proposals_are_opt_in_quiet_for_unchanged_faults_and_limited(project_temp_dir):
     manager = Maintenance(project_temp_dir, project_temp_dir / "data", project_temp_dir / "models")
     calls = []
+    alerts = []
     async def propose(report):
         calls.append(report)
         return "Proposed a checked fix; not applied."
     manager.on_problem = propose
+    async def notify(report, record):
+        alerts.append(record["state"])
+        return {"telegram_accepted": True, "push_accepted": 0}
+    manager.on_notification = notify
     report = {"findings": [{"area": "webui", "message": "Syntax failed"}]}
     async def exercise():
         await manager.propose_new_problem(report)
@@ -36,6 +41,8 @@ def test_automatic_proposals_are_opt_in_quiet_for_unchanged_faults_and_limited(p
         await manager.propose_new_problem(report)
         await manager.propose_new_problem(report)
         assert len(calls) == 1
+        assert alerts == ["proposed_or_explained"]
+        assert manager.proactive_status()["last_run"]["notifications"]["telegram_accepted"]
         changed = {"findings": [{"area": "webui", "message": "Another fault"}]}
         await manager.propose_new_problem(changed)
         assert len(calls) == 1
@@ -44,6 +51,7 @@ def test_automatic_proposals_are_opt_in_quiet_for_unchanged_faults_and_limited(p
         manager.proactive_path.write_text(json.dumps(last))
         await manager.propose_new_problem(changed)
         assert len(calls) == 2
+        assert len(alerts) == 2
         manager.set_proactive(False)
         await manager.propose_new_problem({"findings": [{"message": "Third"}]})
         assert len(calls) == 2

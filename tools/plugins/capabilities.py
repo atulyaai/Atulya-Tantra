@@ -18,8 +18,8 @@ def tool_capabilities(toolbox):
             status, step = "disabled", "Enable the plugin in Connections."
         elif toolbox.public_only and tool.name not in MCP_PUBLIC_TOOLS:
             status, step = "unsupported", "Use an authenticated Atulya channel; this tool is not exported over public MCP."
-        elif tool.name in {"atulya_status", "server_status", "server_logs", "implementation_status", "operations_status", "restart_service"} and ctx is not None and ctx.user_id != "admin":
-            status, step = "unsupported", "Use the owner account for server health and logs."
+        elif tool.name == "restart_service":
+            status, step = "unsupported", "Service restart execution is not implemented."
         elif tool.name not in toolbox._tools:
             status, step = "needs_connection", "Connect the required service or use a supported signed-in channel."
             if tool.plugin_id == "pc-control" or tool.name == "screen_control":
@@ -62,32 +62,13 @@ def tool_capabilities(toolbox):
                 if not devices:
                     status, step = "needs_connection", "Pair a companion device in Devices."
                 elif tool.name == "ask_device" and not any(device["status"] == "online" for device in devices):
-                    status, step = "needs_connection", "Open/unlock the phone app or start the PC companion, then verify a ping receipt in Devices."
+                    status, step = "needs_connection", "Start a paired companion and verify a ping receipt in Devices. All paired devices are offline."
             except Exception:
                 pass
         if tool.name == "mcp_call_tool" and status in {"available", "needs_approval"}:
             conns = getattr(ctx, "mcp_connections", None)
             if conns is None or not conns.load():
                 status, step = "needs_connection", "Connect an external MCP server in Connections."
-        if tool.name == "smart_home_control" and status in {"available", "needs_approval"}:
-            from tools.plugins.system.smart_home import HASS_URL, HASS_TOKEN
-            if not (HASS_URL and HASS_TOKEN):
-                status, step = "needs_connection", "Connect Home Assistant and verify a real device before requesting control."
-        if tool.name == "cast_to_tv" and status in {"available", "needs_approval"}:
-            from tools.plugins.system.agents import AgentHub
-            from atulya.settings import Settings
-            devices = AgentHub(Settings.from_environment().data_dir).devices(ctx.user_id)
-            targets = [device for device in devices if device.get("device_type") == "tv"]
-            if not targets:
-                status, step = "needs_connection", "Pair a TV companion with an explicit TV device type."
-            elif not any(device["status"] == "online" for device in targets):
-                status, step = "needs_connection", "Start the paired TV companion and verify its receipt."
-        if tool.name == "visual_inspect" and status in {"available", "needs_approval"}:
-            status, step = "unsupported", "Complete remote capture-to-analysis is not implemented; capture requests alone are not visual answers."
-        if tool.name == "restart_service" and status in {"available", "needs_approval"}:
-            from atulya.operations import store
-            if not store().ready():
-                status, step = "needs_connection", "Start the separate allowlisted operations worker; no restart can execute until it is connected."
         rows.append({"id": tool.name, "name": tool.name, "plugin_id": tool.plugin_id,
                      "description": tool.description, "channel": channel, "status": status,
                      "next_step": step, "verification": "Not established by this registry."})

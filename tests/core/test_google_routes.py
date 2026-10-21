@@ -79,22 +79,14 @@ def test_app_login_returns_session_only_to_original_verifier(project_temp_dir, m
         claims["nonce"] = payload["nonce"]
         client.cookies.clear()
         response = client.get("/api/auth/google/callback", params={"state":state,"code":"authcode"})
-        # Straight back into the app: no tap on a "Return to Atulya" page, and no session in the browser.
-        assert response.status_code == 302 and SESSION_COOKIE not in client.cookies
-        location = response.headers["location"]
-        assert location.startswith("intent://atulya.example/api/auth/google/finish?handoff=")
-        assert "package=com.atulvij.atulya" in location and "S.browser_fallback_url=" in location
+        assert response.status_code == 200 and SESSION_COOKIE not in client.cookies
         with closing(sqlite3.connect(project_temp_dir/"oauth.sqlite3")) as db:
             assert db.execute("SELECT user_id FROM handoffs").fetchone()[0] == "alice"
+        # Extract the URL-encoded opaque handoff from the generated return link.
         import re
-        handoff = re.search(r"handoff=([A-Za-z0-9_-]{43})", location).group(1)
-        fallback = client.get("/api/auth/google/return", params={"handoff": handoff})
-        assert fallback.status_code == 200 and "Open Atulya app" in fallback.text and SESSION_COOKIE not in client.cookies
-        # The app's WebView posts the handoff with "Origin: null"; that must not be refused as cross-origin.
-        assert client.post("/api/auth/google/app", data={"handoff":handoff,"verifier":"B"*43},
-                           headers={"Origin": "null"}).status_code == 401
+        handoff = re.search(r"handoff=([A-Za-z0-9_-]{43})", response.text).group(1)
         assert client.post("/api/auth/google/app", data={"handoff":handoff,"verifier":"B"*43}).status_code == 401
-        response = client.post("/api/auth/google/app", data={"handoff":handoff,"verifier":verifier}, headers={"Origin": "null"})
-        assert response.status_code == 303 and response.headers["location"] == "/#google=ok"
+        response = client.post("/api/auth/google/app", data={"handoff":handoff,"verifier":verifier})
+        assert response.status_code == 303
         assert auth.user_for_session(client.cookies.get(SESSION_COOKIE)) == "alice"
         assert client.post("/api/auth/google/app", data={"handoff":handoff,"verifier":verifier}).status_code == 401

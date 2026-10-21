@@ -4,12 +4,11 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import io
+import os
 import re
 import threading
 import wave
 from pathlib import Path
-
-import numpy as np
 
 from .providers import VoiceError
 
@@ -45,6 +44,14 @@ def model_assets_ready(models_dir: Path) -> bool:
 _EMOJI = re.compile("[\U0001F000-\U0001FAFF☀-➿️‍]+")
 
 
+def voice_num_steps() -> int:
+    """Owner-selected spoken-answer quality; read-aloud retains the engine default."""
+    try:
+        return max(1, min(16, int(os.environ.get("ATULYA_VOICE_TTS_STEPS", "8"))))
+    except ValueError:
+        return 8
+
+
 def speakable(text: str) -> str:
     """Drop emoji and markdown symbols so the voice never reads them out."""
     text = _EMOJI.sub("", text)
@@ -62,6 +69,11 @@ class LocalSupertonicTTS:
         self.model_dir = models_dir / "voice" / "tts" / "supertonic-3-int8" / TTS_MODEL_FOLDER
         self.speaker_id = max(0, min(9, int(speaker_id)))
         self.num_threads = max(1, min(8, int(num_threads)))
+        # Flow-matching steps: 8 is the reference quality; 2 is ~2x faster on a 4-core CPU (LOG.md M1-0).
+        try:
+            self.num_steps = max(1, min(16, int(os.environ.get("ATULYA_TTS_STEPS", "8"))))
+        except ValueError:
+            self.num_steps = 8
         self._engine = None
         self._lock = threading.Lock()
         self.last_used = 0.0
@@ -111,7 +123,8 @@ class LocalSupertonicTTS:
                 return True
         return False
 
-    def synthesize(self, text: str, *, language: str = "auto", speaker_id: int | None = None) -> bytes:
+    def synthesize(self, text: str, *, language: str = "auto", speaker_id: int | None = None,
+                   num_steps: int | None = None) -> bytes:
         import time
 
         self.last_used = time.monotonic()
@@ -124,11 +137,12 @@ class LocalSupertonicTTS:
         if language_code not in {"en", "hi"}:
             raise VoiceError("Local speech output currently supports English and Hindi.")
         try:
+            import numpy as np
             import sherpa_onnx
 
             generation = sherpa_onnx.GenerationConfig()
             generation.sid = self.speaker_id if speaker_id is None else max(0, min(9, int(speaker_id)))
-            generation.num_steps = 8
+            generation.num_steps = self.num_steps if num_steps is None else max(1, min(16, int(num_steps)))
             generation.speed = 1.0
             generation.extra["lang"] = language_code
             engine = self._get_engine()

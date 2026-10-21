@@ -2,16 +2,13 @@
   const dialog = document.getElementById("music-dialog"), list = document.getElementById("music-queue");
   const status = document.getElementById("music-status");
   let player, selected, apiPromise;
-  let currentState = "", receiptQueue = Promise.resolve();
+  const requestedTrack = new URLSearchParams(location.search).get("music");
+  let openingRequestedTrack = false, openedRequestedTrack = false;
   async function api(path, options={}) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10000);
-    try {
-      const response = await fetch(path, {...options,signal:controller.signal,headers:{"Content-Type":"application/json"}});
-      const body = await response.json();
-      if (!response.ok) throw new Error(typeof body.detail === "string" ? body.detail : "Music request failed");
-      return body;
-    } finally { clearTimeout(timer); }
+    const response = await fetch(path, {...options,headers:{"Content-Type":"application/json"}});
+    const body = await response.json();
+    if (!response.ok) throw new Error(typeof body.detail === "string" ? body.detail : "Music request failed");
+    return body;
   }
   function youtubeApi() {
     if (window.YT?.Player) return Promise.resolve();
@@ -25,28 +22,25 @@
   }
   async function receipt(state,error="") {
     if (!selected) return;
-    const trackId = selected.id;
-    receiptQueue = receiptQueue.then(() => api(`/api/music/${trackId}/receipt`,{method:"POST",body:JSON.stringify({state,error})}))
-      .catch(err => { status.textContent=`Playback status could not sync: ${err.message}`; });
-    await receiptQueue;
+    try { await api(`/api/music/${selected.id}/receipt`,{method:"POST",body:JSON.stringify({state,error})}); }
+    catch (err) { status.textContent=`Playback status could not sync: ${err.message}`; }
   }
   async function play(track) {
     if (!/^[A-Za-z0-9_-]{11}$/.test(track.video_id)) return;
     try {
       if (selected && selected.id !== track.id) { player?.pauseVideo(); await receipt("paused"); }
-      selected=track; currentState=""; status.textContent="Loading player…";
+      selected=track; status.textContent="Loading player…";
       await youtubeApi();
       if (player) { player.loadVideoById(track.video_id); return; }
       player = new YT.Player("music-player",{height:"270",width:"100%",videoId:track.video_id,
         playerVars:{playsinline:1,origin:location.origin},events:{
-          onReady:event=>{status.textContent=`Playing ${selected?.title||""}`.trim();currentState="ready";receipt("ready");event.target.playVideo();},
+          onReady:event=>{status.textContent="Tap Play in the video to listen.";receipt("ready");event.target.playVideo();},
           onAutoplayBlocked:()=>{status.textContent="Your browser requires a tap: press Play in the video.";},
           onStateChange:event=>{
-            if (!selected || event.target.getVideoData()?.video_id !== selected.video_id) return;
             const states={1:"playing",2:"paused",0:"ended"};
-            if (states[event.data]) {currentState=states[event.data];status.textContent=`Player: ${states[event.data]}. Sound depends on your phone volume.`;receipt(states[event.data]);}
+            if (states[event.data]) {status.textContent=`Player: ${states[event.data]}. Sound depends on your phone volume.`;receipt(states[event.data]);}
           },
-          onError:event=>{if(!selected)return;currentState="failed";const error=`YouTube playback error ${event.data}. This video may restrict embedding or be unavailable.`;status.textContent=error;receipt("failed",error);}
+          onError:event=>{const error=`YouTube playback error ${event.data}. This video may restrict embedding or be unavailable.`;status.textContent=error;receipt("failed",error);}
         }});
     } catch (error) {status.textContent=error.message;await receipt("failed",error.message);}
   }
@@ -59,24 +53,34 @@
         label.textContent=`${track.title} · ${track.state}`;button.textContent="Play here";button.addEventListener("click",()=>play(track));
         const remove=document.createElement("button");remove.textContent="Remove";
         remove.addEventListener("click",async()=>{
-          try {if(selected?.id===track.id){selected=null;currentState="";player?.stopVideo();}await api(`/api/music/${track.id}/receipt`,{method:"POST",body:JSON.stringify({state:"cancelled"})});await refresh();}
+          try {if(selected?.id===track.id)player?.stopVideo();await api(`/api/music/${track.id}/receipt`,{method:"POST",body:JSON.stringify({state:"cancelled"})});await refresh();}
           catch(error){status.textContent=error.message;}
         });
         if(track.state!=="cancelled") {row.append(label,button,remove);list.append(row);}
       }
     } catch(error){status.textContent=error.message;}
   }
-  // "Play X" from Atulya: open the player and start the song straight away.
-  window.atulyaMusic = {
-    playNow(track) {
-      if (!track || !/^[A-Za-z0-9_-]{11}$/.test(track.video_id || "")) return;
-      if (!dialog.open) dialog.showModal();
-      void refresh();
-      void play(track);
-    },
-  };
   document.getElementById("quick-music")?.addEventListener("click",()=>{dialog.showModal();refresh();});
   document.getElementById("close-music").addEventListener("click",()=>dialog.close());
+  document.getElementById("music-search-form")?.addEventListener("submit", async event => {
+    event.preventDefault();
+    const button = event.currentTarget.querySelector("button");
+    const results = document.getElementById("music-search-results");
+    button.disabled = true; status.textContent = "Searching music…"; results.replaceChildren();
+    try {
+      const data = await api("/api/music/search", {method:"POST",body:JSON.stringify({query:document.getElementById("music-search").value})});
+      status.textContent = data.tracks.length ? "Choose a song to play on this device." : "No songs found. Try another name or a video link.";
+      for (const track of data.tracks) {
+        const row = document.createElement("div"), label = document.createElement("span"), start = document.createElement("button");
+        label.textContent = `${track.title} · ${track.artist}`; start.textContent = "Play here";
+        start.addEventListener("click", async () => {
+          start.disabled = true;
+          try { const added = await api("/api/music", {method:"POST",body:JSON.stringify({url:track.url,title:track.title})}); await play(added); await refresh(); }
+          catch(error) { status.textContent = error.message; } finally { start.disabled = false; }
+        }); row.append(label,start); results.append(row);
+      }
+    } catch(error) { status.textContent = error.message; } finally { button.disabled = false; }
+  });
   dialog.addEventListener("close",()=>{player?.pauseVideo();});
   document.getElementById("music-form").addEventListener("submit",async event=>{
     event.preventDefault();const input=document.getElementById("music-url");
@@ -84,5 +88,19 @@
     catch(error){status.textContent=error.message;}
   });
   setInterval(()=>{if(dialog.open&&!document.hidden)refresh();},5000);
-  setInterval(()=>{if(selected&&currentState==="playing"&&player?.getPlayerState()===1)receipt("playing");},15000);
+  async function openRequestedTrack() {
+    if (!requestedTrack || openedRequestedTrack || openingRequestedTrack || document.body.classList.contains("auth-required")) return;
+    openingRequestedTrack = true;
+    try {
+      const data = await api("/api/music");
+      const track = data.tracks.find(item => item.id === requestedTrack && item.state !== "cancelled");
+      if (track) {
+        openedRequestedTrack = true; dialog.showModal(); await refresh();
+        status.textContent = `Ready: ${track.title}. Tap Play here to start on this device.`;
+      }
+    } catch (_) { /* Sign-in can still be loading; retry after auth state changes. */ }
+    finally { openingRequestedTrack = false; }
+  }
+  new MutationObserver(openRequestedTrack).observe(document.body, {attributes:true,attributeFilter:["class"]});
+  openRequestedTrack();
 })();

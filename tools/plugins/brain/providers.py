@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+from contextlib import aclosing
 from dataclasses import replace
 from collections.abc import Sequence
 from collections.abc import Callable
@@ -131,6 +132,8 @@ class OpenAICompatibleProvider:
             payload["tools"] = list(tools)
         if self._max_tokens is not None:
             payload["max_tokens"] = self._max_tokens
+        if self._base_url.startswith(("http://127.0.0.1:", "http://localhost:")):
+            payload["cache_prompt"] = True  # llama.cpp: reuse the KV cache of the shared prompt prefix
         # Gemini 2.5 "thinks" before answering by default (seconds of delay); a voice assistant wants the answer.
         if "generativelanguage.googleapis.com" in self._base_url and "2.5" in str(payload.get("model", "")):
             payload["reasoning_effort"] = "none" if "flash" in str(payload["model"]) else "low"
@@ -179,20 +182,23 @@ class OpenAICompatibleProvider:
         turn is retried once without tools and tools are skipped from then on.
         """
         if tools and self._tools_unsupported:
-            async for item in self._stream_once(_text_tool_messages(messages, tools), None):
-                yield item
+            async with aclosing(self._stream_once(_text_tool_messages(messages, tools), None)) as response_stream:
+                async for item in response_stream:
+                    yield item
             return
         produced = False
         try:
-            async for item in self._stream_once(messages, tools):
-                produced = True
-                yield item
+            async with aclosing(self._stream_once(messages, tools)) as response_stream:
+                async for item in response_stream:
+                    produced = True
+                    yield item
         except ProviderError as exc:
             if not tools or produced or self._tools_unsupported or exc.status_code not in {400, 404, 405, 422}:
                 raise
             self._tools_unsupported = True
-            async for item in self._stream_once(_text_tool_messages(messages, tools), None):
-                yield item
+            async with aclosing(self._stream_once(_text_tool_messages(messages, tools), None)) as response_stream:
+                async for item in response_stream:
+                    yield item
 
     async def _stream_once(self, messages: Sequence[Message], tools: Sequence[dict] | None):
         pending_calls: dict[int, dict[str, str]] = {}

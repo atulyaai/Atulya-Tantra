@@ -44,14 +44,10 @@ _FILLERS = {
 }
 
 
-FILLER_AFTER_SECONDS = 1.2
-
-
-def _tool_filler(calls, latest: str = "") -> str:
-    """A short spoken acknowledgement for a slow tool: what it is doing, never a bare "One moment."."""
-    phrases = [_FILLERS.get(call.name, "") for call in calls]
-    phrases = [phrase for phrase in dict.fromkeys(phrases) if phrase] or [instant_ack(latest).strip()]
-    phrases = [phrase for phrase in phrases if phrase]
+def _tool_filler(calls) -> str:
+    """A short spoken acknowledgement for slow tools; empty for instant ones."""
+    phrases = [_FILLERS.get(call.name, "One moment.") for call in calls]
+    phrases = [phrase for phrase in dict.fromkeys(phrases) if phrase]
     return (" ".join(phrases[:2]) + " ") if phrases else ""
 
 
@@ -131,7 +127,6 @@ class Brain:
         *,
         system_instructions: str = "",
         toolbox=None,
-        acknowledge: bool = False,  # spoken fillers ("Checking the weather.") — only when the user is talking
     ):
         """Yield reply text chunks, running any tool calls the model makes in between.
 
@@ -156,7 +151,11 @@ class Brain:
         messages = self._prepare_messages(conversation, system_instructions)
         rounds = toolbox.MAX_ROUNDS if toolbox else 1
         latest = next((item.content for item in reversed(messages) if item.role == "user"), "")
+        early = instant_ack(latest) if toolbox else ""
         spoken: set[str] = set()  # each acknowledgement at most once per reply
+        if early:
+            spoken.add(early.strip())
+            yield early  # spoken immediately while the model decides which tool to use
         try:
             for round_index in range(rounds):
                 use_tools = bool(toolbox) and round_index < rounds - 1
@@ -171,15 +170,20 @@ class Brain:
                     stream_method(messages)
                 )
                 text_filter = TextCallFilter()
-                async for chunk in stream:
-                    if isinstance(chunk, ToolCall):
-                        if use_tools:
-                            calls.append(chunk)
-                    elif chunk:
-                        visible = text_filter.feed(chunk)
-                        if visible:
-                            text_parts.append(visible)
-                            yield visible
+                try:
+                    async for chunk in stream:
+                        if isinstance(chunk, ToolCall):
+                            if use_tools:
+                                calls.append(chunk)
+                        elif chunk:
+                            visible = text_filter.feed(chunk)
+                            if visible:
+                                text_parts.append(visible)
+                                yield visible
+                finally:
+                    close = getattr(stream, "aclose", None)
+                    if close is not None:
+                        await close()
                 text_calls, leftover = text_filter.finish()
                 if use_tools:
                     calls.extend(text_calls)
@@ -190,20 +194,16 @@ class Brain:
                     yield leftover
                 if not calls:
                     return
-                running = asyncio.ensure_future(asyncio.gather(*(toolbox.call(call.name, call.arguments) for call in calls)))
-                if not text_parts and acknowledge:
-                    # A talking user hears a short acknowledgement only when the tools are slow; quick answers
-                    # come straight away without "One moment." on every question.
-                    done, _pending = await asyncio.wait({running}, timeout=FILLER_AFTER_SECONDS)
-                    if not done:
-                        filler = " ".join(part for part in _tool_filler(calls, latest).replace(". ", ".|").split("|")
-                                          if part.strip() and part.strip() not in spoken).strip()
-                        filler = f"{filler} " if filler else ""
-                        spoken.update(part.strip() for part in filler.replace(". ", ".|").split("|") if part.strip())
-                        if filler:
-                            text_parts.append(filler)
-                            yield filler
-                results = await running
+                if not text_parts:
+                    # Say something immediately so voice users hear a reply while tools run.
+                    filler = " ".join(part for part in _tool_filler(calls).replace(". ", ".|").split("|")
+                                      if part.strip() and part.strip() not in spoken).strip()
+                    filler = f"{filler} " if filler else ""
+                    spoken.update(part.strip() for part in filler.replace(". ", ".|").split("|") if part.strip())
+                    if filler:
+                        text_parts.append(filler)
+                        yield filler
+                results = await asyncio.gather(*(toolbox.call(call.name, call.arguments) for call in calls))
                 messages.append(Message(role="assistant", content="".join(text_parts), tool_calls=tuple(calls)))
                 messages.extend(
                     Message(role="tool", content=result or "(no result)", tool_call_id=call.id)

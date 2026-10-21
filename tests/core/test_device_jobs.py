@@ -5,13 +5,13 @@ from contextlib import closing
 import pytest
 
 from tools.plugins.system.agents import AgentHub
-from tools.laptop_agent import execute
+from tools.device_companion import execute
 
 
 def test_pairing_scopes_devices_jobs_and_revocation(project_temp_dir):
     hub = AgentHub(project_temp_dir)
     paired = hub.pair("alice", "Laptop", ["ping"])
-    assert hub.authenticate(paired["token"]) == {"owner": "alice", "name": "Laptop"}
+    assert hub.authenticate(paired["token"]) == {"owner": "alice", "name": "Laptop", "abilities": ["ping"]}
     assert hub.devices("bob") == []
     with pytest.raises(ValueError):
         hub.enqueue("bob", "Laptop", "ping")
@@ -24,6 +24,8 @@ def test_pairing_scopes_devices_jobs_and_revocation(project_temp_dir):
     assert hub.poll("alice", "Laptop") == []
     assert not hub.complete("bob", "Laptop", job["id"], "wrong owner")
     assert hub.complete("alice", "Laptop", job["id"], "pong")
+    assert hub.complete("alice", "Laptop", job["id"], "pong")
+    assert not hub.complete("alice", "Laptop", job["id"], "different output")
     assert hub.jobs("alice")[0]["status"] == "executed"
     hub.enqueue("alice", "Laptop", "ping")
     assert hub.revoke("alice", "Laptop")

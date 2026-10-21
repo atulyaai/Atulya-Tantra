@@ -12,13 +12,13 @@ import secrets
 import sqlite3
 import time
 from contextlib import closing
-from urllib.parse import parse_qs, quote, urlencode
+from urllib.parse import parse_qs, urlencode
 
 import httpx
 from fastapi import HTTPException, Request
 from starlette.responses import HTMLResponse, RedirectResponse
 
-from .auth import cookie_values, session_token
+from .auth import SESSION_COOKIE
 
 IDENTITY = {"openid", "email", "profile"}
 GMAIL = "https://www.googleapis.com/auth/gmail.readonly"
@@ -87,7 +87,7 @@ def register_google_routes(app, config, auth_store, set_cookie):
             raise HTTPException(503, "Google connection is not configured on this server.")
         if app_challenge and not re.fullmatch(r"[A-Za-z0-9_-]{43}", app_challenge):
             raise HTTPException(422, "Invalid app proof")
-        user_id = await asyncio.to_thread(auth_store.user_for_session, session_token(request.headers.get("cookie")))
+        user_id = await asyncio.to_thread(auth_store.user_for_session, request.cookies.get(SESSION_COOKIE))
         if connect and not user_id:
             raise HTTPException(401, "Sign in to Atulya before connecting Google services.")
         scopes = set(IDENTITY)
@@ -117,7 +117,7 @@ def register_google_routes(app, config, auth_store, set_cookie):
         flow = await asyncio.to_thread(flows.consume, state)
         if not flow or error or not code:
             return RedirectResponse("/#google=failed")
-        if not flow["app_proof"] and not secrets.compare_digest(cookie_values(request.headers.get("cookie")).get(COOKIE, ""), state):
+        if not flow["app_proof"] and not secrets.compare_digest(request.cookies.get(COOKIE, ""), state):
             return RedirectResponse("/#google=failed")
         try:
             async with httpx.AsyncClient(timeout=15) as client:
@@ -161,32 +161,17 @@ def register_google_routes(app, config, auth_store, set_cookie):
         if flow["app_proof"]:
             handoff = await asyncio.to_thread(flows.handoff, user_id, flow["app_proof"])
             link = origin(request) + "/api/auth/google/finish?handoff=" + handoff
-            fallback = origin(request) + "/api/auth/google/return?handoff=" + handoff
-            # Straight back into the app (no "Return to Atulya" tap); the manual page is only the browser fallback.
-            intent = ("intent://" + link.split("://", 1)[1] + "#Intent;scheme=https;package=com.atulvij.atulya;"
-                      "S.browser_fallback_url=" + quote(fallback, safe="") + ";end")
-            response = RedirectResponse(intent, status_code=302)
+            intent = "intent://" + link.split("://", 1)[1] + "#Intent;scheme=https;package=com.atulvij.atulya;end"
+            response = HTMLResponse("<!doctype html><html><meta name='viewport' content='width=device-width'>"
+                                    "<title>Return to Atulya</title><body style='font:20px system-ui;padding:30px'>"
+                                    "<h1>Google connection completed</h1><p>Return to the app to finish signing in.</p>"
+                                    f"<p><a href='{html.escape(intent, quote=True)}'>Open Atulya app</a></p>"
+                                    f"<p><a href='{html.escape(link, quote=True)}'>Use verified app link</a></p>"
+                                    "<p>This link expires in two minutes.</p></body></html>")
             response.headers["Cache-Control"] = "no-store"
             response.headers["Referrer-Policy"] = "no-referrer"
         else:
             set_cookie(response, request, await asyncio.to_thread(auth_store.create_session, user_id))
-        return response
-
-    @app.get("/api/auth/google/return")
-    async def return_page(request: Request, handoff: str = ""):
-        """Shown only if the browser could not hand the sign-in back to the app automatically."""
-        if not re.fullmatch(r"[A-Za-z0-9_-]{16,128}", handoff):
-            return RedirectResponse("/#google=failed")
-        link = origin(request) + "/api/auth/google/finish?handoff=" + handoff
-        intent = "intent://" + link.split("://", 1)[1] + "#Intent;scheme=https;package=com.atulvij.atulya;end"
-        response = HTMLResponse("<!doctype html><html><meta name='viewport' content='width=device-width'>"
-                                "<title>Return to Atulya</title><body style='font:20px system-ui;padding:30px'>"
-                                "<h1>Google connection completed</h1><p>Return to the app to finish signing in.</p>"
-                                f"<p><a href='{html.escape(intent, quote=True)}'>Open Atulya app</a></p>"
-                                f"<p><a href='{html.escape(link, quote=True)}'>Use verified app link</a></p>"
-                                "<p>This link expires in two minutes.</p></body></html>")
-        response.headers["Cache-Control"] = "no-store"
-        response.headers["Referrer-Policy"] = "no-referrer"
         return response
 
     @app.get("/api/auth/google/finish")
@@ -204,7 +189,7 @@ def register_google_routes(app, config, auth_store, set_cookie):
         account = await asyncio.to_thread(auth_store.user, user_id) if user_id else None
         if account is None or account["disabled_at"] is not None:
             raise HTTPException(401, "App sign-in expired or belongs to another device. Start Google sign-in again.")
-        response = RedirectResponse("/#google=ok", status_code=303)  # the page then offers a passkey
+        response = RedirectResponse("/", status_code=303)
         set_cookie(response, request, await asyncio.to_thread(auth_store.create_session, user_id))
         return response
 

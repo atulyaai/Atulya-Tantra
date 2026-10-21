@@ -160,6 +160,139 @@ class ProfileStore:
             return None
         return {**found, "age_minutes": int((time.time() - found["at"]) // 60)}
 
+    # --- age and content settings (PLAN M12-6): private keys, never editable by the model ---
+    def _write_raw(self, user_id: str, stored: dict) -> None:
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.execute("INSERT OR REPLACE INTO profiles(user_id,data,updated_at) VALUES(?,?,?)",
+                       (user_id, json.dumps(stored), int(time.time())))
+
+    def set_birth_date(self, user_id: str, birth_date: str, *, source: str = "self") -> dict:
+        """Record the date of birth once. A later change needs the admin (raises PermissionError)."""
+        from datetime import date
+
+        try:
+            born = date.fromisoformat(str(birth_date).strip())
+        except ValueError as exc:
+            raise ValueError("Date of birth must be YYYY-MM-DD") from exc
+        if born > date.today() or born.year < 1900:
+            raise ValueError("That date of birth is not possible")
+        if source not in {"self", "google", "admin"}:
+            raise ValueError("Unknown age source")
+        stored = self._raw(user_id)
+        age = dict(stored.get("_age") or {})
+        if age.get("birth_date") and source != "admin":
+            raise PermissionError("Your date of birth is already set; ask the administrator to change it.")
+        age.update({"birth_date": born.isoformat(), "source": source, "set_at": int(time.time())})
+        stored["_age"] = age
+        self._write_raw(user_id, stored)
+        return age
+
+    def set_age_override(self, user_id: str, group: str | None) -> None:
+        """Admin only (enforced by the route): force adult/child, or None to follow the date of birth."""
+        if group not in {None, "adult", "child"}:
+            raise ValueError("age_group must be adult or child")
+        stored = self._raw(user_id)
+        age = dict(stored.get("_age") or {})
+        age.pop("override", None)
+        if group:
+            age["override"] = group
+        stored["_age"] = age
+        if group == "child":
+            stored["_adult_content"] = False
+        self._write_raw(user_id, stored)
+
+    def set_flag(self, user_id: str, key: str, value: bool) -> None:
+        if key not in {"_adult_content", "_notify_blocked"}:
+            raise ValueError("Unknown content setting")
+        stored = self._raw(user_id)
+        stored[key] = bool(value)
+        self._write_raw(user_id, stored)
+
+    def record_content_event(self, user_id: str, category: str, *, alert_every: int = 3600) -> int | None:
+        """Store {user, time, category} (never the message). Returns the event id when the admin should be
+        alerted now (notify_blocked is on and no alert went out in the last hour), else None. Call
+        alert_result() with whether the alert was really delivered."""
+        now = int(time.time())
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.execute("CREATE TABLE IF NOT EXISTS content_events (user_id TEXT, at INTEGER, category TEXT, "
+                       "alerted INTEGER DEFAULT 0)")
+            recent = db.execute("SELECT 1 FROM content_events WHERE user_id=? AND alerted=1 AND at>?",
+                                (user_id, now - alert_every)).fetchone()
+            alert = bool(self._raw(user_id).get("_notify_blocked")) and recent is None
+            cursor = db.execute("INSERT INTO content_events(user_id,at,category,alerted) VALUES(?,?,?,?)",
+                                (user_id, now, category[:40], int(alert)))
+        return cursor.lastrowid if alert else None
+
+    def alert_result(self, event_id: int, delivered: bool) -> None:
+        """An alert that was not delivered (e.g. Telegram not set up) is not shown as sent and does not
+        count towards the once-an-hour limit."""
+        if not delivered:
+            with closing(sqlite3.connect(self.path)) as db, db:
+                db.execute("UPDATE content_events SET alerted=0 WHERE rowid=?", (event_id,))
+
+    def content_events(self, limit: int = 100) -> list[dict]:
+        with closing(sqlite3.connect(self.path)) as db:
+            db.execute("CREATE TABLE IF NOT EXISTS content_events (user_id TEXT, at INTEGER, category TEXT, "
+                       "alerted INTEGER DEFAULT 0)")
+            rows = db.execute("SELECT user_id,at,category,alerted FROM content_events ORDER BY at DESC LIMIT ?",
+                              (limit,)).fetchall()
+        return [{"user_id": r[0], "at": r[1], "category": r[2], "alerted": bool(r[3])} for r in rows]
+
+    # --- per-user daily limits (PLAN M12-4): admins are unlimited; others get defaults the admin can change ---
+    LIMIT_DEFAULTS = {"messages_per_day": 300, "tools_per_day": 150}
+
+    def limits(self, user_id: str, *, is_admin: bool) -> dict[str, int | None]:
+        if is_admin:
+            return {key: None for key in self.LIMIT_DEFAULTS}
+        stored = self._raw(user_id).get("_limits") or {}
+        return {key: int(stored.get(key, default)) for key, default in self.LIMIT_DEFAULTS.items()}
+
+    def set_limits(self, user_id: str, changes: dict[str, int | None]) -> None:
+        """Admin only (enforced by the route). None restores the default for that key."""
+        stored = self._raw(user_id)
+        limits = dict(stored.get("_limits") or {})
+        for key, value in changes.items():
+            if key not in self.LIMIT_DEFAULTS:
+                raise ValueError(f"Unknown limit '{key}'")
+            if value is None:
+                limits.pop(key, None)
+            elif not isinstance(value, int) or not 0 <= value <= 100_000:
+                raise ValueError("Limits must be whole numbers from 0 to 100000")
+            else:
+                limits[key] = value
+        stored["_limits"] = limits
+        self._write_raw(user_id, stored)
+
+    def _usage_db(self):
+        db = sqlite3.connect(self.path)
+        db.execute("CREATE TABLE IF NOT EXISTS usage (user_id TEXT, day TEXT, kind TEXT, count INTEGER, "
+                   "PRIMARY KEY(user_id, day, kind))")
+        return db
+
+    def consume(self, user_id: str, kind: str, limit: int | None) -> bool:
+        """Count one use today. False (and nothing counted) when the limit is already reached."""
+        day = time.strftime("%Y-%m-%d")
+        with closing(self._usage_db()) as db, db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT count FROM usage WHERE user_id=? AND day=? AND kind=?", (user_id, day, kind)).fetchone()
+            used = row[0] if row else 0
+            if limit is not None and used >= limit:
+                return False
+            db.execute("INSERT INTO usage(user_id,day,kind,count) VALUES(?,?,?,1) "
+                       "ON CONFLICT(user_id,day,kind) DO UPDATE SET count=count+1", (user_id, day, kind))
+        return True
+
+    def usage_today(self, user_id: str) -> dict[str, int]:
+        day = time.strftime("%Y-%m-%d")
+        with closing(self._usage_db()) as db:
+            rows = db.execute("SELECT kind,count FROM usage WHERE user_id=? AND day=?", (user_id, day)).fetchall()
+        return {kind: count for kind, count in rows}
+
+    def content_policy(self, user_id: str, *, is_admin: bool):
+        from .content_policy import policy_from
+
+        return policy_from(self._raw(user_id), is_admin=is_admin)
+
 
 def profile_instructions(profile: dict[str, str]) -> str:
     """Turn a profile into reply-style instructions (user data, so phrased as preferences)."""

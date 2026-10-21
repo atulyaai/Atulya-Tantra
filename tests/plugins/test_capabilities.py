@@ -16,7 +16,7 @@ def test_registry_covers_tools_and_assistant_uses_same_status():
     for row in box.capabilities:
         assert f"{row['name']}: {row['status']}" in report
         assert row['next_step']
-    assert rows(box)['restart_service']['status'] == 'needs_connection'
+    assert rows(box)['restart_service']['status'] == 'unsupported'
 
 
 def test_plugin_toggle_and_public_mcp_boundaries():
@@ -32,7 +32,7 @@ def test_plugin_toggle_and_public_mcp_boundaries():
 def test_approval_location_google_and_missing_dependencies(monkeypatch):
     from tools.plugins.information import google_api
     monkeypatch.setattr(google_api, 'connection_status', lambda _: {})
-    ctx = PluginContext('owner', None, None, 'person')
+    ctx = PluginContext('owner', None, None, 'person', is_admin=True)  # Gmail is admin-only (M12-2)
     state = rows(Toolbox(TOOLS, ctx))
     assert state['gmail_send']['status'] == 'needs_connection'
     assert state['get_weather']['status'] == 'needs_location'

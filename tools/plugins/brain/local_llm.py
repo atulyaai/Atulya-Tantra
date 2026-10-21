@@ -201,7 +201,63 @@ class LocalLlamaRuntime:
 
     def __init__(self, models_dir: Path) -> None:
         self.models_dir = models_dir
+        self.slot_dir = models_dir / "runtime" / "llama-slots"
         self.process: subprocess.Popen | None = None
+
+    def command(self, executable: Path, model: Path) -> list[str]:
+        """llama-server arguments. Tuned for a CPU voice loop (PLAN M1-B2): the fixed system
+        prefix stays in the KV cache (--cache-reuse) and can be saved/restored per slot."""
+        command = [str(executable), "--model", str(model)]
+        projector = self.models_dir / "vision" / VISION_FILENAME
+        # The vision projector costs RAM and startup time; load it only when asked for.
+        if projector.is_file() and os.environ.get("ATULYA_VISION", "").strip() == "1":
+            command.extend(("--mmproj", str(projector)))
+        threads = str(max(2, min(os.cpu_count() or 4, 8)))
+        self.slot_dir.mkdir(parents=True, exist_ok=True)
+        command.extend([
+            "--alias", MODEL_ALIAS,
+            "--host", "127.0.0.1", "--port", str(MODEL_PORT), "--ctx-size", "4096",
+            "--parallel", "1", "--threads", threads, "--threads-batch", threads,
+            "--n-gpu-layers", str(_gpu_layers()), "--reasoning-budget", "0", "--jinja",
+            "--cache-reuse", "256", "--slot-save-path", str(self.slot_dir), "-fa", "auto",
+        ])
+        log_file = os.environ.get("ATULYA_LLAMA_LOG", "").strip()
+        if log_file:
+            command.extend(("--log-file", log_file))
+        return command
+
+    VOICE_PREFIX_FILE = "voice-prefix.bin"
+    _voice_prefix_saved = False
+
+    def restore_voice_prefix(self) -> bool:
+        """Load the KV cache saved after an earlier voice turn, so the first turn skips the prefix."""
+        if not (self.slot_dir / self.VOICE_PREFIX_FILE).is_file():
+            return False
+        return self.slot_action("restore", self.VOICE_PREFIX_FILE)
+
+    @classmethod
+    def save_voice_prefix_once(cls) -> bool:
+        """After the first finished voice turn of this process, save slot 0 (system prompt + voice
+        tool schemas are at its start). Later turns reuse the in-memory cache instead."""
+        if cls._voice_prefix_saved:
+            return False
+        cls._voice_prefix_saved = cls.slot_action("save", cls.VOICE_PREFIX_FILE)
+        return cls._voice_prefix_saved
+
+    @staticmethod
+    def slot_action(action: str, filename: str, slot: int = 0) -> bool:
+        """Save or restore a slot's KV cache (llama-server /slots API). False when it fails."""
+        if action not in {"save", "restore"} or not re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", filename):
+            raise ValueError("bad slot action or filename")
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{MODEL_PORT}/slots/{slot}?action={action}",
+            data=json.dumps({"filename": filename}).encode(), headers={"Content-Type": "application/json"},
+            method="POST")
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                return response.status == 200
+        except (OSError, urllib.error.URLError):
+            return False
 
     def start(self) -> None:
         model = self.models_dir / "chat" / MODEL_FILENAME
@@ -214,16 +270,7 @@ class LocalLlamaRuntime:
             # Another Atulya window may already own the shared local model
             # server. Reuse it instead of launching a second process on 11435.
             return
-        command = [str(executable), "--model", str(model)]
-        projector = self.models_dir / "vision" / VISION_FILENAME
-        if projector.is_file():
-            command.extend(("--mmproj", str(projector)))
-        command.extend([
-            "--alias", MODEL_ALIAS,
-            "--host", "127.0.0.1", "--port", str(MODEL_PORT), "--ctx-size", "4096",
-            "--parallel", "1", "--threads", str(max(2, min((os.cpu_count() or 4) - 1, 8))),
-            "--n-gpu-layers", str(_gpu_layers()), "--reasoning-budget", "0", "--jinja",
-        ])
+        command = self.command(executable, model)
         self.process = subprocess.Popen(command, cwd=runtime, stdin=subprocess.DEVNULL,
                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         deadline = time.monotonic() + 180
@@ -234,6 +281,7 @@ class LocalLlamaRuntime:
             try:
                 with urllib.request.urlopen(health_url, timeout=2) as response:
                     if response.status == 200:
+                        self.restore_voice_prefix()
                         return
             except (OSError, urllib.error.URLError):
                 time.sleep(0.5)

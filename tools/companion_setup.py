@@ -7,7 +7,7 @@ import threading
 from urllib.parse import urlsplit
 
 import httpx
-from tools.companion_paths import connection_directory, acquire_connection_lock
+from tools.companion_paths import connection_directory
 
 ROOT = Path(__file__).resolve().parents[1]
 DIRECTORY = connection_directory()
@@ -35,8 +35,7 @@ def main():
     window = tk.Tk()
     window.title("Connect this PC to Atulya")
     window.geometry("680x440")
-    panel = ttk.Frame(window, padding=20)
-    panel.pack(fill="both", expand=True)
+    panel = ttk.Frame(window, padding=20); panel.pack(fill="both", expand=True)
     ttk.Label(panel, text="Connect this PC", font=("Segoe UI", 16)).pack(anchor="w")
     ttk.Label(panel, text="In your signed-in Chrome: open Atulya → Devices.\nCreate a device named This-PC with ping and battery_status checked.\nPaste its credential below. No password or token needs to go into chat.", wraplength=590).pack(anchor="w", pady=12)
     ttk.Label(panel, text="Atulya server").pack(anchor="w")
@@ -44,8 +43,7 @@ def main():
     ttk.Entry(panel, textvariable=origin).pack(fill="x", pady=4)
     ttk.Label(panel, text="Device credential (hidden; stored encrypted for this Windows user)").pack(anchor="w")
     token = tk.StringVar()
-    entry = ttk.Entry(panel, textvariable=token, show="•")
-    entry.pack(fill="x", pady=4)
+    entry = ttk.Entry(panel, textvariable=token, show="•"); entry.pack(fill="x", pady=4)
     status = tk.StringVar(value="Only grant the actions you want this server to run on this PC.")
     ttk.Label(panel, textvariable=status, wraplength=590).pack(anchor="w", pady=12)
 
@@ -63,14 +61,12 @@ def main():
 
     def connect():
         address, credential = origin.get().strip().rstrip("/"), token.get().strip()
-        button.config(state="disabled")
-        status.set("Testing the per-device credential…")
+        button.config(state="disabled"); status.set("Testing the per-device credential…")
         def work():
             try:
-                with acquire_connection_lock(DIRECTORY):
-                    name = verify_connection(address, credential)
-                    set_secret(DIRECTORY, "ATULYA_AGENT_URL", address)
-                    set_secret(DIRECTORY, "ATULYA_AGENT_TOKEN", credential)
+                name = verify_connection(address, credential)
+                set_secret(DIRECTORY, "ATULYA_AGENT_URL", address)
+                set_secret(DIRECTORY, "ATULYA_AGENT_TOKEN", credential)
                 child = start_saved()
                 def done():
                     token.set("")
@@ -85,8 +81,7 @@ def main():
                 window.after(0, lambda: (status.set(message), button.config(state="normal")))
         threading.Thread(target=work, daemon=True).start()
 
-    button = ttk.Button(panel, text="Connect and run companion", command=connect)
-    button.pack(anchor="w")
+    button = ttk.Button(panel, text="Connect and run companion", command=connect); button.pack(anchor="w")
     ttk.Label(panel, text="Keep the companion running for remote actions. Revoke this device in Atulya to disconnect it.", wraplength=590).pack(anchor="w", pady=12)
     window.mainloop()
 

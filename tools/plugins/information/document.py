@@ -1,7 +1,8 @@
 """Document reading: PDF, DOCX, XLSX, CSV, code summarization.
 
 Uses free, offline-capable libraries:
-- PDF: pymupdf (fitz)
+- PDF: pypdf (BSD)
+- PPTX: python-pptx
 - DOCX: python-docx
 - XLSX: openpyxl
 - CSV: built-in csv module
@@ -15,9 +16,14 @@ import logging
 from pathlib import Path
 
 try:
-    import fitz  # pymupdf
+    import pypdf
 except ImportError:
-    fitz = None
+    pypdf = None
+
+try:
+    import pptx
+except ImportError:
+    pptx = None
 
 try:
     from docx import Document as DocxDocument
@@ -34,9 +40,8 @@ logger = logging.getLogger(__name__)
 SUPPORTED_EXTENSIONS = {
     ".pdf": "pdf",
     ".docx": "docx",
-    ".doc": "doc",
     ".xlsx": "xlsx",
-    ".xls": "xls",
+    ".pptx": "pptx",
     ".csv": "csv",
     ".py": "code",
     ".js": "code",
@@ -57,11 +62,13 @@ async def read_document(filepath: str | Path) -> dict:
     if ext not in SUPPORTED_EXTENSIONS:
         raise ValueError(f"Unsupported file type: {ext}")
     result = {"type": SUPPORTED_EXTENSIONS[ext], "filepath": str(path)}
-    if ext == ".pdf" and fitz:
+    if ext == ".pdf" and pypdf:
         result.update(await _read_pdf(path))
-    elif ext in (".doc", ".docx") and DocxDocument:
+    elif ext == ".docx" and DocxDocument:
         result.update(await _read_docx(path))
-    elif ext in (".xlsx", ".xls") and openpyxl:
+    elif ext == ".pptx" and pptx:
+        result.update(await _read_pptx(path))
+    elif ext == ".xlsx" and openpyxl:
         result.update(await _read_xlsx(path))
     elif ext == ".csv":
         result.update(await _read_csv(path))
@@ -74,36 +81,46 @@ async def read_document(filepath: str | Path) -> dict:
 
 async def _read_pdf(path: Path) -> dict:
     def _sync():
-        doc = fitz.open(path)
-        text = ""
+        reader = pypdf.PdfReader(path)
         pages = []
-        for i, page in enumerate(doc):
-            page_text = page.get_text("text")
-            pages.append({"page": i + 1, "text": page_text})
-            text += page_text
-        page_count = len(doc)
-        doc.close()
-        return {"pages": pages, "text": text, "page_count": page_count}
+        for i, page in enumerate(reader.pages):
+            pages.append({"page": i + 1, "text": page.extract_text() or ""})
+        text = "\n".join(item["text"] for item in pages)
+        return {"pages": pages, "text": text, "page_count": len(pages)}
     return await asyncio.to_thread(_sync)
 
 
 async def _read_docx(path: Path) -> dict:
     def _sync():
         doc = DocxDocument(path)
-        text = ""
+        from docx.table import Table
+        text_parts = []
         tables = []
-        for para in doc.paragraphs:
-            text += para.text + "\n"
-        for table in doc.tables:
-            table_data = [[cell.text for cell in row.cells] for row in table.rows]
-            tables.append(table_data)
-        return {"text": text, "tables": tables}
+        for block in doc.iter_inner_content():
+            if isinstance(block, Table):
+                table_data = [[cell.text for cell in row.cells] for row in block.rows]
+                tables.append(table_data)
+                text_parts.extend(" | ".join(row) for row in table_data)
+            else:
+                text_parts.append(block.text)
+        return {"text": "\n".join(text_parts), "tables": tables}
+    return await asyncio.to_thread(_sync)
+
+
+async def _read_pptx(path: Path) -> dict:
+    def _sync():
+        deck = pptx.Presentation(path)
+        slides = []
+        for i, slide in enumerate(deck.slides):
+            parts = [shape.text_frame.text for shape in slide.shapes if shape.has_text_frame and shape.text_frame.text]
+            slides.append({"slide": i + 1, "text": "\n".join(parts)})
+        return {"slides": slides, "text": "\n".join(item["text"] for item in slides), "page_count": len(slides)}
     return await asyncio.to_thread(_sync)
 
 
 async def _read_xlsx(path: Path) -> dict:
     def _sync():
-        wb = openpyxl.load_workbook(path, data_only=True)
+        wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
         sheets = {}
         texts = []
         for sheet_name in wb.sheetnames:
@@ -175,10 +192,12 @@ async def can_read(filepath: str | Path) -> bool:
     ext = path.suffix.lower()
     if ext not in SUPPORTED_EXTENSIONS:
         return False
-    if ext == ".pdf" and fitz is None:
+    if ext == ".pdf" and pypdf is None:
         return False
-    if ext in (".doc", ".docx") and DocxDocument is None:
+    if ext == ".docx" and DocxDocument is None:
         return False
-    if ext in (".xlsx", ".xls") and openpyxl is None:
+    if ext == ".pptx" and pptx is None:
+        return False
+    if ext == ".xlsx" and openpyxl is None:
         return False
     return True

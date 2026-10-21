@@ -16,32 +16,12 @@ import platform
 import subprocess
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
 from urllib.parse import urlsplit
 
 import httpx
 
 from atulya.auth import AuthStore
 from atulya.settings import Settings
-
-
-def _session_cookie(client: httpx.Client) -> str:
-    try:
-        return str(client.cookies.get("atulya_session") or "")
-    except Exception:
-        values = [cookie.value for cookie in client.cookies.jar if cookie.name == "atulya_session"]
-        return values[-1] if values else ""
-
-
-def _purge_selftest_user(data_dir, user_id: str) -> None:
-    """Delete the throwaway self-test account and everything tied to it."""
-    import sqlite3
-    with sqlite3.connect(Path(data_dir) / "auth.sqlite3") as db:
-        for (table,) in db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall():
-            columns = {row[1] for row in db.execute(f"PRAGMA table_info({table})")}
-            if "user_id" in columns:
-                db.execute(f"DELETE FROM {table} WHERE user_id=?", (user_id,))
-        db.execute("DELETE FROM users WHERE id=? AND display_name='Selftest device'", (user_id,))
 
 
 @dataclass
@@ -170,19 +150,18 @@ def main(actions: bool = False) -> int:
                     with httpx.Client(base_url=base, timeout=60) as stranger:
                         started = stranger.post("/api/auth/login-requests", json={"username": user_id}).json()
                         wrong = stranger.post(f"/api/auth/login-requests/{started['id']}/code", json={"code": "123456"})
-                        pending = _session_cookie(client)
+                        pending = client.cookies.get("atulya_session")
                         with httpx.Client(base_url=base, cookies={"atulya_session": trusted}, timeout=30) as owner:
                             listed = owner.get("/api/auth/pending-logins").json()["requests"]
                             owner.post(f"/api/auth/pending-logins/{started['id']}", json={"approve": True})
                         done = stranger.get(f"/api/auth/login-requests/{started['id']}").json()
                         # Cookies are Secure once a public HTTPS origin is set; check the issued session directly.
-                        signed_in = bool(done.get("authenticated") and store.user_for_session(_session_cookie(stranger)))
+                        signed_in = bool(done.get("authenticated") and store.user_for_session(stranger.cookies.get("atulya_session")))
                     ok = wrong.status_code == 401 and len(listed) == 1 and done.get("authenticated") and signed_in and pending
                     return bool(ok), f"wrong code rejected · approval card shown · new device signed in={signed_in}", None
                 finally:
                     store.revoke_session(trusted)
                     store.disable_user(user_id)
-                    _purge_selftest_user(settings.data_dir, user_id)
             _timed(report, "sign in with code / approval", code_login)
 
             def voice_unlock():

@@ -19,15 +19,31 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+music = ["yt-dlp==2026.8.19"]
 # Small servers (ATULYA_VOICE_BACKEND=light): open-source Vosk recognition + Piper voices, CPU-only.
 server-voice = [
     "vosk==0.3.45",
     "piper-tts==1.8.0",
 ]
 voice = [
-    "faster-whisper>=1.1",
+    "faster-whisper>=1.1,<1.3",
     "av>=11,<19",
     "sherpa-onnx>=1.13.8,<2",
+    "onnxruntime>=1.17,<2",
+    "openwakeword==0.6.0",
+    "sounddevice>=0.5,<0.6",
+]
+# Voice end-of-speech detection uses the Silero VAD ONNX file bundled with faster-whisper
+# (the silero-vad package would pull in torch).
+documents = [
+    "pypdf>=6,<7",
+    "python-docx>=1.1,<1.3",
+    "openpyxl>=3.1,<3.2",
+    "python-pptx>=1.0,<1.1",
+]
+pc = [
+    "pycaw==20251023; sys_platform == 'win32'",
+    "send2trash==1.8.3",
 ]
 mcp = [
     "mcp==2.3.0",
@@ -35,6 +51,8 @@ mcp = [
 dev = [
     "pytest>=7.0",
     "ruff>=0.1",
+    "pip-audit==2.9.0",
+    "bandit==1.8.6",
 ]
 
 [project.scripts]

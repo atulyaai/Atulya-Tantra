@@ -46,7 +46,7 @@ class PersonalMemory:
             raise ValueError("Memory user is invalid")
         return user_id
 
-    def remember(self, owner: str, fact: str, user_id: str = "admin") -> bool:
+    def remember(self, owner: str, fact: str, *, user_id: str) -> bool:
         owner = self._owner(owner)
         user_id = self._user_id(user_id)
         fact = fact.strip()
@@ -56,7 +56,7 @@ class PersonalMemory:
             cur = db.execute("INSERT OR IGNORE INTO facts(user_id,owner,fact) VALUES(?,?,?)", (user_id, owner, fact))
             return cur.rowcount > 0
 
-    def forget(self, owner: str, query: str, user_id: str = "admin") -> int:
+    def forget(self, owner: str, query: str, *, user_id: str) -> int:
         owner = self._owner(owner)
         user_id = self._user_id(user_id)
         query = query.strip()
@@ -72,7 +72,7 @@ class PersonalMemory:
                 )
             return len(ids)
 
-    def list(self, owner: str, limit: int = 100, user_id: str = "admin") -> list[str]:
+    def list(self, owner: str, limit: int = 100, *, user_id: str) -> list[str]:
         owner = self._owner(owner)
         user_id = self._user_id(user_id)
         with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
@@ -82,7 +82,7 @@ class PersonalMemory:
             ).fetchall()
         return [str(row[0]) for row in rows]
 
-    def relevant(self, owner: str, query: str, limit: int = 8, user_id: str = "admin") -> list[str]:
+    def relevant(self, owner: str, query: str, limit: int = 8, *, user_id: str) -> list[str]:
         facts = self.list(owner, user_id=user_id)
         words = {word for word in re.findall(r"[\w']+", query.lower()) if len(word) > 2}
         ranked = sorted(((sum(word in fact.lower() for word in words), i, fact) for i, fact in enumerate(facts)),
@@ -90,7 +90,7 @@ class PersonalMemory:
         matches = [fact for score, _, fact in ranked if score]
         return matches[:limit]
 
-    def update(self, owner: str, old_fact: str, new_fact: str, user_id: str = "admin") -> bool:
+    def update(self, owner: str, old_fact: str, new_fact: str, *, user_id: str) -> bool:
         owner = self._owner(owner)
         user_id = self._user_id(user_id)
         old_fact = old_fact.strip()

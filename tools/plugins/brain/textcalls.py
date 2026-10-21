@@ -61,18 +61,55 @@ def parse(text: str) -> tuple[list[ToolCall], str]:
     return calls, remaining.strip() if calls else text
 
 
+_ANSWER_KEYS = ("answer", "response", "reply", "final", "text", "message", "content")
+_REASONING_KEYS = {"reasoning", "thought", "thoughts", "thinking", "analysis", "plan"}
+
+
+def _json_reply(held: str) -> tuple[list[ToolCall], str] | None:
+    """A whole reply written as a JSON object: a call, an answer field, or reasoning to drop.
+    None when it is not such an object (the text is then shown unchanged)."""
+    try:
+        data = json.loads(held)
+    except ValueError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    name = data.get("name")
+    if isinstance(name, str) and name and ("arguments" in data or "parameters" in data):
+        arguments = data.get("arguments", data.get("parameters", {}))
+        return [ToolCall("text_0", name, arguments if isinstance(arguments, str) else json.dumps(arguments))], ""
+    for key in _ANSWER_KEYS:
+        if isinstance(data.get(key), str) and data[key].strip():
+            return [], data[key].strip()
+    if set(data) & _REASONING_KEYS:
+        return [], ""  # private reasoning: never shown or spoken
+    return None
+
+
 class TextCallFilter:
     """Feed streamed text; get back what is safe to show now."""
 
     def __init__(self) -> None:
         self._held = ""
         self._holding = False
+        self._json = False
+        self._started = False
 
     def feed(self, chunk: str) -> str:
         if self._holding:
             self._held += chunk
             return ""
         combined = self._held + chunk
+        if not self._started:
+            if not combined.strip():
+                self._held = combined
+                return ""
+            if combined.lstrip().startswith("{"):
+                # Small models sometimes print {"reasoning": ...} as the reply (LOG.md gate run 2).
+                self._holding = self._json = True
+                self._held = combined.lstrip()
+                return ""
+            self._started = True
         index = min((combined.find(m) for m in MARKERS if m in combined), default=-1)
         if index >= 0:
             self._holding = True
@@ -88,4 +125,13 @@ class TextCallFilter:
         held, self._held = self._held, ""
         if not self._holding:
             return [], held
+        if self._json:
+            json_reply = _json_reply(held.strip())
+            if json_reply is not None:
+                return json_reply
+            # A token limit or disconnect can truncate an otherwise recognized reasoning object.
+            # Do not release its private contents simply because the closing brace never arrived.
+            if re.search(r'"(?:reasoning|thought|thoughts|thinking|analysis|plan)"\s*:', held):
+                return [], ""
+            return parse(held) if "<tool_call>" in held or "<function=" in held else ([], held)
         return parse(held) if "<" in held else ([], held)

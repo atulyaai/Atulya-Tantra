@@ -358,9 +358,7 @@ body.non-admin #system-dashboard,body.non-admin #open-plugins{display:none!impor
 .account-menu{position:relative}
 .account-menu summary{list-style:none;cursor:pointer;width:28px;height:24px;display:grid;place-items:center;border:1px solid rgba(76,206,229,.3);border-radius:999px;color:#b9f5ff;font:700 13px var(--font-ui)}
 .account-menu summary::-webkit-details-marker{display:none}
-.account-menu-items{position:absolute;right:0;top:calc(100% + 6px);max-height:min(60dvh,520px);overflow-y:auto;z-index:30;display:grid;gap:6px;min-width:min(260px,calc(100vw - 24px));padding:8px;border:1px solid rgba(76,206,229,.3);border-radius:10px;background:#06121b;box-shadow:0 10px 30px rgba(0,0,0,.5)}
-.assistant-panel:has(.account-menu[open]){overflow:visible}
-@media(max-width:900px){.account-menu-items{top:auto;bottom:calc(100% + 6px)}}
+.account-menu-items{position:absolute;right:0;top:calc(100% + 6px);z-index:30;display:grid;gap:6px;min-width:150px;padding:8px;border:1px solid rgba(76,206,229,.3);border-radius:10px;background:#06121b;box-shadow:0 10px 30px rgba(0,0,0,.5)}
 .account-menu-items button{width:100%;text-align:left}
 .panel-header>.panel-mark{display:none}
 

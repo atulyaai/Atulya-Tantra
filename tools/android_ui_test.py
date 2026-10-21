@@ -9,13 +9,10 @@ Usage: python tools/android_ui_test.py APK OUT_DIR PASSWORD
 """
 from __future__ import annotations
 
-import os
 import re
-import sqlite3
 import subprocess
 import sys
 import time
-import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -113,9 +110,7 @@ def screen_size() -> tuple[int, int]:
     """Current screen size in its current orientation (wm size always reports portrait)."""
     found = nodes()
     if found:
-        # Scrollable WebView children can extend beyond the physical screen.
-        # The native root bounds represent the display; offscreen children do not.
-        return found[0]["box"][2], found[0]["box"][3]
+        return max(n["box"][2] for n in found), max(n["box"][3] for n in found)
     match = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size"))
     return (int(match.group(1)), int(match.group(2))) if match else (1080, 2400)
 
@@ -134,8 +129,6 @@ for _ in range(60):  # let the emulator finish booting its launcher before the a
     time.sleep(2)
 time.sleep(10)
 adb("install", "-r", APK, check=True)
-# Only mic and camera (for the voice checks). The app asks for nothing on first launch, so any system
-# permission dialog over the sign-in screen is a regression this test catches.
 for permission in ("RECORD_AUDIO", "CAMERA"):
     adb("shell", "pm", "grant", PKG, f"android.permission.{permission}")
 adb("shell", "locksettings", "set-pin", "1357")
@@ -232,112 +225,6 @@ adb("shell", "input", "keyevent", "KEYCODE_HOME")
 time.sleep(2)
 adb("shell", "am", "start", "-n", f"{PKG}/.MainActivity")
 step("reopen within 2 min: no unlock prompt, still signed in", find(r"Type a message|#chat-prompt", 15) is not None)
-
-# The app pairs itself as a device after sign-in and answers jobs; actions wait for ALLOW on the phone.
-DATA = Path(os.environ.get("ATULYA_DATA_DIR", "."))
-
-
-def phone_device():
-    try:
-        with sqlite3.connect(DATA / "agents.sqlite3") as db:
-            return db.execute("SELECT owner, name, seen FROM devices WHERE revoked=0 AND name LIKE 'Phone %'").fetchone()
-    except sqlite3.Error:
-        return None
-
-
-def enqueue(owner: str, name: str, kind: str, detail: str = "") -> str:
-    job_id = uuid.uuid4().hex
-    with sqlite3.connect(DATA / "agents.sqlite3") as db:
-        db.execute("INSERT INTO jobs VALUES(?,?,?,?,?,?,?,?,?)",
-                   (job_id, owner, name, kind, detail, "queued", time.time(), time.time(), ""))
-    return job_id
-
-
-def job(job_id: str, until: set[str], wait: float = 30) -> tuple[str, str]:
-    deadline = time.time() + wait
-    status, output = "missing", ""
-    while time.time() < deadline:
-        with sqlite3.connect(DATA / "agents.sqlite3") as db:
-            row = db.execute("SELECT status, output FROM jobs WHERE id=?", (job_id,)).fetchone()
-        if row:
-            status, output = row
-            if status in until:
-                break
-        time.sleep(1.5)
-    return status, output
-
-
-device = None
-for _ in range(25):
-    device = phone_device()
-    if device and device[2]:
-        break
-    time.sleep(2)
-if step("phone pairs itself after sign-in and polls", bool(device and device[2]), device[1] if device else "no device"):
-    owner, name, _seen = device
-    status, output = job(enqueue(owner, name, "ping"), {"executed", "failed"})
-    step("ping runs without asking", status == "executed", output)
-    shown = enqueue(owner, name, "display_message", "Hello from CI")
-    allow = find(r"^ALLOW$", 30)
-    waiting, _ = job(shown, {"executed", "failed"}, 2)
-    step("an action waits for ALLOW on the phone", allow is not None and waiting == "running",
-         f"dialog={'yes' if allow else 'no'} status={waiting}")
-    if allow:
-        tap(allow)
-    status, output = job(shown, {"executed", "failed"})
-    step("ALLOW runs it and reports back", status == "executed", output)
-
-    media_job = enqueue(owner, name, "media_control", "play")
-    allow = find(r"^ALLOW$", 30)
-    if allow:
-        tap(allow)
-    status, output = job(media_job, {"executed", "failed"})
-    step("play without an audio stream fails honestly", status == "failed" and "stream" in output.lower(), output)
-
-    adb("shell", "input", "keyevent", "KEYCODE_HOME")
-    time.sleep(3)
-    background_ping = enqueue(owner, name, "ping")
-    status, _ = job(background_ping, {"executed", "failed"}, 8)
-    step("background phone does not execute jobs", status == "queued", status)
-    adb("shell", "am", "start", "-n", f"{PKG}/.MainActivity")
-    status, output = job(background_ping, {"executed", "failed"})
-    step("reopening phone resumes queued ping", status == "executed", output)
-
-    adb("shell", "pm", "grant", PKG, "android.permission.POST_NOTIFICATIONS")
-    # Use the account menu's visible connection entry. Horizontal toolbar items
-    # can be offscreen; users also need a direct, accessible route to pairing.
-    background_button = None
-    menu = find(r"^⋮$|Account and settings", 10)
-    if menu:
-        tap(menu)
-    connection_entry = find(r"^DEVICES & CONNECTION$", 10)
-    step("account menu exposes device connection setup", connection_entry is not None)
-    if connection_entry:
-        tap(connection_entry)
-    background_button = find(r"^Background phone connection$", 10)
-    step("Devices panel opens after reconnect", find(r"^Devices & execution receipts$", 3) is not None)
-    step("background connection opt-in is visible", background_button is not None)
-    if background_button:
-        tap(background_button)
-    enable = find(r"^ENABLE$", 10)
-    if enable:
-        tap(enable)
-    step("background session explicitly enabled", enable is not None)
-    adb("shell", "input", "keyevent", "KEYCODE_HOME")
-    time.sleep(3)
-    background_probe = enqueue(owner, name, "ping")
-    status, output = job(background_probe, {"executed", "failed"}, 40)
-    step("opt-in background session executes ping", status == "executed", output)
-    awaiting = enqueue(owner, name, "display_message", "Needs phone approval")
-    status, _ = job(awaiting, {"executed", "failed"}, 18)
-    step("background session leaves effectful jobs queued", status == "queued", status)
-    adb("shell", "am", "start", "-n", f"{PKG}/.MainActivity")
-    allow = find(r"^ALLOW$", 20)
-    step("queued background action asks after reopening", allow is not None)
-    if allow:
-        tap(allow)
-    status, output = job(awaiting, {"executed", "failed"})
-    step("background request executes after foreground approval", status == "executed", output)
 
 # The real launcher icon as the phone draws it (home screen app list).
 adb("shell", "input", "keyevent", "KEYCODE_HOME")

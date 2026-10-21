@@ -229,7 +229,7 @@ def prepare_light_voice(models_dir: Path) -> None:
                 for member in bundle.namelist():
                     if member.startswith("/") or ".." in Path(member).parts:
                         raise OSError("Unsafe path in the speech model archive")
-                bundle.extractall(vosk_dir)
+                bundle.extractall(vosk_dir)  # nosec B202: every member path is checked above and the archive is SHA-256 pinned
             archive.unlink(missing_ok=True)
     piper_dir = models_dir / "voice" / "piper"
     piper_dir.mkdir(parents=True, exist_ok=True)
@@ -240,6 +240,21 @@ def prepare_light_voice(models_dir: Path) -> None:
                 print(f"Downloading voice {name}{suffix}...", flush=True)
                 _download(PIPER_URL.format(path=path + suffix), piper_dir / f"{name}{suffix}",
                           expected_sha256=LIGHT_VOICE_SHA256[f"{name}{suffix}"])
+
+
+def prepare_wake_models(models_dir: Path) -> None:
+    """openWakeWord feature models plus the interim wake words, under models/voice/wake."""
+    wake_dir = models_dir / "voice" / "wake"
+    if (wake_dir / "embedding_model.onnx").is_file() and (wake_dir / "melspectrogram.onnx").is_file():
+        return
+    try:
+        from openwakeword.utils import download_models
+    except ImportError:
+        print("Wake word package is not installed; skipping wake models.", flush=True)
+        return
+    wake_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Downloading wake word models into {wake_dir}...", flush=True)
+    download_models(target_directory=str(wake_dir))
 
 
 def main() -> int:
@@ -314,6 +329,7 @@ def main() -> int:
             stt_model=os.environ.get("ATULYA_STT_MODEL", "base").strip() or "base",
         )
         prepare_tts_model(settings.models_dir)
+        prepare_wake_models(settings.models_dir)
         from tools.hardware import detect
 
         hardware = detect()

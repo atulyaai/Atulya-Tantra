@@ -16,8 +16,7 @@ if __name__ == "__main__":
                                       "packaged": bool(getattr(sys, "frozen", False))}), encoding="utf-8")
     elif "--run-companion" in sys.argv:
         sys.argv.remove("--run-companion")
-        directory = connection_directory()
-        directory.mkdir(parents=True, exist_ok=True)
+        directory = connection_directory(); directory.mkdir(parents=True, exist_ok=True)
         with (directory / "companion.log").open("a", encoding="utf-8", buffering=1) as log:
             sys.stdout = sys.stderr = log
             run_companion()

@@ -1,6 +1,6 @@
 # Atulya capability register
 
-One row per capability, mapped to the code as it is **today** (checked 2026-10-13, not guessed).
+One row per capability, mapped to the code as it is **today** (checked 2026-10-21 against the code, not guessed; a 🔧 means code exists but has no live receipt yet).
 Order of work lives in `docs/TODO.md` section H; this file is the map.
 
 **Rule:** every capability is built **once on the server** as a tool in `tools/plugins/toolkit.py` (or a plugin
@@ -24,7 +24,7 @@ Status: ✅ works (tested for real) · 🔧 partial · ⬜ missing · ⛔ blocke
 |---|---|---|
 | Server (atulvij.com) | AI, memory, weather/news/web, reminders, Telegram, server health (read-only), approvals | — |
 | Website / PWA | Chat, voice (browser recognizer in Chrome), location when allowed, camera on demand | — |
-| Android app | Same + phone speech recognizer, location, passkeys, biometric lock | Phone files (needs document picker), notifications (Firebase ⛔) |
+| Android app | Same + phone speech recognizer, location, passkeys, biometric lock | Phone files (needs document picker), notifications (planned: Telegram, which works today, plus self-hosted ntfy; no Firebase, see GOAL M4) |
 | Telegram | Chat, voice notes, location button, approvals, reminders, Mini App | Device access (by design) |
 | Laptop / desktop | PC control works only when Atulya runs **on** that PC | **Device agent** (H6) to work from the server |
 
@@ -36,11 +36,11 @@ Status: ✅ works (tested for real) · 🔧 partial · ⬜ missing · ⛔ blocke
 | PLT-01 | Shared tool registry used by web + Telegram | Core (`toolkit.TOOLS`, `Toolbox`) | ✅ |
 | PLT-02 | Capability catalogue the AI and UI can read ("what can you do / what's missing here?") | Core service | ⬜ H2 |
 | PLT-03 | Honest status: available / needs location / needs connection / needs approval / unsupported | Tool result contract | 🔧 location only (H1); rest H2 |
-| PLT-04 | Approval queue for anything that changes the computer or sends outside | Core (`confirm=True`) | ✅ |
+| PLT-04 | Approval queue for anything that changes the computer or sends outside | Core (`confirm=True`) | 🔧 Server policy fixed and enforced by `tests/plugins/test_approval_policy.py`; the Android native SMS/call confirmation (C3) is written but not built or checked on a device; Telegram has no Approve/Deny yet; approvals are lost on restart (H4) |
 | PLT-05 | Identity: passkeys, password, Telegram, codes; one account everywhere | Core (`atulya/auth.py`) | ✅ (passkey ceremonies tested) |
 | PLT-06 | Per-device, per-resource permissions | Policy service | ⬜ H5 |
 | PLT-07 | Audit log of tool runs (who, what, result) | Event store | ⬜ H3 |
-| PLT-08 | Secrets encrypted at rest, logs redacted | Core | ✅ |
+| PLT-08 | Secrets encrypted at rest, logs redacted | Core | 🔧 Windows only (DPAPI); on Linux `secrets_store.py` stores base64 (`PLAIN:`), which is not encryption (AUDIT H3) |
 | PLT-09 | Durable jobs: retries, resume after restart, cancel | Worker | 🔧 reminders/briefings only; H8 |
 
 ### Information and location
@@ -51,10 +51,10 @@ Status: ✅ works (tested for real) · 🔧 partial · ⬜ missing · ⛔ blocke
 | LOC-03 | "Where am I" — address from device location | Tool `where_am_i` (OSM Nominatim) | ✅ H1 |
 | LOC-04 | Device location with consent: web/app geolocation, Telegram "share location" | `/api/location`, Telegram location messages | ✅ H1 (owner check on phone) |
 | LOC-05 | Saved home city as fallback | Profile `city` | ✅ |
-| LOC-06 | Places near me, routes, travel time | Maps plugin (OSM/OSRM) | ⬜ H4 |
+| LOC-06 | Places near me, routes, travel time | Maps plugin (OSM/OSRM) | 🔧 `places_near_me`, `route_time` (OSRM public demo) exist; no live receipt |
 | LOC-07 | Severe-weather / rain alerts pushed to you | Worker + weather tool | ⬜ H8 |
-| RES-01 | Live web search with sources | Search plugin | ⬜ H4 |
-| RES-02 | Read a web page and summarize it | Fetch tool + model | ⬜ H4 |
+| RES-01 | Live web search with sources | Search plugin | 🔧 `search_web` exists (no SearXNG yet); no live receipt |
+| RES-02 | Read a web page and summarize it | Fetch tool + model | 🔧 `read_url` exists (public https only, untrusted-content wrapper); no live receipt |
 | RES-03 | News headlines | Tool `get_news` | ✅ |
 
 ### Memory and personal
@@ -82,7 +82,7 @@ Status: ✅ works (tested for real) · 🔧 partial · ⬜ missing · ⛔ blocke
 | ID | Capability | How | Status |
 |---|---|---|---|
 | DEV-01 | Open apps/URLs, media keys, screenshot on the PC Atulya runs on | Tools (approval) | ✅ local |
-| DEV-02 | Pair a laptop/desktop agent to the server; list devices + status | Device agent + registry | ⬜ H5–H6 |
+| DEV-02 | Pair a laptop/desktop agent to the server; list devices + status | Device agent + registry | 🔧 `AgentHub` pairing/jobs/receipts and `tools/device_companion.py` exist; no live pairing receipt |
 | DEV-03 | Server health: CPU/RAM/disk/services (read-only SSH) | Tool `server_status` | ✅ |
 | DEV-04 | Server logs explained, service restart with approval | Server tools | ⬜ H5 |
 | DEV-05 | Deploy with tests + rollback | GitHub Actions | ✅ |
@@ -103,7 +103,7 @@ Status: ✅ works (tested for real) · 🔧 partial · ⬜ missing · ⛔ blocke
 | AUT-01 | Reminders (one-time) | Worker | ✅ |
 | AUT-02 | Morning briefing | Skill + worker | ✅ |
 | AUT-03 | Recurring routines ("every weekday 9am …") | Scheduler | ⬜ H8 |
-| AUT-04 | Watch a condition and alert (rain, disk full, site down) | Worker | ⬜ H8 |
+| AUT-04 | Watch a condition and alert (rain, disk full, site down) | Worker | ⬜ H8. The old rain/disk/site-down triggers are archived at `F:\Atulya-Tantra-cleanup-archive\code\routines_workflow_engine.py`; reuse them for the M10 alert pipeline (PLAN.md M10-3) |
 | AUT-05 | Multi-step tasks with checkpoints that survive restarts | Workflow engine | ⬜ H8 |
 
 ### Interop

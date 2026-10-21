@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from pathlib import Path
 
 import httpx
 
@@ -134,7 +135,7 @@ def test_pc_actions_wait_for_approval_and_only_run_for_that_user(tmp_path, monke
 
     queue = ActionQueue(tmp_path)
     view = queue.view()
-    context = PluginContext("conv", object(), object(), "u1", actions=view)
+    context = PluginContext("conv", object(), object(), "u1", actions=view, is_admin=True)
     toolbox = Toolbox.for_registry(build_default_registry(), context)
     reply = asyncio.run(toolbox.call("open_url", {"url": "https://example.com"}))
     assert "NOT run" in reply
@@ -147,7 +148,7 @@ def test_pc_actions_wait_for_approval_and_only_run_for_that_user(tmp_path, monke
 
 def test_pc_actions_are_refused_without_an_approval_channel(monkeypatch) -> None:
     monkeypatch.setenv("DISPLAY", ":test-desktop")
-    context = PluginContext("tg1", object(), object(), "tg_1")  # e.g. Telegram: no actions queue
+    context = PluginContext("tg1", object(), object(), "tg_1", is_admin=True)  # e.g. Telegram: no actions queue
     toolbox = Toolbox.for_registry(build_default_registry(), context)
     assert "only available in the Atulya WebUI" in asyncio.run(toolbox.call("take_screenshot", {}))
 
@@ -156,8 +157,8 @@ def test_search_past_chats_is_scoped_to_the_user(tmp_path) -> None:
     from atulya.history import ConversationHistory
 
     history = ConversationHistory(tmp_path)
-    history.append("c1", "m1", "user", "my passport number ends in 42", "u1")
-    history.append("c2", "m2", "user", "passport renewal next week", "u2")
+    history.append("c1", "m1", "user", "my passport number ends in 42", user_id="u1")
+    history.append("c2", "m2", "user", "passport renewal next week", user_id="u2")
     assert [row["content"] for row in history.search("passport", user_id="u1")] == ["my passport number ends in 42"]
     assert history.search("pass%", user_id="u1") == []
 
@@ -226,3 +227,29 @@ def test_headless_server_does_not_offer_desktop_control(monkeypatch) -> None:
     names = {item["function"]["name"] for item in toolbox.schemas}
     assert "open_url" not in names and "take_screenshot" not in names
     assert "open_website" in names and "find_music" in names
+
+
+def test_voice_subset(monkeypatch) -> None:
+    monkeypatch.setenv("DISPLAY", ":test-desktop")
+    from tools.plugins.toolkit import VOICE_TOOLS, ActionQueue
+
+    registry = build_default_registry()
+    context = PluginContext("conv", object(), object(), "u1", actions=ActionQueue(Path(".")).view(),
+                            reminders=object())
+    full = Toolbox.for_registry(registry, context)
+    voice = full.subset(VOICE_TOOLS, voice=True)
+    names = [schema["function"]["name"] for schema in voice.schemas]
+    assert names == [name for name in VOICE_TOOLS if name in names] and set(names) <= set(VOICE_TOOLS)
+    assert "get_weather" in names and "create_reminder" in names
+    assert len(full.schemas) > len(names) and not full.voice
+    assert "spoken" in voice.instructions() and "use_skill" not in voice.instructions()
+    assert voice.context is context
+    registry.set_enabled("online-information", False)
+    names = [schema["function"]["name"] for schema in Toolbox.for_registry(registry, context).subset(VOICE_TOOLS).schemas]
+    assert "get_weather" not in names and "get_news" not in names
+
+
+def test_voice_unavailable_tool_points_to_chat():
+    voice = Toolbox([]).subset([], voice=True)
+    assert asyncio.run(voice.call("missing", {})) == "I can do that in the Atulya app or chat."
+    assert "not available" in asyncio.run(Toolbox([]).call("missing", {}))

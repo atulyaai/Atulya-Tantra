@@ -64,6 +64,12 @@ class CalendarStore:
             raise ValueError("Reminder must be between 0 and 1440 minutes")
         timestamp = starts_at.astimezone(timezone.utc).isoformat(timespec="seconds")
         with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
+            # The same meeting saved twice (repeated tool call) would remind twice.
+            same = db.execute("SELECT id,reminder_minutes FROM events WHERE user_id=? AND owner=? "
+                              "AND lower(title)=lower(?) AND starts_at=?", (user_id, owner, title, timestamp)).fetchone()
+            if same:
+                return {"id": int(same[0]), "title": title, "starts_at": timestamp,
+                        "reminder_minutes": same[1], "duplicate": True}
             cur = db.execute(
                 "INSERT INTO events(user_id,owner,title,starts_at,reminder_minutes) VALUES(?,?,?,?,?)",
                 (user_id, owner, title, timestamp, reminder_minutes),

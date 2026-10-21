@@ -16,16 +16,12 @@ def test_failed_functional_selftest_rolls_back_even_when_health_passes(project_t
     python.write_text("#!/bin/sh\nexit 0\n")
     python.chmod(0o700)
     source = Path("tools/deploy_server.sh").resolve()
-    # Substitute only the checkout path; do not repurpose the user's HOME.
-    script = project_temp_dir / "deploy.sh"
-    quoted = str(project).replace("'", "'\"'\"'")
-    script.write_text(source.read_text().replace('cd "$HOME/Atulya-Tantra"', "cd '" + quoted + "'"))
     harness = '''
 git() {
  case "$*" in
   'rev-parse HEAD') echo old ;;
   'rev-parse origin/main') echo new ;;
-  'reset -q --hard old') echo rollback >> "$ATULYA_DEPLOY_TEST_ROOT/trace" ;;
+  'reset -q --hard old') echo rollback >> "$HOME/trace" ;;
  esac
  return 0
 }
@@ -35,8 +31,8 @@ timeout() { return 1; }
 seq() { echo 1; }
 . "$1"
 '''
-    result = subprocess.run([shutil.which("sh"), "-c", harness, "test", str(script)],
-                            env=dict(os.environ, ATULYA_DEPLOY_TEST_ROOT=str(project_temp_dir)), capture_output=True, text=True, timeout=15)
+    result = subprocess.run([shutil.which("sh"), "-c", harness, "test", str(source)],
+                            env=dict(os.environ, HOME=str(project_temp_dir)), capture_output=True, text=True, timeout=15)
     assert result.returncode == 1
     assert "functional selftest failed" in result.stderr
     assert (project_temp_dir / "trace").read_text().strip() == "rollback"

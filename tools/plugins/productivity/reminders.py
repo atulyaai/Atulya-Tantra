@@ -52,6 +52,14 @@ class ReminderStore:
             raise ValueError("Reminder time must include a timezone")
         timestamp = due_at.astimezone(timezone.utc).isoformat(timespec="seconds")
         with closing(sqlite3.connect(self.path, timeout=5)) as connection:
+            # A repeated tool call or resend must not create a second reminder that fires twice.
+            same = connection.execute(
+                "SELECT id FROM reminders WHERE user_id=? AND chat_id=? AND lower(message)=lower(?) AND due_at=? "
+                "AND delivered_at IS NULL AND failed_at IS NULL AND cancelled_at IS NULL",
+                (user_id, chat_id, clean, timestamp),
+            ).fetchone()
+            if same:
+                return int(same[0])
             cursor = connection.execute(
                 "INSERT INTO reminders(user_id,chat_id,message,due_at) VALUES(?,?,?,?)",
                 (user_id, chat_id, clean, timestamp),

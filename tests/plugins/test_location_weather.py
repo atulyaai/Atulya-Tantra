@@ -54,7 +54,7 @@ def test_weather_uses_place_then_device_then_home_then_asks(project_temp_dir: Pa
 
     profiles.update("admin", {"city": "Pune"})
     reply, asked = asyncio.run(run({}))
-    assert "forecast for Pune" in reply and asked == ["share_location"]  # home city, but still offers live location
+    assert "forecast for Pune" in reply and asked == []  # saved city is sufficient for a forecast
 
     profiles.set_location("admin", 28.6, 77.2)
     reply, asked = asyncio.run(run({"when": "week"}))

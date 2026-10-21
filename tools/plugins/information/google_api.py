@@ -26,6 +26,7 @@ EVENTS = "https://www.googleapis.com/auth/calendar.events"
 def _path(data_dir=None):
     if data_dir is not None:
         return Path(data_dir) / "google_tokens.json"
+    # dotenv may load after this module was imported by the shared toolkit.
     configured = os.environ.get("ATULYA_DATA_DIR", "").strip()
     if not configured:
         return TOKEN_FILE
@@ -103,11 +104,12 @@ async def get_access_token(user_id, data_dir=None):
                 _write(stored, data_dir)
         return None
     payload = response.json()
-    if payload.get("scope"):
+    if payload.get("access_token"):
         with LOCK:
             stored = _load_tokens(data_dir)
             if user_id in stored:
-                stored[user_id]["scopes"] = payload["scope"].split()
+                if payload.get("scope"):
+                    stored[user_id]["scopes"] = payload["scope"].split()
                 stored[user_id]["last_error"] = ""
                 _write(stored, data_dir)
     return payload.get("access_token")
@@ -142,32 +144,8 @@ async def _request(user_id, method, url, **kwargs):
         raise ValueError("Google needs connection or reconnection in Connections → Google. Atulya login alone does not grant Gmail/Calendar access.")
     async with httpx.AsyncClient(timeout=20) as client:
         response = await client.request(method, url, headers={"Authorization": "Bearer " + token}, **kwargs)
-    if response.status_code < 400 and _load_tokens().get(user_id, {}).get("last_error"):
-        with LOCK:
-            stored = _load_tokens()
-            stored[user_id]["last_error"] = ""
-            _write(stored)
     if response.status_code >= 400:
-        message = f"Google API returned {response.status_code}. Check Connections → Google for permissions and API activation; no successful action was confirmed."
-        try:
-            error = response.json().get("error", {})
-            reasons = {d.get("reason") for d in error.get("details", []) if isinstance(d, dict)}
-            if "SERVICE_DISABLED" in reasons or "accessNotConfigured" in str(error):
-                service = "Gmail" if "gmail" in url else "Google Calendar" if "calendar" in url else "This Google"
-                project = next((d.get("metadata", {}).get("consumer", "") for d in error.get("details", [])
-                                if isinstance(d, dict) and d.get("metadata")), "").replace("projects/", "")
-                api = "gmail.googleapis.com" if "gmail" in url else "calendar-json.googleapis.com"
-                message = (f"{service} API is turned off in the owner's Google Cloud project{' ' + project if project else ''}. "
-                           f"The owner must enable it at https://console.cloud.google.com/apis/library/{api}"
-                           f"{'?project=' + project if project else ''}, then try again. Nothing was read or sent.")
-        except ValueError:
-            pass
-        with LOCK:
-            stored = _load_tokens()
-            if user_id in stored:
-                stored[user_id]["last_error"] = message
-                _write(stored)
-        raise ValueError(message)
+        raise ValueError(f"Google API returned {response.status_code}. Check Connections → Google for permissions and API activation; no successful action was confirmed.")
     if response.status_code == 204:
         return {}
     return response.json()
