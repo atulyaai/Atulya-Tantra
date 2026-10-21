@@ -1,4 +1,16 @@
-# GOAL — a real, working Jarvis at zero recurring cost
+# GOAL — Jarvis as the product, AGI only if the score moves
+
+**Jarvis** is the product: hear, answer, act on your devices, remember, and speak first. A point counts only when a live check on this server passes.
+
+**AGI is not a feature in this repository.** Storing a rule, editing a prompt, or writing this file does not create one. The AGI score stays at 0 until `data/novel_tasks.jsonl` records a passed task that was not hand-coded. No fine-tune has been run. Ask "where are you on the goal?" and the `goal_status` tool reads the live score.
+
+| Score | Counts when |
+|---|---|
+| Jarvis | News source saved, a routine enabled, a learned rule, a device paired, that device polling, Telegram configured, and one outside action with a receipt |
+| AGI | An unscripted task passes, model weights change from measured failures, or unapproved code edits start succeeding tests |
+
+The older zero-cost Jarvis notes below are the build list. Where they disagree with the live score, the live score wins.
+
 
 **Atulya should hear you, think, act on your devices, and talk back — running on hardware you already own, using only free and open-source pieces. No paid APIs or subscriptions are needed for any core feature.**
 

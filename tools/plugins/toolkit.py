@@ -344,6 +344,15 @@ async def _forget_lesson(args: dict, ctx: PluginContext | None) -> str:
     return f"Forgot {removed} learned rule." if removed else "No matching learned rule."
 
 
+
+async def _goal_status(_args: dict, ctx: PluginContext | None) -> str:
+    if not _is_admin(ctx):
+        return "Only the owner can read the goal score."
+    from atulya.goal_score import render, score
+    from atulya.settings import Settings
+    return render(score(Settings.from_environment().data_dir))
+
+
 async def _self_check(_args: dict, ctx: PluginContext | None) -> str:
     if not _is_admin(ctx):
         return "Only the owner can run a self-check."
@@ -1156,6 +1165,8 @@ TOOLS: tuple[Tool, ...] = (
     Tool("forget_lesson", "Forget a learned rule by its id or by words in the rule.",
          _params({"query": {"type": "string"}}, ["query"]), _forget_lesson, "personal-memory", True, True,
          lambda a: f"Forget learned rule: {a.get('query', '')}", low_risk=True),
+    Tool("goal_status", "Owner: Jarvis score and AGI score from live checks. AGI stays at zero until an unscripted task passes. Use when the user asks how close this is to Jarvis or AGI.",
+         _params(), _goal_status, "local-utilities", True),
     Tool("self_check", "Owner: look at repeated tool failures and maintenance findings. "
          "Writes a rule when the same tool failed three times. Does not retrain the model or edit code.",
          _params(), _self_check, "local-utilities", True),

@@ -37,6 +37,7 @@ POLICY = {
     "learn_lesson": "direct",
     "list_lessons": "direct",
     "forget_lesson": "confirm_low_risk",
+    "goal_status": "direct",
     "self_check": "direct",
     "remember_fact": "direct",
     "edit_fact": "direct",
