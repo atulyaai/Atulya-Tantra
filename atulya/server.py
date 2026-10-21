@@ -1062,6 +1062,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "startup", lambda: setattr(app.state, "routine_task", asyncio.create_task(run_routines()))
     )
 
+    async def evolve() -> None:
+        """Turn repeated tool failures into a standing rule and tell the owner once."""
+        from atulya.evolution import learn_from_failures
+        await asyncio.sleep(90)
+        while True:
+            try:
+                fresh = await asyncio.to_thread(learn_from_failures, config.data_dir)
+                if fresh and getattr(telegram, "configured", False):
+                    await telegram.notify("I learned from repeated failures:\n" + "\n".join(f"• {item}" for item in fresh))
+            except Exception as exc:
+                logging.getLogger(__name__).warning("Evolution loop failed (%s)", type(exc).__name__)
+            await asyncio.sleep(1200)
+
+    app.router.add_event_handler(
+        "startup", lambda: setattr(app.state, "evolve_task", asyncio.create_task(evolve()))
+    )
+
+
     app.router.add_event_handler("startup", warm_models)
     app.router.add_event_handler("shutdown", stop_telegram)
     if brain is not None:
@@ -2382,6 +2400,10 @@ ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
                 style = profile_instructions(await asyncio.to_thread(profiles.get, str(http_request.state.user_id)))
                 if content.instructions:
                     style = f"{style}\n{content.instructions}"
+                from atulya.evolution import lessons_for_prompt
+                learned = lessons_for_prompt(config.data_dir, str(http_request.state.user_id))
+                if learned:
+                    style = f"{style}\n{learned}"
             if not request.stream:
                 reply = await brain.respond_with_tools(messages, toolbox, system_instructions=style)
         except ValueError as exc:

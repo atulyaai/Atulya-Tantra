@@ -85,6 +85,7 @@ class TelegramChannel:
         self._calendar = calendar
         self._briefing_log = briefing_log
         self._profiles = profiles
+        self._data_dir = data_dir
         self._actions = actions          # shared approval queue (PC actions)
         self._voice = voice              # local Whisper for voice notes
         self._speech = speech_output     # local TTS for voice-note replies
@@ -636,7 +637,10 @@ class TelegramChannel:
             return ""
         from atulya.profiles import profile_instructions
 
-        return profile_instructions(self._profiles.get(user_id))
+        base = profile_instructions(self._profiles.get(user_id))
+        from atulya.evolution import lessons_for_prompt
+        extra = lessons_for_prompt(self._data_dir, user_id)
+        return f"{base}\n{extra}" if extra else base
 
     async def _deliver_briefings(self) -> None:
         """Send each allowlisted user one morning briefing per day at ATULYA_BRIEFING_TIME."""

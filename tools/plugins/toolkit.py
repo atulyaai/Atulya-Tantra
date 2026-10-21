@@ -311,6 +311,47 @@ async def _briefing_settings(args: dict, ctx: PluginContext | None) -> str:
             f"City: {settings['city'] or 'not set'}. News sources: {sources}. Topics: {topics}. {note}")
 
 
+
+async def _learn_lesson(args: dict, ctx: PluginContext | None) -> str:
+    if ctx is None or ctx.profile is None:
+        return "Lessons are saved for a signed-in user."
+    from atulya.evolution import Lessons
+    from atulya.settings import Settings
+    try:
+        item = Lessons(Settings.from_environment().data_dir).add(ctx.user_id, _text(args, "rule", 280))
+    except ValueError as exc:
+        return str(exc)
+    return f"Learned ({item['id']}): {item['text']} This applies on the next reply."
+
+
+async def _list_lessons(_args: dict, ctx: PluginContext | None) -> str:
+    if ctx is None:
+        return "No signed-in user."
+    from atulya.evolution import Lessons
+    from atulya.settings import Settings
+    items = Lessons(Settings.from_environment().data_dir).active(ctx.user_id)
+    if not items:
+        return "No learned rules yet."
+    return "\n".join(f"{item['id']}: {item['text']}" for item in items)
+
+
+async def _forget_lesson(args: dict, ctx: PluginContext | None) -> str:
+    if ctx is None:
+        return "No signed-in user."
+    from atulya.evolution import Lessons
+    from atulya.settings import Settings
+    removed = Lessons(Settings.from_environment().data_dir).forget(ctx.user_id, _text(args, "query", 280))
+    return f"Forgot {removed} learned rule." if removed else "No matching learned rule."
+
+
+async def _self_check(_args: dict, ctx: PluginContext | None) -> str:
+    if not _is_admin(ctx):
+        return "Only the owner can run a self-check."
+    from atulya.evolution import self_report
+    from atulya.settings import Settings
+    return self_report(Settings.from_environment().data_dir)
+
+
 async def _update_profile(args: dict, ctx: PluginContext | None) -> str:
     from atulya.profiles import VOICE_EDITABLE
 
@@ -1108,6 +1149,16 @@ TOOLS: tuple[Tool, ...] = (
                   "channel": {"type": "string", "enum": ["telegram", "app", "both", "off"]},
                   "enabled": {"type": "boolean"}}),
          _briefing_settings, "productivity-calendar", True),
+    Tool("learn_lesson", "Save a rule the user just taught you, such as 'never say you cannot change the news' "
+         "or 'from now on use Zee News'. Call this when they correct you or say from now on. It applies next reply.",
+         _params({"rule": {"type": "string"}}, ["rule"]), _learn_lesson, "personal-memory", True),
+    Tool("list_lessons", "List rules learned from this user.", _params(), _list_lessons, "personal-memory", True),
+    Tool("forget_lesson", "Forget a learned rule by its id or by words in the rule.",
+         _params({"query": {"type": "string"}}, ["query"]), _forget_lesson, "personal-memory", True, True,
+         lambda a: f"Forget learned rule: {a.get('query', '')}", low_risk=True),
+    Tool("self_check", "Owner: look at repeated tool failures and maintenance findings. "
+         "Writes a rule when the same tool failed three times. Does not retrain the model or edit code.",
+         _params(), _self_check, "local-utilities", True),
     Tool("update_profile", "Save a lasting user preference: voice (male/female speaking voice), "
          "assistant_nickname (what this user wants to call you, "
          "e.g. 'call yourself Tony'), preferred_name, city, language "
@@ -1337,7 +1388,7 @@ def record_activity(name: str, outcome: str) -> None:
 
 
 # Small spoken-turn tool set: every schema costs prompt-processing time on a CPU (LOG.md M1-0).
-VOICE_TOOLS = ("get_weather", "get_time", "create_reminder", "list_reminders", "open_app",
+VOICE_TOOLS = ("get_weather", "get_time", "learn_lesson", "list_lessons", "create_reminder", "list_reminders", "open_app",
                "search_files", "read_document", "media_control", "get_news", "remember_fact")
 VOICE_INSTRUCTIONS = (
     "This is a spoken conversation. Answer in one or two short spoken sentences: no markdown, lists, links or emoji.\n"
@@ -1426,7 +1477,7 @@ class Toolbox:
         skills = list_skills()
         lines = ["You can call tools. Use them whenever they give fresher or more exact answers than memory "
                  "(weather, news, time, maths, the user's saved memories, meetings, and earlier conversations). "
-                 "Never invent tool results. Computer actions (apps, websites, files, media, screenshots) only "
+                 "If the user corrects you or says from now on, call learn_lesson. Never invent tool results. Computer actions (apps, websites, files, media, screenshots) only "
                  "run after approval where the tool schema requires it. Reminder save/edit/cancel run directly; do not invent approval cards. "
                  "Never repeat an old unsupported claim from chat history when current tools provide the action. "
                  "Queued music/device/phone actions are not confirmed playback, SMS sends or calls. "
