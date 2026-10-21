@@ -1020,7 +1020,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         profile = await asyncio.to_thread(profiles.get, "admin")
                         city = (settings.get("city") if item.get("action") == "briefing" else "") or profile.get("city") or briefing_city()
                         topics = settings["topics"] if item.get("action") == "briefing" else None
-                        report = await render_routine(item, city, calendar, WEB_OWNER, "admin", topics)
+                        sources = settings.get("sources") or None if item.get("action") == "briefing" else None
+                        report = await render_routine(item, city, calendar, WEB_OWNER, "admin", topics, sources)
                         if report is None or not await asyncio.to_thread(store.still_enabled, str(item["id"])):
                             if report is None:
                                 await asyncio.to_thread(store.mark_fired, str(item["id"]))

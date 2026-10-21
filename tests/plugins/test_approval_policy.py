@@ -68,6 +68,7 @@ POLICY = {
     "places_near_me": "direct",
     "list_devices": "direct",
     "ask_device": "direct",
+    "rename_device": "direct",
     "device_action": "confirm",
     "list_routines": "direct",
     "add_routine": "direct",

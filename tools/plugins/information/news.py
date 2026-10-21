@@ -64,7 +64,49 @@ async def section(kind: str, city: str = "", limit: int = 2) -> dict:
         return {"kind": kind, "source": source, "items": [], "status": "unavailable"}
 
 
-async def briefing_news(city: str, topics: list[str] | None = None) -> list[dict]:
+
+SOURCES = {
+    "zee_india": ("Zee News India", "https://zeenews.india.com/rss/india-national-news.xml"),
+    "zee_world": ("Zee News World", "https://zeenews.india.com/rss/world-news.xml"),
+    "ndtv_india": ("NDTV India", "https://feeds.feedburner.com/ndtvnews-india-news"),
+    "ndtv_cities": ("NDTV Cities", "https://feeds.feedburner.com/ndtvnews-cities-news"),
+    "bbc_world": ("BBC News", "https://feeds.bbci.co.uk/news/world/rss.xml"),
+    "bbc_india": ("BBC India", "https://feeds.bbci.co.uk/news/world/asia/india/rss.xml"),
+}
+FEEDS.update(SOURCES)
+ALIASES = {
+    "zee": "zee_india", "zee news": "zee_india", "zee india": "zee_india", "zee news india": "zee_india",
+    "zee world": "zee_world",
+    "ndtv": "ndtv_india", "ndtv india": "ndtv_india",
+    "bbc": "bbc_world", "bbc world": "bbc_world", "bbc news": "bbc_world", "bbc india": "bbc_india",
+    "india": "ndtv_india", "world": "bbc_world", "local": "ndtv_cities",
+}
+
+
+def resolve_sources(value) -> list[str]:
+    """Turn 'Zee News, BBC India' into known feed keys. Unknown names are rejected."""
+    if isinstance(value, str):
+        parts = [part.strip().lower() for part in value.replace(" and ", ",").split(",") if part.strip()]
+    else:
+        parts = [str(part).strip().lower() for part in value if str(part).strip()]
+    found = []
+    unknown = []
+    for part in parts:
+        key = part if part in SOURCES else ALIASES.get(part)
+        if key is None:
+            unknown.append(part)
+        elif key not in found:
+            found.append(key)
+    if unknown or not found:
+        names = ", ".join(sorted(SOURCES))
+        raise ValueError(f"Unknown news source. Choose from: {names}")
+    return found
+
+async def briefing_news(city: str, topics: list[str] | None = None, sources: list[str] | None = None) -> list[dict]:
+    if sources:
+        wanted = [item for item in sources if item in FEEDS and item not in {"local", "india", "world"}]
+        jobs = [section(key, limit=2) for key in wanted]
+        return list(await asyncio.gather(*jobs)) if jobs else []
     wanted = [item for item in (topics or ["local", "india", "world"]) if item in FEEDS]
     jobs = []
     for kind in wanted:

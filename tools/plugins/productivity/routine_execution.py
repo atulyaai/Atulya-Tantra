@@ -5,12 +5,12 @@ from datetime import datetime
 from .briefing import build_briefing
 
 
-async def render_routine(item, city, calendar, owner="web", user_id="admin", topics=None):
+async def render_routine(item, city, calendar, owner="web", user_id="admin", topics=None, sources=None):
     action = item.get("action")
     if action == "message":
         return {"text": str(item.get("message") or "").strip(), "links": []}
     if action == "briefing":
-        return await build_briefing(city, calendar, owner, user_id, topics)
+        return await build_briefing(city, calendar, owner, user_id, topics, sources)
     if action == "calendar":
         rows = await asyncio.to_thread(calendar.list, owner, 50, user_id)
         now = datetime.now().astimezone()
