@@ -21,8 +21,10 @@ def score(data_dir, env: dict | None = None) -> dict:
     if env is os.environ:
         try:
             from dotenv import load_dotenv
-            from atulya.settings import PROJECT_ROOT
+            from atulya.settings import PROJECT_ROOT, Settings
+            from atulya.secrets_store import load_protected
             load_dotenv(PROJECT_ROOT / ".env", override=False)
+            load_protected(Settings.from_environment().data_dir)
         except Exception:
             pass
     checks = []
@@ -61,18 +63,40 @@ def score(data_dir, env: dict | None = None) -> dict:
     except Exception:
         devices = []
     online = [name for name, seen in devices if seen and time.time() - float(seen) < 90]
+    if online:
+        online_detail = ", ".join(online)
+    elif devices:
+        ages = []
+        for name, seen in devices:
+            if not seen:
+                ages.append(f"{name} has never polled")
+            else:
+                ages.append(f"{name} last polled {int((time.time() - float(seen)) // 60)} min ago")
+        online_detail = "; ".join(ages) + ". Open the phone app and leave it connected."
+    else:
+        online_detail = "paired devices are not polling"
     checks.append(_check(
         "device_paired", bool(devices),
         ", ".join(name for name, _seen in devices) or "none paired", "jarvis"))
-    checks.append(_check(
-        "device_online", bool(online),
-        ", ".join(online) if online else "paired devices are not polling", "jarvis"))
+    checks.append(_check("device_online", bool(online), online_detail, "jarvis"))
     checks.append(_check(
         "telegram", bool(env.get("ATULYA_TELEGRAM_BOT_TOKEN", "").strip()),
         "token configured" if env.get("ATULYA_TELEGRAM_BOT_TOKEN") else "no bot token", "jarvis"))
+    acted = []
+    try:
+        import sqlite3
+        with sqlite3.connect(data / "agents.sqlite3") as db:
+            acted = [row[0] for row in db.execute(
+                "SELECT DISTINCT kind FROM jobs WHERE status=\"executed\"" )]
+    except Exception:
+        acted = []
+    outside = {"send_sms", "place_call", "open_app", "open_url", "say", "display_message"}
+    done = sorted(set(acted) & outside)
     checks.append(_check(
-        "acts_outside", False,
-        "SMS, calls and the laptop still need a live approval receipt", "jarvis"))
+        "acts_outside", bool(done),
+        "receipts: " + ", ".join(done) if done else
+        "phone answered " + (", ".join(sorted(set(acted))) or "nothing") + "; no SMS, call, app or laptop receipt yet",
+        "jarvis"))
 
     novel = data / "novel_tasks.jsonl"
     passed = 0
