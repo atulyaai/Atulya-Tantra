@@ -166,6 +166,39 @@ class Maintenance:
             result.append(self.public(json.loads(path.read_text(encoding="utf-8"))))
         return result
 
+    AUTO_APPLY = frozenset({"atulya/music.py", "tools/plugins/voice/tts.py", "tools/device_companion.py"})
+
+    def autonomy_on(self) -> bool:
+        try:
+            policy = json.loads((self.directory.parent / "autonomy.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return False
+        return policy.get("repairs") == "apply_if_tests_pass"
+
+    def auto_apply_since(self, since, tester) -> dict:
+        """Apply one small repair without asking. Web UI, brain, and auth files still wait for approval."""
+        if not self.autonomy_on():
+            return {"applied": False, "reason": "autonomy is off"}
+        for proposal in self.proposals():
+            try:
+                created = datetime.fromisoformat(proposal.get("created_at", ""))
+            except ValueError:
+                continue
+            if created < since or proposal.get("state") != "proposed":
+                continue
+            path = proposal.get("path", "")
+            allowed = path in self.AUTO_APPLY or path.startswith("tools/skills/")
+            if not allowed:
+                return {"applied": False, "reason": f"{path} still needs approval"}
+            if str(proposal.get("diff") or "").count("\n") > 80:
+                return {"applied": False, "reason": "change is too large to apply unattended"}
+            self.apply(proposal["id"])
+            if tester is not None and not tester():
+                self.apply(proposal["id"], rollback=True)
+                return {"applied": False, "reason": "tests failed and the edit was rolled back", "path": path}
+            return {"applied": True, "id": proposal["id"], "path": path}
+        return {"applied": False, "reason": "no repair was proposed"}
+
     def apply(self, proposal_id: str, *, rollback: bool = False) -> dict:
         with self.lock:
             proposal = json.loads(self._proposal_path(proposal_id).read_text(encoding="utf-8"))

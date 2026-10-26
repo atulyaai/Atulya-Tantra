@@ -774,7 +774,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         "and report its ID plus checks. Never claim a staged proposal was applied or functionally "
                         "verified by a syntax check. If the repair needs setup/core access or unavailable tools, "
                         "explain the blocker. Do not create unrelated improvements. Findings: " + json.dumps(report))
+        from datetime import datetime, timezone
+        started = datetime.now(timezone.utc)
         reply = await brain.respond_with_tools([Message(role="user", content=instructions)], toolbox)
+        import subprocess
+        import sys
+
+        def tests_pass() -> bool:
+            result = subprocess.run(
+                [sys.executable, "-m", "pytest", "-q", "tests/core", "-p", "no:cacheprovider", "--tb=no"],
+                cwd=PROJECT_ROOT, timeout=180)
+            return result.returncode == 0
+
+        outcome = await asyncio.to_thread(maintenance.auto_apply_since, started, tests_pass)
+        if outcome.get("applied") and getattr(telegram, "configured", False):
+            await telegram.notify(f"I applied a repair to {outcome['path']} after tests passed. Proposal {outcome['id']}.")
+        elif outcome.get("reason") and outcome["reason"] not in {"no repair was proposed", "autonomy is off"} and getattr(telegram, "configured", False):
+            await telegram.notify(f"I found a repair and did not apply it: {outcome['reason']}")
         return reply.text
 
     maintenance.on_problem = propose_maintenance_fix
