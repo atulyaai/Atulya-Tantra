@@ -905,7 +905,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.telegram = telegram
     async def notify_maintenance(report, record):
-        areas = ", ".join(sorted({str(item.get("area", "system")) for item in report.get("findings", [])}))
+        # Missing Google consent and a companion that is not running yet wait on the owner.
+        # They stay in the maintenance list and do not buzz Telegram or the phone.
+        waiting = ("Reconnect", "Start its companion", "Open the Atulya app", "Pair this PC", "connect Google")
+        faults = [item for item in report.get("findings", [])
+                  if not any(phrase in str(item.get("next_step", "")) for phrase in waiting)]
+        if not faults:
+            return {"telegram_accepted": False, "push_accepted": 0, "skipped": "owner action"}
+        areas = ", ".join(sorted({str(item.get("area", "system")) for item in faults}))
         body = f"Atulya needs attention: {areas}. Maintenance diagnosis: {record['state']}. Open Maintenance for findings and repair proposals."
         receipts = {"telegram_accepted": False, "push_accepted": 0}
         if telegram.configured:
@@ -913,6 +920,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if push is not None:
             receipts["push_accepted"] = await asyncio.to_thread(push.send, WEB_OWNER, "Atulya needs attention", body, "/")
         return receipts
+
     maintenance.on_notification = notify_maintenance
 
     async def start_telegram() -> None:
