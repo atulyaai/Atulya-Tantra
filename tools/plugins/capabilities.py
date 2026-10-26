@@ -30,7 +30,9 @@ def tool_capabilities(toolbox):
                 step = "Connect a reminder store for this channel."
         elif tool.needs_context and ctx is None:
             status, step = "needs_connection", "Sign in to Atulya."
-        elif tool.confirm and not (tool.low_risk and toolbox._safety() == "ask_risky"):
+        elif tool.confirm and not (
+                (tool.low_risk and toolbox._safety() == "ask_risky")
+                or (getattr(ctx, "autonomous", False) and ctx.is_admin is True)):
             status, step = "needs_approval", "Approve the queued action before it can execute."
             if getattr(ctx, "actions", None) is None:
                 step = "Use the signed-in WebUI approval queue to run this action."

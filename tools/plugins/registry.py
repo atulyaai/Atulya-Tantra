@@ -34,6 +34,8 @@ class PluginContext:
     content_level: str = "adult"
     # Who on the channel triggered this request (e.g. "tg:<telegram id>"); pending actions are bound to it.
     origin: str = ""
+    # Owner asked for no second tap. The maintenance monitor must leave this false.
+    autonomous: bool = False
 
 
 CommandHandler = Callable[[str, PluginContext], Awaitable[str | None]]

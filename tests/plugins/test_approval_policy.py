@@ -218,3 +218,15 @@ def test_web_content_wrapped(monkeypatch):
         assert result.startswith(UNTRUSTED_OPEN) and result.endswith(UNTRUSTED_CLOSE), name
     assert "UNTRUSTED WEB CONTENT" in box.instructions()
     assert wrap_untrusted("x") == f"{UNTRUSTED_OPEN}\nx\n{UNTRUSTED_CLOSE}"
+
+
+def test_owner_autonomy_runs_the_action(project_temp_dir, monkeypatch):
+    hub = _paired(project_temp_dir, monkeypatch)
+    view = ActionQueue(project_temp_dir).view()
+    ctx = PluginContext("alice", None, None, "alice", actions=view, profile=_Profile("ask_all"),
+                        is_admin=True, autonomous=True)
+    result = asyncio.run(Toolbox(TOOLS, ctx).call(
+        "device_action", {"device": "Phone", "command": "send_sms", "detail": "12345|hi"}))
+    assert "Approval requested" not in result
+    assert view.created == []
+    assert [job["kind"] for job in hub.jobs("alice")] == ["send_sms"]

@@ -436,7 +436,7 @@ class TelegramChannel:
                     history=self._history, profile=self._profiles, channel="telegram",
                     reminders=TelegramReminderAccess(self._reminders, user_id, str((query.get("message") or {}).get("chat", {}).get("id", user_id))),
                     maintenance=self._maintenance, mcp_connections=self._mcp_connections,
-                    is_admin=True, origin=f"tg:{user_id}"))  # allow-listed owner chats only (guests get no tools)
+                    is_admin=True, origin=f"tg:{user_id}"))
                 answer = await toolbox.run_approved(action)
         try:
             await client.post(self._url("answerCallbackQuery"), json={"callback_query_id": query.get("id"), "text": answer[:190]})
@@ -612,7 +612,8 @@ class TelegramChannel:
                     profile=self._profiles, actions=view, channel="telegram",
                     reminders=TelegramReminderAccess(self._reminders, user_id, chat_id or user_id),
                     maintenance=self._maintenance, mcp_connections=self._mcp_connections,
-                    is_admin=True, origin=f"tg:{user_id}"))  # allow-listed owner chats only (guests get no tools)
+                    is_admin=True, origin=f"tg:{user_id}",
+                    autonomous=self._messages_auto()))  # allow-listed owner chats only (guests get no tools)
                 ui_actions: list[str] = []
                 token = _toolkit.UI_ACTIONS.set(ui_actions)
                 try:
@@ -634,6 +635,12 @@ class TelegramChannel:
         except ValueError:
             pass
         return reply.text
+
+    def _messages_auto(self) -> bool:
+        if not self._data_dir:
+            return False
+        from atulya.maintenance import owner_messages_auto
+        return owner_messages_auto(self._data_dir)
 
     def _style(self, user_id: str) -> str:
         if self._profiles is None:

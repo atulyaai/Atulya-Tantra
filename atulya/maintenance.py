@@ -15,6 +15,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
+def owner_messages_auto(data_dir) -> bool:
+    """True only when the owner switched outside actions off the extra confirm."""
+    try:
+        policy = json.loads((Path(data_dir) / "autonomy.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return policy.get("outside_messages") == "auto"
+
+
 EDITABLE = frozenset({"webui/index.html", "webui/assistant.js", "webui/renderer.css",
                       "webui/controls.js", "webui/controls.css", "webui/music.js",
                       "tools/plugins/brain/engine.py", "tools/plugins/brain/textcalls.py", "tools/plugins/brain/providers.py",

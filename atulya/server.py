@@ -1844,11 +1844,13 @@ ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
     async def get_capabilities(http_request: Request) -> dict:
         user_id = str(http_request.state.user_id)
         owner = await asyncio.to_thread(auth_store.is_admin, user_id)
+        from atulya.maintenance import owner_messages_auto
         toolbox = Toolbox.for_registry(command_plugins, PluginContext(
             WEB_OWNER, personal_memory, calendar, user_id, actions=action_queue.view(),
             history=history, profile=profiles, reminders=web_reminders,
             maintenance=maintenance if owner else None,
-            mcp_connections=mcp_connections if owner else None, is_admin=owner))
+            mcp_connections=mcp_connections if owner else None, is_admin=owner,
+            autonomous=owner and owner_messages_auto(config.data_dir)))
         return {"capabilities": toolbox.capabilities}
 
     @app.get("/api/connections")
@@ -2381,12 +2383,14 @@ ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
                 )
                 messages.insert(0, memory_context)
             action_view = action_queue.view()
+            owner = await asyncio.to_thread(auth_store.is_admin, str(http_request.state.user_id))
+            from atulya.maintenance import owner_messages_auto
             toolbox = Toolbox.for_registry(command_plugins, PluginContext(
                 WEB_OWNER, personal_memory, calendar, str(http_request.state.user_id),
                 actions=action_view, history=history, profile=profiles, reminders=web_reminders,
-                maintenance=maintenance if await asyncio.to_thread(auth_store.is_admin, str(http_request.state.user_id)) else None,
-                mcp_connections=mcp_connections if await asyncio.to_thread(auth_store.is_admin, str(http_request.state.user_id)) else None,
-                is_admin=await asyncio.to_thread(auth_store.is_admin, str(http_request.state.user_id)),
+                maintenance=maintenance if owner else None,
+                mcp_connections=mcp_connections if owner else None,
+                is_admin=owner, autonomous=owner and owner_messages_auto(config.data_dir),
                 content_level=content.level,
             ))
             from atulya.evolution import capture_order
