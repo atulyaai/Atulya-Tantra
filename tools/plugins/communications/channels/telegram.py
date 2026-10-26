@@ -602,6 +602,9 @@ class TelegramChannel:
             saved = await asyncio.to_thread(self._history.read, conversation_id, 30, user_id=scoped_user)
             conversation = [Message(role=row["role"], content=row["content"]) for row in saved if row["role"] in {"user", "assistant"}]
             conversation.append(Message(role="user", content=text))
+            from atulya.evolution import capture_order
+            if self._data_dir:
+                await asyncio.to_thread(capture_order, self._data_dir, scoped_user, text)
             if self._command_plugins is not None and self._personal_memory is not None and self._calendar is not None:
                 view = self._actions.view() if self._actions is not None else None
                 toolbox = Toolbox.for_registry(self._command_plugins, PluginContext(

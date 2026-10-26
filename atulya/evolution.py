@@ -70,6 +70,16 @@ class Lessons:
         return removed
 
 
+def capture_order(data_dir, user_id: str, text: str) -> str:
+    """Save a standing 'don't' from the user. A bare 'stop the music' is a command, not a rule."""
+    cleaned = " ".join(str(text or "").split())
+    if len(cleaned) < 12 or len(cleaned) > _TEXT or cleaned.endswith("?"):
+        return ""
+    if not re.search(r"\b(don'?t|do not|never|stop doing|not again|from now on)\b", cleaned, re.I):
+        return ""
+    return Lessons(Path(data_dir)).add(user_id, cleaned, "user")["text"]
+
+
 def lessons_for_prompt(data_dir, user_id: str) -> str:
     items = Lessons(data_dir).active(user_id) if data_dir else []
     if not items:

@@ -753,7 +753,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .workspace_api import register_workspace_routes
     maintenance = Maintenance(PROJECT_ROOT, config.data_dir, config.models_dir)
     from .readiness import runtime_readiness
-    maintenance.runtime_probe = lambda: runtime_readiness(config.data_dir, WEB_OWNER)["findings"]
+    maintenance.runtime_probe = lambda: runtime_readiness(config.data_dir, "admin")["findings"]
 
     @app.get("/api/readiness")
     async def readiness(request: Request):
@@ -2373,6 +2373,8 @@ ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
                 is_admin=await asyncio.to_thread(auth_store.is_admin, str(http_request.state.user_id)),
                 content_level=content.level,
             ))
+            from atulya.evolution import capture_order
+            await asyncio.to_thread(capture_order, config.data_dir, str(http_request.state.user_id), latest_user)
             if request.mode == "voice":
                 toolbox = toolbox.subset(VOICE_TOOLS, voice=True)
                 if voice_intent is not None:
@@ -2410,6 +2412,14 @@ ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
                 from atulya.voice_context import voice_context
                 messages.insert(0, await asyncio.to_thread(voice_context, profiles, str(http_request.state.user_id)))
                 style = content.instructions
+                from atulya.evolution import lessons_for_prompt
+                from atulya.recent_actions import recent_actions
+                voice_notes = "\n".join(part for part in (
+                    lessons_for_prompt(config.data_dir, str(http_request.state.user_id)),
+                    recent_actions(config.data_dir),
+                ) if part)
+                if voice_notes:
+                    style = f"{style}\n{voice_notes}"
             else:
                 style = profile_instructions(await asyncio.to_thread(profiles.get, str(http_request.state.user_id)))
                 if content.instructions:

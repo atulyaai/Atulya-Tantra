@@ -236,6 +236,7 @@ class Maintenance:
                 findings.extend(self.runtime_probe())
             except Exception as exc:
                 findings.append({"area": "connections", "message": f"Runtime connection checks failed ({type(exc).__name__})"})
+        (self.directory.parent / "maintenance-last.json").write_text(json.dumps({"findings": findings}), encoding="utf-8")
         self.last_check = {"checked_at": datetime.now(timezone.utc).isoformat(), "findings": findings,
                            "editable_files": sorted(EDITABLE),
                            "skill_policy": "New or existing tools/skills/<slug>/SKILL.md can be proposed and reviewed. Skills grant no new tool permissions.",

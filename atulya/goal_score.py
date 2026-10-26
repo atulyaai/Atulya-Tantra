@@ -40,14 +40,14 @@ def score(data_dir, env: dict | None = None) -> dict:
     sources = settings.get("sources") or [] if isinstance(settings, dict) else []
     checks.append(_check(
         "news_source", bool(sources),
-        "sources: " + ", ".join(sources) if sources else "no news source saved", "jarvis"))
+        "scripted feeds: " + ", ".join(sources) if sources else "no news source saved", "jarvis"))
     routines = []
     try:
         routines = json.loads((data / "routines.json").read_text(encoding="utf-8")).get("items") or []
     except (OSError, ValueError):
         routines = []
     enabled = [item.get("name") for item in routines if item.get("enabled")]
-    checks.append(_check("routines", bool(enabled), ", ".join(enabled) or "none enabled", "jarvis"))
+    checks.append(_check("routines", bool(enabled), (", ".join(enabled) or "none enabled") + " — scripted schedules, not a decision", "jarvis"))
     lessons = []
     try:
         lessons = json.loads((data / "lessons.json").read_text(encoding="utf-8")).get("items") or []
@@ -98,26 +98,38 @@ def score(data_dir, env: dict | None = None) -> dict:
         "phone answered " + (", ".join(sorted(set(acted))) or "nothing") + "; no SMS, call, app or laptop receipt yet",
         "jarvis"))
 
-    novel = data / "novel_tasks.jsonl"
-    passed = 0
+    proposals = []
     try:
-        for line in novel.read_text(encoding="utf-8").splitlines():
-            row = json.loads(line)
-            if row.get("passed") and row.get("novel") is True:
-                passed += 1
+        for path in (data / "maintenance").glob("*.json"):
+            proposals.append(json.loads(path.read_text(encoding="utf-8")))
     except (OSError, ValueError):
-        passed = 0
-    checks.append(_check("novel_tasks", passed > 0, f"{passed} unscripted task(s) passed", "agi"))
-    checks.append(_check("weights_changed", False, "no fine-tune has been run", "agi"))
+        proposals = []
+    findings = []
+    try:
+        findings = json.loads((data / "maintenance-last.json").read_text(encoding="utf-8")).get("findings") or []
+    except (OSError, ValueError):
+        findings = []
+    proposed = [item for item in proposals if item.get("state") in {"proposed", "applied"}]
+    applied = [item for item in proposals if item.get("state") == "applied"]
     checks.append(_check(
-        "self_code", False, "repairs do not edit code unless you approve a proposal", "agi"))
+        "finds_issues", bool(findings),
+        f"{len(findings)} issue(s) found by the server check" if findings else "the server check has not recorded an issue",
+        "agi"))
+    checks.append(_check(
+        "proposes_fix", bool(proposed),
+        f"{len(proposed)} code proposal(s) waiting or applied" if proposed else "no code proposal has been written",
+        "agi"))
+    checks.append(_check(
+        "applies_fix", bool(applied),
+        f"{len(applied)} approved edit(s) applied" if applied else "nothing is edited until you approve a proposal",
+        "agi"))
 
     jarvis = [item for item in checks if item["group"] == "jarvis"]
     agi = [item for item in checks if item["group"] == "agi"]
     return {
         "jarvis": f"{sum(item['ok'] for item in jarvis)}/{len(jarvis)}",
         "agi": f"{sum(item['ok'] for item in agi)}/{len(agi)}",
-        "meaning": "Jarvis is this product. AGI stays 0 until an unscripted task passes. A goal file cannot raise it.",
+        "meaning": "Jarvis checks are scripted features, not a mind. AGI moves only when the server finds an issue, writes a fix, and you approve it. Model weights are not scored.",
         "checks": checks,
     }
 
