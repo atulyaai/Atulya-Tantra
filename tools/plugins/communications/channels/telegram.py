@@ -639,7 +639,11 @@ class TelegramChannel:
 
         base = profile_instructions(self._profiles.get(user_id))
         from atulya.evolution import lessons_for_prompt
-        extra = lessons_for_prompt(self._data_dir, user_id)
+        from atulya.recent_actions import recent_actions
+        extra = "\n".join(part for part in (
+            lessons_for_prompt(self._data_dir, user_id),
+            recent_actions(self._data_dir) if self._data_dir else "",
+        ) if part)
         return f"{base}\n{extra}" if extra else base
 
     async def _deliver_briefings(self) -> None:

@@ -983,7 +983,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 
 
-    _watch_day = {"disk": "", "rain": ""}
+    _watch_day = {"disk": "", "rain": "", "phone": ""}
 
     async def _house_watch(store, telegram_channel) -> None:
         import shutil
@@ -996,6 +996,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if percent >= 90 and _watch_day["disk"] != today:
             await telegram_channel.notify(f"Disk alert: the server disk is {percent:.0f}% full.")
             _watch_day["disk"] = today
+
+        try:
+            import sqlite3
+            seen = sqlite3.connect(config.data_dir / "agents.sqlite3").execute(
+                "SELECT max(seen) FROM devices WHERE revoked=0").fetchone()[0]
+        except Exception:
+            seen = None
+        if seen and time.time() - float(seen) > 1800 and _watch_day["phone"] != today:
+            await telegram_channel.notify(
+                "The phone has not polled for 30 minutes. Open the Atulya app, tap Devices, then Keep this phone connected, then Enable.")
+            _watch_day["phone"] = today
+
 
     async def run_routines() -> None:
         """Run opted-in schedules; mark sent only after Telegram accepts a message."""
@@ -1071,6 +1083,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 fresh = await asyncio.to_thread(learn_from_failures, config.data_dir)
                 if fresh and getattr(telegram, "configured", False):
                     await telegram.notify("I learned from repeated failures:\n" + "\n".join(f"• {item}" for item in fresh))
+                from atulya.agi_eval import run_daily_probe
+                await run_daily_probe(config.data_dir, brain)
             except Exception as exc:
                 logging.getLogger(__name__).warning("Evolution loop failed (%s)", type(exc).__name__)
             await asyncio.sleep(1200)
@@ -2401,7 +2415,11 @@ ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
                 if content.instructions:
                     style = f"{style}\n{content.instructions}"
                 from atulya.evolution import lessons_for_prompt
-                learned = lessons_for_prompt(config.data_dir, str(http_request.state.user_id))
+                from atulya.recent_actions import recent_actions
+                learned = "\n".join(part for part in (
+                    lessons_for_prompt(config.data_dir, str(http_request.state.user_id)),
+                    recent_actions(config.data_dir),
+                ) if part)
                 if learned:
                     style = f"{style}\n{learned}"
             if not request.stream:
