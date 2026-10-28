@@ -136,6 +136,26 @@ class ConversationHistory:
         return [{"id": row["conversation_id"], "title": (row["title"] or "Conversation")[:72],
                  "updated": row["updated"], "messages": row["messages"]} for row in rows]
 
+    def recent_elsewhere(self, user_id: str, exclude: str, limit: int = 6) -> str:
+        """Last turns from this user's other conversations. Data for the model, not orders."""
+        self._validate_user_id(user_id)
+        if exclude and not _ID.fullmatch(exclude):
+            return ""
+        with self._session() as connection:
+            rows = connection.execute(
+                "SELECT role, content FROM messages WHERE user_id=? AND conversation_id!=? "
+                "ORDER BY rowid DESC LIMIT ?",
+                (user_id, exclude or "", min(max(limit, 1), 12)),
+            ).fetchall()
+        lines = []
+        for row in reversed(rows):
+            if row["role"] not in {"user", "assistant"}:
+                continue
+            snippet = " ".join(str(row["content"]).split())[:180]
+            if snippet:
+                lines.append(f"{row['role']}: {snippet}")
+        return "\n".join(lines)
+
     def search(self, query: str, limit: int = 8, *, user_id: str) -> list[dict[str, str]]:
         """Find this user's past messages containing every query word, newest first."""
         self._validate_user_id(user_id)
