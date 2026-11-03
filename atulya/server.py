@@ -2000,10 +2000,11 @@ ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
         return {
             "service": {"state": "ready", "label": "Online"},
             "model": {"state": "ready" if brain is not None else "setup", "label": model or "Unavailable"},
-            "voice": {"state": "ready" if voice.ready else "setup", "label": "Whisper · local" if voice.ready else "Needs setup"},
+            "voice": {"state": "ready" if voice.ready else "setup",
+                      "label": ("Vosk · local" if type(voice).__name__ == "VoskSpeech" else "Whisper · local") if voice.ready else "Needs setup"},
             "speech": {
                 "state": "ready" if speech_output.ready else "setup",
-                "label": "Supertonic 3 · local" if speech_output.ready else "Browser voice fallback",
+                "label": ("Piper · local" if type(speech_output).__name__ == "PiperSpeech" else "Supertonic 3 · local") if speech_output.ready else "Browser voice fallback",
             },
             "vision": {"state": "ready" if (
                 (config.model_provider_auto and (
