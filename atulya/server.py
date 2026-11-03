@@ -1150,7 +1150,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await asyncio.gather(task, return_exceptions=True)
     app.router.add_event_handler("shutdown", stop_server_alerts)
 
-    @app.get("/api/health")
+    @app.api_route("/api/health", methods=["GET", "HEAD"])
     async def health() -> dict[str, str | bool]:
         return {
             "status": "ok",

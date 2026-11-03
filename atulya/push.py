@@ -118,7 +118,7 @@ class PushService:
                 response = httpx.post(endpoint, content=self.encrypt(payload, keys["p256dh"], keys["auth"]), timeout=10,
                                       headers={"Content-Encoding": "aes128gcm", "TTL": "86400", "Urgency": "high",
                                                "Authorization": self._vapid_header(endpoint)})
-                if response.status_code in {404, 410}:
+                if response.status_code in {403, 404, 410}:
                     dead.append(endpoint)
                 elif response.status_code < 300:
                     delivered += 1
