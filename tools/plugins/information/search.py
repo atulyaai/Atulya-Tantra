@@ -88,6 +88,16 @@ async def _check_public(url: str) -> None:
         raise BlockedURL(f"{host} is not a public internet address")
 
 
+
+async def public_address(url: str) -> str | None:
+    """Why a URL is refused, or None when it is a public https address."""
+    try:
+        await _check_public(url)
+    except BlockedURL as exc:
+        return str(exc)
+    return None
+
+
 async def read_page(url: str, *, client: httpx.AsyncClient | None = None) -> str:
     """Fetch and extract text from a public https web page; every redirect hop is re-checked."""
     client = client or _client()

@@ -45,7 +45,9 @@ SCENES: dict[str, dict[str, Any]] = {
 }
 
 
-NOT_CONNECTED = "Not connected: set HASS_URL/HASS_TOKEN; nothing was changed."
+NOT_CONNECTED = "not connected: set HASS_URL/HASS_TOKEN; nothing was changed."
+ON_ACTIONS = {"turn_on", "on", "enable"}
+OFF_ACTIONS = {"turn_off", "off", "disable"}
 
 
 async def execute_smart_home(device: str, action: str, brightness: int | None = None, state: str | None = None) -> str:
@@ -67,10 +69,20 @@ async def execute_smart_home(device: str, action: str, brightness: int | None = 
         "Authorization": f"Bearer {hass_token}",
         "Content-Type": "application/json"
     }
-    domain = "light" if "light" in device_norm or "lamp" in device_norm else "switch"
-    service = "turn_on" if action_norm in {"turn_on", "on", "enable"} else "turn_off"
+    if action_norm not in ON_ACTIONS | OFF_ACTIONS:
+        return f"Unsupported action '{action}'. Nothing was changed."
+    raw = device_norm.replace(" ", "_")
+    if "." in raw:
+        domain, _, _name = raw.partition(".")
+        if domain not in {"light", "switch", "media_player"}:
+            return f"Unsupported device '{device}'. Nothing was changed."
+        entity = raw
+    else:
+        domain = "light" if ("light" in raw or "lamp" in raw) else "switch"
+        entity = f"{domain}.{raw}"
+    service = "turn_on" if action_norm in ON_ACTIONS else "turn_off"
     endpoint = f"{hass_url}/api/services/{domain}/{service}"
-    payload: dict[str, Any] = {"entity_id": f"{domain}.{device_norm.replace(' ', '_')}"}
+    payload: dict[str, Any] = {"entity_id": entity}
     if brightness is not None and domain == "light":
         payload["brightness_pct"] = max(0, min(100, brightness))
 
@@ -78,7 +90,9 @@ async def execute_smart_home(device: str, action: str, brightness: int | None = 
         async with httpx.AsyncClient(timeout=10) as client:
             res = await client.post(endpoint, headers=headers, json=payload)
             if res.status_code in {200, 201}:
-                return f"Smart home: {device} set to {action} (brightness {brightness}%)." if brightness else f"Smart home: {device} set to {action}."
+                if brightness is not None:
+                    return f"Smart home: {device} set to {action} (brightness {brightness}%)."
+                return f"Smart home: {device} set to {action}."
             return f"Home Assistant returned status {res.status_code}: {res.text[:120]}. Nothing was confirmed changed."
     except Exception as exc:
         return f"Home Assistant request failed: {exc}. Nothing was changed."
