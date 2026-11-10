@@ -58,6 +58,14 @@ This replaces earlier claims that code presence meant a working feature. Status 
 
 - [x] Downloaded private 2.7 GB project archive and matched server SHA-256. Do not commit private data or restore Linux virtualenv over Windows.
 - [ ] Test, review, merge and deploy local drafts; verify main/server commit match.
+  - 2026-11-10: the review and merge are done and the CI is green again (PR #98 and PR #100). The deploy
+    step is still open and the reason is outside the repository: the DigitalOcean droplet does not accept
+    SSH from GitHub's runner (or from any other address) - `ssh: connect to host <server> port 22:
+    Connection timed out`. The live server therefore still runs `d9a4a27` (19 October) while `main` is at
+    `437f200`. Owner step: allow TCP 22 to the droplet (DigitalOcean firewall and the host's own
+    firewall), then re-run the deploy: GitHub -> Actions -> CI -> Run workflow -> branch `main`, or run
+    `sh tools/deploy_server.sh` in `~/Atulya-Tantra` on the droplet. The script pulls `main`, restarts the
+    service, health-checks it, runs the functional selftest and rolls back on failure.
 - [ ] Keep assistant development branches separate and preserve other contributors' changes.
 
 The old list incorrectly described laptop agents and Gmail/Calendar as done, claimed gesture assets were missing, and treated a 40-word/one-headline briefing as finished. None of those statements should be reused as verification.

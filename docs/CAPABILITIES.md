@@ -41,7 +41,7 @@ Status: ✅ works (tested for real) · 🔧 partial · ⬜ missing · ⛔ blocke
 | PLT-06 | Per-device, per-resource permissions | Policy service | ⬜ H5 |
 | PLT-07 | Audit log of tool runs (who, what, result) | Event store | ⬜ H3 |
 | PLT-08 | Secrets encrypted at rest, logs redacted | Core | 🔧 Windows only (DPAPI); on Linux `secrets_store.py` stores base64 (`PLAIN:`), which is not encryption (AUDIT H3) |
-| PLT-09 | Durable jobs: retries, resume after restart, cancel | Worker | 🔧 reminders/briefings only; H8 |
+| PLT-09 | Durable jobs: retries, resume after restart, cancel | Worker | 🔧 reminders/briefings only; H8. Goals added 2026-11-10: a multi-step goal and every step's receipt are stored in `data/goals.sqlite3`, and a restart marks an unfinished goal "interrupted" instead of replaying it (`atulya/goal_runner.py`). |
 
 ### Information and location
 | ID | Capability | How | Status |
