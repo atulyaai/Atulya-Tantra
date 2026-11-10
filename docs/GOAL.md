@@ -143,9 +143,18 @@ The Android app is a shell around the web UI, so every screen, feature and fix i
 
 ### M9 — Autonomous agent mode ("AGI mode", honestly scoped)
 True AGI isn't achievable with any model, free or paid. This milestone is the closest real thing: an agent that plans, acts and checks its own work on multi-step goals.
-- [ ] Plan → act → observe → retry loop using the existing tools, with step limits and a visible task timeline.
-- [ ] Long goals survive restarts (durable jobs, PLT-09) and report progress.
-- [ ] Every action that changes something or sends outside still goes through approval.
+- [x] Plan → act → observe → retry loop using the existing tools, with step limits and a visible task timeline.
+  - Implemented 2026-11-10: `atulya/goal_runner.py` plans with the model, keeps only tools the caller really
+    has, runs each step through the shared Toolbox, checks the receipt, corrects a failing step once and
+    stops honestly. Tools: `run_goal` (run or continue a goal) and `goal_timeline` (the recorded steps).
+    Tests: `tests/core/test_goal_runner.py` (16). Still to do: run a real multi-step goal on the live model
+    and on the owner's device.
+- [x] Long goals survive restarts (durable jobs, PLT-09) and report progress.
+  - The goal and every step's receipt are stored in `data/goals.sqlite3`; a restart marks an unfinished goal
+    "interrupted" and never replays a step that already ran.
+- [x] Every action that changes something or sends outside still goes through approval.
+  - The runner uses the same Toolbox, so a step that needs approval stops the goal and waits for the owner;
+    nothing is queued twice.
 - **Done when:** "find the 3 largest files in Downloads, summarize them, and remind me about them tomorrow" completes unattended except for approvals, with receipts.
 
 ### M10 — Fully proactive
