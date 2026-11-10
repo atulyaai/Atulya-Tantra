@@ -90,9 +90,12 @@ class AgentHub:
             db.execute("DELETE FROM devices WHERE owner=? AND name=? AND revoked=1", (owner, new_name))
             db.execute("UPDATE devices SET name=? WHERE owner=? AND name=?", (new_name, owner, name))
             db.execute("UPDATE jobs SET device=? WHERE owner=? AND device=?", (new_name, owner, name))
-            db.execute("UPDATE device_metadata SET name=? WHERE owner=? AND name=?", (new_name, owner, name))
-            db.execute("UPDATE device_presence SET name=? WHERE owner=? AND name=?", (new_name, owner, name))
-        return {"name": new_name}
+            # Renaming is an identity move: drop the metadata a revoked device with that name left
+            # behind, then carry this device's own type and connection mode over.
+            for table in ("device_metadata", "device_presence"):
+                db.execute(f"DELETE FROM {table} WHERE owner=? AND name=?", (owner, new_name))
+                db.execute(f"UPDATE {table} SET name=? WHERE owner=? AND name=?", (new_name, owner, name))
+        return {"name": new_name, "previous": name}
 
     def revoke(self, owner, name):
         with closing(sqlite3.connect(self.path)) as db, db:

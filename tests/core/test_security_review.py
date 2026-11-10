@@ -31,7 +31,7 @@ def make_settings(path: Path) -> Settings:
 ])
 def test_read_url_refuses_internal_addresses(url):
     reply = asyncio.run(search.read_page(url))
-    assert reply.startswith("I won't read that address")
+    assert reply.startswith("I won't read that page")  # refusal wording shared with the approval suite
 
 
 def test_read_url_checks_every_redirect_hop(monkeypatch):
@@ -56,7 +56,7 @@ def test_read_url_checks_every_redirect_hop(monkeypatch):
     monkeypatch.setattr(search, "_client", lambda: Client())
     reply = asyncio.run(search.read_page("http://public.example/"))
     assert calls == ["http://93.184.216.34/"]  # only the validated public address is contacted
-    assert reply.startswith("I won't read that address")
+    assert reply.startswith("I won't read that page")  # refusal wording shared with the approval suite
 
 
 # --- push notifications only go to real browser push services ------------------------------------
@@ -106,11 +106,13 @@ def test_companion_files_stay_inside_the_granted_folder_and_skip_hidden(project_
 
 def test_device_camera_cast_and_smart_home_tools_require_approval():
     tools = {tool.name: tool for tool in TOOLS}
-    for name in ("ask_device", "visual_inspect", "cast_to_tv", "smart_home_control"):
+    # device_action replaced ask_device as the effectful device tool; ask_device is now read-only
+    # and refuses mutating commands (tests/plugins/test_approval_policy.py).
+    for name in ("device_action", "visual_inspect", "cast_to_tv", "smart_home_control"):
         assert tools[name].confirm, name
-    assert not tools["ask_device"].low_risk and not tools["visual_inspect"].low_risk
+    assert not tools["device_action"].low_risk and not tools["visual_inspect"].low_risk
     assert "photo" in tools["visual_inspect"].describe({"device": "Laptop"})
-    assert "send_sms" in tools["ask_device"].describe({"device": "Phone", "command": "send_sms", "detail": "{}"})
+    assert "send_sms" in tools["device_action"].describe({"device": "Phone", "command": "send_sms", "detail": "{}"})
 
 
 # --- signed-in devices, sign out everywhere, alerts only for new sign-ins -------------------------

@@ -9,8 +9,8 @@ from tools.plugins.toolkit import ADMIN_ONLY_REPLY, TOOLS, ActionQueue, PendingA
 
 PC_CONTROL = {tool.name for tool in TOOLS if tool.plugin_id == "pc-control"}
 EXPECTED_ADMIN_ONLY = PC_CONTROL | {
-    "smart_home_control", "cast_to_tv", "visual_inspect",
-    "restart_service", "server_status", "server_logs", "atulya_status",
+    "smart_home_control", "cast_to_tv", "visual_inspect", "rename_device",
+    "restart_service", "operations_status", "server_status", "server_logs", "atulya_status",
     "maintenance_check", "maintenance_read", "maintenance_propose", "maintenance_search",
     "maintenance_patch", "maintenance_set_proactive", "mcp_list_connections", "mcp_call_tool",
     "gmail_search", "gmail_drafts", "gmail_send",

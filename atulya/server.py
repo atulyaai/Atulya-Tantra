@@ -632,7 +632,9 @@ CONTENT_SECURITY_POLICY = "; ".join((
     "frame-src https://www.youtube.com https://www.youtube-nocookie.com",
     "object-src 'none'",
     "base-uri 'none'",
-    "frame-ancestors 'none'",
+    # The Telegram Mini App runs inside web.telegram.org, so that origin may frame Atulya.
+    # Every other site is blocked, which is what stops click-jacking of the APPROVE buttons.
+    "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org",
     "form-action 'self'",
 ))
 
@@ -1265,9 +1267,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail="Open Atulya at http://localhost:8501 to use a passkey.")
         return rp_id, f"{request.url.scheme}://{host}"
 
+    SIGN_IN_METHODS = (("/api/auth/register/verify", "new passkey"), ("/api/auth/login/verify", "passkey"),
+                       ("/api/auth/login-requests/", "code or approval"), ("/api/auth/voice-unlock", "voice unlock"),
+                       ("/api/auth/telegram-webapp", "Telegram"), ("/api/auth/password", "password"),
+                       ("/api/auth/google/app", "Google (app)"), ("/api/auth/google/", "Google"))
+
+    async def sign_in_alert(user_id: str, label: str, method: str) -> None:
+        when = time.strftime("%d %b %H:%M")
+        text = (f"New sign-in to Atulya: {label} via {method} at {when}. "
+                "Not you? Open Atulya → SIGNED-IN DEVICES and sign it out.")
+        try:
+            if user_id == "admin":
+                await telegram.notify(text)
+            await notify_user(user_id, "New sign-in", text)
+        except Exception:
+            logging.getLogger(__name__).info("Sign-in alert could not be delivered")
+
     def set_session_cookie(response: Response, request: Request, token: str) -> None:
         if request.client:
             auth_store.clear_ip(request.client.host)
+        path = request.url.path
+        method = next((name for prefix, name in SIGN_IN_METHODS if path.startswith(prefix)), "sign-in")
+        user_id, is_new = auth_store.describe_session(
+            token, _client_label(request), request.client.host if request.client else "", method)
+        if user_id and is_new:
+            asyncio.get_running_loop().create_task(sign_in_alert(user_id, _client_label(request), method))
         response.set_cookie(
             SESSION_COOKIE,
             token,
@@ -1519,13 +1543,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         user_id = await asyncio.to_thread(auth_store.resolve_login, body.username)
         client = request.client.host if request.client else "unknown"
         label = _client_label(request)
-        await strike(request, weight_only_if_remote=True)
         try:
             created = await asyncio.to_thread(auth_store.create_login_request, user_id, client, label)
         except ValueError as exc:
+            await strike(request)  # more open requests than allowed: count it as abuse
             raise HTTPException(status_code=429, detail=str(exc)) from exc
         if created is None:
-            # Same answer as success, so usernames can't be probed.
+            # Unknown username: count it (name probing), but answer like success so names can't be probed.
+            await strike(request)
             return {"id": secrets.token_urlsafe(18), "channels": [], "expires_in": 300}
         request_id, code = created
         channels = await deliver_login_code(user_id, code, label, request_id)
@@ -2634,6 +2659,9 @@ ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("Referrer-Policy", "same-origin")
         response.headers.setdefault("Content-Security-Policy", CONTENT_SECURITY_POLICY)
+        # The camera, microphone and location are used on request; nothing else is allowed.
+        response.headers.setdefault(
+            "Permissions-Policy", "camera=(self), microphone=(self), geolocation=(self), payment=(), usb=()")
         path = request.url.path
         if path.startswith("/api/") or "cache-control" in response.headers:
             return response

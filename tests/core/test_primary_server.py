@@ -4,8 +4,9 @@ from tools.plugins import toolkit
 from tools.plugins.registry import PluginContext
 
 
-def context(user="admin"):
-    return PluginContext("web", None, None, user_id=user)
+def context(user="admin", admin=True):
+    # The role comes from the auth store and fails closed (AUDIT S2), so the test states it.
+    return PluginContext("web", None, None, user_id=user, is_admin=admin)
 
 
 def test_primary_server_needs_no_ssh_configuration(monkeypatch):
@@ -38,8 +39,8 @@ def test_non_owner_cannot_read_primary_status_or_logs(monkeypatch):
     def forbidden():
         raise AssertionError("Must not read system state")
     monkeypatch.setattr(toolkit, "STATUS_PROVIDER", forbidden)
-    assert "Only the owner" in asyncio.run(toolkit._server_status({}, context("other")))
-    assert "Only the owner" in asyncio.run(toolkit._server_logs({}, context("other")))
+    assert "Only the owner" in asyncio.run(toolkit._server_status({}, context("other", admin=False)))
+    assert "Only the owner" in asyncio.run(toolkit._server_logs({}, context("other", admin=False)))
 
 
 def test_logs_follow_configured_data_directory(project_temp_dir, monkeypatch):

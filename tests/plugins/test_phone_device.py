@@ -26,7 +26,10 @@ def test_assistant_knows_whether_a_phone_is_paired(project_temp_dir, monkeypatch
 def test_phone_job_round_trip_needs_the_device_token(project_temp_dir):
     hub = AgentHub(project_temp_dir)
     token = hub.pair("alice", "Phone Test 0001", PHONE_ABILITIES)["token"]
-    assert hub.authenticate(token) == {"owner": "alice", "name": "Phone Test 0001"}
+    # authenticate() also reports the paired abilities (voice-loop work, GOAL B4).
+    identified = hub.authenticate(token)
+    assert identified["owner"] == "alice" and identified["name"] == "Phone Test 0001"
+    assert set(identified["abilities"]) == set(PHONE_ABILITIES)
     job = hub.enqueue("alice", "Phone Test 0001", "send_sms", '{"to": "+911234567890", "body": "hi"}')
     assert [item["id"] for item in hub.poll("alice", "Phone Test 0001")] == [job["id"]]
     assert hub.complete("alice", "Phone Test 0001", job["id"], "Denied on the phone.", success=False)

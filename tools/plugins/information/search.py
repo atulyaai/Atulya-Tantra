@@ -20,6 +20,10 @@ def _client() -> httpx.AsyncClient:
         _search_client = httpx.AsyncClient(
             timeout=httpx.Timeout(10, connect=5),
             headers={"User-Agent": "Atulya-Tantra/1.0"},
+            trust_env=False,
+            # Pinned IP URLs may serve different TLS hostnames. Never reuse a
+            # connection authenticated for one original hostname for another.
+            limits=httpx.Limits(max_keepalive_connections=0),
         )
     return _search_client
 
@@ -69,50 +73,71 @@ class BlockedURL(ValueError):
     """The URL points somewhere read_url must not fetch (non-https or a non-public address)."""
 
 
-async def _check_public(url: str) -> None:
-    parsed = urlsplit(url)
-    if parsed.scheme != "https":
-        raise BlockedURL("only https:// pages can be read")
-    host = parsed.hostname
-    if not host:
-        raise BlockedURL("the URL has no host")
-    try:
-        addresses = [ipaddress.ip_address(host)]
-    except ValueError:
-        try:
-            infos = await asyncio.get_running_loop().getaddrinfo(host, parsed.port or 443, type=socket.SOCK_STREAM)
-        except OSError as exc:
-            raise BlockedURL(f"could not resolve {host}") from exc
-        addresses = [ipaddress.ip_address(info[4][0].split("%", 1)[0]) for info in infos]
-    if not addresses or any(not address.is_global for address in addresses):
-        raise BlockedURL(f"{host} is not a public internet address")
+async def _public_target(url: str) -> tuple[str | None, str | None]:
+    """Resolve and validate once; the returned address is the actual connection target.
 
+    Blocks private networks and the cloud metadata service (169.254.169.254), so a page,
+    email or prompt can never make Atulya read internal addresses. The hostname is
+    resolved here and only the numeric address is contacted later, so a hostname that
+    changes answer between this check and the request cannot point back inside.
+    """
+    try:
+        parts = urlsplit(url)
+        port = parts.port or 443
+    except ValueError:
+        return None, "invalid address"
+    if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
+        return None, "only https:// web addresses can be read"
+    try:
+        found = await asyncio.wait_for(
+            asyncio.get_running_loop().getaddrinfo(parts.hostname, port, type=socket.SOCK_STREAM), timeout=5)
+    except (OSError, asyncio.TimeoutError):
+        return None, "that address does not resolve"
+    addresses = []
+    for *_rest, sockaddr in found:
+        address = ipaddress.ip_address(sockaddr[0].split("%")[0])
+        if getattr(address, "ipv4_mapped", None):
+            address = address.ipv4_mapped
+        if not address.is_global or address.is_multicast:
+            return None, "internal and private addresses are never read"
+        addresses.append(address)
+    if not addresses:
+        return None, "that address does not resolve"
+    # Prefer IPv4 on hosts without working IPv6 routing.
+    address = min(addresses, key=lambda item: item.version)
+    return str(address), None
 
 
 async def public_address(url: str) -> str | None:
-    """Why a URL is refused, or None when it is a public https address."""
-    try:
-        await _check_public(url)
-    except BlockedURL as exc:
-        return str(exc)
-    return None
+    """Why a URL must not be fetched, or None when it points only at the public internet."""
+    _address, refused = await _public_target(url)
+    return refused
 
 
 async def read_page(url: str, *, client: httpx.AsyncClient | None = None) -> str:
-    """Fetch and extract text from a public https web page; every redirect hop is re-checked."""
+    """Fetch and extract text from a public web page; every redirect hop is re-checked."""
     client = client or _client()
     try:
         for _hop in range(MAX_REDIRECTS + 1):
-            await _check_public(url)
-            resp = await client.get(url, follow_redirects=False)
+            address, refused = await _public_target(url)
+            if refused:
+                return f"I won't read that page: {refused}."
+            original = httpx.URL(url)
+            # Connect to the validated numeric address; do not resolve the
+            # untrusted hostname a second time. Keep Host and TLS verification.
+            target = original.copy_with(host=address)
+            resp = await client.get(str(target), follow_redirects=False,
+                                    headers={"Host": original.netloc.decode("ascii")},
+                                    extensions={"sni_hostname": original.raw_host.decode("ascii")})
             if not resp.is_redirect:
                 break
-            url = str(resp.url.join(resp.headers.get("location", "")))
+            location = resp.headers.get("location")
+            if not location:
+                break
+            url = str(original.join(location))
         else:
             return "I couldn't read that page (too many redirects)."
         resp.raise_for_status()
-    except BlockedURL as exc:
-        return f"I won't read that page: {exc}."
     except (httpx.HTTPError, ValueError) as exc:
         logger.warning("Page fetch failed: %s", type(exc).__name__)
         return f"I couldn't read that page ({type(exc).__name__})."

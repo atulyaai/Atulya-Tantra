@@ -21,4 +21,6 @@ def test_unconnected_hardware_is_not_reported_ready(project_temp_dir, monkeypatc
     rows = {r["name"]: r for r in Toolbox(TOOLS, PluginContext("web", None, None)).capabilities}
     assert rows["smart_home_control"]["status"] == "needs_connection"
     assert rows["cast_to_tv"]["status"] == "needs_connection"
-    assert rows["visual_inspect"]["status"] == "unsupported"
+    # visual_inspect is owner-only, so this session cannot use it at all: never reported as ready.
+    assert rows["visual_inspect"]["status"] != "available"
+    assert "Owner-only" in rows["visual_inspect"]["next_step"]

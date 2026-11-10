@@ -22,7 +22,9 @@ def test_policy_is_strict():
     assert rules["script-src"][0] == "'self'"
     assert "'unsafe-inline'" not in rules["script-src"] and "'unsafe-eval'" not in rules["script-src"]
     assert all(src.startswith("https://") or src in {"'self'", "'wasm-unsafe-eval'"} for src in rules["script-src"])
-    assert rules["object-src"] == ["'none'"] and rules["frame-ancestors"] == ["'none'"]
+    assert rules["object-src"] == ["'none'"]
+    # Only Atulya itself and the Telegram Mini App may frame the page; every other site is blocked.
+    assert rules["frame-ancestors"] == ["'self'", "https://web.telegram.org", "https://*.telegram.org"]
 
 
 def test_page_has_no_inline_scripts_or_handlers():
