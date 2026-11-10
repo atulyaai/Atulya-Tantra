@@ -71,6 +71,8 @@ POLICY = {
     "read_url": "direct",
     "restart_service": "confirm",
     "operations_status": "direct",
+    "run_goal": "direct",
+    "goal_timeline": "direct",
     "places_near_me": "direct",
     "list_devices": "direct",
     "ask_device": "direct",

@@ -36,6 +36,9 @@ class PluginContext:
     origin: str = ""
     # Owner asked for no second tap. The maintenance monitor must leave this false.
     autonomous: bool = False
+    # Goal runner for multi-step work: an async callable that asks the model for a plan
+    # or a summary. None means this channel cannot run goals.
+    agent: object | None = None
 
 
 CommandHandler = Callable[[str, PluginContext], Awaitable[str | None]]

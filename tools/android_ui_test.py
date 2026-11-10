@@ -69,11 +69,25 @@ def dismiss_system_dialogs(found: list[dict]) -> bool:
     return True
 
 
+def dismiss_background_dialog(found: list[dict]) -> bool:
+    """Atulya asks once whether to keep a background phone connection. That native dialog sits on top
+    of the web UI, so the sign-in field can never be seen while it is open. Close it and carry on."""
+    if not any(node["label"] == "Background phone connection" for node in found):
+        return False
+    cancel = next((node for node in found if node["label"] == "CANCEL"), None)
+    if cancel:
+        tap(cancel)
+    else:
+        adb("shell", "input", "keyevent", "KEYCODE_BACK")
+    time.sleep(1)
+    return True
+
+
 def find(pattern: str, wait: float = 20) -> dict | None:
     deadline = time.time() + wait
     while time.time() < deadline:
         found = nodes()
-        if dismiss_system_dialogs(found):
+        if dismiss_system_dialogs(found) or dismiss_background_dialog(found):
             continue
         for node in found:
             if re.search(pattern, node["label"], re.I) and node["box"][2] > node["box"][0]:
