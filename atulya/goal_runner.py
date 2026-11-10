@@ -246,7 +246,7 @@ class GoalRunner:
                       "receipt": step["receipt"]} for step in existing["steps"]]
         else:
             plan_text = await self._ask(self._plan_prompt(goal))
-            allowed = {schema["function"]["name"] for schema in self.toolbox.schemas}
+            allowed = {schema["function"]["name"] for schema in self.toolbox.schemas} - {"run_goal"}
             steps = parse_plan(plan_text, allowed, self.step_limit)
             if not steps:
                 message = ("I could not turn that goal into steps with the tools available here. "

@@ -134,6 +134,17 @@ def test_a_goal_with_no_usable_plan_runs_nothing(project_temp_dir):
     assert "Nothing was run" in result["summary"]
 
 
+def test_a_goal_cannot_nest_another_goal(project_temp_dir):
+    box = Box(schemas=[{"function": {"name": "run_goal", "parameters": {}}},
+                        {"function": {"name": "get_weather", "parameters": {}}}])
+    runner = GoalRunner(GoalStore(project_temp_dir), box, model([
+        json.dumps({"steps": [{"tool": "run_goal", "arguments": {"goal": "again"}}]}),
+        "Nothing was run."]))
+    result = asyncio.run(runner.run("alice", "Do the thing"))
+    assert result["status"] == "failed"
+    assert box.calls == []
+
+
 def test_goals_are_scoped_to_the_account(project_temp_dir):
     store = GoalStore(project_temp_dir)
     goal_id = store.create("alice", "Do the thing")
