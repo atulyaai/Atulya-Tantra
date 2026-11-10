@@ -17,10 +17,12 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.SEND_SMS" />
+    <!-- Sending an SMS or starting a call never needs a permission here: Atulya opens the phone's own
+         SMS app or dialer with the message or number filled in, and the person taps Send or Call. That is
+         the approval, and it keeps the app clear of the SMS and call permissions that Play Protect and
+         Google Play treat as restricted. RECEIVE_SMS is only for the opt-in "record expenses from bank
+         texts" feature; it cannot read old messages. -->
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
-    <uses-permission android:name="android.permission.READ_SMS" />
-    <uses-permission android:name="android.permission.CALL_PHONE" />
     <!-- Android 11+: lets the app find the phone's speech recognizer (Google) for native voice input. -->
     <queries>
         <intent>

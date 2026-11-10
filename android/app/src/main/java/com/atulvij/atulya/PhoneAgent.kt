@@ -1,10 +1,8 @@
 package com.atulvij.atulya
 
-import android.Manifest
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
@@ -14,7 +12,6 @@ import android.speech.tts.TextToSpeech
 import android.webkit.CookieManager
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -238,9 +235,6 @@ class PhoneAgent(
         }
     }
 
-    private fun granted(permission: String) =
-        ContextCompat.checkSelfPermission(activity, permission) == PackageManager.PERMISSION_GRANTED
-
     /** {"to": "+91…", "body": "…"} or "+91…: text". */
     private fun smsParts(detail: String): Pair<String, String>? {
         try {
@@ -278,15 +272,12 @@ class PhoneAgent(
                 "open_app" -> openApp(detail)
                 "send_sms" -> {
                     val (to, body) = smsParts(detail) ?: return Result(false, "Give the SMS as {\"to\": \"+91…\", \"body\": \"…\"}.")
-                    val direct = granted(Manifest.permission.SEND_SMS)
                     if (!sendSms(to, body)) Result(false, "Could not prepare the SMS to $to.")
-                    else Result(true, if (direct) "SMS handed to Android for sending to $to."
-                                      else "SMS app opened with the message to $to; it is sent only when you tap send.")
+                    else Result(true, "SMS app opened with the message to $to; it is sent only when you tap send.")
                 }
                 "place_call" -> {
-                    val direct = granted(Manifest.permission.CALL_PHONE)
                     if (!call(detail)) Result(false, "Could not call $detail.")
-                    else Result(true, if (direct) "Calling $detail." else "Dialer opened with $detail; the call starts when you tap call.")
+                    else Result(true, "Dialer opened with $detail; the call starts when you tap call.")
                 }
                 "media_control" -> if (media(detail.lowercase())) Result(true, "Requested media control: $detail; audible playback is not confirmed.")
                                    else Result(false, "No prepared Atulya audio stream, or unsupported control. Start an audio stream first; controls support play, pause and stop.")
