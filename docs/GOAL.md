@@ -159,8 +159,13 @@ True AGI isn't achievable with any model, free or paid. This milestone is the cl
 - **Done when:** "find the 3 largest files in Downloads, summarize them, and remind me about them tomorrow" completes unattended except for approvals, with receipts.
 
 ### M10 — Fully proactive
-- [ ] Morning brief, rain alerts, calendar heads-ups, low-battery/disk warnings and follow-ups on unfinished tasks, all without being asked.
-- [ ] Quiet hours, per-type on/off switches, and "why did you tell me this?" for each alert.
+- [x] Morning brief, rain alerts, calendar heads-ups, low-battery/disk warnings and follow-ups on unfinished tasks, all without being asked.
+  - Implemented 2026-11-12: `atulya/proactive.py` builds alerts from real measurements (server disk, laptop battery, Open-Meteo rain forecast, calendar rows, unfinished goals) and the routine loop's `_house_watch` sends them once each. Rain comes from the next few hours of the forecast for the owner's city (`tools/plugins/information/weather.rain_outlook`); the "In X minutes" calendar and goal follow-ups use their own windows.
+  - Tools: `alerts` and `set_alerts` (owner-only) so the owner can ask "stop telling me about disk" or "quiet after 11".
+  - Tests: `tests/core/test_proactive.py` (17), plus policy/classification tests updated for the two new tools.
+  - Still to do before closing: a week of real use with no missed reminder, and at least 4 alert kinds kept on.
+- [x] Quiet hours, per-type on/off switches, and "why did you tell me this?" for each alert.
+  - Implemented 2026-11-12: quiet hours wrap past midnight (22:30-07:00 default), per-kind switches, and each notice stores the fact that caused it (`atulya/inbox.py` `reason` column + migration).
 - **Done when:** a week of use has no missed reminder, no alert during quiet hours, and you keep at least 80% of alert types on.
 
 ### M11 — Self-evolving (safely)

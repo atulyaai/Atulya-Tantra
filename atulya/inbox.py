@@ -15,12 +15,17 @@ class Inbox:
             db.execute(
                 "CREATE TABLE IF NOT EXISTS notices (id INTEGER PRIMARY KEY, user_id TEXT NOT NULL, "
                 "title TEXT NOT NULL, body TEXT NOT NULL, kind TEXT NOT NULL, dedupe TEXT NOT NULL DEFAULT '', "
-                "created INTEGER NOT NULL, delivered INTEGER NOT NULL DEFAULT 0)")
+                "created INTEGER NOT NULL, delivered INTEGER NOT NULL DEFAULT 0, reason TEXT NOT NULL DEFAULT '')")
             db.execute("CREATE UNIQUE INDEX IF NOT EXISTS inbox_dedupe ON notices(user_id, dedupe) WHERE dedupe != ''")
+            # Older databases predate the reason column; add it in place instead of dropping notices.
+            if "reason" not in {row[1] for row in db.execute("PRAGMA table_info(notices)")}:
+                db.execute("ALTER TABLE notices ADD COLUMN reason TEXT NOT NULL DEFAULT ''")
 
-    def add(self, user_id: str, title: str, body: str, kind: str = "notice", dedupe: str = "") -> int:
+    def add(self, user_id: str, title: str, body: str, kind: str = "notice", dedupe: str = "",
+            reason: str = "") -> int:
         title, body, kind = title.strip()[:120], body.strip()[:2000], kind.strip()[:40] or "notice"
         dedupe = dedupe.strip()[:160]
+        reason = (reason or "").strip()[:400]
         now = int(time.time())
         with closing(sqlite3.connect(self.path)) as db, db:
             if dedupe:
@@ -28,8 +33,27 @@ class Inbox:
                 if row:
                     return int(row[0])
             cursor = db.execute(
-                "INSERT INTO notices(user_id,title,body,kind,dedupe,created,delivered) VALUES(?,?,?,?,?,?,0)",
-                (user_id, title, body, kind, dedupe, now))
+                "INSERT INTO notices(user_id,title,body,kind,dedupe,created,delivered,reason) "
+                "VALUES(?,?,?,?,?,?,0,?)",
+                (user_id, title, body, kind, dedupe, now, reason))
+            return int(cursor.lastrowid)
+
+    def add_new(self, user_id: str, title: str, body: str, kind: str = "notice", dedupe: str = "",
+                reason: str = "") -> int | None:
+        """Insert only when this dedupe key is new; None means it was already sent."""
+        title, body, kind = title.strip()[:120], body.strip()[:2000], kind.strip()[:40] or "notice"
+        dedupe = dedupe.strip()[:160]
+        reason = (reason or "").strip()[:400]
+        now = int(time.time())
+        with closing(sqlite3.connect(self.path)) as db, db:
+            if dedupe:
+                row = db.execute("SELECT id FROM notices WHERE user_id=? AND dedupe=?", (user_id, dedupe)).fetchone()
+                if row:
+                    return None
+            cursor = db.execute(
+                "INSERT INTO notices(user_id,title,body,kind,dedupe,created,delivered,reason) "
+                "VALUES(?,?,?,?,?,?,0,?)",
+                (user_id, title, body, kind, dedupe, now, reason))
             return int(cursor.lastrowid)
 
     def pull(self, user_id: str, limit: int = 5) -> list[dict]:
@@ -49,6 +73,7 @@ class Inbox:
         with closing(sqlite3.connect(self.path)) as db:
             db.row_factory = sqlite3.Row
             rows = db.execute(
-                "SELECT id,title,body,kind,created,delivered FROM notices WHERE user_id=? ORDER BY id DESC LIMIT ?",
+                "SELECT id,title,body,kind,created,delivered,reason FROM notices WHERE user_id=? "
+                "ORDER BY id DESC LIMIT ?",
                 (user_id, max(1, min(limit, 50)))).fetchall()
         return [dict(row) for row in rows]

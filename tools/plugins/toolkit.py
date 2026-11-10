@@ -1026,6 +1026,53 @@ async def _goal_timeline(args: dict, ctx: PluginContext | None) -> str:
     return "\n".join(f"{row['id']} ({row['status']}): {row['goal'][:120]}" for row in rows)
 
 
+async def _alerts_recent(args: dict, ctx: PluginContext | None) -> str:
+    """Proactive alerts that were sent, with the measurement or event behind each one."""
+    if not _is_admin(ctx):
+        return "Only the owner can see proactive alerts."
+    from atulya import proactive
+    from atulya.settings import Settings
+    try:
+        limit = max(1, min(int((args or {}).get("limit") or 5), 10))
+    except (TypeError, ValueError):
+        limit = 5
+    rows = proactive.explain(Settings.from_environment().data_dir, ctx.user_id, limit)
+    if not rows:
+        return "No proactive alerts have been sent yet."
+    return "\n".join(f"{row['title']} [{row['kind']}]\n  why: {row['reason'] or 'no reason recorded'}"
+                     for row in rows)
+
+
+def _describe_alerts(settings: dict) -> str:
+    on = [kind for kind, value in settings["kinds"].items() if value]
+    off = [kind for kind, value in settings["kinds"].items() if not value]
+    state = "on" if settings["enabled"] else "off"
+    quiet = settings["quiet_hours"]
+    parts = [f"Alerts {state}. Quiet hours {quiet['start']}-{quiet['end']}.",
+             "Allowed: " + (", ".join(on) or "none") + ("." if on else "")]
+    if off:
+        parts.append("Switched off: " + ", ".join(off) + ".")
+    return " ".join(parts)
+
+
+async def _set_alerts(args: dict, ctx: PluginContext | None) -> str:
+    """Change the owner's proactive alert switches; nothing is sent from here."""
+    if not _is_admin(ctx):
+        return "Only the owner can change proactive alerts."
+    from atulya import proactive
+    from atulya.settings import Settings
+    changes = {key: (args or {})[key] for key in
+               ("enabled", "quiet_start", "quiet_end", "disk", "battery", "rain", "calendar_soon", "goal_followup")
+               if isinstance(args, dict) and key in args}
+    if not changes:
+        return _describe_alerts(proactive.load_settings(Settings.from_environment().data_dir))
+    try:
+        saved = proactive.save_settings(Settings.from_environment().data_dir, changes)
+    except ValueError as exc:
+        return str(exc)
+    return _describe_alerts(saved)
+
+
 async def _server_logs(args: dict, ctx: PluginContext | None) -> str:
     """Explain server logs: read from approved paths only."""
     import os
@@ -1314,6 +1361,21 @@ TOOLS: tuple[Tool, ...] = (
     Tool("goal_timeline", "Show the recorded steps of a goal: what ran, what still needs approval, what failed.",
          _params({"goal_id": {"type": "string", "description": "Goal id; leave empty to list the goals"}}, []),
          _goal_timeline, "local-utilities", True),
+    Tool("alerts", "Show the alerts Atulya sent on its own, and the fact that caused each one "
+         "(\"why did you tell me this?\"). Owner only.",
+         _params({"limit": {"type": "integer", "description": "How many alerts, 1-10"}}, []),
+         _alerts_recent, "local-utilities", True, admin_only=True),
+    Tool("set_alerts", "Change proactive alerts: on/off, quiet hours, and which kinds are allowed. "
+         "Use it when the owner says \"stop telling me about disk\", \"quiet after 11\", or \"no alerts today\". Owner only.",
+         _params({"enabled": {"type": "boolean", "description": "Turn all proactive alerts on or off"},
+                  "quiet_start": {"type": "string", "description": "Start of quiet hours, HH:MM"},
+                  "quiet_end": {"type": "string", "description": "End of quiet hours, HH:MM"},
+                  "disk": {"type": "boolean", "description": "Disk almost full"},
+                  "battery": {"type": "boolean", "description": "Battery low"},
+                  "rain": {"type": "boolean", "description": "Rain coming within the next few hours"},
+                  "calendar_soon": {"type": "boolean", "description": "Event starting soon"},
+                  "goal_followup": {"type": "boolean", "description": "Unfinished goal"}}, []),
+         _set_alerts, "local-utilities", True, admin_only=True),
     Tool("places_near_me", "Find places (pharmacies, hospitals, shops, restaurants) near the user's location "
          "or a named place. Returns name, address and distance.",
          _params({"query": {"type": "string", "description": "What to find, e.g. 'pharmacy', 'hospital'"},

@@ -96,6 +96,8 @@ POLICY = {
     "list_expenses": "direct",
     "parse_transaction_sms": "direct",
     "visual_inspect": "confirm",
+    "alerts": "direct",
+    "set_alerts": "direct",
 }
 
 

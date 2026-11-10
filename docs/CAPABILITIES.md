@@ -103,7 +103,7 @@ Status: ✅ works (tested for real) · 🔧 partial · ⬜ missing · ⛔ blocke
 | AUT-01 | Reminders (one-time) | Worker | ✅ |
 | AUT-02 | Morning briefing | Skill + worker | ✅ |
 | AUT-03 | Recurring routines ("every weekday 9am …") | Scheduler | ⬜ H8 |
-| AUT-04 | Watch a condition and alert (rain, disk full, site down) | Worker | ⬜ H8. The old rain/disk/site-down triggers are archived at `F:\Atulya-Tantra-cleanup-archive\code\routines_workflow_engine.py`; reuse them for the M10 alert pipeline (PLAN.md M10-3) |
+| AUT-04 | Watch a condition and alert (rain, disk full, site down) | Worker | 🔧 Rain, disk, battery and calendar/unfinished-goal alerts shipped 2026-11-12 via the M10 alert engine (`atulya/proactive.py`, `weather.rain_outlook`); the archived triggers are the source list. Still open: site-down alert and a week of real-use verification. |
 | AUT-05 | Multi-step tasks with checkpoints that survive restarts | Workflow engine | ⬜ H8 |
 
 ### Interop

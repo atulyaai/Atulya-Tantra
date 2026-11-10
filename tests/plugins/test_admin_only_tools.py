@@ -14,6 +14,7 @@ EXPECTED_ADMIN_ONLY = PC_CONTROL | {
     "maintenance_check", "maintenance_read", "maintenance_propose", "maintenance_search",
     "maintenance_patch", "maintenance_set_proactive", "mcp_list_connections", "mcp_call_tool",
     "gmail_search", "gmail_drafts", "gmail_send",
+    "alerts", "set_alerts",
 }
 
 
