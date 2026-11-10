@@ -6,6 +6,7 @@ and forecasts cached for 10 minutes (Open-Meteo updates current conditions every
 import asyncio
 import re
 import time
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
@@ -23,18 +24,23 @@ def _http() -> httpx.AsyncClient:
     return _client
 
 
+async def _place(city: str) -> dict | None:
+    """Open-Meteo's top geocoding hit for a city name, cached for the process lifetime."""
+    key = city.casefold()
+    if key not in _places:
+        geo = await _http().get("https://geocoding-api.open-meteo.com/v1/search", params={"name": city, "count": 1, "language": "en", "format": "json"})
+        geo.raise_for_status()
+        results = geo.json().get("results") or []
+        _places[key] = results[0] if results else None
+    return _places[key]
+
+
 async def weather(city: str) -> str:
     city = city.strip()
     if not city or len(city) > 100:
         raise ValueError("Tell me the city, for example: weather in Bengaluru")
     client = _http()
-    key = city.casefold()
-    if key not in _places:
-        geo = await client.get("https://geocoding-api.open-meteo.com/v1/search", params={"name": city, "count": 1, "language": "en", "format": "json"})
-        geo.raise_for_status()
-        results = geo.json().get("results") or []
-        _places[key] = results[0] if results else None
-    place = _places[key]
+    place = await _place(city)
     if place is None:
         return f"I couldn't find a location named {city}."
     coords = (round(place["latitude"], 2), round(place["longitude"], 2))
@@ -278,6 +284,50 @@ async def _weather_data(latitude: float, longitude: float) -> dict:
     data = response.json()
     _full[coords] = (time.monotonic(), data)
     return data
+
+
+async def rain_outlook(city: str, *, hours: int = 3, threshold: int = 50) -> dict | None:
+    """The first hour in the next few hours when rain is likely, using the same cached forecast.
+
+    Returns {minutes, probability, at, city, key} or None. `at` is the place's own clock, so an
+    owner in India gets 18:00 even when the server runs in UTC; `key` identifies that forecast
+    hour so the same shower is announced only once.
+    """
+    city = " ".join(str(city or "").split())
+    if not city or len(city) > 100:
+        return None
+    try:
+        place = await _place(city)
+        if place is None:
+            return None
+        data = await _weather_data(place["latitude"], place["longitude"])
+    except (httpx.HTTPError, ValueError, KeyError):
+        return None
+    hourly = data.get("hourly") or {}
+    times, chances = hourly.get("time") or [], hourly.get("precipitation_probability") or []
+    try:
+        offset = int(data.get("utc_offset_seconds") or 0)
+    except (TypeError, ValueError):
+        offset = 0
+    now = datetime.now(timezone.utc)
+    label = ", ".join(str(x) for x in (place.get("name"), place.get("admin1"), place.get("country")) if x) or city
+    for stamp, chance in zip(times, chances):
+        if chance is None:
+            continue
+        try:
+            local = datetime.fromisoformat(str(stamp))
+        except ValueError:
+            continue
+        when = (local - timedelta(seconds=offset)).replace(tzinfo=timezone.utc)
+        ahead = (when - now).total_seconds()
+        if ahead < -1800 or ahead > max(1, hours) * 3600:
+            continue
+        if int(chance) < threshold:
+            continue
+        return {"minutes": max(0, round(ahead / 60)), "probability": int(chance),
+                "at": local.strftime("%H:%M"), "city": label,
+                "key": local.strftime("%Y-%m-%dT%H")}
+    return None
 
 
 async def _air_data(latitude: float, longitude: float) -> dict:

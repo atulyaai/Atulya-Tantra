@@ -1012,27 +1012,55 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     _watch_day = {"disk": "", "rain": "", "phone": ""}
 
     async def _house_watch(store, telegram_channel) -> None:
-        import shutil
+        """Proactive alerts (GOAL M10): measurement -> switch/quiet-hours check -> inbox + Telegram."""
+        import atulya.proactive as proactive
         store.ensure_defaults()
-        if not getattr(telegram_channel, "configured", False):
-            return
-        today = datetime.now().astimezone().date().isoformat()
-        usage = shutil.disk_usage("/")
-        percent = usage.used / usage.total * 100 if usage.total else 0
-        if percent >= 90 and _watch_day["disk"] != today:
-            await telegram_channel.notify(f"Disk alert: the server disk is {percent:.0f}% full.")
-            _watch_day["disk"] = today
+        now = datetime.now().astimezone()
+        events = []
+        try:
+            events = await asyncio.to_thread(calendar.list, WEB_OWNER, 10, "admin")
+        except Exception as exc:
+            logging.getLogger(__name__).debug("Calendar unavailable for alerts (%s)", type(exc).__name__)
+        snapshot = proactive.snapshot_providers(config.data_dir)
+        snapshot["events"] = events
+        rain = None
+        try:
+            from tools.plugins.information.weather import rain_outlook
+            from tools.plugins.productivity.briefing import briefing_city
 
+            profile = await asyncio.to_thread(profiles.get, "admin") or {}
+            city = str(profile.get("city") or "").strip() or briefing_city()
+            if city:
+                rain = await rain_outlook(city)
+        except Exception as exc:
+            logging.getLogger(__name__).debug("Rain lookup for alerts failed (%s)", type(exc).__name__)
+        snapshot["rain"] = rain
+        pending: list[dict] = []
+        try:
+            proactive.tick(config.data_dir, now, user_id="admin", deliver=pending.append, **snapshot)
+        except Exception as exc:
+            logging.getLogger(__name__).warning("Proactive tick failed (%s)", type(exc).__name__)
+        if pending and getattr(telegram_channel, "configured", False):
+            for alert in pending:
+                await telegram_channel.notify(f"{alert['title']}\n{alert['body']}")
+
+        # A phone that stopped polling is a connection fact, not a host measurement, so it stays here.
         try:
             import sqlite3
             seen = sqlite3.connect(config.data_dir / "agents.sqlite3").execute(
                 "SELECT max(seen) FROM devices WHERE revoked=0").fetchone()[0]
         except Exception:
             seen = None
-        if seen and time.time() - float(seen) > 1800 and _watch_day["phone"] != today:
-            await telegram_channel.notify(
-                "The phone has not polled for 30 minutes. Open the Atulya app, tap Devices, then Keep this phone connected, then Enable.")
-            _watch_day["phone"] = today
+        if seen and time.time() - float(seen) > 1800 and _watch_day["phone"] != now.date().isoformat():
+            message = ("The phone has not polled for 30 minutes. Open the Atulya app, tap Devices, "
+                       "then Keep this phone connected, then Enable.")
+            from atulya.inbox import Inbox
+            Inbox(config.data_dir).add(
+                "admin", "Phone offline", message, "phone", dedupe=f"phone:{now.date().isoformat()}",
+                reason="No paired phone has polled the server for more than 30 minutes.")
+            if getattr(telegram_channel, "configured", False):
+                await telegram_channel.notify(message)
+            _watch_day["phone"] = now.date().isoformat()
 
 
     async def run_routines() -> None:
