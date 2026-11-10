@@ -36,7 +36,7 @@ Status: ✅ works (tested for real) · 🔧 partial · ⬜ missing · ⛔ blocke
 | PLT-01 | Shared tool registry used by web + Telegram | Core (`toolkit.TOOLS`, `Toolbox`) | ✅ |
 | PLT-02 | Capability catalogue the AI and UI can read ("what can you do / what's missing here?") | Core service | ⬜ H2 |
 | PLT-03 | Honest status: available / needs location / needs connection / needs approval / unsupported | Tool result contract | 🔧 location only (H1); rest H2 |
-| PLT-04 | Approval queue for anything that changes the computer or sends outside | Core (`confirm=True`) | 🔧 Server policy fixed and enforced by `tests/plugins/test_approval_policy.py`; the Android native SMS/call confirmation (C3) is written but not built or checked on a device; Telegram has no Approve/Deny yet; approvals are lost on restart (H4) |
+| PLT-04 | Approval queue for anything that changes the computer or sends outside | Core (`confirm=True`) | 🔧 Server policy fixed and enforced by `tests/plugins/test_approval_policy.py`; the Android SMS/call flow now opens the phone's own SMS app or dialer, so the person's tap is the approval; it compiles in CI but is not yet checked on a real phone; Telegram has no Approve/Deny yet; approvals are lost on restart (H4) |
 | PLT-05 | Identity: passkeys, password, Telegram, codes; one account everywhere | Core (`atulya/auth.py`) | ✅ (passkey ceremonies tested) |
 | PLT-06 | Per-device, per-resource permissions | Policy service | ⬜ H5 |
 | PLT-07 | Audit log of tool runs (who, what, result) | Event store | ⬜ H3 |

@@ -80,7 +80,7 @@ class MainActivity : AppCompatActivity() {
         content.addView(web, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         setContentView(content)
         configureWebView()
-        phone = PhoneAgent(this, origin, ::sendDirectSms, ::callDirect) { command ->
+        phone = PhoneAgent(this, origin, ::composeSms, ::dial) { command ->
             when (command) {
                 "play", "resume" -> controlMediaStream(MediaPlaybackService.ACTION_PLAY)
                 "pause" -> controlMediaStream(MediaPlaybackService.ACTION_PAUSE)
@@ -258,35 +258,6 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
-    private fun sendDirectSms(number: String, body: String): Boolean {
-        if (!number.matches(Regex("\\+?[0-9]{3,15}")) || body.isEmpty() || body.length > 2000) return false
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
-            return composeSms(number, body)
-        }
-        return try {
-            val smsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                getSystemService(android.telephony.SmsManager::class.java)
-            } else {
-                @Suppress("DEPRECATION")
-                android.telephony.SmsManager.getDefault()
-            }
-            val parts = smsManager.divideMessage(body)
-            smsManager.sendMultipartTextMessage(number, null, parts, null, null)
-            true
-        } catch (_: Exception) { composeSms(number, body) }
-    }
-
-    private fun callDirect(number: String): Boolean {
-        if (!number.matches(Regex("\\+?[0-9]{3,15}"))) return false
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
-            return dial(number)
-        }
-        return try {
-            startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$number")))
-            true
-        } catch (_: Exception) { dial(number) }
-    }
-
     private fun isAtulya(uri: Uri): Boolean {
         fun port(value: Uri) = if (value.port != -1) value.port else if (value.scheme == "https") 443 else 80
         return uri.scheme == origin.scheme && uri.host == origin.host && port(uri) == port(origin) && uri.userInfo == null
@@ -431,14 +402,6 @@ class MainActivity : AppCompatActivity() {
                     "pause_media" -> controlMediaStream(MediaPlaybackService.ACTION_PAUSE)
                     "resume_media" -> controlMediaStream(MediaPlaybackService.ACTION_PLAY)
                     "stop_media" -> controlMediaStream(MediaPlaybackService.ACTION_STOP)
-                    "send_sms_direct" -> {
-                        val ok = sendDirectSms(command.optString("number"), command.optString("body"))
-                        reply.postMessage(JSONObject().put("type", "phone_action").put("id", command.optString("id")).put("status", if (ok) "sms_sent" else "failed").toString())
-                    }
-                    "call_direct" -> {
-                        val ok = callDirect(command.optString("number"))
-                        reply.postMessage(JSONObject().put("type", "phone_action").put("id", command.optString("id")).put("status", if (ok) "call_placed" else "failed").toString())
-                    }
                 }
             }
         }
