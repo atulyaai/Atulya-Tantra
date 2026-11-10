@@ -124,4 +124,6 @@ def test_device_capabilities_distinguish_pairing_from_a_live_connection(project_
     assert "ping receipt" in rows["ask_device"]["next_step"]
     hub.poll("alice", "Phone")
     rows = {row["name"]: row for row in box.capabilities}
-    assert rows["ask_device"]["status"] == "needs_approval"
+    # ask_device is read-only now, so it runs directly; the effectful device_action still needs approval.
+    assert rows["ask_device"]["status"] == "available"
+    assert rows["device_action"]["status"] == "needs_approval"

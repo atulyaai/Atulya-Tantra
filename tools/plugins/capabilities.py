@@ -18,12 +18,20 @@ def tool_capabilities(toolbox):
             status, step = "disabled", "Enable the plugin in Connections."
         elif toolbox.public_only and tool.name not in MCP_PUBLIC_TOOLS:
             status, step = "unsupported", "Use an authenticated Atulya channel; this tool is not exported over public MCP."
+        elif tool.name == "restart_service" and (ctx is None or ctx.is_admin is not True):
+            status, step = "needs_connection", "Owner-only on this Atulya; sign in as the owner."
         elif tool.name == "restart_service":
-            status, step = "unsupported", "Service restart execution is not implemented."
+            from atulya.operations import store
+            if store().ready():
+                status, step = "needs_approval", "The operations worker is connected; the restart still needs your approval."
+            else:
+                status, step = "needs_connection", "The operations worker is not connected, so a restart cannot run."
         elif tool.name not in toolbox._tools:
             status, step = "needs_connection", "Connect the required service or use a supported signed-in channel."
             if tool.plugin_id == "pc-control" or tool.name == "screen_control":
                 status, step = "unsupported", "Use a supported desktop/WebUI session."
+            elif tool.admin_only:
+                step = "Owner-only on this Atulya; sign in as the owner."
             elif tool.name.startswith("maintenance_") or tool.name.startswith("mcp_"):
                 step = "Use an owner session with this service connected."
             elif "reminder" in tool.name:

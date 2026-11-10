@@ -53,9 +53,26 @@ class PushService:
                                                serialization.PublicFormat.UncompressedPoint)
         return _b64(public), pem
 
+    # Browsers' real push services only; any other address would let a request reach internal hosts.
+    PUSH_HOSTS = ("fcm.googleapis.com", ".google.com", ".push.services.mozilla.com", ".notify.windows.com",
+                  ".push.apple.com")
+
+    @classmethod
+    def allowed_endpoint(cls, endpoint: str) -> bool:
+        from urllib.parse import urlsplit
+
+        try:
+            parts = urlsplit(endpoint)
+            host = (parts.hostname or "").lower()
+            port = parts.port
+        except ValueError:
+            return False
+        return (parts.scheme == "https" and port in {None, 443} and not parts.username
+                and any(host == suffix or (suffix.startswith(".") and host.endswith(suffix)) for suffix in cls.PUSH_HOSTS))
+
     def subscribe(self, user_id: str, subscription: dict) -> None:
         endpoint = str(subscription.get("endpoint", ""))
-        if not endpoint.startswith("https://") or "keys" not in subscription:
+        if not self.allowed_endpoint(endpoint) or "keys" not in subscription:
             raise ValueError("Invalid push subscription")
         with closing(sqlite3.connect(self.path)) as db, db:
             db.execute("INSERT OR REPLACE INTO subscriptions(endpoint,user_id,data,created_at) VALUES(?,?,?,?)",
@@ -113,6 +130,9 @@ class PushService:
         delivered, dead = 0, []
         payload = json.dumps({"title": title, "body": body[:240], "url": url}).encode()
         for endpoint, data in rows:
+            if not self.allowed_endpoint(endpoint):
+                dead.append(endpoint)  # stored before the allowlist existed: drop, never contact
+                continue
             try:
                 keys = json.loads(data)["keys"]
                 response = httpx.post(endpoint, content=self.encrypt(payload, keys["p256dh"], keys["auth"]), timeout=10,

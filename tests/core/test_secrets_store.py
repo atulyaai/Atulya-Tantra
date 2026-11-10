@@ -23,7 +23,9 @@ def test_round_trip_is_encrypted_and_key_lives_outside_data(fernet_env, monkeypa
     secrets_store.set_secret(fernet_env, "TELEGRAM_BOT_TOKEN", "123:very-secret-value")
     blob = secrets_store.secrets_path(fernet_env).read_bytes()
     assert blob.startswith(b"FERNET:") and b"very-secret-value" not in blob
-    assert b"very-secret-value" not in base64.b64decode(blob[7:] + b"==", validate=False)
+    # A Fernet token is unpadded base64url, so it must be decoded with the url-safe alphabet.
+    payload = blob[7:]
+    assert b"very-secret-value" not in base64.urlsafe_b64decode(payload + b"=" * (-len(payload) % 4))
     assert not any(path.name == "secrets.key" for path in fernet_env.rglob("*"))   # key not in the data folder
     assert secrets_store.load_protected(fernet_env) == 1
     assert os.environ["TELEGRAM_BOT_TOKEN"] == "123:very-secret-value"

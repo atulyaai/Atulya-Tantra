@@ -22,7 +22,7 @@ def test_restart_needs_owner_allowlist_worker_and_actual_approval(project_temp_d
         ops.enqueue_restart("admin", "sshd; touch /tmp/invalid")
     queue = ActionQueue(project_temp_dir)
     view = queue.view()
-    box = Toolbox(TOOLS, PluginContext("web", None, None, actions=view))
+    box = Toolbox(TOOLS, PluginContext("web", None, None, actions=view, is_admin=True))
     answer = asyncio.run(box.call("restart_service", {"service": "atulya"}))
     assert "NOT run" in answer and ops.status()["jobs"] == []
     [approval] = view.drain_new()

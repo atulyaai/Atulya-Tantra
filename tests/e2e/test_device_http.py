@@ -59,7 +59,8 @@ with httpx.Client(base_url=os.environ['ATULYA_TEST_ORIGIN'], trust_env=False,
             record_property("pc_ping_receipt_ms", round((time.perf_counter() - ping_started) * 1000, 1))
             assert snapshot["devices"][0]["status"] == "online"
             client.cookies.set(SESSION_COOKIE, auth.create_session("other"))
-            assert client.post("/api/devices/This-PC/test").status_code == 422
+            # 404, not 403/422: another account must not learn that this device exists (PLAN M12-3).
+            assert client.post("/api/devices/This-PC/test").status_code == 404
             assert client.get("/api/devices").json()["jobs"] == []
             client.cookies.set(SESSION_COOKIE, auth.create_session("admin"))
             assert client.delete("/api/devices/This-PC").json()["revoked"] == 1

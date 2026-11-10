@@ -22,7 +22,10 @@ function playerHarness() {
   const player={loadVideoById(id){video=id;},pauseVideo(){state=2;},stopVideo(){state=0;},playVideo(){state=1;},getVideoData(){return {video_id:video};},getPlayerState(){return state;}};
   const YT={Player:function(_id,options){events=options.events;return player;}};
   const sandbox={window:{YT},YT,document:{getElementById:id=>ids.get(id),createElement:element,head:element(),hidden:false},
-    location:{origin:'https://test.invalid'},AbortController,setTimeout,clearTimeout,
+    location:{origin:'https://test.invalid',search:''},AbortController,setTimeout,clearTimeout,
+    // A vm context has no web globals of its own, so the browser APIs the page uses are provided here.
+    URLSearchParams,URL,
+    MutationObserver:class { constructor(callback){this.callback=callback;} observe(){} disconnect(){} },
     setInterval(fn,ms){intervals.push({fn,ms});},
     async fetch(url,options={}) {
       if(url==='/api/music') return {ok:true,json:async()=>({tracks:[track]})};

@@ -16,18 +16,23 @@ def test_devices_can_be_renamed_by_name_or_as_my_phone(project_temp_dir, monkeyp
     hub = AgentHub(project_temp_dir)
     token = hub.pair("alice", "Phone 22115225 a1b2", PHONE)["token"]
     job = hub.enqueue("alice", "Phone 22115225 a1b2", "ping")
-    ctx = PluginContext("alice", None, None, "alice")
+    # Device management is an owner action; the role comes from the auth store and fails closed.
+    ctx = PluginContext("alice", None, None, "alice", is_admin=True)
 
-    reply = asyncio.run(toolkit._rename_device({"device": "my phone", "new_name": "Atul’s Phone"}, ctx))
+    reply = asyncio.run(toolkit._rename_device({"name": "Phone 22115225 a1b2", "new_name": "Atul’s Phone"}, ctx))
     assert reply == "Renamed 'Phone 22115225 a1b2' to 'Atul's Phone'."
     assert [row["name"] for row in hub.devices("alice")] == ["Atul's Phone"]
-    assert hub.authenticate(token) == {"owner": "alice", "name": "Atul's Phone"}  # same credential keeps working
+    identified = hub.authenticate(token)
+    assert identified["owner"] == "alice" and identified["name"] == "Atul's Phone"  # same credential keeps working
     assert hub.jobs("alice")[0]["id"] == job["id"] and hub.jobs("alice")[0]["device"] == "Atul's Phone"
 
     hub.pair("alice", "Laptop", ["ping"])
     assert "already have a device called" in asyncio.run(
-        toolkit._rename_device({"device": "Laptop", "new_name": "Atul's Phone"}, ctx))
-    assert "Which device?" in asyncio.run(toolkit._rename_device({"device": "tablet", "new_name": "X"}, ctx))
+        toolkit._rename_device({"name": "Laptop", "new_name": "Atul's Phone"}, ctx))
+    assert "No paired device called" in asyncio.run(
+        toolkit._rename_device({"name": "tablet", "new_name": "X"}, ctx))
+    assert "Only the owner" in asyncio.run(
+        toolkit._rename_device({"name": "Laptop", "new_name": "X"}, PluginContext("alice", None, None, "alice")))
     with pytest.raises(ValueError):
         hub.rename("alice", "Laptop", "<script>")
 
@@ -65,42 +70,36 @@ class Box:
         return "clear 25"
 
 
-def reply(delay, acknowledge):
+def reply(delay):
     brain = Brain(SlowToolProvider())
 
     async def run():
         return "".join([chunk async for chunk in brain.stream(
-            [Message(role="user", content="weather?")], toolbox=Box(delay), acknowledge=acknowledge)])
+            [Message(role="user", content="weather?")], toolbox=Box(delay))])
     return asyncio.run(run())
 
 
-def test_no_filler_when_typing_or_when_tools_are_quick(monkeypatch):
-    monkeypatch.setattr("tools.plugins.brain.engine.FILLER_AFTER_SECONDS", 0.2)
-    assert reply(0.0, acknowledge=False) == "Clear, 25 °C."
-    assert reply(0.5, acknowledge=False) == "Clear, 25 °C."   # typed: never a filler
-    assert reply(0.0, acknowledge=True) == "Clear, 25 °C."    # spoken but quick: no filler
-    assert reply(0.5, acknowledge=True) == "Checking the weather. Clear, 25 °C."  # spoken and slow
-    assert "One moment" not in reply(0.5, acknowledge=True)
+def test_the_acknowledgement_is_spoken_at_once_and_never_says_one_moment():
+    # The acknowledgement comes from the user's own words, so it is spoken before the tool finishes.
+    assert reply(0.0) == "Checking the weather. Clear, 25 °C."
+    assert reply(0.5) == "Checking the weather. Clear, 25 °C."
+    assert "One moment" not in reply(0.5)
 
 
-def test_play_music_starts_the_song_in_the_player(project_temp_dir, monkeypatch):
+def test_play_music_never_claims_playback(project_temp_dir, monkeypatch):
+    """The music queue is a request; only the client receipt proves playback (tests/core/test_music_search.py)."""
     monkeypatch.setenv("ATULYA_DATA_DIR", str(project_temp_dir))
+    from atulya import music
 
-    async def found(query):
-        return {"video_id": "dQw4w9WgXcQ", "title": "Kesariya - Official"}
-
-    monkeypatch.setattr("atulya.music.find_youtube", found)
+    monkeypatch.setattr(music, "search_music", lambda *args: [
+        {"url": "https://youtu.be/dQw4w9WgXcQ", "title": "Kesariya - Official"}])
     actions: list = []
     token = toolkit.UI_ACTIONS.set(actions)
     try:
-        web = asyncio.run(toolkit._find_music({"query": "kesariya"}, PluginContext("alice", None, None, "alice")))
+        web = asyncio.run(toolkit._queue_music(
+            {"query": "kesariya"}, PluginContext("alice", None, None, "alice")))
     finally:
         toolkit.UI_ACTIONS.reset(token)
-    assert web.startswith("Started 'Kesariya - Official' in the Atulya player")
-    play = next(item for item in actions if item["type"] == "play_music")
-    assert play["track"]["video_id"] == "dQw4w9WgXcQ"
-    assert any(item["type"] == "link" and item["url"].endswith("watch?v=dQw4w9WgXcQ") for item in actions)
-
-    telegram = asyncio.run(toolkit._find_music(
-        {"query": "kesariya"}, PluginContext("alice", None, None, "alice", channel="telegram")))
-    assert "Telegram cannot play audio" in telegram
+    assert "Queued Kesariya - Official" in web
+    assert "no phone playback is confirmed" in web
+    assert not any(item.get("type") == "play_music" for item in actions)

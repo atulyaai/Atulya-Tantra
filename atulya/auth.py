@@ -639,15 +639,34 @@ class AuthStore:
         now = int(time.time())
         with self._session() as db:
             row = db.execute(
-                "SELECT s.user_id FROM sessions s JOIN users u ON u.id=s.user_id "
+                "SELECT s.user_id, s.last_seen FROM sessions s JOIN users u ON u.id=s.user_id "
                 "WHERE s.token_hash=? AND s.expires_at>? AND u.disabled_at IS NULL",
                 (self._token_hash(token), now),
             ).fetchone()
+            if row and now - int(row["last_seen"] or 0) > 300:  # "last used", written at most every 5 minutes
+                db.execute("UPDATE sessions SET last_seen=? WHERE token_hash=?", (now, self._token_hash(token)))
         return str(row["user_id"]) if row else None
 
-    def session_id(self, token_hash: str) -> str:
+    @staticmethod
+    def session_id(token_hash: str) -> str:
         """A short public id for a session (never the token or its full hash)."""
         return token_hash[:16]
+
+    def describe_session(self, token: str, label: str, ip: str, method: str) -> tuple[str | None, bool]:
+        """Record which device signed in and how. Returns (account, is_new): is_new is True when this
+        device+method has not signed in to the account in the last 30 days, so alerts go out only for new ones."""
+        now = int(time.time())
+        token_hash = self._token_hash(token)
+        with self._session() as db:
+            row = db.execute("SELECT user_id FROM sessions WHERE token_hash=?", (token_hash,)).fetchone()
+            if row is None:
+                return None, False
+            seen_before = db.execute(
+                "SELECT 1 FROM sessions WHERE user_id=? AND token_hash<>? AND label=? AND method=? AND created_at>?",
+                (row["user_id"], token_hash, label[:120], method[:40], now - SESSION_MAX_AGE)).fetchone()
+            db.execute("UPDATE sessions SET label=?, ip=?, method=?, last_seen=? WHERE token_hash=?",
+                       (label[:120], ip[:64], method[:40], now, token_hash))
+        return str(row["user_id"]), seen_before is None
 
     def sessions_for(self, user_id: str, current_token: str | None = None) -> list[dict]:
         """Every active sign-in of this account, newest use first."""
