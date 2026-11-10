@@ -23,7 +23,6 @@ jobs:
     timeout-minutes: 30
     env:
       ATULYA_SKIP_MODELS: "1"   # packages only; multi-GB models are not needed to prove the install
-      ATULYA_SKIP_VOICE_DEPS: "1"  # voice models are not downloaded here (tests/voice/test_voice_deps.py)
       ATULYA_PRELOAD: "0"
       PYTHONIOENCODING: utf-8
     steps:
