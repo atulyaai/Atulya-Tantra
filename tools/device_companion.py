@@ -83,8 +83,11 @@ def _display_toast(message: str) -> str:
         try:
             subprocess.run(["notify-send", "--", "Atulya Tantra", message], timeout=5, check=True)
             return "Notification service accepted the request; user viewing is not verified."
-        except Exception as exc:
-            raise RuntimeError(f"Failed to request notification: {exc}") from exc
+        except (OSError, subprocess.SubprocessError):
+            logged = subprocess.run(["logger", "-t", "atulya", "--", message], timeout=5, check=False)
+            if logged.returncode == 0:
+                return "No desktop notification service; the message was written to the system log."
+            raise
     raise ValueError(f"Visual notifications are not implemented on {SYSTEM}")
 
 
