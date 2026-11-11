@@ -166,11 +166,15 @@ True AGI isn't achievable with any model, free or paid. This milestone is the cl
 - **Done when:** a week of use has no missed reminder, no alert during quiet hours, and you keep at least 80% of alert types on.
 
 ### M11 — Self-evolving (safely)
-- [ ] Learns preferences from corrections ("shorter", "don't tell me that") into memory/profile.
-- [ ] Logs failed tool calls and proposes fixes (prompt, tool or code) as a reviewable diff, never auto-merged into core.
+- [x] Learns preferences from corrections ("shorter", "don't tell me that") into memory/profile.
+  - Implemented 2026-11-12: standing rules in `atulya/evolution.py` (`Lessons`, `capture_order`) written from corrections and read on the next reply; tests `tests/core/test_lessons.py`.
+- [x] Logs failed tool calls and proposes fixes (prompt, tool or code) as a reviewable diff, never auto-merged into core.
+  - Implemented 2026-11-12: `atulya/maintenance.py` self-check -> proposals (state proposed/applied, apply owner-gated); tests `tests/core/test_repair_proposals.py`, `tests/core/test_autonomy.py`.
 - [ ] Can write new skills (`tools/skills/<name>/SKILL.md`) from repeated requests; each needs owner approval and must pass tests before it's enabled.
-- [ ] Every self-change is versioned and can be rolled back.
+- [x] Every self-change is versioned and can be rolled back.
+  - Implemented 2026-11-12: repairs/skill edits go through versioned proposal paths + `capture_order`, with backups in `data/maintenance-backups`.
 - **Done when:** in a week it proposes at least 3 improvements, you accept them, the tests stay green, and rolling one back works.
+  - Code side complete on 2026-11-12; the milestone gate itself is owner-usage based and not yet reached (needs ≥3 accepted proposals, green tests, working rollback).
 
 ### M12 — Many users, one owner: profiles and strict separation
 Today: `users` has `admin`/`user` roles (`atulya/auth.py`), but devices, tools and data aren't fully scoped by role.
