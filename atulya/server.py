@@ -2609,6 +2609,23 @@ ul{{padding-left:1.2rem;line-height:1.6}}a{{color:#69eaff}}
         items = await asyncio.to_thread(Inbox(config.data_dir).recent, str(http_request.state.user_id))
         return {"items": items}
 
+    @app.get("/api/notifications/inbox")
+    async def notifications_inbox(http_request: Request) -> dict[str, object]:
+        """Unread proactive/phone alerts of the signed-in owner; reading marks them delivered."""
+        from atulya.inbox import Inbox
+        items = await asyncio.to_thread(Inbox(config.data_dir).pull, str(http_request.state.user_id))
+        return {"notifications": items}
+
+    @app.post("/api/notifications/inbox/ack")
+    async def notifications_ack(body: dict, http_request: Request) -> dict[str, object]:
+        """Mark the given inbox ids delivered: the polling worker already showed them as a notification."""
+        from atulya.inbox import Inbox
+        user_id = str(http_request.state.user_id)
+        raw = body.get("ids") if isinstance(body, dict) else None
+        ids = [int(value) for value in (raw or []) if isinstance(value, (int, float)) and int(value) > 0]
+        marked = Inbox(config.data_dir).ack(user_id, ids)
+        return {"ok": True, "marked": marked}
+
     @app.get("/api/briefing/settings")
     async def get_briefing_settings(http_request: Request) -> dict[str, object]:
         return await asyncio.to_thread(profiles.briefing_settings, str(http_request.state.user_id))
