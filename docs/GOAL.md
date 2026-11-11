@@ -195,9 +195,10 @@ Today: `users` has `admin`/`user` roles (`atulya/auth.py`), but devices, tools a
 - **Done when:** a second test account can sign in, chat and set reminders, but gets 403 on every device, PC-control and admin route, and can't see the owner's devices, chats or memory. The tests cover every route.
 
 ### M13 — Security (cybersecurity and the web UI)
-- [ ] Web UI hardening: strict Content-Security-Policy, CSRF protection on every state-changing route, secure/HttpOnly/SameSite cookies, no secrets in the page, `innerHTML` audit (no injection from model or user text).
+- [ ] Web UI hardening: strict Content-Security-Policy (done — B26 fixed + deployed + live-checked, 2026-11-12), CSRF protection on every state-changing route (pending), secure/HttpOnly/SameSite cookies, no secrets in the page, `innerHTML` audit (no injection from model or user text).
 - [ ] Rate limits and lockouts on sign-in, pairing and approvals; device tokens hashed, expiring and revocable (done in part).
-- [ ] An audit log of who did what (PLT-07): sign-ins, approvals, device jobs, admin changes, viewable by the admin.
+- [x] An audit log of who did what (PLT-07): sign-ins, approvals, device jobs, admin changes, viewable by the admin.
+  - Implemented 2026-11-12: `atulya/security_log.py` + `tools/plugins/audit.py` + tests `tests/core/test_security_log.py`, `tests/plugins/test_audit.py`.
 - [ ] Prompt-injection defence: web pages, documents, emails and messages are always marked untrusted and can't trigger actions without approval (partly done).
 - [ ] Free security tooling in the test run: `pip-audit` (dependencies), `bandit` (Python), a secrets scan, and a checklist pass based on the OWASP Top 10.
   - Started 2026-10-21: `python -m tools.security_check` runs pip-audit and bandit and passes. It found and fixed certifi 2026.10.18 (PYSEC-2026-4320 → 2026.10.19); the other bandit hits were reviewed as false positives (fixed table names, parameterised values, a checksum-verified archive). A secrets pattern scan is included (passes). Still to add: the OWASP checklist.
@@ -214,7 +215,9 @@ Today: `users` has `admin`/`user` roles (`atulya/auth.py`), but devices, tools a
 | WhatsApp | Official WhatsApp Cloud API: replies within 24 h of the user's message are free; starting a conversation costs money | Unofficial WhatsApp Web libraries break WhatsApp's terms and get numbers banned, so they're out |
 | Push notifications | Self-hosted ntfy, or Telegram | Replaces Firebase |
 - [ ] One inbox: messages from every channel arrive in the same conversation and identity (one account everywhere, PLT-05).
+  - B28 (briefing settings tool) and B29 (owner-only `alerts`/`set_alerts` tools) implemented 2026-11-12; B30 (notifications inbox + ack) implemented + deployed 2026-11-12 (PR #103, merge `e85255a4`).
 - [ ] Atulya picks the right channel to reach you (phone if it's urgent, Telegram otherwise, never during quiet hours).
+  - Proactive engine (M10) now delivers via inbox + Telegram; per-kind switches + quiet hours wrap past midnight.
 - **Done when:** you can ask Atulya on Telegram to "text Rahul I'm late" and it drafts the SMS, asks approval, sends it from your phone, and confirms with a receipt.
 
 ### M15 — Any device, any OS, controlled from anywhere
