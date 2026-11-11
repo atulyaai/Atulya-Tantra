@@ -178,16 +178,20 @@ True AGI isn't achievable with any model, free or paid. This milestone is the cl
 
 ### M12 — Many users, one owner: profiles and strict separation
 Today: `users` has `admin`/`user` roles (`atulya/auth.py`), but devices, tools and data aren't fully scoped by role.
-- [ ] Each user has their own profile (name, language, voice, tone, city), memory, chats, reminders and devices. Nobody sees another user's data.
-- [ ] **Devices belong to their owner.** Only the owner can see, pair, test, revoke or send jobs to their devices. The admin's devices are invisible to normal users, and a normal user's devices are private from other users.
-- [ ] **Dangerous tools are admin-only:** PC control, device actions, shell/service restart, server status, maintenance, MCP, secrets, smart home. Normal users get safe tools (chat, weather, news, their own reminders and memory).
-- [ ] Admin can invite, disable and remove users and set per-user tool limits. The admin can't read another user's private chats unless that user shares them.
-- [ ] **Age-based content settings per profile.** Each profile is marked adult or child (the admin sets it; a child can't change their own).
+- [x] Each user has their own profile (name, language, voice, tone, city), memory, chats, reminders and devices. Nobody sees another user's data.
+  - Code complete 2026-11-12: per-user profiles/limits/memory/chats/reminders (PLAN M12-4/M12-5), admin manages limits, chat privacy enforced (tests `tests/core/test_user_limits_and_privacy.py`, `tests/plugins/test_owner_only_tools.py`).
+- [x] **Devices belong to their owner.** Only the owner can see, pair, test, revoke or send jobs to their devices. The admin's devices are invisible to normal users, and a normal user's devices are private from other users.
+  - Code complete 2026-11-12: owner-scoped devices + admin-only device routes (PLAN M12-3, tests `tests/core/test_route_access.py`, `tests/plugins/test_device_jobs.py`).
+- [x] **Dangerous tools are admin-only:** PC control, device actions, shell/service restart, server status, maintenance, MCP, secrets, smart home. Normal users get safe tools (chat, weather, news, their own reminders and memory).
+  - Code complete 2026-11-12: owner-only tool set + admin route classification (PLAN M12-1/M12-3, tests `tests/core/test_route_access.py`, `tests/plugins/test_owner_only_tools.py`, `tests/plugins/test_admin_only_tools.py`).
+- [x] Admin can invite, disable and remove users and set per-user tool limits. The admin can't read another user's private chats unless that user shares them.
+  - Code complete 2026-11-12: admin user management + limits (PLAN M12-4, tests `tests/core/test_user_limits_and_privacy.py`).
+- [x] **Age-based content settings per profile.** Each profile is marked adult or child (the admin sets it; a child can't change their own).
   - Adult profiles can turn on "adult content allowed". Atulya then doesn't refuse or lecture about legal adult content (search, links, conversation). It's the adult's choice, and it's off by default until they turn it on.
   - Child profiles always have filtering on: safe search, no adult content, and the admin is notified of blocked attempts if they choose.
   - Never allowed for anyone: illegal content, including anything sexual involving minors and non-consensual material.
   - The setting is checked on the server for every request, not just in the UI. Note that a cloud model provider's own rules may still refuse some requests; the local model follows this setting.
-- [ ] Every request is checked on the server (never just hidden in the UI), with tests that a normal user gets 403 on every admin route and device.
+- [x] Every request is checked on the server (never just hidden in the UI), with tests that a normal user gets 403 on every admin route and device.
 - **Done when:** a second test account can sign in, chat and set reminders, but gets 403 on every device, PC-control and admin route, and can't see the owner's devices, chats or memory. The tests cover every route.
 
 ### M13 — Security (cybersecurity and the web UI)
