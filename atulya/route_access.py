@@ -45,6 +45,8 @@ ROUTE_ACCESS: dict[tuple[str, str], str] = {
     ("POST", "/api/agents/background"): "device",
     ("POST", "/api/agents/inbox"): "device",
     ("GET", "/api/inbox"): "user",
+    ("GET", "/api/notifications/inbox"): "user",
+    ("POST", "/api/notifications/inbox/ack"): "user",
     ("GET", "/api/briefing/settings"): "user",
     ("PUT", "/api/briefing/settings"): "user",
     # admin
