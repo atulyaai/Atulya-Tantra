@@ -832,6 +832,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         host = sysmon.snapshot(str(config.data_dir))
         provider = getattr(brain, "_provider", None) if brain is not None else None
         active = getattr(provider, "active_provider", None)
+        # Proactive alerts recently sent (M10) + their reasons
+        try:
+            from atulya import proactive as _proactive
+            _alerts = _proactive.explain(config.data_dir)
+            alerts_summary = f"{len(_alerts)} recorded ({', '.join(a.get('kind','?') for a in _alerts[:5])})" if _alerts else "none recorded"
+        except Exception:
+            alerts_summary = "unavailable"
+        # Maintenance findings (self-healing)
+        try:
+            _findings = maintenance.last_check.get("findings") if getattr(maintenance, "last_check", None) else None
+            if _findings is None:
+                _findings = json.loads((config.data_dir / "maintenance-last.json").read_text(encoding="utf-8")).get("findings", [])
+            maint_summary = f"{len(_findings)} finding(s): " + "; ".join(str(f.get("area","?")) + ": " + str(f.get("message",""))[:60] for f in _findings[:4]) if _findings else "none"
+        except Exception:
+            maint_summary = "unavailable"
+        # Device status
+        try:
+            from tools.plugins.system.agents import AgentHub
+            _devices = AgentHub(config.data_dir).devices("admin") if hasattr(AgentHub(config.data_dir), "devices") else []
+            dev_summary = ", ".join(f"{d.get('name','?')} ({d.get('status','?')})" for d in _devices) if _devices else "none paired"
+        except Exception:
+            dev_summary = "unavailable"
         return {
             "service": "online",
             "uptime": f"{(time.time() - started_at) / 3600:.1f} h",
@@ -845,6 +867,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "memory": f"{host['memory_used_gb']} / {host['memory_total_gb']} GB",
             "disk": f"{host['disk_percent']:.0f}% used",
             "tools": str(len(_all_tools)),
+            "proactive alerts": alerts_summary,
+            "maintenance findings": maint_summary,
+            "devices": dev_summary,
         }
 
     import tools.plugins.toolkit as _toolkit
@@ -869,6 +894,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     telegram_allowlist = {
         item.strip() for item in os.environ.get("ATULYA_TELEGRAM_ALLOWLIST", "").split(",") if item.strip()
     }
+    if len(telegram_allowlist) > 1:
+        logging.getLogger(__name__).warning("ATULYA_TELEGRAM_ALLOWLIST has %d ids; only the owner should be allowlisted (B24).", len(telegram_allowlist))
     _merge_telegram_owner(config.data_dir, telegram_allowlist)
     register_automation_routes(app, auth_store, config.data_dir, telegram_allowlist, reminders, web_reminders)
 
@@ -907,13 +934,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.telegram = telegram
     async def notify_maintenance(report, record):
-        # Missing Google consent and a companion that is not running yet wait on the owner.
-        # They stay in the maintenance list and do not buzz Telegram or the phone.
-        waiting = ("Reconnect", "Start its companion", "Open the Atulya app", "Pair this PC", "connect Google")
-        faults = [item for item in report.get("findings", [])
-                  if not any(phrase in str(item.get("next_step", "")) for phrase in waiting)]
+        # Findings are sent to Telegram so the owner sees them where they already chat;
+        # owner-action items (reconnect Google, start a companion, pair a PC) are included
+        # as a short summary so they are not silently dropped.
+        faults = report.get("findings", [])
         if not faults:
-            return {"telegram_accepted": False, "push_accepted": 0, "skipped": "owner action"}
+            return {"telegram_accepted": False, "push_accepted": 0, "skipped": "no findings"}
         areas = ", ".join(sorted({str(item.get("area", "system")) for item in faults}))
         body = f"Atulya needs attention: {areas}. Maintenance diagnosis: {record['state']}. Open Maintenance for findings and repair proposals."
         receipts = {"telegram_accepted": False, "push_accepted": 0}
