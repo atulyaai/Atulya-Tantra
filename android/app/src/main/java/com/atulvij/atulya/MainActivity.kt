@@ -26,6 +26,7 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import java.net.URLEncoder
 import java.util.concurrent.Executors
+import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
