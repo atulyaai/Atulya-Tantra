@@ -1,6 +1,6 @@
 package com.atulvij.atulya
 
-import android.app.PendingIntent
+import android.app.AlertDialog
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
@@ -92,6 +92,37 @@ class MainActivity : AppCompatActivity() {
         }
         if (savedInstanceState != null) web.restoreState(savedInstanceState)
         pendingUrl = linkFrom(intent)
+        checkForAppUpdate()
+
+    /** Check the server for a newer signed APK; prompt to download if one exists. */
+    private fun checkForAppUpdate() {
+        Thread {
+            try {
+                val conn = java.net.URL(BuildConfig.ATULYA_URL.trimEnd('/') + "/api/app/latest")
+                    .openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 10000
+                conn.readTimeout = 10000
+                if (conn.responseCode != 200) return@Thread
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                val json = org.json.JSONObject(body)
+                val latest = json.optString("version", "")
+                val url = json.optString("url", "")
+                if (latest.isBlank() || url.isBlank()) return@Thread
+                // Compare: only prompt if the server version differs from the installed one.
+                if (latest == BuildConfig.VERSION_NAME) return@Thread
+                runOnUiThread {
+                    AlertDialog.Builder(this)
+                        .setTitle("Update available")
+                        .setMessage("Atulya $latest is available (you have ${BuildConfig.VERSION_NAME}). Download and install?")
+                        .setPositiveButton("Download") { _, _ ->
+                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                        }
+                        .setNegativeButton("Later", null)
+                        .show()
+                }
+            } catch (_: Exception) { /* ignore: offline or no update */ }
+        }.start()
+    }
     }
 
     override fun onPause() {
