@@ -64,7 +64,7 @@ class PhoneConnectionService : Service() {
     override fun onCreate() {
         super.onCreate()
         getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel(CHANNEL, "Atulya phone connection", NotificationManager.IMPORTANCE_LOW)
+            NotificationChannel(CHANNEL, "Atulya phone connection", NotificationManager.IMPORTANCE_DEFAULT)
         )
     }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -134,7 +134,7 @@ class PhoneConnectionService : Service() {
             val alerts = post("/api/agents/inbox", JSONObject(), token).optJSONArray("items")
             if (alerts != null) {
                 val manager = getSystemService(NotificationManager::class.java)
-                manager.createNotificationChannel(NotificationChannel("atulya_alerts", "Atulya alerts", NotificationManager.IMPORTANCE_DEFAULT))
+                manager.createNotificationChannel(NotificationChannel("atulya_alerts", "Atulya alerts", NotificationManager.IMPORTANCE_HIGH))
                 val open = PendingIntent.getActivity(this, 2, Intent(this, MainActivity::class.java),
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
                 for (index in 0 until alerts.length()) {

@@ -5,11 +5,11 @@ plugins {
 
 android {
     namespace = "com.atulvij.atulya"
-    compileSdk = 34
+    compileSdk = 35
     defaultConfig {
         applicationId = "com.atulvij.atulya"
         minSdk = 28
-        targetSdk = 34
+        targetSdk = 35
         versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 1
         versionName = (project.findProperty("versionName") as String?) ?: "0.2.0"
         // Server the app opens; change at build time with -PatulyaUrl=https://...
