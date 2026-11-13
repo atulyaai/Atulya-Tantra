@@ -9,6 +9,7 @@ Models (downloaded by tools/bootstrap.py into models/voice/):
 """
 from __future__ import annotations
 
+import importlib.util
 import io
 import json
 import re
@@ -26,6 +27,8 @@ _DEVANAGARI = re.compile(r"[ऀ-ॿ]")
 
 
 def _pcm16k(audio: bytes) -> bytes:
+    if importlib.util.find_spec("av") is None:
+        raise VoiceError("Speech recognition package 'av' is not installed on this server.")
     import av
 
     container = av.open(io.BytesIO(audio))
@@ -64,13 +67,19 @@ class VoskSpeech:
             return self._models[language]
 
     def transcribe(self, audio: bytes, *, content_type: str = "", language: str = "") -> str:
-        from vosk import KaldiRecognizer
-
         self.last_used = time.monotonic()
         if not self.ready:
             raise VoiceError("Speech recognition models are not installed on this server.")
+        if importlib.util.find_spec("av") is None:
+            raise VoiceError("Speech recognition package 'av' is not installed on this server.")
+        if importlib.util.find_spec("vosk") is None:
+            raise VoiceError("Speech recognition package 'vosk' is not installed on this server.")
+        from vosk import KaldiRecognizer
+
         try:
             pcm = _pcm16k(audio)
+        except VoiceError:
+            raise
         except Exception as exc:
             raise VoiceError("Could not read that recording.") from exc
         code = (language or "en").split("-")[0].lower()
@@ -103,6 +112,8 @@ class PiperSpeech:
         return (self.root / f"{PIPER_VOICES['en']}.onnx").is_file()
 
     def _voice(self, language: str, gender: str = "male"):
+        if importlib.util.find_spec("piper") is None:
+            raise VoiceError("Speech output package 'piper' is not installed on this server.")
         table = PIPER_FEMALE if gender == "female" else PIPER_VOICES
         name = table.get(language, "")
         if not (self.root / f"{name}.onnx").is_file():
@@ -127,8 +138,16 @@ class PiperSpeech:
         code = "hi" if (language.lower().startswith("hi") or _DEVANAGARI.search(clean)) else "en"
         buffer = io.BytesIO()
         try:
+            voice = self._voice(code, voice)
+        except VoiceError:
+            raise
+        except Exception as exc:
+            raise VoiceError("Speech synthesis failed.") from exc
+        try:
             with wave.open(buffer, "wb") as output:
-                self._voice(code, voice).synthesize_wav(clean, output)
+                voice.synthesize_wav(clean, output)
+        except VoiceError:
+            raise
         except Exception as exc:
             raise VoiceError("Speech synthesis failed.") from exc
         return buffer.getvalue()

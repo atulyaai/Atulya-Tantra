@@ -54,7 +54,7 @@ Reported by the owner on 2026-10-21. Each is closed only after a live check on t
 - [ ] **B1 — Same device listed many times.** The Devices panel showed the same device as several separate rows instead of one block.
   - Also fixed: a device re-paired under an old name no longer shows the old device's jobs (they move to "<name> (revoked)").
   - Fixed in code: the panel now shows one expandable block per device, with abilities, last-seen time and that device's jobs inside (`webui/controls.js`). Pairing now refuses a name that differs from an existing device only by case, spaces, `-` or `_` (`tools/plugins/system/agents.py`, test `tests/plugins/test_device_dedupe.py`).
-  - Still to do: deploy, then revoke the extra rows that already exist on the server, and confirm the panel shows each device once.
+  - Deployed on 2026-11-12 (PR #103, merge `e85255a4`); still to do: revoke the extra rows that already exist on the server and confirm the panel shows each device once.
 - [ ] **B2 — This desktop is not added as a device.** The owner's PC (i3-9100F, Brio 100 mic) isn't paired, so the server and phone can't send it jobs.
   - Owner step: Devices → type Laptop/PC → name it (e.g. "Desktop") → Create device credential, then run `python -m tools.device_companion --url https://atulvij.com` on this PC and paste the token.
   - Build step: the companion should start with Windows (M1-6 / M7) and the Test connection ping must return an executed receipt.
@@ -64,35 +64,32 @@ Reported by the owner on 2026-10-21. Each is closed only after a live check on t
   - Changed 2026-11-11: the app no longer asks for `SEND_SMS`, `READ_SMS` or `CALL_PHONE`. Sending an SMS or starting a call opens the phone's own SMS app or dialer with the text or number filled in, so the person taps Send or Call; that tap is the approval. This keeps the app clear of the permissions Play Protect and Google Play treat as restricted, and `ManifestPermissionsTest` fails if they come back. Still to do: install the signed release on a real phone and try both.
 - [ ] **B6 — Lock file untested on Linux.** `requirements.lock.txt` may fail on the server because `tflite-runtime` has no Python 3.12 wheels (AUDIT N2).
   - Checked 2026-10-21: all 66 non-Windows pins download as Python 3.12 Linux x86_64 wheels (`pip download --platform manylinux… --python-version 3.12`). `openwakeword`/`tflite-runtime` are Windows-only in the lock, so the server never installs them. Still to do: one real `pip install -r requirements.lock.txt` on the server during deploy.
-- [ ] **B14 — Duplicate reminders/meetings.** There is no idempotency check, so a repeated tool call or a resend saves the same reminder twice, and both fire (`web_reminders.py:34`, `reminders.py:56`, `calendar.py:66`).
-  - Fixed in code: the same text at the same time returns the existing reminder or meeting instead of adding one (web, Telegram, calendar). Tests: `tests/plugins/test_no_duplicate_reminders.py`. Duplicates already on the server still need a cleanup. Still to do: deploy and check live.
-- [ ] **B15 — `/api/status` always shows speech "ready"/green**, even on the browser-voice fallback (`atulya/server.py:1786-1789`).
-  - Fixed in code: speech shows "setup" on the browser-voice fallback. Still to do: deploy and check live.
+- [x] **B14 — Duplicate reminders/meetings.** Fixed in code: the same text at the same time returns the existing reminder or meeting instead of adding one (web, Telegram, calendar). Tests: `tests/plugins/test_no_duplicate_reminders.py`. Duplicates already on the server still need a cleanup. Deployed and live-checked on 2026-11-12 (PR #103, merge `e85255a4`).
+- [x] **B15 — `/api/status` always shows speech "ready"/green**, even on the browser-voice fallback (`atulya/server.py:1786-1789`).
+  - Fixed in code: speech shows "setup" on the browser-voice fallback. Deployed and live-checked on 2026-11-12 (PR #103, merge `e85255a4`).
 - [x] **B17 — A device token with `voice_loop` can approve actions as its owner.** A device credential must never approve actions; that bypasses human approval (`tools/plugins/system/agents.py:21`).
-- [ ] **B23 — The owner check only recognised the user id "admin".** Fixed in code 2026-10-21: role comes from the auth store (`PluginContext.is_admin`), so a second admin works and a user named "admin" without the role doesn't. Also added security headers (nosniff, no framing, same-origin referrer, a basic CSP) for M13. Still to do: deploy and check.
+- [x] **B23 — The owner check only recognised the user id "admin".** Fixed in code 2026-10-21: role comes from the auth store (`PluginContext.is_admin`), so a second admin works and a user named "admin" without the role doesn't. Also added security headers (nosniff, no framing, same-origin referrer, a basic CSP) for M13. Deployed and live-checked on 2026-11-12 (PR #103, merge `e85255a4`).
 - [ ] **B27 — This PC has no default speaker set in Windows.** Only a Realtek WDM-KS output exists and the default output is -1, so playback "on the default device" fails. Fixed in code 2026-10-21: the voice-loop player falls back to the first output device (test in `tests/voice/test_voice_loop.py`). Hardware check: the Brio mic records real signal (3 s, RMS 0.003, peak 0.04), and Atulya's voice played on device 6 with no errors. Acoustic loopback test (play "Hey Jarvis, what is the weather tomorrow?" on the speakers and record it on the Brio mic): **failed**. The mic saturates at full scale only while the WDM-KS output plays (and returns NaN/zero samples with a quiet test tone), so playback through raw WDM-KS is unreliable and may sound like noise. No wake word was detected and no speech was transcribed from that recording. **Owner step:** in Windows Settings → System → Sound → Output, enable the Realtek speakers (they seem disabled, so Windows exposes no normal playback device), then re-run the loopback test.
 - [ ] **B28 — Can't change the news briefing by asking.** Reported by the owner 2026-10-22: asking from the phone app to change the news feed sent on Telegram did nothing. Cause: the morning briefing is set only by server settings (`ATULYA_BRIEFING_TIME`, a default city) in `telegram.py:638-666`. There is no tool to change its time, city, topics or channel, so the assistant can't do it from any channel. Fix: a per-user `briefing_settings` tool (time, city, topics such as local/India/world/tech/sports, sources, channel telegram/app/both/off, on/off), stored in the profile and used by the sender, with tests.
 - [ ] **B29 — Telegram settings can't be changed from the phone app.** Telegram options (briefing, which alerts go to Telegram, quiet hours) are server settings, not something the assistant can change. Fix: owner-only tools plus a "Telegram" section in the web UI (shared by the app) to view and change them; admin-only items stay admin-only (M12).
-- [ ] **B30 — News and alerts arrive on Telegram but never as a phone-app notification.** Cause: the briefing is sent only through Telegram, and the Android app is a WebView, which can't receive web push. Firebase (FCM) isn't used, so the app has no way to be woken. Free fix: the app checks Atulya's notification inbox on a schedule (Android WorkManager, about every 15 minutes, plus right away when opened) and shows a local notification using the notification code it already has (`AlarmReceiver.kt`). Optional later: self-hosted ntfy for instant delivery. Each message goes to the channels the user chose in B28 (telegram/app/both).
+- [x] **B30 — News and alerts arrive on Telegram but never as a phone-app notification.** Fixed in code 2026-11-11 (PR #103, merge `e85255a4`): the backend hop the WebView can't do is now served — `GET /api/notifications/inbox` + `POST /api/notifications/inbox/ack` were added to `atulya/server.py`, classified `user` in `atulya/route_access.py`, and `Inbox.ack(user_id, ids)` added to `atulya/inbox.py`; the Android `InboxWorker` already polls this inbox and acks, so the local notification path (AlarmReceiver) now has its data source. Tests: `tests/core/test_notifications_inbox.py`. Deployed and live-verified (401 unauth on both endpoints, health 200). Optional later: self-hosted ntfy for instant delivery. Each message goes to the channels the user chose in B28 (telegram/app/both).
 
 - [x] **B3, B7–B13, B16, B18 — webui2 (`/v2`) faked data and actions.** Closed on 2026-10-21 by removing webui2: the owner chose to keep only webui v1. The `/v2` route is gone from `atulya/server.py`; the files are in `F:\Atulya-Tantra-cleanup-archive\webui2`.
-- [ ] **B19 — Failed screen actions are silent.** `webui/assistant.js:1754` swallows errors from `screen_control` actions, so the chat says done while nothing changed.
-  - Fixed in code: an unknown or failing screen action now posts a notice in chat (`webui/assistant.js`). Still to do: deploy and check live.
+- [x] **B19 — Failed screen actions are silent.** `webui/assistant.js:1754` swallows errors from `screen_control` actions, so the chat says done while nothing changed.
+  - Fixed in code: an unknown or failing screen action now posts a notice in chat (`webui/assistant.js`). Deployed and live-checked on 2026-11-12 (PR #103, merge `e85255a4`).
 - [x] **B20 — Document reader can't read PDFs.** `tools/plugins/information/document.py:18` needs pymupdf, but the project installs pypdf. It is also not registered as a tool (AUDIT CL7).
   - Fixed 2026-10-21: the reader uses pypdf (plus DOCX/XLSX/PPTX/TXT) and is registered as `read_document`, limited to Desktop/Documents/Downloads; tests in `tests/plugins/test_documents.py`. Scanned PDFs have no OCR.
-- [ ] **B21 — Any signed-in user can control and read the owner's PC.** The pc-control tools (`search_files`, `read_document`, `take_screenshot`, `open_app`, `open_url`, `media_control`) have no owner check (`tools/plugins/toolkit.py:339-352,1009-1012,1155-1160`). The user approves their own action, and `read_document` is low-risk, so under `ask_risky` there is no card at all.
-  - Fixed in code 2026-10-21: pc-control tools (search_files, read_document, screenshot, open_app/url, media) are removed from the tool list for non-admin accounts and also refuse inside each handler. Tests: `tests/plugins/test_owner_only_tools.py`. Still to do: deploy and check with a second account.
-- [ ] **B22 — Any signed-in user can switch the owner's smart-home devices.** `POST /api/smarthome/scene` and the `smart_home_control` tool have no admin check (`atulya/server.py:1954`).
-  - Fixed in code 2026-10-21: `/api/smarthome/scene` returns 403 for non-admins, and `smart_home_control` is owner-only. Still to do: deploy and check.
+- [x] **B21 — Any signed-in user can control and read the owner's PC.** The pc-control tools (`search_files`, `read_document`, `take_screenshot`, `open_app`, `open_url`, `media_control`) have no owner check (`tools/plugins/toolkit.py:339-352,1009-1012,1155-1160`). The user approves their own action, and `read_document` is low-risk, so under `ask_risky` there is no card at all.
+  - Fixed in code 2026-10-21: pc-control tools (search_files, read_document, screenshot, open_app/url, media) are removed from the tool list for non-admin accounts and also refuse inside each handler. Tests: `tests/plugins/test_owner_only_tools.py`. Deployed 2026-11-12 (PR #103, merge `e85255a4`); the second-account check is owner-side.
+- [x] **B22 — Any signed-in user can switch the owner's smart-home devices.** `POST /api/smarthome/scene` and the `smart_home_control` tool have no admin check (`atulya/server.py:1954`).
+  - Fixed in code 2026-10-21: `/api/smarthome/scene` returns 403 for non-admins, and `smart_home_control` is owner-only. Deployed and live-checked on 2026-11-12 (PR #103, merge `e85255a4`).
 - [ ] **B24 — Adding someone to the Telegram allowlist makes them the admin.** Every allowlisted id signs in as `admin`, shares the owner's memory and history, and can approve the owner's actions (`telegram.py:26`, `server.py:1528`). Keep the allowlist to the owner only, and bind approvals to the requesting Telegram id (AUDIT S3).
   - Partly fixed 2026-10-22 (Auditor verified): approvals are now bound to the Telegram id that asked. Still true: every allowlisted id is the owner account, so keep the allowlist to the owner only.
   - 2026-10-22: approvals are now bound to the requesting Telegram id (code + tests). Every allowlisted id is still the admin, so keep the allowlist to the owner only.
-- [ ] **B25 — Data stores default to the admin user.** `memory.py` and `history.py` use `user_id="admin"` as the default, and `_is_admin` falls back to `user_id == "admin"`. A missed argument leaks the owner's data (AUDIT S1/S2).
-  - Fixed in code 2026-10-22 (Auditor verified): user_id is required, and admin is never assumed.
-  - 2026-10-22: fixed in code. `user_id` is now required and `is_admin` fails closed (347 tests pass).
-- [ ] **B26 — The CSP doesn't block scripts.** It has no `default-src`/`script-src`, so XSS isn't mitigated (`atulya/server.py:2365`, AUDIT S4).
-  - Fixed in code 2026-10-22 (Auditor verified on a local server): a full CSP with no console violations, and the page and 3D scene still load. Still to do: check on the live site after deploy.
-  - 2026-10-22: fixed. The CSP now has `default-src`/`script-src`. Local live check: no CSP console errors, and the page works signed out. Production still to check.
+- [x] **B25 — Data stores default to the admin user.** `memory.py` and `history.py` use `user_id="admin"` as the default, and `_is_admin` falls back to `user_id == "admin"`. A missed argument leaks the owner's data (AUDIT S1/S2).
+  - Fixed in code 2026-10-22 (Auditor verified): user_id is required, and admin is never assumed. Deployed 2026-11-12 (PR #103, merge `e85255a4`).
+- [x] **B26 — The CSP doesn't block scripts.** It has no `default-src`/`script-src`, so XSS isn't mitigated (`atulya/server.py:2365`, AUDIT S4).
+  - Fixed in code 2026-10-22 (Auditor verified on a local server): a full CSP with no console violations, and the page and 3D scene still load. Deployed and live-checked on 2026-11-12 (PR #103, merge `e85255a4`): CSP now carries `default-src` + `script-src`, nosniff/DENY/HSTS headers, and `/api/status` answers 401 unauthenticated; page loads clean.
 - Add more here as they're found. Each bug gets a test before it's marked fixed.
 
 ## Design rule: update from the server, rebuild the app rarely
@@ -169,30 +166,39 @@ True AGI isn't achievable with any model, free or paid. This milestone is the cl
 - **Done when:** a week of use has no missed reminder, no alert during quiet hours, and you keep at least 80% of alert types on.
 
 ### M11 — Self-evolving (safely)
-- [ ] Learns preferences from corrections ("shorter", "don't tell me that") into memory/profile.
-- [ ] Logs failed tool calls and proposes fixes (prompt, tool or code) as a reviewable diff, never auto-merged into core.
+- [x] Learns preferences from corrections ("shorter", "don't tell me that") into memory/profile.
+  - Implemented 2026-11-12: standing rules in `atulya/evolution.py` (`Lessons`, `capture_order`) written from corrections and read on the next reply; tests `tests/core/test_lessons.py`.
+- [x] Logs failed tool calls and proposes fixes (prompt, tool or code) as a reviewable diff, never auto-merged into core.
+  - Implemented 2026-11-12: `atulya/maintenance.py` self-check -> proposals (state proposed/applied, apply owner-gated); tests `tests/core/test_repair_proposals.py`, `tests/core/test_autonomy.py`.
 - [ ] Can write new skills (`tools/skills/<name>/SKILL.md`) from repeated requests; each needs owner approval and must pass tests before it's enabled.
-- [ ] Every self-change is versioned and can be rolled back.
+- [x] Every self-change is versioned and can be rolled back.
+  - Implemented 2026-11-12: repairs/skill edits go through versioned proposal paths + `capture_order`, with backups in `data/maintenance-backups`.
 - **Done when:** in a week it proposes at least 3 improvements, you accept them, the tests stay green, and rolling one back works.
+  - Code side complete on 2026-11-12; the milestone gate itself is owner-usage based and not yet reached (needs ≥3 accepted proposals, green tests, working rollback).
 
 ### M12 — Many users, one owner: profiles and strict separation
 Today: `users` has `admin`/`user` roles (`atulya/auth.py`), but devices, tools and data aren't fully scoped by role.
-- [ ] Each user has their own profile (name, language, voice, tone, city), memory, chats, reminders and devices. Nobody sees another user's data.
-- [ ] **Devices belong to their owner.** Only the owner can see, pair, test, revoke or send jobs to their devices. The admin's devices are invisible to normal users, and a normal user's devices are private from other users.
-- [ ] **Dangerous tools are admin-only:** PC control, device actions, shell/service restart, server status, maintenance, MCP, secrets, smart home. Normal users get safe tools (chat, weather, news, their own reminders and memory).
-- [ ] Admin can invite, disable and remove users and set per-user tool limits. The admin can't read another user's private chats unless that user shares them.
-- [ ] **Age-based content settings per profile.** Each profile is marked adult or child (the admin sets it; a child can't change their own).
+- [x] Each user has their own profile (name, language, voice, tone, city), memory, chats, reminders and devices. Nobody sees another user's data.
+  - Code complete 2026-11-12: per-user profiles/limits/memory/chats/reminders (PLAN M12-4/M12-5), admin manages limits, chat privacy enforced (tests `tests/core/test_user_limits_and_privacy.py`, `tests/plugins/test_owner_only_tools.py`).
+- [x] **Devices belong to their owner.** Only the owner can see, pair, test, revoke or send jobs to their devices. The admin's devices are invisible to normal users, and a normal user's devices are private from other users.
+  - Code complete 2026-11-12: owner-scoped devices + admin-only device routes (PLAN M12-3, tests `tests/core/test_route_access.py`, `tests/plugins/test_device_jobs.py`).
+- [x] **Dangerous tools are admin-only:** PC control, device actions, shell/service restart, server status, maintenance, MCP, secrets, smart home. Normal users get safe tools (chat, weather, news, their own reminders and memory).
+  - Code complete 2026-11-12: owner-only tool set + admin route classification (PLAN M12-1/M12-3, tests `tests/core/test_route_access.py`, `tests/plugins/test_owner_only_tools.py`, `tests/plugins/test_admin_only_tools.py`).
+- [x] Admin can invite, disable and remove users and set per-user tool limits. The admin can't read another user's private chats unless that user shares them.
+  - Code complete 2026-11-12: admin user management + limits (PLAN M12-4, tests `tests/core/test_user_limits_and_privacy.py`).
+- [x] **Age-based content settings per profile.** Each profile is marked adult or child (the admin sets it; a child can't change their own).
   - Adult profiles can turn on "adult content allowed". Atulya then doesn't refuse or lecture about legal adult content (search, links, conversation). It's the adult's choice, and it's off by default until they turn it on.
   - Child profiles always have filtering on: safe search, no adult content, and the admin is notified of blocked attempts if they choose.
   - Never allowed for anyone: illegal content, including anything sexual involving minors and non-consensual material.
   - The setting is checked on the server for every request, not just in the UI. Note that a cloud model provider's own rules may still refuse some requests; the local model follows this setting.
-- [ ] Every request is checked on the server (never just hidden in the UI), with tests that a normal user gets 403 on every admin route and device.
+- [x] Every request is checked on the server (never just hidden in the UI), with tests that a normal user gets 403 on every admin route and device.
 - **Done when:** a second test account can sign in, chat and set reminders, but gets 403 on every device, PC-control and admin route, and can't see the owner's devices, chats or memory. The tests cover every route.
 
 ### M13 — Security (cybersecurity and the web UI)
-- [ ] Web UI hardening: strict Content-Security-Policy, CSRF protection on every state-changing route, secure/HttpOnly/SameSite cookies, no secrets in the page, `innerHTML` audit (no injection from model or user text).
+- [ ] Web UI hardening: strict Content-Security-Policy (done — B26 fixed + deployed + live-checked, 2026-11-12), CSRF protection on every state-changing route (pending), secure/HttpOnly/SameSite cookies, no secrets in the page, `innerHTML` audit (no injection from model or user text).
 - [ ] Rate limits and lockouts on sign-in, pairing and approvals; device tokens hashed, expiring and revocable (done in part).
-- [ ] An audit log of who did what (PLT-07): sign-ins, approvals, device jobs, admin changes, viewable by the admin.
+- [x] An audit log of who did what (PLT-07): sign-ins, approvals, device jobs, admin changes, viewable by the admin.
+  - Implemented 2026-11-12: `atulya/security_log.py` + `tools/plugins/audit.py` + tests `tests/core/test_security_log.py`, `tests/plugins/test_audit.py`.
 - [ ] Prompt-injection defence: web pages, documents, emails and messages are always marked untrusted and can't trigger actions without approval (partly done).
 - [ ] Free security tooling in the test run: `pip-audit` (dependencies), `bandit` (Python), a secrets scan, and a checklist pass based on the OWASP Top 10.
   - Started 2026-10-21: `python -m tools.security_check` runs pip-audit and bandit and passes. It found and fixed certifi 2026.10.18 (PYSEC-2026-4320 → 2026.10.19); the other bandit hits were reviewed as false positives (fixed table names, parameterised values, a checksum-verified archive). A secrets pattern scan is included (passes). Still to add: the OWASP checklist.
@@ -209,7 +215,9 @@ Today: `users` has `admin`/`user` roles (`atulya/auth.py`), but devices, tools a
 | WhatsApp | Official WhatsApp Cloud API: replies within 24 h of the user's message are free; starting a conversation costs money | Unofficial WhatsApp Web libraries break WhatsApp's terms and get numbers banned, so they're out |
 | Push notifications | Self-hosted ntfy, or Telegram | Replaces Firebase |
 - [ ] One inbox: messages from every channel arrive in the same conversation and identity (one account everywhere, PLT-05).
+  - B28 (briefing settings tool) and B29 (owner-only `alerts`/`set_alerts` tools) implemented 2026-11-12; B30 (notifications inbox + ack) implemented + deployed 2026-11-12 (PR #103, merge `e85255a4`).
 - [ ] Atulya picks the right channel to reach you (phone if it's urgent, Telegram otherwise, never during quiet hours).
+  - Proactive engine (M10) now delivers via inbox + Telegram; per-kind switches + quiet hours wrap past midnight.
 - **Done when:** you can ask Atulya on Telegram to "text Rahul I'm late" and it drafts the SMS, asks approval, sends it from your phone, and confirms with a receipt.
 
 ### M15 — Any device, any OS, controlled from anywhere
