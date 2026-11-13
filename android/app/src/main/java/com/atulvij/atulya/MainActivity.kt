@@ -93,6 +93,7 @@ class MainActivity : AppCompatActivity() {
         if (savedInstanceState != null) web.restoreState(savedInstanceState)
         pendingUrl = linkFrom(intent)
         checkForAppUpdate()
+    }
 
     /** Check the server for a newer signed APK; prompt to download if one exists. */
     private fun checkForAppUpdate() {
@@ -122,7 +123,6 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (_: Exception) { /* ignore: offline or no update */ }
         }.start()
-    }
     }
 
     override fun onPause() {
