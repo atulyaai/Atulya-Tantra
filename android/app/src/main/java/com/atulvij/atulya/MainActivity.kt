@@ -26,15 +26,12 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import java.net.URLEncoder
 import java.util.concurrent.Executors
-import androidx.activity.enableEdgeToEdge
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.biometric.BiometricPrompt
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.webkit.JavaScriptReplyProxy
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewCompat
@@ -77,17 +74,12 @@ class MainActivity : AppCompatActivity() {
         if (!BuildConfig.ALLOW_SCREENSHOTS) {
             window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
         }
+        // Android 15 (targetSdk 35) draws behind system bars by default; keep content in the safe area.
+        window.setDecorFitsSystemWindows(true)
         web = WebView(this)
         content = FrameLayout(this)
         content.addView(web, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         setContentView(content)
-        // Android 15 (targetSdk 35) draws behind system bars; keep content out of them.
-        enableEdgeToEdge()
-        ViewCompat.setOnApplyWindowInsetsListener(content) { view, insets ->
-            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-            insets
-        }
         configureWebView()
         phone = PhoneAgent(this, origin, ::composeSms, ::dial) { command ->
             when (command) {
